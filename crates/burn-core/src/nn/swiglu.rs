@@ -5,7 +5,7 @@ use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::activation::silu;
 use crate::tensor::{Tensor, backend::Backend};
 
-use super::{Initializer, Linear, LinearConfig};
+use super::{Initializer, Linear, LinearConfig, LinearLayout};
 
 /// Configuration to create a [SwiGlu](SwiGlu) activation layer using the [init function](SwiGluConfig::init).
 #[derive(Config, Debug)]
@@ -64,10 +64,12 @@ impl SwiGluConfig {
         SwiGlu {
             linear_inner: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
+                .with_layout(LinearLayout::Col)
                 .with_initializer(self.initializer.clone())
                 .init(device),
             linear_outer: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
+                .with_layout(LinearLayout::Col)
                 .with_initializer(self.initializer.clone())
                 .init(device),
         }

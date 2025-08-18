@@ -1,6 +1,5 @@
 use super::ParamId;
-use alloc::boxed::Box;
-use alloc::format;
+use alloc::{boxed::Box, format, sync::Arc};
 use burn_common::stub::RwLock;
 use core::cell::OnceCell;
 use core::ops::Deref;
@@ -41,12 +40,23 @@ pub struct Param<T: Parameter> {
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
-    record_mappers: RecordMappers<T>,
+    pub(crate) record_mappers: RecordMappers<T>,
 }
 
+#[derive(Clone)]
 pub struct RecordMappers<T: Parameter> {
-    load: Option<Box<dyn Fn(T) -> T + Send>>,
-    save: Option<Box<dyn Fn(T) -> T + Send>>,
+    load: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
+    save: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
+}
+
+impl<T: Parameter> core::fmt::Debug for RecordMappers<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!(
+            "RecordMappers {{ load: {}, save: {} }}",
+            self.load.is_some(),
+            self.save.is_some()
+        ))
+    }
 }
 
 impl<T: Parameter> RecordMappers<T> {
@@ -81,7 +91,7 @@ impl<T: Parameter> core::fmt::Display for Param<T> {
 
 impl<T: Parameter> core::fmt::Debug for Param<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("Param: {}", self.id).as_str())
+        f.write_str(format!("Param: {} - {:?}", self.id, self.record_mappers).as_str())
     }
 }
 
@@ -186,15 +196,15 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Runs a transformation on the parameter when loading a saved record.
-    pub fn load_mapper<F: Fn(T) -> T + Send + 'static>(mut self, func: F) -> Self {
-        self.record_mappers.load = Some(Box::new(func));
+    pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
+        self.record_mappers.load = Some(Arc::new(func));
 
         self
     }
 
     /// Runs a transformation on the parameter when saving the record.
-    pub fn save_mapper<F: Fn(T) -> T + Send + 'static>(mut self, func: F) -> Self {
-        self.record_mappers.save = Some(Box::new(func));
+    pub fn save_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
+        self.record_mappers.save = Some(Arc::new(func));
 
         self
     }
@@ -310,7 +320,9 @@ impl<T: Parameter> Param<T> {
 
 impl<T: Parameter> Clone for Param<T> {
     fn clone(&self) -> Self {
-        Param::initialized(self.id, self.val())
+        let mut param = Param::initialized(self.id, self.val());
+        param.record_mappers = self.record_mappers.clone();
+        param
     }
 }
 

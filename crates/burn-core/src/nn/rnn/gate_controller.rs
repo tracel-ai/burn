@@ -79,6 +79,7 @@ impl<B: Backend> GateController<B> {
             d_output,
             bias,
             initializer: initializer.clone(),
+            layout: LinearLayout::Row,
         }
         .init(&input_record.weight.device())
         .load_record(input_record);
@@ -87,6 +88,7 @@ impl<B: Backend> GateController<B> {
             d_output,
             bias,
             initializer,
+            layout: LinearLayout::Row,
         }
         .init(&hidden_record.weight.device())
         .load_record(hidden_record);

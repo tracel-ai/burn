@@ -106,7 +106,8 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, record_mappers) = record.consume();
+        let (new_id, mut new_value, _record_mappers) = record.consume();
+        let record_mappers = self.record_mappers.clone();
 
         let expected_device = self.lazy_device();
         let expected_require_grad = self.lazy_is_require_grad();
@@ -189,7 +190,8 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, mappers) = record.consume();
+        let (new_id, mut new_value, _mappers) = record.consume();
+        let mappers = self.record_mappers.clone();
 
         let expected_device = self.lazy_device();
 
@@ -259,7 +261,8 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, mappers) = record.consume();
+        let (new_id, mut new_value, _mappers) = record.consume();
+        let mappers = self.record_mappers.clone();
 
         let expected_device = self.lazy_device();
 

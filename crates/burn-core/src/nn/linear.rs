@@ -71,11 +71,21 @@ impl LinearConfig {
                     .init_with(shape, Some(self.d_output), Some(self.d_input), device)
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
-                    .save_mapper(|tensor| tensor.transpose())
+                    .save_mapper(|tensor| {
+                        println!("Save mapper {:?}", tensor.shape());
+                        tensor.transpose()
+                    })
                     // When loading from record we have to transpose.
-                    .load_mapper(|tensor| tensor.transpose())
+                    .load_mapper(|tensor| {
+                        println!("Transposing tensor {:?}", tensor.shape());
+                        B::sync(&tensor.device());
+                        tensor.transpose()
+                    })
                     // When loading from initialization, we have to transpose.
-                    .lazy_map(|tensor| tensor.transpose())
+                    .lazy_map(|tensor| {
+                        B::sync(&tensor.device());
+                        tensor.transpose()
+                    })
             }
         };
         let bias = if self.bias {

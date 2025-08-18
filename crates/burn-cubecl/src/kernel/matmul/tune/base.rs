@@ -269,6 +269,8 @@ fn simple_unit_max<R: CubeRuntime, E: FloatElement>(
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), String> {
+    println!("LHS {:?} - {:?}", lhs.shape, lhs.strides);
+    println!("RHS {:?} - {:?}", rhs.shape, rhs.strides);
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
             tile_size: TileSizeSelection::MaxTileSize,
