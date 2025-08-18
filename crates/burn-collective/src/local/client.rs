@@ -51,30 +51,27 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// * `id` - The peer id of the caller
     /// * `tensor` - The input tensor to reduce with the peers' tensors
     /// * `config` - Config of the collective operation, must be coherent with the other calls
-    pub fn all_reduce<const D: usize>(
+    pub fn all_reduce(
         &self,
         id: PeerId,
-        tensor: Tensor<B, D>,
+        tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
-    ) -> AllReduceResult<Tensor<B, D>> {
+    ) -> AllReduceResult<B::FloatTensorPrimitive> {
         let (callback, rec) =
             std::sync::mpsc::sync_channel::<AllReduceResult<B::FloatTensorPrimitive>>(1);
 
         let msg = Message::AllReduce {
             device_id: id,
-            tensor: tensor.into_primitive().tensor(),
+            tensor,
             op,
             callback,
         };
 
         self.channel.send(msg).unwrap();
 
-        let primitive = rec
+        let tensor = rec
             .recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
-
-        // The resulting tensor should be on the correct device
-        let tensor = Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive));
 
         Ok(tensor)
     }

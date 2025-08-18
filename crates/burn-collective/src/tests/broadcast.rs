@@ -2,7 +2,7 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_common::rand::get_seeded_rng;
-    use burn_tensor::{backend::Backend, Shape, Tensor, TensorData, TensorPrimitive, Tolerance};
+    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 

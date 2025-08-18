@@ -22,7 +22,7 @@ pub struct ReduceOp<B: Backend> {
 }
 
 /// Struct for each device that calls an reduce operation
-struct ReduceOpCall<B: Backend> {
+pub struct ReduceOpCall<B: Backend> {
     /// Id of the caller of the operation
     caller: PeerId,
     /// The tensor primitive passed as input
@@ -31,35 +31,45 @@ struct ReduceOpCall<B: Backend> {
     result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
 }
 
+impl<B: Backend> ReduceOpCall<B> {
+    pub fn new(
+        caller: PeerId,
+        input: B::FloatTensorPrimitive,
+        result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
+    ) -> Self {
+        Self {
+            caller,
+            input,
+            result_sender,
+        }
+    }
+}
+
 /// Type sent to the collective client upon completion of a reduce aggregation
 pub(crate) type ReduceResult<T> = Result<Option<T>, CollectiveError>;
 
 impl<B: Backend> ReduceOp<B> {
     pub fn new(shape: Shape, reduce_op: ReduceOperation, root: PeerId) -> Self {
-        let operation = Self {
+        Self {
             calls: vec![],
             op: reduce_op,
             root,
             shape,
-        };
-
-        operation
+        }
     }
 
     /// Register a call to reduce in this operation.
     /// When the last caller registers a reduce, the operation is executed.
     pub async fn register_call(
         &mut self,
-        caller: PeerId,
-        tensor: B::FloatTensorPrimitive,
+        call: ReduceOpCall<B>,
         op: ReduceOperation,
         root: PeerId,
-        callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
-        peers: &Vec<PeerId>,
+        peers: &[PeerId],
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
     ) {
-        if self.shape != tensor.shape() {
+        if self.shape != call.input.shape() {
             self.send_err_to_all(CollectiveError::ReduceShapeMismatch);
             return;
         }
@@ -72,11 +82,7 @@ impl<B: Backend> ReduceOp<B> {
             return;
         }
 
-        self.calls.push(ReduceOpCall {
-            caller,
-            input: tensor,
-            result_sender: callback,
-        });
+        self.calls.push(call);
 
         let tensor_count = self.calls.len();
         if tensor_count == peers.len() {
@@ -145,9 +151,7 @@ impl<B: Backend> ReduceOp<B> {
     /// Send a collective error as result to operation caller
     fn send_err_to_all(&mut self, err: CollectiveError) {
         self.calls.drain(..).for_each(|op| {
-            op.result_sender
-                .send(Err(err.clone()))
-                .unwrap();
+            op.result_sender.send(Err(err.clone())).unwrap();
         });
     }
 }

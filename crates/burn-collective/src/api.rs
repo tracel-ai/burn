@@ -67,11 +67,11 @@ pub fn register<B: Backend>(
 /// * `id` - The peer id of the caller
 /// * `tensor` - The input tensor to reduce with the peers' tensors
 /// * `config` - Config of the collective operation, must be coherent with the other calls
-pub fn all_reduce<B: Backend, const D: usize>(
+pub fn all_reduce<B: Backend>(
     id: PeerId,
-    tensor: Tensor<B, D>,
+    tensor: B::FloatTensorPrimitive,
     op: ReduceOperation,
-) -> Result<Tensor<B, D>, CollectiveError> {
+) -> Result<B::FloatTensorPrimitive, CollectiveError> {
     let client = get_collective_client::<B>();
     client.all_reduce(id, tensor, op)
 }

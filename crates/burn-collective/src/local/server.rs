@@ -15,8 +15,8 @@ use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
     local::{
-        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
-        client::LocalCollectiveClient,
+        AllReduceOp, AllReduceOpCall, AllReduceResult, BroadcastOp, BroadcastOpCall,
+        BroadcastResult, ReduceOp, ReduceOpCall, ReduceResult, client::LocalCollectiveClient,
     },
 };
 
@@ -302,12 +302,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
     /// callback
     async fn process_all_reduce_message(
         &mut self,
-        device_id: PeerId,
+        peer_id: PeerId,
         tensor: <B as Backend>::FloatTensorPrimitive,
         op: ReduceOperation,
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     ) {
-        if !self.peers.contains(&device_id) {
+        if !self.peers.contains(&peer_id) {
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -321,12 +321,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let all_reduce_op = self.all_reduce_op.as_mut().unwrap();
 
         // On the last caller, the all-reduce is done here
+        let call = AllReduceOpCall::new(peer_id, tensor, callback.clone());
         all_reduce_op
             .register_call(
-                peer_id,
-                tensor,
+                call,
                 op,
-                callback.clone(),
                 &self.peers,
                 self.config.as_ref().unwrap(),
                 &mut self.global_client,
@@ -357,13 +356,12 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let reduce_op = self.reduce_op.as_mut().unwrap();
 
         // On the last caller, the reduce is done here
+        let call = ReduceOpCall::new(peer_id, tensor, callback.clone());
         reduce_op
             .register_call(
-                peer_id,
-                tensor,
+                call,
                 op,
                 root,
-                callback.clone(),
                 &self.peers,
                 self.config.as_ref().unwrap(),
                 &mut self.global_client,
@@ -393,12 +391,11 @@ impl<B: Backend> LocalCollectiveServer<B> {
         let device = self.devices.get(&caller).unwrap().clone();
 
         // On the last caller, the all-reduce is done here
+        let call = BroadcastOpCall::new(caller, device, callback.clone());
         broadcast_op
             .register_call(
-                caller,
-                device,
+                call,
                 tensor,
-                callback.clone(),
                 &self.peers,
                 self.config.as_ref().unwrap(),
                 &mut self.global_client,
