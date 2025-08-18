@@ -162,29 +162,29 @@ where
     ///   SamplerDataset,
     ///   SamplerDatasetOptions,
     /// };
-    /// use burn_dataset::FakeDataset;
+    ///
+    /// // Examples below assuming `dataset.len()` = `10`.
     ///
     /// // sample size: 5
     /// // WithReplacement
     /// // rng: StdRng::from_os_rng()
-    /// SamplerDataset::new(FakeDataset::<String>::new(10), 5);
+    /// SamplerDataset::new(dataset, 5);
     ///
-    /// // sample size: 10
+    /// // sample size: 10 (source)
     /// // WithReplacement
     /// // rng: StdRng::from_os_rng()
-    /// SamplerDataset::new(
-    ///   FakeDataset::<String>::new(10),
-    ///   SamplerDatasetOptions::default());
+    /// SamplerDataset::new(dataset, SamplerDatasetOptions::default());
     ///
     /// // sample size: 15
     /// // WithoutReplacement
     /// // rng: StdRng::seed_from_u64(42)
     /// SamplerDataset::new(
-    ///   FakeDataset::<String>::new(10),
+    ///   dataset,
     ///   SamplerDatasetOptions::default()
     ///     .with_size(1.5)
     ///     .without_replacement()
-    ///     .with_rng(42));
+    ///     .with_rng(42),
+    /// );
     /// ```
     pub fn new<O>(dataset: D, options: O) -> Self
     where
@@ -247,7 +247,7 @@ where
     /// # Returns
     /// - `true`: If the sampler is configured to sample with replacement.
     /// - `false`: If the sampler is configured to sample without replacement.
-    pub fn uses_replacement(&self) -> bool {
+    pub fn is_with_replacement(&self) -> bool {
         match self.state.lock().unwrap().deref_mut() {
             SamplerState::WithReplacement(_) => true,
             SamplerState::WithoutReplacement(_, _) => false,
@@ -351,17 +351,17 @@ mod tests {
         let ds = SamplerDataset::new(FakeDataset::<u32>::new(10), 15);
         assert_eq!(ds.len(), 15);
         assert_eq!(ds.dataset.len(), 10);
-        assert!(ds.uses_replacement());
+        assert!(ds.is_with_replacement());
 
         let ds = SamplerDataset::with_replacement(FakeDataset::<u32>::new(10), 15);
         assert_eq!(ds.len(), 15);
         assert_eq!(ds.dataset.len(), 10);
-        assert!(ds.uses_replacement());
+        assert!(ds.is_with_replacement());
 
         let ds = SamplerDataset::without_replacement(FakeDataset::<u32>::new(10), 15);
         assert_eq!(ds.len(), 15);
         assert_eq!(ds.dataset.len(), 10);
-        assert!(!ds.uses_replacement());
+        assert!(!ds.is_with_replacement());
     }
 
     #[test]
