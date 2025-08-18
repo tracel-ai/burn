@@ -106,7 +106,7 @@ mod tests {
         let rng = StdRng::seed_from_u64(42);
         assert_eq!(RngSource::from(rng.clone()), RngSource::Rng(rng.clone()));
         assert_eq!(
-            <RngSource as Into<StdRng>>::into(RngSource::from(rng.clone()).into()),
+            <RngSource as Into<StdRng>>::into(RngSource::from(rng.clone())),
             rng.clone()
         );
         let self1 = &RngSource::from(rng.clone());
@@ -122,7 +122,7 @@ mod tests {
         // from seed.
         assert_eq!(RngSource::from(42), RngSource::Seed(42));
         assert_eq!(
-            <RngSource as Into<StdRng>>::into(RngSource::from(42).into()),
+            <RngSource as Into<StdRng>>::into(RngSource::from(42)),
             StdRng::seed_from_u64(42)
         );
         let self1 = &RngSource::from(42);

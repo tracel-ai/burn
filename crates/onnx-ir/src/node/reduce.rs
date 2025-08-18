@@ -122,6 +122,8 @@ pub fn reduce_update_outputs(node: &mut Node) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::bool_assert_comparison)]
+
     use super::*;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
