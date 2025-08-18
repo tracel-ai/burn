@@ -1,10 +1,12 @@
 use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
-    local::server::{
-        AllReduceResult, BroadcastResult, FinishResult, Message, ReduceResult, RegisterResult,
+    local::{
+        BroadcastResult, ReduceResult,
+        all_reduce::AllReduceResult,
+        server::{FinishResult, Message, RegisterResult},
     },
 };
-use burn_tensor::{Tensor, backend::Backend};
+use burn_tensor::backend::Backend;
 use std::sync::mpsc::SyncSender;
 
 /// Local client to communicate with the local server. Each thread has a client.
@@ -67,12 +69,11 @@ impl<B: Backend> LocalCollectiveClient<B> {
 
         self.channel.send(msg).unwrap();
 
-        let primitive = rec
+        let tensor = rec
             .recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
 
-        // The resulting tensor should be on the correct device
-        Ok(primitive)
+        Ok(tensor)
     }
 
     /// Reduces a tensor onto one device.
@@ -83,18 +84,18 @@ impl<B: Backend> LocalCollectiveClient<B> {
     /// * `root` - The ID of the peer that will receive the result.
     ///
     /// Returns Ok(None) if the root tensor is not the caller. Otherwise, returns the reduced tensor.
-    pub fn reduce<const D: usize>(
+    pub fn reduce(
         &self,
         id: PeerId,
-        tensor: Tensor<B, D>,
+        tensor: B::FloatTensorPrimitive,
         op: ReduceOperation,
         root: PeerId,
-    ) -> ReduceResult<Tensor<B, D>> {
+    ) -> ReduceResult<B::FloatTensorPrimitive> {
         let (callback, rec) =
             std::sync::mpsc::sync_channel::<ReduceResult<B::FloatTensorPrimitive>>(1);
         let msg = Message::Reduce {
             device_id: id,
-            tensor: tensor.into_primitive().tensor(),
+            tensor,
             op,
             root,
             callback,
@@ -103,13 +104,9 @@ impl<B: Backend> LocalCollectiveClient<B> {
         self.channel.send(msg).unwrap();
 
         // returns a tensor or none depending on if this device is the root
-        let primitive = rec
+        let tensor = rec
             .recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
-
-        let tensor = primitive.map(|primitive| {
-            Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive))
-        });
 
         Ok(tensor)
     }
@@ -121,13 +118,11 @@ impl<B: Backend> LocalCollectiveClient<B> {
     ///   the broadcasted tensor.
     ///
     /// Returns the broadcasted tensor.
-    pub fn broadcast<const D: usize>(
+    pub fn broadcast(
         &self,
         id: PeerId,
-        tensor: Option<Tensor<B, D>>,
-    ) -> BroadcastResult<Tensor<B, D>> {
-        let tensor = tensor.map(|tensor| tensor.into_primitive().tensor());
-
+        tensor: Option<B::FloatTensorPrimitive>,
+    ) -> BroadcastResult<B::FloatTensorPrimitive> {
         let (callback, rec) =
             std::sync::mpsc::sync_channel::<BroadcastResult<B::FloatTensorPrimitive>>(1);
         let msg = Message::Broadcast {
@@ -139,11 +134,9 @@ impl<B: Backend> LocalCollectiveClient<B> {
         self.channel.send(msg).unwrap();
 
         // returns a tensor or none depending on if this device is the root
-        let primitive = rec
+        let tensor = rec
             .recv()
             .unwrap_or(Err(CollectiveError::LocalServerMissing))?;
-
-        let tensor = Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(primitive));
 
         Ok(tensor)
     }

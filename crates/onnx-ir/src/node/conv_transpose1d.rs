@@ -53,7 +53,7 @@ impl ConvTranspose1dConfig {
 
 /// Create a ConvTranspose1dConfig from the attributes of the node
 pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
-    let mut kernel_shape = Vec::new(); // Default to empty vector
+    let mut kernel_shape = Vec::new();
     let mut stride = vec![1]; // Default stride to 1
     let mut pads = vec![0, 0]; // Default padding to 0
     let mut dilations = vec![1]; // Default dilation to 1
@@ -98,10 +98,25 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let channels_in = weight_shape[1] * group;
     let channels_out = weight_shape[0];
 
+    let kernel_size = if kernel_shape.is_empty() {
+        // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
+        // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
+        if weight_shape.len() != 3 {
+            panic!(
+                "expected to infer kernel shape from a weight tensor of rank 3 but got shape {weight_shape:?}"
+            );
+        }
+
+        weight_shape[2]
+    } else {
+        // Was set explicitly via attributes- use that
+        kernel_shape[0] as _
+    };
+
     ConvTranspose1dConfig {
         channels_in,
         channels_out,
-        kernel_size: kernel_shape[0] as usize,
+        kernel_size,
         stride: stride[0] as usize,
         padding: pads[0] as usize,
         dilation: dilations[0] as usize,
@@ -117,6 +132,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
+    #[allow(clippy::too_many_arguments)]
     fn create_test_node(
         kernel_shape: Vec<i64>,
         stride: Vec<i64>,
@@ -129,6 +145,8 @@ mod tests {
     ) -> Node {
         // Create weight tensor data
         let weight_data = vec![0.1; 16];
+
+        let has_kernel_shape = !kernel_shape.is_empty();
 
         // Start building the node with input and weight
         let mut builder = NodeBuilder::new(NodeType::ConvTranspose1d, "test_conv_transpose1d")
@@ -147,7 +165,6 @@ mod tests {
 
         // Add attributes
         builder = builder
-            .attr_ints("kernel_shape", kernel_shape)
             .attr_ints("strides", stride)
             .attr_ints("pads", pads)
             .attr_ints("dilations", dilations)
@@ -156,6 +173,10 @@ mod tests {
 
         if let Some(auto_pad) = auto_pad {
             builder = builder.attr_string("auto_pad", auto_pad);
+        }
+
+        if has_kernel_shape {
+            builder = builder.attr_ints("kernel_shape", kernel_shape);
         }
 
         builder.build()
@@ -266,5 +287,22 @@ mod tests {
             Some("SAME_UPPER"),
         );
         let _config = conv_transpose1d_config(&node);
+    }
+
+    #[test]
+    fn test_conv_transpose1d_config_kernel_shape_not_set() {
+        let node = create_test_node(
+            vec![],
+            vec![1],
+            vec![0, 0],
+            vec![1],
+            1,
+            vec![0],
+            false,
+            None,
+        );
+        let config = conv_transpose1d_config(&node);
+
+        assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }
 }

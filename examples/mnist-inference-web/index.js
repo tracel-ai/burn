@@ -86,7 +86,8 @@ export function cropImageFromCanvas(ctx) {
             let r = imageData.data[index];
             let g = imageData.data[index + 1];
             let b = imageData.data[index + 2];
-            if (Math.min(r, g, b) != 255) {
+            // On some browsers the canvas has a grey border which prevents cropping if we do min != 255
+            if (Math.min(r, g, b) < 240) {
                 pix.x.push(x);
                 pix.y.push(y);
             }

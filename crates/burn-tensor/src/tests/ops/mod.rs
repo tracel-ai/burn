@@ -20,6 +20,7 @@ mod cos;
 mod cosh;
 mod create_like;
 mod div;
+mod dot;
 mod erf;
 mod exp;
 mod expand;

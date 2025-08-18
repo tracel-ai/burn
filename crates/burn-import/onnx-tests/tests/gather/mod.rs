@@ -54,9 +54,9 @@ mod tests {
         // shape(input) = [2, 3]
         let index = Tensor::<Backend, 1, Int>::from_ints([0], &device);
         let output = model.forward(input, index);
-        let expected = TensorData::from([2i64]);
+        let expected = [2i64];
 
-        assert_eq!(output.to_data(), expected);
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -83,7 +83,8 @@ mod tests {
         let index = 1;
         let output = model.forward(input, index);
 
-        assert_eq!(output, 2f32);
+        let expected = 2.0f32;
+        assert_eq!(output, expected);
     }
 
     #[test]

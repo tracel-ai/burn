@@ -2,7 +2,7 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_common::rand::get_seeded_rng;
-    use burn_tensor::{Shape, Tensor, TensorData, Tolerance, backend::Backend};
+    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
@@ -35,8 +35,9 @@ mod tests {
 
         register::<B>(id, device.clone(), config).unwrap();
 
-        let tensor = input.map(|data| Tensor::<B, 1>::from_data(data, &device));
-        let tensor = broadcast(id, tensor).unwrap();
+        let tensor = input.map(|data| B::float_from_data(data, &device));
+        let tensor = broadcast::<B>(id, tensor).unwrap();
+        let tensor = Tensor::<B, 1>::from_primitive(TensorPrimitive::Float(tensor));
 
         output.send(tensor).unwrap();
     }

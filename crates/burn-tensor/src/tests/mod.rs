@@ -204,6 +204,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_cosh!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
+        burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
         burn_tensor::testgen_exp!();
         burn_tensor::testgen_flatten!();

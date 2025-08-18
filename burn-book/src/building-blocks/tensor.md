@@ -203,8 +203,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.contains_nan()`                                         | N/A                                            |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
+| `tensor.dot()`                                                  | `torch.dot()`                                  |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
-| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           |
+| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)`          |
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |

@@ -1,7 +1,6 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
-    collective::{AllReduceStrategy, CollectiveConfig},
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
@@ -20,10 +19,10 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 10)]
+    #[config(default = 30)]
     pub num_epochs: usize,
 
-    #[config(default = 64)]
+    #[config(default = 256)]
     pub batch_size: usize,
 
     #[config(default = 4)]
@@ -65,10 +64,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
-    // for collective ops
-    let collective =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(3));
-
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(AccuracyMetric::new())
@@ -87,12 +82,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 1 },
+            StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
-        .learning_strategy(burn::train::ddp(vec![device], collective))
         .num_epochs(config.num_epochs)
         .summary()
-        .build(model, config.optimizer.init(), 1e-4);
+        .learning_strategy(burn::train::LearningStrategy::SingleDevice(device.clone()))
+        .build(model, config.optimizer.init(), 1.0e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
