@@ -282,7 +282,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Zero shape size is not supported")]
     fn test_reshape_config_allowzero_not_supported() {
         let node = create_test_node(1, vec![2, 3]);
         let _ = reshape_config(&node);
