@@ -10,4 +10,3 @@ mod unary;
 
 mod base;
 pub use base::NoOp;
-pub(crate) use base::*;

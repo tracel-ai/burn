@@ -14,6 +14,7 @@ use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
+/// Get the client for the given device.
 pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
     CLIENTS.client::<B::FusionRuntime>(device)
 }
