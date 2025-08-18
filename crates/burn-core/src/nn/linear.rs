@@ -24,6 +24,20 @@ pub struct LinearConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The layout in which the linear parameters are stored.
+    #[config(default = "LinearLayout::Row")]
+    pub layout: LinearLayout,
+}
+
+#[derive(Config, Debug, Copy)]
+/// The layout in which the linear parameters are stored.
+///
+/// This can have performance impacts.
+pub enum LinearLayout {
+    /// Parameters are stored in Row major.
+    Row,
+    /// Parameters are stored in Col major.
+    Col,
 }
 
 /// Applies a linear transformation to the input tensor.
@@ -45,10 +59,25 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
-        let shape = [self.d_input, self.d_output];
-        let weight =
-            self.initializer
-                .init_with(shape, Some(self.d_input), Some(self.d_output), device);
+        let weight = match self.layout {
+            LinearLayout::Row => {
+                let shape = [self.d_input, self.d_output];
+                self.initializer
+                    .init_with(shape, Some(self.d_input), Some(self.d_output), device)
+            }
+            LinearLayout::Col => {
+                let shape = [self.d_output, self.d_input];
+                self.initializer
+                    .init_with(shape, Some(self.d_output), Some(self.d_input), device)
+                    // The param is already transposed when init. We re-transpose to have
+                    // [d_output, d_input] while saving.
+                    .save_mapper(|tensor| tensor.transpose())
+                    // When loading from record we have to transpose.
+                    .load_mapper(|tensor| tensor.transpose())
+                    // When loading from initialization, we have to transpose.
+                    .lazy_map(|tensor| tensor.transpose())
+            }
+        };
         let bias = if self.bias {
             Some(self.initializer.init_with(
                 [self.d_output],

@@ -1,7 +1,7 @@
 use crate as burn;
 
 use crate::module::Module;
-use crate::nn::{Initializer, Linear, LinearConfig};
+use crate::nn::{Initializer, Linear, LinearConfig, LinearLayout};
 use crate::tensor::{Tensor, backend::Backend};
 
 /// A GateController represents a gate in an LSTM cell. An
@@ -35,6 +35,7 @@ impl<B: Backend> GateController<B> {
                 d_output,
                 bias,
                 initializer: initializer.clone(),
+                layout: LinearLayout::Row,
             }
             .init(device),
             hidden_transform: LinearConfig {
@@ -42,6 +43,7 @@ impl<B: Backend> GateController<B> {
                 d_output,
                 bias,
                 initializer,
+                layout: LinearLayout::Row,
             }
             .init(device),
         }

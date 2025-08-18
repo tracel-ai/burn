@@ -41,6 +41,36 @@ pub struct Param<T: Parameter> {
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
+    record_mappers: RecordMappers<T>,
+}
+
+pub struct RecordMappers<T: Parameter> {
+    load: Option<Box<dyn Fn(T) -> T + Send>>,
+    save: Option<Box<dyn Fn(T) -> T + Send>>,
+}
+
+impl<T: Parameter> RecordMappers<T> {
+    pub fn on_load(&self, param: T) -> T {
+        match &self.load {
+            Some(mapper) => mapper(param),
+            None => param,
+        }
+    }
+    pub fn on_save(&self, param: T) -> T {
+        match &self.save {
+            Some(mapper) => mapper(param),
+            None => param,
+        }
+    }
+}
+
+impl<T: Parameter> Default for RecordMappers<T> {
+    fn default() -> Self {
+        Self {
+            load: None,
+            save: None,
+        }
+    }
 }
 
 impl<T: Parameter> core::fmt::Display for Param<T> {
@@ -91,6 +121,7 @@ impl<T: Parameter> Param<T> {
             id,
             state: OnceCell::from(value),
             initialization: None,
+            record_mappers: Default::default(),
         }
     }
 
@@ -107,6 +138,7 @@ impl<T: Parameter> Param<T> {
                 device,
                 is_require_grad,
             }))),
+            record_mappers: Default::default(),
         }
     }
 
@@ -132,23 +164,70 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Gets the parameter id and value while consuming the parameter.
-    pub fn consume(self) -> (ParamId, T) {
+    pub fn consume(self) -> (ParamId, T, RecordMappers<T>) {
         let tensor = self.val();
 
         core::mem::drop(self.state);
 
-        (self.id, tensor)
+        (self.id, tensor, self.record_mappers)
     }
 
     /// Execute the given function on the inner value.
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
-        let (id, tensor) = self.consume();
+        let (id, tensor, record_mappers) = self.consume();
         let tensor = func(tensor);
 
         Self {
             id,
             state: OnceCell::from(tensor),
             initialization: None,
+            record_mappers,
+        }
+    }
+
+    /// Runs a transformation on the parameter when loading a saved record.
+    pub fn load_mapper<F: Fn(T) -> T + Send + 'static>(mut self, func: F) -> Self {
+        self.record_mappers.load = Some(Box::new(func));
+
+        self
+    }
+
+    /// Runs a transformation on the parameter when saving the record.
+    pub fn save_mapper<F: Fn(T) -> T + Send + 'static>(mut self, func: F) -> Self {
+        self.record_mappers.save = Some(Box::new(func));
+
+        self
+    }
+
+    /// Execute the given function on the inner value.
+    pub fn lazy_map<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
+    where
+        T: 'static,
+    {
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.map(func),
+        };
+
+        let mut init = initialization.write().unwrap();
+
+        match init.as_mut() {
+            Some(value) => {
+                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
+                    Box::new(|_, _| panic!("Fake func to not have null ref."));
+                core::mem::swap(&mut prev, &mut value.init);
+
+                value.init = Box::new(|a, b| {
+                    let tensor = prev(a, b);
+                    func(tensor)
+                });
+                core::mem::drop(init);
+                self
+            }
+            None => {
+                core::mem::drop(init);
+                self.map(func)
+            }
         }
     }
 
