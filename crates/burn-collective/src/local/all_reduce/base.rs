@@ -27,7 +27,7 @@ pub struct AllReduceOpCall<B: Backend> {
     /// Id of the caller for this operation
     caller: PeerId,
     /// The tensor primitive passed as input
-    input: B::FloatTensorPrimitive,
+    input: Option<B::FloatTensorPrimitive>,
     /// Callback for the result of the all-reduce
     result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
 }
@@ -66,7 +66,7 @@ impl<B: Backend> AllReduceOp<B> {
 
         self.calls.push(AllReduceOpCall {
             caller,
-            input,
+            input: Some(input),
             result_sender,
         });
 
@@ -103,8 +103,8 @@ impl<B: Backend> AllReduceOp<B> {
         global_client: &mut Option<Node<B, WebSocket>>,
     ) -> Result<HashMap<PeerId, B::FloatTensorPrimitive>, CollectiveError> {
         let mut tensors = HashMap::new();
-        for call in &self.calls {
-            tensors.insert(call.caller, call.input.clone());
+        for call in &mut self.calls {
+            tensors.insert(call.caller, call.input.take().unwrap());
         }
 
         let op = self.op;

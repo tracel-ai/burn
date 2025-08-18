@@ -157,7 +157,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                 }
             }
 
-            println!(
+            eprintln!(
                 "[{}] Iteration {}: step: {:?}, sync: {:?}, optim: {:?}",
                 peer_id, iteration, total_step, total_sync, total_optim
             );

@@ -26,6 +26,8 @@ use burn::{
         },
     },
 };
+#[cfg(feature = "ddp")]
+use burn::collective::{CollectiveConfig, AllReduceStrategy};
 use std::sync::Arc;
 
 // Define configuration struct for the experiment
