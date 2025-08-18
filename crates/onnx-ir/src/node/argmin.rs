@@ -80,29 +80,30 @@ pub fn argmin_update_outputs(node: &mut Node) {
 
     // For burn compatibility, argmin always outputs a tensor
     // When keepdims=false, we still output a tensor but with adjusted rank
-    let output_rank = if config.keepdims {
+    if config.keepdims {
         // keepdims=true: output rank same as input rank (dimension becomes 1)
-        tensor.rank
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            rank: tensor.rank,
+            static_shape: None,
+        });
+    } else if tensor.rank == 1 {
+        // keepdims=false on 1D tensor: output is scalar
+        node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
     } else {
-        // keepdims=false: output rank is input rank - 1 (dimension is removed)
-        // But ensure minimum rank of 1 for burn compatibility
-        if tensor.rank == 0 {
-            panic!("Cannot reduce rank 0 tensor with keepdims=false");
-        }
-        (tensor.rank - 1).max(1)
-    };
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: ElementType::Int64,
-        rank: output_rank,
-        static_shape: None,
-    });
+        // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            rank: tensor.rank - 1,
+            static_shape: None,
+        });
+    }
 
     log::debug!(
-        "ArgMin output rank for {} (keepdims={}): {}",
+        "ArgMin output for {} (keepdims={}): {:?}",
         node.name,
         config.keepdims,
-        output_rank
+        node.outputs[0].ty
     );
 }
 
@@ -227,8 +228,8 @@ mod tests {
     }
 
     #[test]
-    fn test_argmin_update_outputs_keepdims_0_min_rank() {
-        // Test argmin with keepdims=0 on 1D tensor - should maintain rank 1 for burn compatibility
+    fn test_argmin_update_outputs_keepdims_0_scalar() {
+        // Test argmin with keepdims=0 on 1D tensor - should output scalar
         let mut node = NodeBuilder::new(NodeType::ArgMin, "test_argmin_1d_keepdims_0")
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
@@ -238,13 +239,12 @@ mod tests {
 
         argmin_update_outputs(&mut node);
 
-        // Should output tensor with rank 1 (1 - 1 = 0, max(0, 1) = 1)
+        // Should output scalar (rank 0)
         match &node.outputs[0].ty {
-            ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.rank, 1);
-                assert_eq!(tensor.elem_type, crate::ir::ElementType::Int64);
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, crate::ir::ElementType::Int64);
             }
-            other => panic!("Expected tensor output, got {:?}", other),
+            other => panic!("Expected scalar output, got {:?}", other),
         }
     }
 }

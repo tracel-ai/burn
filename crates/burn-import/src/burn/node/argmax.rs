@@ -7,16 +7,26 @@ use quote::quote;
 #[derive(Debug, Clone, new)]
 pub struct ArgMaxNode {
     pub input: TensorType,
-    pub output: TensorType,
+    pub output: Type,
     pub axis: usize,
     pub keepdims: bool,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
     fn output_types(&self) -> Vec<Type> {
-        let mut output = self.output.clone();
-        output.kind = TensorKind::Int;
-        vec![Type::Tensor(output)]
+        match &self.output {
+            Type::Tensor(tensor) => {
+                let mut tensor = tensor.clone();
+                tensor.kind = TensorKind::Int;
+                vec![Type::Tensor(tensor)]
+            }
+            Type::Scalar(scalar) => {
+                // For scalar output, we keep the name but change to backend Int type
+                // The actual type will be B::IntElem in the generated code
+                vec![Type::Scalar(scalar.clone())]
+            }
+            _ => panic!("ArgMax output must be Tensor or Scalar"),
+        }
     }
 
     fn input_types(&self) -> Vec<crate::burn::Type> {
@@ -31,20 +41,41 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
         //NOTE: select_last_index=1 is not supported (will panic during conversion)
         let axis = self.axis.to_tokens();
         let input = scope.tensor_use_owned(&self.input, node_position);
-        let output = &self.output.name;
 
-        if self.keepdims {
-            // keepdims=True: Burn's argmax keeps dimensions by default
-            quote! {
-                let #output = #input.argmax(#axis);
+        match &self.output {
+            Type::Tensor(tensor) => {
+                let output = &tensor.name;
+                if self.keepdims {
+                    // keepdims=True: Burn's argmax keeps dimensions by default
+                    quote! {
+                        let #output = #input.argmax(#axis);
+                    }
+                } else {
+                    // keepdims=False: use argmax followed by squeeze to remove the kept dimension
+                    let output_rank = tensor.rank;
+                    quote! {
+                        let argmax_result = #input.argmax(#axis);
+                        let #output = argmax_result.squeeze::<#output_rank>(#axis);
+                    }
+                }
             }
-        } else {
-            // keepdims=False: use argmax followed by squeeze to remove the kept dimension
-            let output_rank = self.output.rank;
-            quote! {
-                let argmax_result = #input.argmax(#axis);
-                let #output = argmax_result.squeeze::<#output_rank>(#axis);
+            Type::Scalar(scalar) => {
+                let output = &scalar.name;
+                // 1D tensor with keepdims=false -> scalar output
+                // ArgMax always outputs Int64 indices
+                quote! {
+                    let argmax_result = #input.argmax(#axis);
+                    let #output = argmax_result.into_scalar().elem::<i64>();
+                }
             }
+            _ => panic!("ArgMax output must be Tensor or Scalar"),
+        }
+    }
+
+    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
+        // If output is scalar, we need ElementConversion for .elem::<i64>()
+        if matches!(&self.output, Type::Scalar(_)) {
+            imports.register("burn::tensor::ElementConversion");
         }
     }
 
@@ -67,7 +98,7 @@ mod tests {
 
         graph.register(ArgMaxNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 2),
+            Type::Tensor(TensorType::new_int("tensor2", 2)),
             1,
             true, // keepdims=true
         ));
@@ -118,7 +149,7 @@ mod tests {
 
         graph.register(ArgMaxNode::new(
             TensorType::new_float("tensor1", 2),
-            TensorType::new_int("tensor2", 1), // Output rank reduced due to keepdims=false
+            Type::Tensor(TensorType::new_int("tensor2", 1)), // Output rank reduced due to keepdims=false
             1,
             false, // keepdims=false
         ));

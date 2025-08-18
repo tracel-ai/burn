@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(argmin, argmin_both_keepdims);
+include_models!(argmin, argmin_both_keepdims, argmin_1d);
 
 #[cfg(test)]
 mod tests {
@@ -48,5 +48,20 @@ mod tests {
         output_keepdims_false
             .to_data()
             .assert_eq(&expected_keepdims_false, true);
+    }
+
+    #[test]
+    fn argmin_1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: argmin_1d::Model<Backend> = argmin_1d::Model::default();
+
+        let device = Default::default();
+        // Run the model with test input [5.0, 3.0, 2.0, 1.0, 4.0]
+        // Expected output: 3 (index of min value 1.0)
+        let input = Tensor::<Backend, 1>::from_floats([5.0, 3.0, 2.0, 1.0, 4.0], &device);
+        let output = model.forward(input);
+
+        // Output should be scalar value 3
+        assert_eq!(output, 3i64);
     }
 }

@@ -1209,7 +1209,7 @@ impl ParsedOnnxGraph {
 
     fn argmax_conversion(node: Node) -> ArgMaxNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = argmax_config(&node);
 
         ArgMaxNode::new(input, output, config.axis, config.keepdims)
@@ -1217,7 +1217,7 @@ impl ParsedOnnxGraph {
 
     fn argmin_conversion(node: Node) -> ArgMinNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
         let config = argmin_config(&node);
 
         ArgMinNode::new(input, output, config.axis, config.keepdims)
