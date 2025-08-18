@@ -6,7 +6,8 @@ include_models!(
     constant_of_shape_scalar,
     constant_of_shape_scalar_custom_value,
     constant_of_shape_tensor,
-    constant_of_shape_shape_optimization
+    constant_of_shape_shape_optimization,
+    constant_of_shape_with_constant_input
 );
 
 #[cfg(test)]
@@ -106,5 +107,22 @@ mod tests {
 
         // Output should be Shape(1) with value 5 (as specified in the model)
         assert_eq!(output, [5i64]);
+    }
+
+    #[test]
+    fn constant_of_shape_with_constant_input_test() {
+        // Test ConstantOfShape where the shape comes from a Constant node
+        // This tests the constant lifting mechanism where the shape values
+        // are known at compile time and embedded directly in the generated code
+        let device = Default::default();
+        let model = constant_of_shape_with_constant_input::Model::<Backend>::new(&device);
+
+        // Model has no inputs - the shape [2, 3, 4] comes from a constant
+        let output = model.forward();
+
+        // Output should be a 2x3x4 tensor filled with 1 (as specified in the value attribute)
+        assert_eq!(output.dims(), [2, 3, 4]);
+        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 1i64, &device);
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }
