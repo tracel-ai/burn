@@ -162,7 +162,32 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+    let previous_rank = tensor.shape.dims.len();
+    let new_rank = shape.dims.len();
+    // println!("{previous_rank}-{new_rank}");
+
+    let only_new_batch = match new_rank > previous_rank {
+        true => {
+            tensor.shape.dims == shape.dims[new_rank - previous_rank..new_rank]
+                && shape.dims[0..new_rank - previous_rank] == vec![1; new_rank - previous_rank]
+        }
+        false => false,
+    };
+    if only_new_batch {
+        let num_new_batch = new_rank - previous_rank;
+        let num_elem = tensor.shape.num_elements();
+        let mut strides = vec![num_elem; new_rank];
+        for (i, s) in tensor.strides.iter().enumerate() {
+            // println!("{} [{}]", i + num_new_batch, strides.len());
+            strides[i + num_new_batch] = *s;
+        }
+
+        tensor.strides = strides;
+        tensor.shape = shape;
+
+        return tensor;
+    }
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
