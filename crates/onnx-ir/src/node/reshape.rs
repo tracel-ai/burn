@@ -282,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reshape_config_allowzero_not_supported() {
+    fn test_reshape_config_allowzero_supported() {
         let node = create_test_node(1, vec![2, 3]);
         let _ = reshape_config(&node);
     }
