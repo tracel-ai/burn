@@ -207,18 +207,16 @@ impl<B: AutodiffBackend, M: AutodiffModule<B> + 'static> GradsSyncer<B, M> {
         let mut grads_buffer = None;
 
         while let Ok(new_grads) = recv.recv() {
-            if double_buffering {
-                let old_grads = grads_buffer.take();
-                send.send(old_grads).unwrap();
-            }
-
             // Sync grads with collective
             let new_grads = new_grads
                 .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Mean)
                 .expect("DDP worker could not sync gradients!");
 
             if double_buffering {
+                let old_grads = grads_buffer.take();
                 grads_buffer = Some(new_grads);
+                
+                send.send(old_grads).unwrap();
             } else {
                 send.send(Some(new_grads)).unwrap();
             }

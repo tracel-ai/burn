@@ -146,7 +146,7 @@ mod cuda {
     }
 }
 
-#[cfg(feature = "cuda-ddp")]
+#[cfg(feature = "cuda-four")]
 mod cuda_ddp {
     use crate::{ElemType, launch};
     use burn::backend::{

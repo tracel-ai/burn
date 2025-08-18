@@ -25,9 +25,10 @@ remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
-cuda-ddp = ["burn/cuda", "ddp"]
+cuda-four = ["burn/cuda"]
 wgpu-ddp = ["burn/wgpu", "ddp"]
 ddp = ["burn/collective"]
+naive = []
 
 [dependencies]
 # Burn
@@ -38,7 +39,7 @@ burn = { path = "../../crates/burn", features = [
     "metrics",
     "ndarray",
     "autotune",
-    "fusion",
+    # "fusion",
     "std",
 ], default-features = false }
 
