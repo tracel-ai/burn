@@ -1,0 +1,13 @@
+[package]
+name = "burn-import-model-checks-yolo11x"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+burn = { path = "../../../../crates/burn", features = ["ndarray"] }
+
+[build-dependencies]
+burn-import = { path = "../../../burn-import" }
