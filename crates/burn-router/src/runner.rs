@@ -793,6 +793,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                IntOperationIr::Matmul(desc) => {
+                    binary_int_ops!(handles, desc, B::int_matmul)
+                }
                 IntOperationIr::BitwiseAnd(desc) => {
                     binary_int_ops!(handles, desc, B::bitwise_and)
                 }

@@ -6,7 +6,7 @@ use burn_tensor::{
 };
 use cubecl::{
     AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
-    convolution::ConvLaunchError, cube, ir::Elem, prelude::*,
+    convolution::components::ConvSetupError, cube, ir::Elem, prelude::*,
 };
 
 use crate::{
@@ -41,7 +41,7 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<CubeTensor<R>>,
     out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
-) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvLaunchError> {
+) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvSetupError> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -94,7 +94,7 @@ fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     options: DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let [_, in_channels, _, _] = input.shape.dims();
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
@@ -131,7 +131,7 @@ fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     out_grad: CubeTensor<R>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> Result<InputGradients<R>, ConvLaunchError> {
+) -> Result<InputGradients<R>, ConvSetupError> {
     let client = out_grad.client.clone();
     let device = out_grad.device.clone();
 
@@ -189,7 +189,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     mask: Option<CubeTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> Result<(CubeTensor<R>, Option<CubeTensor<R>>), ConvLaunchError> {
+) -> Result<(CubeTensor<R>, Option<CubeTensor<R>>), ConvSetupError> {
     let client = offset.client.clone();
     let device = offset.device.clone();
     let (kernel_height, kernel_width) = kernel_dims;

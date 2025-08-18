@@ -1,14 +1,23 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 
 use super::{expand, numeric, permute};
-use crate::kernel::{
-    BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
-    launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
+    kernel::{
+        self, cast,
+        matmul::{MatmulStrategy, matmul},
+    },
 };
-use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
+};
+use crate::{
+    execute_with_dtype,
+    kernel::{
+        BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
+        launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+    },
 };
 use burn_tensor::DType;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
@@ -65,6 +74,20 @@ where
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         kernel::slice_assign::<R, I>(tensor, ranges, value)
+    }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let dtype = lhs.dtype;
+        let out = execute_with_dtype!(
+            dtype,
+            E,
+            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
+        );
+        if out.dtype != dtype {
+            execute_with_dtype!(out.dtype, E, cast::<R, E, I>(out))
+        } else {
+            out
+        }
     }
 
     fn int_mask_where(

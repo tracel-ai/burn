@@ -128,11 +128,11 @@ mod tests {
     #[test]
     fn test_int_matmul_simple_1() {
         let device = Default::default();
-        let tensor_1 = TestTensorInt::<2>::from_ints([[5, 14], [14, 50]], &device);
+        let tensor_1 = TestTensorInt::<2>::from_ints([[5, 14], [14, 25]], &device);
         let tensor_2 = TestTensorInt::from_ints([[3, 4, 5], [0, 1, 2]], &device);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
-        let expected = TensorData::from([[15, 34, 53], [42, 106, 170]]);
+        let expected = TensorData::from([[15, 34, 53], [42, 81, 120]]);
 
         tensor_3.into_data().assert_eq(&expected, false);
     }
@@ -151,6 +151,11 @@ mod tests {
 
     #[test]
     fn test_int_matmul_4_3() {
+        if (IntType::MAX as u32) < 324 {
+            println!("Skipping because type is too small");
+            return;
+        }
+
         let device = Default::default();
         let tensor_1 =
             TestTensorInt::<2>::from_ints([[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]], &device);
@@ -183,6 +188,11 @@ mod tests {
 
     #[test]
     fn test_int_matmul_trivial() {
+        if (IntType::MAX as u32) < 506 {
+            println!("Skipping because type is too small");
+            return;
+        }
+
         let device = Default::default();
 
         let tensor_1 = TestTensorInt::<1>::arange(0..16, &device).reshape([4, 4]);
@@ -223,6 +233,11 @@ mod tests {
 
     #[test]
     fn test_int_matmul_trivial_transposed() {
+        if (IntType::MAX as u32) < 734 {
+            println!("Skipping because type is too small");
+            return;
+        }
+
         let device = Default::default();
 
         let tensor_1 = TestTensorInt::<1>::arange(0..16, &device).reshape([4, 4]);
@@ -263,6 +278,11 @@ mod tests {
 
     #[test]
     fn test_int_matmul_4_8() {
+        if (IntType::MAX as u32) < 6092 {
+            println!("Skipping because type is too small");
+            return;
+        }
+
         let device = Default::default();
 
         let tensor_1 = TestTensorInt::<1>::arange(0..32, &device).reshape([4, 8]);

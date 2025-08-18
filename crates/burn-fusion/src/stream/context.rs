@@ -577,6 +577,11 @@ impl RelativeOps for IntOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            IntOperationIr::Matmul(desc) => IntOperationIr::Matmul(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             IntOperationIr::BitwiseAnd(desc) => IntOperationIr::BitwiseAnd(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),

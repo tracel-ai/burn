@@ -3,7 +3,7 @@ use std::ops::Range;
 use burn_tensor::{
     Distribution, Shape, TensorData, TensorMetadata,
     backend::Backend,
-    ops::{IntTensor, IntTensorOps},
+    ops::{FloatTensorOps, IntTensor, IntTensorOps},
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
@@ -60,6 +60,13 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
 
     fn int_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {
         TchOps::cat(tensors, dim)
+    }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let lhs = Self::int_into_float(lhs);
+        let rhs = Self::int_into_float(rhs);
+        let out = lhs.tensor.f_matmul(&rhs.tensor).unwrap();
+        Self::float_into_int(TchTensor::new(out))
     }
 
     fn int_equal(lhs: TchTensor, rhs: TchTensor) -> TchTensor {

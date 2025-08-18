@@ -575,6 +575,8 @@ pub enum IntOperationIr {
     ///
     /// Int => [bitwise right shift scalar](burn_tensor::ops::IntTensorOps::bitwise_right_shift_scalar).
     BitwiseRightShiftScalar(ScalarOpIr<i32>),
+    /// Operation corresponding to [matmul](burn_tensor::ops::IntTensorOps::int_matmul).
+    Matmul(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to a bool tensor.
@@ -1922,6 +1924,9 @@ impl FloatOperationIr {
 impl IntOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
+            IntOperationIr::Matmul(repr) => {
+                vec![&repr.lhs, &repr.rhs, &repr.out]
+            }
             IntOperationIr::IntoFloat(repr) => vec![&repr.input, &repr.out],
             IntOperationIr::BitwiseAnd(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
@@ -1963,6 +1968,10 @@ impl IntOperationIr {
         let mut output = Vec::new();
 
         match self {
+            IntOperationIr::Matmul(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
             IntOperationIr::IntoFloat(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }

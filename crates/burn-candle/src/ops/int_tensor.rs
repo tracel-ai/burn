@@ -414,4 +414,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
     }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        CandleTensor::new(lhs.tensor.matmul(&rhs.tensor).unwrap())
+    }
 }
