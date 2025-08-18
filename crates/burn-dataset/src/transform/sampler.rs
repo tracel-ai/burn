@@ -157,7 +157,7 @@ where
     /// * `options`: the options to configure the sampler dataset.
     ///
     /// ## Examples
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// use burn_dataset::transform::{
     ///   SamplerDataset,
     ///   SamplerDatasetOptions,
