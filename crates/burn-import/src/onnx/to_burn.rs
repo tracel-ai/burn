@@ -1825,6 +1825,13 @@ impl From<&OnnxArgument> for TensorType {
                 rank,
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *rank),
+            ArgType::Scalar(ElementType::Float16 | ElementType::Float32 | ElementType::Float64) => {
+                TensorType::new_float(arg.name.clone(), 1)
+            }
+            ArgType::Scalar(ElementType::Int32 | ElementType::Int64) => {
+                TensorType::new_int(arg.name.clone(), 1)
+            }
+            ArgType::Scalar(ElementType::Bool) => TensorType::new_bool(arg.name.clone(), 1),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
@@ -1872,10 +1879,8 @@ impl From<&ElementType> for ScalarKind {
 impl From<ElementType> for TensorKind {
     fn from(elem_type: ElementType) -> Self {
         match elem_type {
-            ElementType::Float32 => TensorKind::Float,
-            ElementType::Float64 => TensorKind::Float,
-            ElementType::Int32 => TensorKind::Int,
-            ElementType::Int64 => TensorKind::Int,
+            ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => TensorKind::Float,
+            ElementType::Int32 | ElementType::Int64 => TensorKind::Int,
             ElementType::Bool => TensorKind::Bool,
             _ => panic!("Unsupported tensor type"),
         }
