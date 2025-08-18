@@ -10,7 +10,7 @@ use data_encoding::BASE32_DNSSEC;
 type DefaultHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
 
 /// Parameter ID.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct ParamId {
     value: u64,
 }

@@ -15,8 +15,8 @@ use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
     local::{
-        AllReduceOp, AllReduceOpCall, AllReduceResult, BroadcastOp, BroadcastOpCall,
-        BroadcastResult, ReduceOp, ReduceOpCall, ReduceResult, client::LocalCollectiveClient,
+        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastOpCall, BroadcastResult, ReduceOp,
+        ReduceOpCall, ReduceResult, client::LocalCollectiveClient,
     },
 };
 
@@ -319,19 +319,27 @@ impl<B: Backend> LocalCollectiveServer<B> {
             // First call to all-reduce
             self.all_reduce_op = Some(AllReduceOp::new(tensor.shape(), op));
         }
-        let all_reduce_op = self.all_reduce_op.as_mut().unwrap();
+        // Take the operation, we'll put it back if we're not done
+        let mut all_reduce_op = self.all_reduce_op.take().unwrap();
 
         // On the last caller, the all-reduce is done here
-        let call = AllReduceOpCall::new(peer_id, tensor, callback.clone());
-        all_reduce_op
-            .register_call(
-                call,
-                op,
-                &self.peers,
-                self.config.as_ref().unwrap(),
-                &mut self.global_client,
-            )
-            .await;
+        let res =
+            all_reduce_op.register_call(peer_id, tensor, callback.clone(), op, self.peers.len());
+
+        // Upon an error or the last call, the all_reduce_op is dropped
+        match res {
+            Ok(is_ready) => {
+                if is_ready {
+                    all_reduce_op
+                        .execute(self.config.as_ref().unwrap(), &mut self.global_client)
+                        .await;
+                } else {
+                    // Put operation back, we're waiting for more calls
+                    self.all_reduce_op = Some(all_reduce_op)
+                }
+            }
+            Err(err) => all_reduce_op.send_err_to_all(err),
+        }
     }
 
     /// Processes a reduce request from a client

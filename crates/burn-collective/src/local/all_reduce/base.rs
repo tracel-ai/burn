@@ -32,20 +32,6 @@ pub struct AllReduceOpCall<B: Backend> {
     result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
 }
 
-impl<B: Backend> AllReduceOpCall<B> {
-    pub fn new(
-        caller: PeerId,
-        input: B::FloatTensorPrimitive,
-        result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
-    ) -> Self {
-        Self {
-            caller,
-            input,
-            result_sender,
-        }
-    }
-}
-
 /// Type sent to the collective client upon completion of a all-reduce aggregation
 pub(crate) type AllReduceResult<T> = Result<T, CollectiveError>;
 
@@ -59,42 +45,53 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Register a call to all-reduce in this operation.
-    /// When the last caller registers an all-reduce, the operation is executed.
-    pub async fn register_call(
+    ///
+    /// # Returns
+    ///
+    /// `true` if enough peers have registered, and the all-reduce is ready
+    pub fn register_call(
         &mut self,
-        call: AllReduceOpCall<B>,
+        caller: PeerId,
+        input: B::FloatTensorPrimitive,
+        result_sender: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
         op: ReduceOperation,
-        peers: &[PeerId],
+        peer_count: usize,
+    ) -> Result<bool, CollectiveError> {
+        if self.shape != input.shape() {
+            return Err(CollectiveError::AllReduceShapeMismatch);
+        }
+        if self.op != op {
+            return Err(CollectiveError::AllReduceOperationMismatch);
+        }
+
+        self.calls.push(AllReduceOpCall {
+            caller,
+            input,
+            result_sender,
+        });
+
+        Ok(self.calls.len() == peer_count)
+    }
+
+    /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
+    pub async fn execute(
+        mut self,
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
     ) {
-        if self.shape != call.input.shape() {
-            self.send_err_to_all(CollectiveError::AllReduceShapeMismatch);
-            return;
-        }
-        if self.op != op {
-            self.send_err_to_all(CollectiveError::AllReduceOperationMismatch);
-            return;
-        }
-
-        self.calls.push(call);
-
-        let tensor_count = self.calls.len();
-        if tensor_count == peers.len() {
-            // all registered callers have sent a tensor to aggregate
-            let tensors = self.all_reduce(config, global_client).await;
-            match tensors {
-                Ok(mut tensors) => {
-                    // Return resulting tensors
-                    self.calls.drain(..).for_each(|op| {
-                        let result = tensors.remove(&op.caller).unwrap();
-                        op.result_sender.send(Ok(result)).unwrap();
-                    });
-                }
-                Err(err) => {
-                    // Send error to all subscribers
-                    self.send_err_to_all(err);
-                }
+        // all registered callers have sent a tensor to aggregate
+        let tensors = self.all_reduce(config, global_client).await;
+        match tensors {
+            Ok(mut tensors) => {
+                // Return resulting tensors
+                self.calls.drain(..).for_each(|op| {
+                    let result = tensors.remove(&op.caller).unwrap();
+                    op.result_sender.send(Ok(result)).unwrap();
+                });
+            }
+            Err(err) => {
+                // Send error to all subscribers
+                self.send_err_to_all(err);
             }
         }
     }
@@ -206,7 +203,7 @@ impl<B: Backend> AllReduceOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    fn send_err_to_all(&mut self, err: CollectiveError) {
+    pub fn send_err_to_all(&mut self, err: CollectiveError) {
         self.calls.drain(..).for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });

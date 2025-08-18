@@ -1,5 +1,5 @@
 #[cfg(feature = "collective")]
-use burn_collective::{all_reduce, CollectiveError, PeerId, ReduceOperation};
+use burn_collective::{CollectiveError, PeerId, ReduceOperation, all_reduce};
 
 use burn_tensor::{
     Tensor,
@@ -113,25 +113,36 @@ impl GradientsParams {
         self
     }
 
-    /// Syncs the gradient params with the other peers in the collective. 
+    /// Syncs the gradient params with the other peers in the collective.
     #[cfg(feature = "collective")]
-    pub fn all_reduce<B: Backend>(mut self, peer_id: PeerId, op:ReduceOperation ) -> Result<Self, CollectiveError> {
-        let ids = self.container.ids().into_iter().map(|x| *x).collect::<Vec<ParamId>>();
+    pub fn all_reduce<B: Backend>(
+        mut self,
+        peer_id: PeerId,
+        op: ReduceOperation,
+    ) -> Result<Self, CollectiveError> {
+        let mut ids = self
+            .container
+            .ids()
+            .into_iter()
+            .map(|x| *x)
+            .collect::<Vec<ParamId>>();
+        // This is crucial, since the all-reduce operations need to happen in the same order for the same parameters on all nodes!
+        ids.sort();
         for id in ids {
             use burn_tensor::TensorPrimitive;
 
             let Some(grad) = self.container.remove::<B>(&id) else {
                 todo!()
             };
-            
+
             let grad = match grad {
                 TensorPrimitive::Float(grad) => {
                     let grad = all_reduce::<B>(peer_id, grad, op)?;
                     TensorPrimitive::Float(grad)
-                },
+                }
                 TensorPrimitive::QFloat(_grad) => {
                     unimplemented!("quantized all-reduce unimplemented")
-                },
+                }
             };
 
             self.container.register::<B>(id, grad);
