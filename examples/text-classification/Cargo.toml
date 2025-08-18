@@ -28,7 +28,6 @@ metal = ["burn/metal"]
 cuda-four = ["burn/cuda"]
 wgpu-ddp = ["burn/wgpu", "ddp"]
 ddp = ["burn/collective"]
-naive = []
 
 [dependencies]
 # Burn

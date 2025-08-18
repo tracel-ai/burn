@@ -102,6 +102,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .build(model, optim, lr_scheduler);
 
     #[cfg(feature = "ddp")]
+    let collective_config = CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+    #[cfg(feature = "ddp")]
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
@@ -112,23 +114,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(burn::train::ddp(devices, Default::default()))
-        .num_epochs(config.num_epochs)
-        .summary()
-        .build(model, optim, lr_scheduler);
-
-    #[cfg(feature = "naive")]
-    let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train(CudaMetric::new())
-        .metric_valid(CudaMetric::new())
-        .metric_train(IterationSpeedMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(burn::train::LearningStrategy::MultiDeviceNaive(devices))
+        .learning_strategy(burn::train::ddp(devices, collective_config))
         .num_epochs(config.num_epochs)
         .summary()
         .build(model, optim, lr_scheduler);

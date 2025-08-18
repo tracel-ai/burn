@@ -74,6 +74,9 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
     }
 }
 
+
+use std::time::{Duration, Instant};
+
 impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     /// Runs the training epoch.
     ///
@@ -105,13 +108,21 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
         let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(true, peer_id);
 
+        let mut total_step = Duration::new(0, 0);
+        let mut total_sync = Duration::new(0, 0);
+        let mut total_optim = Duration::new(0, 0);
+
         while let Some(item) = iterator.next() {
             iteration += 1;
             let lr = scheduler.step();
             log::info!("Iteration {iteration}");
 
             let progress = iterator.progress();
+
+            let start = Instant::now();
             let item = model.step(item);
+            let elapsed = start.elapsed();
+            total_step += elapsed;
 
             match self.grad_accumulation {
                 Some(accumulation) => {
@@ -132,12 +143,24 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                 }
                 None => {
                     // With double buffering, these are the previous iteration's gradients
+
+                    let start = Instant::now();
                     let grads = grads_syncer.sync(item.grads);
+                    let elapsed = start.elapsed();
+                    total_sync += elapsed;
                     if let Some(grads) = grads {
+                        let start = Instant::now();
                         model = model.optimize(&mut optim, lr, grads);
+                        let elapsed = start.elapsed();
+                        total_optim += elapsed;
                     }
                 }
             }
+
+            println!(
+                "[{}] Iteration {}: step: {:?}, sync: {:?}, optim: {:?}",
+                peer_id, iteration, total_step, total_sync, total_optim
+            );
 
             let item = LearnerItem::new(
                 item.item,
