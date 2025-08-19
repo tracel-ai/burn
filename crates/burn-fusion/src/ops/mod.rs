@@ -9,4 +9,4 @@ mod transaction;
 mod unary;
 
 mod base;
-pub(crate) use base::*;
+pub use base::NoOp;

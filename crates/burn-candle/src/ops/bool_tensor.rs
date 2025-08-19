@@ -16,6 +16,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::empty(shape, device, candle_core::DType::U8)
     }
 
+    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        super::base::zeros(shape, device, candle_core::DType::U8)
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        super::base::ones(shape, device, candle_core::DType::U8)
+    }
+
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
         let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
         let y = x.iter().map(|b| !matches!(b, 0)).collect();

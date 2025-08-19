@@ -189,7 +189,6 @@ where
         &self,
         _tensor: Option<B::FloatTensorPrimitive>,
         _strategy: BroadcastStrategy,
-        _root: PeerId,
     ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError> {
         unimplemented!("Global broadcast unimplemented");
     }
