@@ -467,6 +467,35 @@ impl OnnxGraphBuilder {
                 format!("{}_out{}", &node.name, 1),
                 graph_data.get_current_index(),
             );
+        } else if node.node_type == NodeType::ConstantOfShape {
+            // Special handling for ConstantOfShape - check first input
+            log::debug!("Checking ConstantOfShape node {} for constants", &node.name);
+            if let Some(input) = node.inputs.first_mut() {
+                log::debug!("Checking first input {:?} for const", input);
+                if let Some(const_idx) = self.constants_map.get(&input.name) {
+                    let constant = &graph_data.processed_nodes[*const_idx];
+                    log::debug!(
+                        "Input {} matched constant node {}",
+                        &input.name,
+                        &constant.name
+                    );
+                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
+                        // The value comes from Identity inputs
+                        input.value.clone_from(&constant.inputs[0].value);
+                        input.ty = constant.inputs[0].ty.clone();
+                    } else {
+                        let arg = convert_constant_value(constant);
+                        input.value = arg.value;
+                        input.ty = arg.ty;
+                    }
+                    // The constant values are now embedded in the input, so we can remove the constant node
+                    self.nodes_to_remove.insert(*const_idx);
+                    log::debug!(
+                        "Lifted and removed constant node {} for ConstantOfShape",
+                        constant.name
+                    );
+                }
+            }
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("Checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
@@ -528,6 +557,16 @@ impl OnnxGraphBuilder {
                 if self.constants_types.contains(&node.node_type) && idx >= 1 {
                     log::debug!(
                         "Skipping constant creation for {} input {} (will be lifted)",
+                        node.name,
+                        idx
+                    );
+                    continue;
+                }
+
+                // Skip first input for ConstantOfShape as it's handled in check_constants
+                if node.node_type == NodeType::ConstantOfShape && idx == 0 {
+                    log::debug!(
+                        "Skipping constant creation for ConstantOfShape {} input {} (handled in check_constants)",
                         node.name,
                         idx
                     );
