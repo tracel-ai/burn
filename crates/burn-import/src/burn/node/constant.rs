@@ -244,10 +244,6 @@ mod tests {
         output: TokenStream,
     ) -> TokenStream {
         quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -339,11 +335,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -399,12 +391,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Int;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -460,12 +447,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Bool;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -520,10 +502,6 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

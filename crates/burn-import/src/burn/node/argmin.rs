@@ -73,13 +73,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        // If output is scalar, we need ElementConversion for .elem::<i64>()
-        if matches!(&self.output, Type::Scalar(_)) {
-            imports.register("burn::tensor::ElementConversion");
-        }
-    }
-
     fn into_node(self) -> super::Node<PS> {
         Node::ArgMin(self)
     }
@@ -90,8 +83,9 @@ mod tests {
 
     use burn::record::FullPrecisionSettings;
 
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens};
+
     use super::*;
-    use crate::burn::{TensorType, graph::BurnGraph, node::test::assert_tokens};
 
     #[test]
     fn test_codegen_argmin() {
@@ -107,12 +101,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -158,12 +147,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

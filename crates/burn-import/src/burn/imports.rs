@@ -31,10 +31,7 @@ impl BurnImports {
         }
 
         quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #(use #import_tokens;)*
         }

@@ -454,11 +454,7 @@ pub(crate) mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
             use burn::nn::conv::Conv2dConfig;
             use burn::nn::conv::Conv2d;
             use burn::nn::PaddingConfig2d;
@@ -541,11 +537,7 @@ pub(crate) mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
             use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;

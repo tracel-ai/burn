@@ -119,11 +119,7 @@ mod tests {
         let expected = quote! {
         use burn::nn::PRelu;
         use burn::nn::PReluConfig;
-        use burn::tensor::Tensor;
-        use burn::{
-            module::Module,
-            tensor::backend::Backend,
-        };
+        use burn::prelude::*;
         #[derive(Module, Debug)]
         pub struct Model<B: Backend> {
             prelu: PRelu<B>,

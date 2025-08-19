@@ -454,11 +454,7 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -511,11 +507,7 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -556,10 +548,6 @@ mod tests {
         let expected = quote! {
             use burn::tensor::s;
             use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -609,10 +597,6 @@ mod tests {
         let expected = quote! {
             use burn::tensor::s;
             use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -663,11 +647,7 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -714,12 +694,7 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -771,12 +746,7 @@ mod tests {
 
         let expected = quote! {
             use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
