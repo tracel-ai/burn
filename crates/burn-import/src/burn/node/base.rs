@@ -368,11 +368,6 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-    fn any_tensor(io_types: &[crate::burn::Type]) -> bool {
-        io_types
-            .iter()
-            .any(|x| matches!(x, crate::burn::Type::Tensor(_)))
-    }
 
     #[track_caller]
     pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + Clone + 'static>(
@@ -388,11 +383,6 @@ pub(crate) mod tests {
         graph.register_input_output(input_names, output_names);
 
         let mut imports = BurnImports::default();
-        if any_tensor(node_gen.input_types().as_slice())
-            || any_tensor(node_gen.output_types().as_slice())
-        {
-            imports.register("burn::tensor::Tensor");
-        }
         node_gen.register_imports(&mut imports);
         let imports = imports.codegen();
 

@@ -1,6 +1,6 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
-    TensorKind, TensorType,
+    TensorType,
     node::{Node, NodeCodegen},
 };
 use burn::record::{

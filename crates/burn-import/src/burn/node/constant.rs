@@ -244,6 +244,7 @@ mod tests {
         output: TokenStream,
     ) -> TokenStream {
         quote! {
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -502,6 +503,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

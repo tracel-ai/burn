@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, ScalarType, ShapeType, ToTokens, Type};
+use crate::burn::{ScalarType, ShapeType, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
