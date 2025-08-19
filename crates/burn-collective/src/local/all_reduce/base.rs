@@ -46,7 +46,7 @@ impl<B: Backend> AllReduceOpCall<B> {
     }
 }
 
-/// Type sent to the collective client upon completion of a all-reduce aggregation
+/// Type sent to the collective client upon completion of an all-reduce aggregation
 pub(crate) type AllReduceResult<T> = Result<T, CollectiveError>;
 
 impl<B: Backend> AllReduceOp<B> {
