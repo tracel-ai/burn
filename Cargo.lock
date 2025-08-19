@@ -5148,6 +5148,7 @@ name = "onnx-ir"
 version = "0.19.0"
 dependencies = [
  "bytemuck",
+ "derive-new",
  "half",
  "log",
  "pretty_assertions",
