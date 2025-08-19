@@ -45,6 +45,24 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
                 let mut tensor = TchTensor::empty::<E>(shape, *device);
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
+            Distribution::Multinomial(probs) => {
+                let num_samples = shape.num_elements() as i64;
+                let num_probs = probs.len();
+                let prob_data = TensorData::new(probs, vec![num_probs]);
+                let mut tensor = TchTensor::from_data::<E>(prob_data, (*device).into());
+                tensor
+                    .mut_ops(|tensor| {
+                        tensor.f_multinomial(num_samples, false).unwrap().reshape(
+                            shape
+                                .dims
+                                .clone()
+                                .into_iter()
+                                .map(|dim| dim as i64)
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .unwrap()
+            }
         }
     }
 
