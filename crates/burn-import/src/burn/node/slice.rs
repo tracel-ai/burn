@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use super::NodeCodegen;
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -528,6 +528,7 @@ mod tests {
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -575,6 +576,7 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

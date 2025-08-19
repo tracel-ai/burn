@@ -59,7 +59,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
         }
     }
 
-
     fn into_node(self) -> super::Node<PS> {
         Node::Where(self)
     }

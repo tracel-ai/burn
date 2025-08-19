@@ -72,7 +72,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
         }
     }
 
-
     fn into_node(self) -> super::Node<PS> {
         Node::ArgMax(self)
     }

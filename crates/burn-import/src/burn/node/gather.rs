@@ -511,7 +511,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::tensor::s;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

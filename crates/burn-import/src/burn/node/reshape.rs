@@ -371,7 +371,6 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::ElementConversion;
             use burn::prelude::*;
 
             #[derive(Module, Debug)]

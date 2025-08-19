@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, ScalarKind, Scope, TensorKind, Type};
+use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ElementType;
 use proc_macro2::TokenStream;

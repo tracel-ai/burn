@@ -368,7 +368,6 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-
     #[track_caller]
     pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + Clone + 'static>(
         node_gen: T,
@@ -445,9 +444,9 @@ pub(crate) mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::nn::conv::Conv2dConfig;
-            use burn::nn::conv::Conv2d;
             use burn::nn::PaddingConfig2d;
+            use burn::nn::conv::Conv2d;
+            use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
