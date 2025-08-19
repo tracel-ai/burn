@@ -92,6 +92,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         processor: Arc<Mutex<LC::EventProcessor>>,
         interrupter: &TrainingInterrupter,
         peer_id: PeerId,
+        peer_count: usize,
         is_main: bool,
     ) -> (LC::Model, LC::Optimizer) {
         log::info!("Executing training step for epoch {}", self.epoch,);
@@ -104,11 +105,16 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(true, peer_id);
 
         while let Some(item) = iterator.next() {
-            iteration += 1;
-            let lr = scheduler.step();
+            let mut lr = 0.;
+            for _ in 0..peer_count {
+                iteration += 1;
+                lr = scheduler.step();
+            }
             log::info!("Iteration {iteration}");
 
-            let progress = iterator.progress();
+            let mut progress = iterator.progress();
+            progress.items_processed = progress.items_processed * peer_count;
+            progress.items_total = progress.items_total * peer_count;
 
             let item = model.step(item);
 
