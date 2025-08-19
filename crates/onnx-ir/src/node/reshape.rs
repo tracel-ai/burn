@@ -199,17 +199,6 @@ pub fn reshape_config(node: &Node) -> ReshapeConfig {
 
 /// Validate reshape node has correct attributes and inputs
 fn validate_reshape_node(node: &Node) {
-    // Check allowzero attribute
-    let allowzero = node
-        .attrs
-        .get("allowzero")
-        .map(|v| v.clone().into_i64())
-        .unwrap_or(0);
-
-    if allowzero != 0 {
-        panic!("Zero shape size is not supported");
-    }
-
     if node.inputs.len() != 2 {
         panic!("Reshape requires exactly 2 inputs");
     }
@@ -293,8 +282,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Zero shape size is not supported")]
-    fn test_reshape_config_allowzero_not_supported() {
+    fn test_reshape_config_allowzero_supported() {
         let node = create_test_node(1, vec![2, 3]);
         let _ = reshape_config(&node);
     }

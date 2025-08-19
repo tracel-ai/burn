@@ -43,6 +43,24 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tensor)
     }
 
+    fn bool_zeros(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+        let tensor = tch::Tensor::zeros(
+            TchShape::from(shape).dims,
+            (tch::Kind::Bool, (*device).into()),
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn bool_ones(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+        let tensor = tch::Tensor::zeros(
+            TchShape::from(shape).dims,
+            (tch::Kind::Bool, (*device).into()),
+        );
+
+        TchTensor::new(tensor)
+    }
+
     fn bool_slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
         TchOps::slice(tensor, ranges)
     }
