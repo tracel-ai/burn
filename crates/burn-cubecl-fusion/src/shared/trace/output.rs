@@ -1,4 +1,4 @@
-use burn_common::tensor::{ReshapeAnalysis, analyze_reshape, contiguous_strides, is_contiguous};
+use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
@@ -486,14 +486,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             _ => tensor_global.dtype,
         };
 
-        let analysis = analyze_reshape(
+        let action = reshape_action(
             &original_handle.global_ir.shape,
             &original_handle.handle.strides,
             &tensor_global.shape,
         );
 
-        match analysis {
-            ReshapeAnalysis::UpdateStrides { strides } => {
+        match action {
+            ReshapeAction::UpdateStrides { strides } => {
                 println!("Update strides only for reshape. {:?}", tensor_global);
                 block.writes.remove(&output.tensor_relative.id);
 
@@ -563,6 +563,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block.writes.remove(&output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
+
         let mut handle = CubeFusionHandle {
             client: client.clone(),
             handle: original_handle.handle.handle.clone(),

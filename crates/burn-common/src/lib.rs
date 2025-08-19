@@ -66,65 +66,134 @@ pub mod tensor {
     }
 
     /// The result returned by [analyze_reshape()].
-    pub enum ReshapeAnalysis {
+    pub enum ReshapeAction {
         /// Updating the strides is sufficient to handle the reshape.
         UpdateStrides {
             /// The new strides.
             strides: Vec<usize>,
         },
         /// The strides are not compatible, we should go through a contiguous layout.
-        IntoContiguous,
+        Recompute,
+    }
+
+    /// The result returned by [analyze_reshape()].
+    pub enum ReshapeAnalysis {
+        /// Original tensor is contiguous, can update the strides.
+        IsContiguous,
+        /// Original tensor is highly permutated, can't update the strides.
+        HighlyPermutated,
+        /// Only batch dimensions are added, can update the strides.
+        Broadcasted,
+        /// Original tensor is bigger than output shape.
+        SmallerRank,
+        /// New shape is the same.
+        NoChange,
     }
 
     /// Returns the proper action to take when reshaping a tensor.
-    pub fn analyze_reshape(
+    pub fn reshape_action(
         shape: &[usize],
         strides: &[usize],
+        shape_new: &[usize],
+    ) -> ReshapeAction {
+        let analysis = reshape_analysis(shape, Some(strides), shape_new);
+
+        match analysis {
+            ReshapeAnalysis::IsContiguous | ReshapeAnalysis::NoChange => {
+                ReshapeAction::UpdateStrides {
+                    strides: contiguous_strides(shape_new),
+                }
+            }
+            ReshapeAnalysis::HighlyPermutated | ReshapeAnalysis::SmallerRank => {
+                ReshapeAction::Recompute
+            }
+            ReshapeAnalysis::Broadcasted => {
+                let shape_rank = shape.len();
+                let shape_new_rank = shape_new.len();
+                let n_new_batch = shape_new_rank - shape_rank;
+                let num_elems = shape.iter().product::<usize>();
+                let strides_new = broadcast_strides(n_new_batch, shape_rank, num_elems, strides);
+
+                ReshapeAction::UpdateStrides {
+                    strides: strides_new,
+                }
+            }
+        }
+    }
+
+    /// Calculate the new strides given added batch dimensions.
+    pub fn handle_smaller_strides(shape: &[usize], strides: &mut Vec<usize>) {
+        if strides.len() < shape.len() {
+            let rank_prev = strides.len();
+            let missing_batch = shape.len() - rank_prev;
+            let num_elems = shape.iter().product::<usize>();
+
+            *strides = broadcast_strides(missing_batch, rank_prev, num_elems, &strides);
+        }
+    }
+
+    /// Calculate the new strides given added batch dimensions.
+    pub fn broadcast_strides(
+        n_new_batch: usize,
+        rank_prev: usize,
+        num_elems: usize,
+        strides: &[usize],
+    ) -> Vec<usize> {
+        let mut strides_new = vec![num_elems; rank_prev + n_new_batch];
+
+        for (i, s) in strides.iter().enumerate() {
+            strides_new[i + n_new_batch] = *s;
+        }
+
+        strides_new
+    }
+
+    /// Returns the analysis of a reshape operation.
+    pub fn reshape_analysis(
+        shape: &[usize],
+        strides: Option<&[usize]>,
         shape_new: &[usize],
     ) -> ReshapeAnalysis {
         let shape_rank = shape.len();
         let shape_new_rank = shape_new.len();
 
         if shape_new_rank < shape_rank {
-            return match is_contiguous(&shape, &strides) {
-                true => ReshapeAnalysis::UpdateStrides {
-                    strides: contiguous_strides(shape_new),
-                },
-                false => ReshapeAnalysis::IntoContiguous,
+            let is_contiguous = match strides {
+                Some(strides) => is_contiguous(&shape, &strides),
+                None => false,
+            };
+            return match is_contiguous {
+                true => ReshapeAnalysis::IsContiguous,
+                false => ReshapeAnalysis::SmallerRank,
             };
         }
 
         let n_new_batch = shape_new_rank - shape_rank;
 
-        let broadcasted = match n_new_batch > 0 {
+        match n_new_batch > 0 {
             true => {
-                shape == &shape_new[n_new_batch..shape_new_rank]
+                if shape == &shape_new[n_new_batch..shape_new_rank]
                     && &shape_new[0..n_new_batch] == vec![1; n_new_batch]
+                {
+                    return ReshapeAnalysis::Broadcasted;
+                }
             }
 
             false => {
-                return match shape == shape_new || is_contiguous(&shape, &strides) {
-                    true => ReshapeAnalysis::UpdateStrides {
-                        strides: contiguous_strides(shape_new),
-                    },
-                    false => ReshapeAnalysis::IntoContiguous,
-                };
+                if shape == shape_new {
+                    return ReshapeAnalysis::NoChange;
+                } else {
+                    let is_contiguous = match strides {
+                        Some(strides) => is_contiguous(&shape, &strides),
+                        None => false,
+                    };
+                    if is_contiguous {
+                        return ReshapeAnalysis::IsContiguous;
+                    }
+                }
             }
         };
 
-        if !broadcasted {
-            return ReshapeAnalysis::IntoContiguous;
-        }
-
-        let num_elems = shape.iter().product::<usize>();
-        let mut strides_new = vec![num_elems; shape_new_rank];
-
-        for (i, s) in strides.iter().enumerate() {
-            strides_new[i + n_new_batch] = *s;
-        }
-
-        ReshapeAnalysis::UpdateStrides {
-            strides: strides_new,
-        }
+        ReshapeAnalysis::HighlyPermutated
     }
 }

@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
-use burn_common::tensor::{ReshapeAnalysis, analyze_reshape};
+use burn_common::tensor::{ReshapeAction, reshape_action};
 use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
@@ -164,9 +164,9 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 
 /// Reshape a jit tensor to a new shape
 pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    let analysis = analyze_reshape(&tensor.shape.dims, &tensor.strides, &shape.dims);
+    let analysis = reshape_action(&tensor.shape.dims, &tensor.strides, &shape.dims);
 
-    if let ReshapeAnalysis::UpdateStrides { strides } = analysis {
+    if let ReshapeAction::UpdateStrides { strides } = analysis {
         tensor.shape = shape;
         tensor.strides = strides;
         return tensor;

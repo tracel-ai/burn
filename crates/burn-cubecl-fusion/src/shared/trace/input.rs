@@ -6,6 +6,7 @@ use crate::{
     CubeFusionHandle,
     shared::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
 };
+use burn_common::tensor::handle_smaller_strides;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use cubecl::Runtime;
@@ -37,17 +38,18 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 RegisterTensor::Normal(tensor_relative, precision) => {
                     let mut tensor_global =
                         context.tensors.get(&tensor_relative.id).unwrap().clone();
-                    let handle = context
+                    let mut handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+                    handle_smaller_strides(&tensor_global.shape, &mut handle.strides);
 
                     if let TensorStatus::ReadWrite = tensor_relative.status {
                         plan.cleared.push(tensor_global.id);
                     }
 
-                    self.analyze(plan, pos, tensor_relative, &handle);
-
                     let mut new_strides = handle.strides.clone();
+
+                    self.analyze(plan, pos, tensor_relative, &handle);
 
                     if tensor_global.shape.len() < plan.rank {
                         let num_elem: usize = tensor_global.shape.iter().product();
@@ -68,9 +70,11 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
                 RegisterTensor::QuantValues(tensor_relative) => {
                     let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-                    let handle = context
+                    let mut handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+                    handle_smaller_strides(&tensor_global.shape, &mut handle.strides);
+
                     let scheme = match tensor_relative.dtype {
                         burn_tensor::DType::QFloat(scheme) => scheme,
                         _ => unreachable!("Can't have quant data without QFloat"),

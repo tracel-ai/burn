@@ -1,6 +1,7 @@
 use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 
+use burn_common::tensor::handle_smaller_strides;
 use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
 use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
@@ -179,7 +180,9 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     }
 }
 
-fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
+fn into_tensor<R: CubeRuntime>(mut handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
+    handle_smaller_strides(&shape.dims, &mut handle.strides);
+
     CubeTensor {
         client: handle.client,
         handle: handle.handle,
