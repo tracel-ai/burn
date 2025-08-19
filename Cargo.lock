@@ -1268,9 +1268,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9aeec81361cbe5564f44e79538fc112002f70a448966f9160591c2bd5706dfad"
+checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
 
 [[package]]
 name = "cfg_aliases"
