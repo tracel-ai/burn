@@ -9,7 +9,7 @@ use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 /// A worker runs the model, syncing gradients using collective operations.
@@ -23,7 +23,7 @@ where
     model: LC::Model,
     optim: LC::Optimizer,
     early_stopping: Option<EarlyStoppingStrategyRef>,
-    event_processor: Option<LC::EventProcessor>,
+    event_processor: Arc<Mutex<LC::EventProcessor>>,
     event_store: Arc<EventStoreClient>,
     checkpointer: Option<LearnerCheckpointer<LC>>,
     lr_scheduler: LC::LrScheduler,
@@ -34,6 +34,7 @@ where
     starting_epoch: usize,
     num_epochs: usize,
     grad_accumulation: Option<usize>,
+    is_main: bool,
     _p: PhantomData<LC>,
 }
 
@@ -49,7 +50,7 @@ where
         model: LC::Model,
         optim: LC::Optimizer,
         early_stopping: Option<EarlyStoppingStrategyRef>,
-        event_processor: Option<LC::EventProcessor>,
+        event_processor: Arc<Mutex<LC::EventProcessor>>,
         event_store: Arc<EventStoreClient>,
         checkpointer: Option<LearnerCheckpointer<LC>>,
         lr_scheduler: LC::LrScheduler,
@@ -60,7 +61,8 @@ where
         starting_epoch: usize,
         num_epochs: usize,
         grad_accumulation: Option<usize>,
-    ) -> JoinHandle<(LC::Model, Option<LC::EventProcessor>)> {
+        is_main: bool,
+    ) -> JoinHandle<LC::Model> {
         let worker = Self {
             peer_id,
             device,
@@ -78,6 +80,7 @@ where
             starting_epoch,
             num_epochs,
             grad_accumulation,
+            is_main,
             _p: PhantomData,
         };
 
@@ -85,7 +88,7 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> (LC::Model, Option<LC::EventProcessor>) {
+    pub fn fit(mut self) -> LC::Model {
         burn_collective::register::<<LC::Backend as AutodiffBackend>::InnerBackend>(
             self.peer_id,
             self.device.clone(),
@@ -106,9 +109,10 @@ where
                 self.model,
                 self.optim,
                 &mut self.lr_scheduler,
-                &mut self.event_processor,
+                self.event_processor.clone(),
                 &self.interrupter,
                 self.peer_id,
+                self.is_main,
             );
 
             if self.interrupter.should_stop() {
@@ -119,7 +123,8 @@ where
             if let Some(dataloader_valid) = &self.dataloader_valid {
                 let epoch_valid =
                     DdpValidEpoch::<LC>::new(dataloader_valid.clone(), epoch, self.num_epochs);
-                epoch_valid.run(&self.model, &mut self.event_processor, &self.interrupter);
+                let mut event_processor = self.event_processor.lock().unwrap();
+                epoch_valid.run(&self.model, &mut event_processor, &self.interrupter);
             }
 
             if let Some(checkpointer) = &mut self.checkpointer {
@@ -139,6 +144,6 @@ where
             }
         }
 
-        (self.model, self.event_processor)
+        self.model
     }
 }

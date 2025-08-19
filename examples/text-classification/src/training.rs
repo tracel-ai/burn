@@ -9,6 +9,8 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
+#[cfg(feature = "ddp")]
+use burn::collective::{AllReduceStrategy, CollectiveConfig};
 #[cfg(not(feature = "ddp"))]
 use burn::train::LearningStrategy;
 use burn::{
@@ -26,8 +28,6 @@ use burn::{
         },
     },
 };
-#[cfg(feature = "ddp")]
-use burn::collective::{CollectiveConfig, AllReduceStrategy};
 use std::sync::Arc;
 
 // Define configuration struct for the experiment
@@ -104,7 +104,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .build(model, optim, lr_scheduler);
 
     #[cfg(feature = "ddp")]
-    let collective_config = CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+    let collective_config =
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
     #[cfg(feature = "ddp")]
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())

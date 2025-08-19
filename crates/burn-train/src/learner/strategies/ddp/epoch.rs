@@ -4,6 +4,7 @@ use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator};
 use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
+use std::sync::{Arc, Mutex};
 
 use crate::metric::processor::{Event, EventProcessor, LearnerItem};
 use crate::{TrainLoader, TrainStep, ValidLoader, ValidStep};
@@ -36,7 +37,7 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
     pub fn run(
         &self,
         model: &LC::Model,
-        processor: &mut Option<LC::EventProcessor>,
+        processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
     ) {
         log::info!("Executing validation step for epoch {}", self.epoch);
@@ -59,23 +60,16 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
                 None,
             );
 
-            if let Some(processor) = processor {
-                processor.process_valid(Event::ProcessedItem(item));
-            }
+            processor.process_valid(Event::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        if let Some(processor) = processor {
-            processor.process_valid(Event::EndEpoch(self.epoch));
-        }
+        processor.process_valid(Event::EndEpoch(self.epoch));
     }
 }
-
-
-use std::time::{Duration, Instant};
 
 impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     /// Runs the training epoch.
@@ -95,9 +89,10 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
-        processor: &mut Option<LC::EventProcessor>,
+        processor: Arc<Mutex<LC::EventProcessor>>,
         interrupter: &TrainingInterrupter,
         peer_id: PeerId,
+        is_main: bool,
     ) -> (LC::Model, LC::Optimizer) {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -108,10 +103,6 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
         let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(true, peer_id);
 
-        let mut total_step = Duration::new(0, 0);
-        let mut total_sync = Duration::new(0, 0);
-        let mut total_optim = Duration::new(0, 0);
-
         while let Some(item) = iterator.next() {
             iteration += 1;
             let lr = scheduler.step();
@@ -119,10 +110,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
             let progress = iterator.progress();
 
-            let start = Instant::now();
             let item = model.step(item);
-            let elapsed = start.elapsed();
-            total_step += elapsed;
 
             match self.grad_accumulation {
                 Some(accumulation) => {
@@ -143,24 +131,13 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                 }
                 None => {
                     // With double buffering, these are the previous iteration's gradients
-
-                    let start = Instant::now();
                     let grads = grads_syncer.sync(item.grads);
-                    let elapsed = start.elapsed();
-                    total_sync += elapsed;
+
                     if let Some(grads) = grads {
-                        let start = Instant::now();
                         model = model.optimize(&mut optim, lr, grads);
-                        let elapsed = start.elapsed();
-                        total_optim += elapsed;
                     }
                 }
             }
-
-            eprintln!(
-                "[{}] Iteration {}: step: {:?}, sync: {:?}, optim: {:?}",
-                peer_id, iteration, total_step, total_sync, total_optim
-            );
 
             let item = LearnerItem::new(
                 item.item,
@@ -171,7 +148,8 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                 Some(lr),
             );
 
-            if let Some(processor) = processor {
+            {
+                let mut processor = processor.lock().unwrap();
                 processor.process_train(Event::ProcessedItem(item));
             }
 
@@ -181,7 +159,8 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
             }
         }
 
-        if let Some(processor) = processor {
+        if is_main {
+            let mut processor = processor.lock().unwrap();
             processor.process_train(Event::EndEpoch(self.epoch));
         }
 
@@ -232,13 +211,13 @@ impl<B: AutodiffBackend, M: AutodiffModule<B> + 'static> GradsSyncer<B, M> {
         while let Ok(new_grads) = recv.recv() {
             // Sync grads with collective
             let new_grads = new_grads
-                .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Mean)
+                .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Sum)
                 .expect("DDP worker could not sync gradients!");
 
             if double_buffering {
                 let old_grads = grads_buffer.take();
                 grads_buffer = Some(new_grads);
-                
+
                 send.send(old_grads).unwrap();
             } else {
                 send.send(Some(new_grads)).unwrap();
