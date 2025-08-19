@@ -5,7 +5,8 @@ include_models!(
     constant_f64,
     constant_i32,
     constant_i64,
-    constant_shape
+    constant_shape,
+    rank_inference_propagation
 );
 
 #[cfg(test)]
@@ -97,5 +98,51 @@ mod tests {
         assert_eq!(shape_mul_shape[0], 2);
         assert_eq!(shape_mul_shape[1], 8);
         assert_eq!(shape_mul_shape[2], 18);
+    }
+
+    #[test]
+    fn rank_inference_propagation_test() {
+        // Regression test for rank inference propagation after Shape type conversions
+        // This test ensures that when Constants are converted to Shape types,
+        // all downstream nodes get their ranks properly re-inferred.
+        // Without the fix, this would fail during import with:
+        // "Concat axis 2 is out of bounds for rank 2"
+
+        let device = Default::default();
+
+        // This should succeed with our fix
+        // Without the fix, this would panic during model creation with:
+        // "Concat axis 2 is out of bounds for rank 2"
+        let model = rank_inference_propagation::Model::<Backend>::new(&device);
+
+        // Create a 3D input tensor (batch=2, sequence=4, features=384)
+        let input = Tensor::<Backend, 3>::ones([2, 4, 384], &device);
+
+        // Run the model
+        let output = model.forward(input);
+
+        // Assert the output has the expected shape
+        // The model:
+        // 1. Gets shape of input [2, 4, 384]
+        // 2. Slices to get [2, 4]
+        // 3. Concatenates with constant [8, 16] to get [2, 4, 8, 16]
+        // 4. MatMul operations produce [2, 4, 64] each
+        // 5. Concat along axis 2 produces [2, 4, 128]
+        // 6. Reshape to [2, 4, 8, 16]
+
+        let dims = output.dims();
+        assert_eq!(dims.len(), 4, "Output should be 4D tensor");
+        assert_eq!(dims[0], 2, "Batch dimension should be 2");
+        assert_eq!(dims[1], 4, "Sequence dimension should be 4");
+        assert_eq!(dims[2], 8, "Third dimension should be 8");
+        assert_eq!(dims[3], 16, "Fourth dimension should be 16");
+
+        // Verify total number of elements is preserved
+        let total_elements: usize = dims.iter().product();
+        assert_eq!(
+            total_elements,
+            2 * 4 * 128,
+            "Total elements should match concat output"
+        );
     }
 }

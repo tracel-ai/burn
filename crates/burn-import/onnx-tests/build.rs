@@ -70,6 +70,7 @@ fn main() {
         .input("tests/constant/constant_i32.onnx")
         .input("tests/constant/constant_i64.onnx")
         .input("tests/constant/constant_shape.onnx")
+        .input("tests/constant/rank_inference_propagation.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")
         .input("tests/constant_of_shape/constant_of_shape_full_like.onnx")
         .input("tests/constant_of_shape/constant_of_shape_scalar.onnx")
