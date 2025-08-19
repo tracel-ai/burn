@@ -179,7 +179,9 @@ where
             return;
         };
 
-        grad = all_reduce::<B::InnerBackend, D>(self.peer_id, grad, self.op).unwrap();
+        grad = all_reduce::<B::InnerBackend>(self.peer_id, grad.into_primitive().tensor(), self.op)
+            .unwrap();
+        let grad = Tensor::<B, D>::from_primitive(TensorPrimitive::Float(grad));
 
         self.grads.register::<B::InnerBackend, D>(id, grad);
     }
