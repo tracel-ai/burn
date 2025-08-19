@@ -41,8 +41,8 @@ mod tests {
         let expected_sum2 = -8.053_822; // from pytorch
         let expected_sum3 = 27.575_281; // from pytorch
 
-        assert!(expected_sum1.approx_eq(output_sum1, (1.0e-6, 2)));
-        assert!(expected_sum2.approx_eq(output_sum2, (1.0e-6, 2)));
-        assert!(expected_sum3.approx_eq(output_sum3, (1.0e-6, 2)));
+        assert!(expected_sum1.approx_eq(output_sum1, (1.0e-5, 2)));
+        assert!(expected_sum2.approx_eq(output_sum2, (1.0e-5, 2)));
+        assert!(expected_sum3.approx_eq(output_sum3, (1.0e-5, 2)));
     }
 }

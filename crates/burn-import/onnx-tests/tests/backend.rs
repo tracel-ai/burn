@@ -1,5 +1,12 @@
-#[cfg(feature = "backend-autodiff-wgpu")]
-pub type Backend = burn_autodiff::Autodiff<burn_wgpu::Wgpu>;
+#[cfg(feature = "backend-wgpu")]
+pub type Backend = burn::backend::Wgpu;
 
-#[cfg(not(feature = "backend-autodiff-wgpu"))]
-pub type Backend = burn_ndarray::NdArray<f32>;
+#[cfg(all(
+    feature = "backend-ndarray",
+    not(feature = "backend-wgpu"),
+    not(feature = "backend-tch")
+))]
+pub type Backend = burn::backend::NdArray<f32>;
+
+#[cfg(feature = "backend-tch")]
+pub type Backend = burn::backend::LibTorch<f32>;

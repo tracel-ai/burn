@@ -225,31 +225,63 @@ Your test will be automatically included in the main test suite through `tests/t
 
 ## Running Tests
 
+### Default Backend
+
 Run all tests with:
 
 ```sh
 cargo test
 ```
-This command runs all tests using the default backend: `burn_ndarray::NdArray<f32>`.
 
-To run tests with an alternative backend (e.g. `burn_autodiff::Autodiff<burn_wgpu::Wgpu>`), use:
-```
-cargo test --features backend-autodiff-wgpu
-```
-Currently supported backends:
-*	`burn_ndarray::NdArray<f32> (default)`
-*	`burn_autodiff::Autodiff<burn_wgpu::Wgpu>`
+This command runs all tests using the default backend: `burn::backend::NdArray<f32>`.
 
-Run tests for a specific operator with:
+### Testing with Different Backends
+
+You can test with different Burn backends by using feature flags:
+
+#### WGPU Backend
+
+```sh
+cargo test --features backend-wgpu
+```
+
+Uses `burn::backend::Wgpu` for GPU-accelerated computation.
+
+#### LibTorch Backend
+
+```sh
+cargo test --features backend-tch
+```
+
+Uses `burn::backend::LibTorch<f32>` for PyTorch backend integration.
+
+#### NdArray Backend (Explicit)
+
+```sh
+cargo test --features backend-ndarray
+```
+
+Explicitly uses `burn::backend::NdArray<f32>` (same as default).
+
+### Running Specific Tests
+
+Run tests for a specific operator:
 
 ```sh
 cargo test --test test_mod my_new_op::test_my_new_op
 ```
 
 Run a specific test with a selected backend:
+
+```sh
+cargo test --test test_mod my_new_op::test_my_new_op --features backend-wgpu
 ```
-cargo test --test test_mod my_new_op::test_my_new_op --features backend-autodiff-wgpu
-```
+
+### Supported Backends
+
+- `burn::backend::NdArray<f32>` (default) - CPU-based computation using ndarray
+- `burn::backend::Wgpu` - GPU-accelerated computation using WebGPU
+- `burn::backend::LibTorch<f32>` - PyTorch backend integration
 
 ## Debugging Failed Tests
 

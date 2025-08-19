@@ -33,7 +33,7 @@ mod tests {
 
     use super::*;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     #[ignore = "It appears loading boolean tensors are not supported yet"]

@@ -21,7 +21,6 @@ mod tests {
     use super::*;
     use crate::backend::Backend;
     use burn::tensor::{Bool, Int, Tensor, TensorData, Tolerance, ops::FloatElem};
-    use burn_ndarray::{NdArray, NdArrayDevice};
     type FT = FloatElem<Backend>;
 
     #[test]
@@ -136,16 +135,15 @@ mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn cached_attn_inputs(
-        device: &NdArrayDevice,
-    ) -> (
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 2, Bool>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
+    fn cached_attn_inputs() -> (
+        Tensor<Backend, 4>,
+        Tensor<Backend, 4>,
+        Tensor<Backend, 4>,
+        Tensor<Backend, 2, Bool>,
+        Tensor<Backend, 4>,
+        Tensor<Backend, 4>,
     ) {
+        let device = &Default::default();
         let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], device);
         let k = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0]]]], device);
         let v = Tensor::<Backend, 4>::from_floats([[[[0.3, 0.6]]]], device);
@@ -164,7 +162,7 @@ mod tests {
         let device = Default::default();
         let model: attention_cache::Model<Backend> = attention_cache::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (output, present_k, present_v) = model.forward(q, k, v, attn_mask, past_k, past_v);
         let expected = TensorData::from([[[[0.283488f32, 0.566976], [0.266511, 0.533023]]]]);
@@ -223,7 +221,7 @@ mod tests {
         let model: attention_qk_output_0::Model<Backend> =
             attention_qk_output_0::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -240,7 +238,7 @@ mod tests {
         let model: attention_qk_output_1::Model<Backend> =
             attention_qk_output_1::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -257,7 +255,7 @@ mod tests {
         let model: attention_qk_output_2::Model<Backend> =
             attention_qk_output_2::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -274,7 +272,7 @@ mod tests {
         let model: attention_qk_output_3::Model<Backend> =
             attention_qk_output_3::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]

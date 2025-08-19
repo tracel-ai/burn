@@ -95,7 +95,7 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};

@@ -7,7 +7,7 @@ mod tests {
     use burn::tensor::Shape;
     use burn::tensor::Tensor;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     #[test]
     fn bernoulli() {

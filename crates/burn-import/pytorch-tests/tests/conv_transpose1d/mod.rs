@@ -29,7 +29,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::Backend;
 
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},

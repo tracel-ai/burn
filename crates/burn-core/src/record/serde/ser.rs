@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_param_serde() {
-        type Backend = burn_ndarray::NdArray<f32>;
+        use crate::backend::Backend;
 
         let device = Default::default();
         let tensor: Tensor<Backend, 2> = Tensor::ones([2, 2], &device);
