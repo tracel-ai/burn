@@ -71,16 +71,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
         }
         Node::BitwiseOr(self)
     }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion for scalar operations
-        if matches!(
-            (&self.inputs[0], &self.inputs[1]),
-            (Type::Tensor(_), Type::Scalar(_)) | (Type::Scalar(_), Type::Tensor(_))
-        ) {
-            imports.register("burn::tensor::ElementConversion");
-        }
-    }
 }
 
 #[cfg(test)]

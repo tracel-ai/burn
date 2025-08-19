@@ -96,16 +96,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
     fn into_node(self) -> Node<PS> {
         Node::Squeeze(self)
     }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        match (&self.input, &self.output) {
-            (Type::Tensor(_), Type::Scalar(_)) => {
-                // Import for the .elem::<T>() conversion
-                imports.register("burn::tensor::ElementConversion");
-            }
-            _ => {}
-        }
-    }
 }
 
 #[cfg(test)]

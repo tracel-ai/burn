@@ -206,17 +206,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
         Node::Constant(self)
     }
 
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        match &self.value {
-            ConstantValue::Tensor(tensor_type, _) => {
-                if let crate::burn::TensorKind::Int = tensor_type.kind {
-                    imports.register("burn::tensor::Int");
-                }
-            }
-            _ => {}
-        }
-    }
-
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if let ConstantValue::Tensor(_, data) = &self.value {
             let data = data.clone().convert::<PS::FloatElem>();

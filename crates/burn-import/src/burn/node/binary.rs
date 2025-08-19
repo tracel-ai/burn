@@ -125,22 +125,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
     fn into_node(self) -> Node<PS> {
         Node::Binary(self)
     }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Check if we need to import Bool and Int for Shape comparisons
-        if self.binary_type == BinaryType::Equal {
-            match (&self.lhs, &self.rhs) {
-                // Shape-to-Tensor comparisons need these imports
-                (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                    imports.register("burn::tensor::Bool");
-                    imports.register("burn::tensor::Int");
-                    imports.register("burn::tensor::Tensor");
-                }
-                // Shape-to-Shape comparison doesn't need any special imports
-                _ => {}
-            }
-        }
-    }
 }
 
 impl BinaryNode {

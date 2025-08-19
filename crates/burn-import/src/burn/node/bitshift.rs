@@ -80,16 +80,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     fn into_node(self) -> Node<PS> {
         Node::BitShift(self)
     }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion for scalar operations
-        if matches!(
-            (&self.inputs[0], &self.inputs[1]),
-            (Type::Tensor(_), Type::Scalar(_))
-        ) {
-            imports.register("burn::tensor::ElementConversion");
-        }
-    }
 }
 
 #[cfg(test)]

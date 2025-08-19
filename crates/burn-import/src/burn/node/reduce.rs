@@ -119,13 +119,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
         vec![self.output.clone()]
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion import if output is scalar (needed for .elem() method)
-        if matches!(&self.output, Type::Scalar(_)) {
-            imports.register("burn::tensor::ElementConversion");
-        }
-    }
-
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let output = &self.output.name();
 
@@ -334,7 +327,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -381,7 +373,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -424,7 +415,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -467,7 +457,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -510,7 +499,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -553,7 +541,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -606,7 +593,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -657,7 +643,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -700,7 +685,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -743,7 +727,6 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::{module::Module, tensor::backend::Backend};
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

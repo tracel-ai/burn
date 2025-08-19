@@ -148,29 +148,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Check if we're converting Shape to Tensor
-        if matches!(self.input, Type::Shape(_)) && matches!(self.output, Type::Tensor(_)) {
-            imports.register("burn::tensor::TensorData");
-            // Register Bool if casting to bool
-            if matches!(self.target_elem_type, ElementType::Bool) {
-                imports.register("burn::tensor::Bool");
-            }
-        }
-
-        // Check tensor kinds directly from input and output types
-        if let (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) =
-            (&self.input, &self.output)
-        {
-            if input_tensor.kind == TensorKind::Bool || output_tensor.kind == TensorKind::Bool {
-                imports.register("burn::tensor::Bool");
-            }
-            if input_tensor.kind == TensorKind::Int || output_tensor.kind == TensorKind::Int {
-                imports.register("burn::tensor::Int");
-            }
-        }
-    }
-
     fn into_node(self) -> Node<PS> {
         Node::Cast(self)
     }
