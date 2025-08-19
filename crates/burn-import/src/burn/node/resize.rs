@@ -53,8 +53,8 @@ pub struct ResizeNode {
     pub input: TensorType,
     pub output: TensorType,
     pub mode: ResizeMode,
-    pub scales: ResizeScales,
-    pub sizes: ResizeSizes,
+    pub scales: Option<ResizeScales>,
+    pub sizes: Option<ResizeSizes>,
 }
 
 impl ResizeNode {
@@ -63,16 +63,16 @@ impl ResizeNode {
         input: TensorType,
         output: TensorType,
         mode: ResizeMode,
-        scales: ResizeScales,
-        sizes: ResizeSizes,
+        scales: Option<ResizeScales>,
+        sizes: Option<ResizeSizes>,
     ) -> Self {
         // Only create a field if we have static scales/sizes
         // Runtime inputs mean we don't need a static interpolation field
         let field = match (&scales, &sizes) {
-            (ResizeScales::Runtime(_), _) | (_, ResizeSizes::Runtime(_)) => {
+            (Some(ResizeScales::Runtime(_)), _) | (_, Some(ResizeSizes::Runtime(_))) => {
                 None // Runtime inputs, no field needed
             }
-            (ResizeScales::Static(s), ResizeSizes::Static(z)) if !s.is_empty() || !z.is_empty() => {
+            (Some(ResizeScales::Static(_)), _) | (_, Some(ResizeSizes::Static(_))) => {
                 let ty = if input.rank == 3 {
                     quote! { Interpolate1d }
                 } else if input.rank == 4 {
@@ -82,7 +82,7 @@ impl ResizeNode {
                 };
                 Some(OtherType::new(name, ty))
             }
-            _ => None, // Empty static inputs, no field needed
+            _ => None, // No scales or sizes provided
         };
 
         Self {
@@ -98,7 +98,7 @@ impl ResizeNode {
     fn forward_runtime(&self, input: TokenStream, output: &proc_macro2::Ident) -> TokenStream {
         // Handle runtime resize with Shape inputs
         match &self.sizes {
-            ResizeSizes::Runtime(Type::Shape(shape)) => {
+            Some(ResizeSizes::Runtime(Type::Shape(shape))) => {
                 let shape_name = &shape.name;
                 // Extract the last 2 dimensions from the shape (H, W for 2D resize)
                 if self.input.rank == 4 {
@@ -123,7 +123,7 @@ impl ResizeNode {
                     );
                 }
             }
-            ResizeSizes::Runtime(Type::Tensor(tensor)) => {
+            Some(ResizeSizes::Runtime(Type::Tensor(tensor))) => {
                 let sizes_name = &tensor.name;
                 let mode_token = self.mode.to_tensor_interpolate_mode_token();
                 quote! {
@@ -154,13 +154,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
         let mut types = vec![Type::Tensor(self.input.clone())];
 
         // Add runtime shape inputs if present
-        match &self.scales {
-            ResizeScales::Runtime(ty) => types.push(ty.clone()),
-            _ => {}
+        if let Some(ResizeScales::Runtime(ty)) = &self.scales {
+            types.push(ty.clone());
         }
-        match &self.sizes {
-            ResizeSizes::Runtime(ty) => types.push(ty.clone()),
-            _ => {}
+        if let Some(ResizeSizes::Runtime(ty)) = &self.sizes {
+            types.push(ty.clone());
         }
 
         types
@@ -178,7 +176,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
         let tokens = if self.input.rank == 3 {
             let size = match &self.sizes {
-                ResizeSizes::Static(sizes) if !sizes.is_empty() => {
+                Some(ResizeSizes::Static(sizes)) if !sizes.is_empty() => {
                     let size = sizes[0].to_tokens();
                     quote! { Some(#size) }
                 }
@@ -186,7 +184,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
             };
 
             let scale_factor = match &self.scales {
-                ResizeScales::Static(scales) if !scales.is_empty() => {
+                Some(ResizeScales::Static(scales)) if !scales.is_empty() => {
                     let scale = scales[0].to_tokens();
                     quote! { Some(#scale) }
                 }
@@ -202,7 +200,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
             }
         } else if self.input.rank == 4 {
             let size = match &self.sizes {
-                ResizeSizes::Static(sizes) if sizes.len() == 2 => {
+                Some(ResizeSizes::Static(sizes)) if sizes.len() == 2 => {
                     let h = sizes[0].to_tokens();
                     let w = sizes[1].to_tokens();
                     quote! { Some([#h, #w]) }
@@ -211,7 +209,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
             };
 
             let scale_factor = match &self.scales {
-                ResizeScales::Static(scales) if scales.len() == 2 => {
+                Some(ResizeScales::Static(scales)) if scales.len() == 2 => {
                     let h = scales[0].to_tokens();
                     let w = scales[1].to_tokens();
                     quote! { Some([#h, #w]) }
@@ -298,8 +296,8 @@ mod tests {
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
             ResizeMode::Nearest,
-            ResizeScales::Static(vec![0.5, 0.5]),
-            ResizeSizes::Static(vec![]),
+            Some(ResizeScales::Static(vec![0.5, 0.5])),
+            None,
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -353,8 +351,8 @@ mod tests {
             TensorType::new_float("tensor1", 3),
             TensorType::new_float("tensor2", 3),
             ResizeMode::Cubic,
-            ResizeScales::Static(vec![2.0]),
-            ResizeSizes::Static(vec![20]),
+            Some(ResizeScales::Static(vec![2.0])),
+            Some(ResizeSizes::Static(vec![20])),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);

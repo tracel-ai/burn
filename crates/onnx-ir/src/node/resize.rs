@@ -29,8 +29,8 @@ impl FromStr for ResizeMode {
 #[derive(Debug, Clone)]
 pub struct ResizeConfig {
     pub mode: ResizeMode,
-    pub scales: ResizeScales,
-    pub sizes: ResizeSizes,
+    pub scales: Option<ResizeScales>,
+    pub sizes: Option<ResizeSizes>,
 }
 
 /// Represents either a static value or a runtime argument for resize scales.
@@ -140,10 +140,7 @@ pub fn resize_config(node: &Node) -> ResizeConfig {
     }
 
     // Check that at least one of scales or sizes is provided
-    let has_scales = !matches!(&scales, ResizeScales::Static(v) if v.is_empty());
-    let has_sizes = !matches!(&sizes, ResizeSizes::Static(v) if v.is_empty());
-
-    if !has_scales && !has_sizes {
+    if scales.is_none() && sizes.is_none() {
         panic!("Resize: either scales or sizes input is required")
     }
 
@@ -155,12 +152,12 @@ pub fn resize_config(node: &Node) -> ResizeConfig {
 }
 
 /// Extract scales input as either static or runtime
-fn extract_scales_input(node: &Node, input_rank: usize) -> ResizeScales {
+fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
             if input.name.is_empty() {
-                return ResizeScales::Static(vec![]);
+                return None;
             }
 
             match &input.ty {
@@ -169,35 +166,36 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> ResizeScales {
                     match &input.value {
                         Some(TensorData { data, .. }) => {
                             let mut scales = data.clone().into_f32s();
-                            if !scales.is_empty() {
-                                assert!(scales.len() == input_rank);
-                                // ignore the first two items from scales
-                                // because they are the batch and channel dimensions
-                                scales = scales.iter().skip(2).cloned().collect();
+                            if scales.is_empty() {
+                                return None;
                             }
-                            ResizeScales::Static(scales)
+                            assert!(scales.len() == input_rank);
+                            // ignore the first two items from scales
+                            // because they are the batch and channel dimensions
+                            scales = scales.iter().skip(2).cloned().collect();
+                            Some(ResizeScales::Static(scales))
                         }
-                        None => ResizeScales::Runtime(input.clone()),
+                        None => Some(ResizeScales::Runtime(input.clone())),
                     }
                 }
                 ArgType::Shape(_) => {
                     // Shape input for scales - treat as runtime
-                    ResizeScales::Runtime(input.clone())
+                    Some(ResizeScales::Runtime(input.clone()))
                 }
-                _ => ResizeScales::Static(vec![]),
+                _ => None,
             }
         }
-        None => ResizeScales::Static(vec![]),
+        None => None,
     }
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(node: &Node, input_rank: usize) -> ResizeSizes {
+fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
             if input.name.is_empty() {
-                return ResizeSizes::Static(vec![]);
+                return None;
             }
 
             match &input.ty {
@@ -211,26 +209,27 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> ResizeSizes {
                                 .iter()
                                 .map(|&x| x as usize)
                                 .collect();
-                            if !sizes.is_empty() {
-                                assert!(sizes.len() == input_rank);
-                                // ignore the first two items from sizes
-                                // because they are the batch and channel dimensions
-                                sizes = sizes.iter().skip(2).cloned().collect();
+                            if sizes.is_empty() {
+                                return None;
                             }
-                            ResizeSizes::Static(sizes)
+                            assert!(sizes.len() == input_rank);
+                            // ignore the first two items from sizes
+                            // because they are the batch and channel dimensions
+                            sizes = sizes.iter().skip(2).cloned().collect();
+                            Some(ResizeSizes::Static(sizes))
                         }
-                        None => ResizeSizes::Runtime(input.clone()),
+                        None => Some(ResizeSizes::Runtime(input.clone())),
                     }
                 }
                 ArgType::Shape(_rank) => {
                     // Shape input for sizes - this is the key case we're fixing
                     // The Shape type represents the shape of a tensor, which is exactly what we need
-                    ResizeSizes::Runtime(input.clone())
+                    Some(ResizeSizes::Runtime(input.clone()))
                 }
-                _ => ResizeSizes::Static(vec![]),
+                _ => None,
             }
         }
-        None => ResizeSizes::Static(vec![]),
+        None => None,
     }
 }
 
@@ -292,17 +291,12 @@ mod tests {
         let config = resize_config(&node);
         assert_eq!(config.mode, ResizeMode::Nearest);
         match config.scales {
-            ResizeScales::Static(scales) => {
+            Some(ResizeScales::Static(scales)) => {
                 assert_eq!(scales, vec![2.0, 2.0]); // Only the spatial scales (H,W)
             }
             _ => panic!("Expected static scales"),
         }
-        match config.sizes {
-            ResizeSizes::Static(sizes) => {
-                assert!(sizes.is_empty(), "Expected empty sizes but got {:?}", sizes);
-            }
-            _ => panic!("Expected static empty sizes"),
-        }
+        assert!(config.sizes.is_none(), "Expected no sizes");
     }
 
     #[test]
@@ -315,18 +309,9 @@ mod tests {
         );
         let config = resize_config(&node);
         assert_eq!(config.mode, ResizeMode::Linear);
-        match config.scales {
-            ResizeScales::Static(scales) => {
-                assert!(
-                    scales.is_empty(),
-                    "Expected empty scales but got {:?}",
-                    scales
-                );
-            }
-            _ => panic!("Expected static empty scales"),
-        }
+        assert!(config.scales.is_none(), "Expected no scales");
         match config.sizes {
-            ResizeSizes::Static(sizes) => {
+            Some(ResizeSizes::Static(sizes)) => {
                 assert_eq!(sizes, vec![224, 224]); // Only the spatial sizes (H,W)
             }
             _ => panic!("Expected static sizes"),
