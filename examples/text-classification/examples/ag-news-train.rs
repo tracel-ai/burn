@@ -95,16 +95,6 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "wgpu-ddp")]
-mod wgpu_ddp {
-    use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, wgpu::Wgpu, wgpu::WgpuDevice};
-
-    pub fn run() {
-        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![WgpuDevice::default(), WgpuDevice::default()]);
-    }
-}
-
 #[cfg(feature = "vulkan")]
 mod vulkan {
     use crate::{ElemType, launch};
@@ -146,23 +136,6 @@ mod cuda {
     }
 }
 
-#[cfg(feature = "cuda-four")]
-mod cuda_four {
-    use crate::{ElemType, launch};
-    use burn::backend::{
-        Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
-    };
-
-    pub fn run() {
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
-            CudaDevice::new(0),
-            CudaDevice::new(1),
-            CudaDevice::new(2),
-            CudaDevice::new(3),
-        ]);
-    }
-}
-
 #[cfg(feature = "rocm")]
 mod rocm {
     use crate::{ElemType, launch};
@@ -185,14 +158,10 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
-    #[cfg(feature = "wgpu-ddp")]
-    wgpu_ddp::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
-    #[cfg(feature = "cuda-four")]
-    cuda_four::run();
     #[cfg(feature = "rocm")]
     rocm::run();
     #[cfg(feature = "remote")]
