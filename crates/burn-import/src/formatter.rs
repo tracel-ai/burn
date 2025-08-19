@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use rust_format::{Config, Edition, Formatter, PostProcess, PrettyPlease};
+use rust_format::{Config, Formatter, PostProcess, PrettyPlease};
 
 /// Formats a token stream into a string.
 pub fn format_tokens(tokens: TokenStream) -> String {
