@@ -248,6 +248,15 @@ impl GatherNode {
                             },
                         }
                     }
+                    GatherIndices::Runtime(Type::Shape(shape_type)) => {
+                        let shape_name = &shape_type.name;
+
+                        // Shape array can be directly used to create tensor data
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data(#shape_name, &*self.device);
+                            let #output = Tensor::select(#input, #dim, indices);
+                        }
+                    }
                     GatherIndices::Static(indices) => {
                         // Static indices for tensor gathering
                         let indices_tokens = indices
@@ -260,7 +269,10 @@ impl GatherNode {
                             let #output = Tensor::select(#input, #dim, indices);
                         }
                     }
-                    _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
+                    _ => panic!(
+                        "Gather needs Scalar, Tensor, or Shape index, got {:?}!",
+                        self.index
+                    ),
                 }
             }
             _ => panic!("Gather needs Tensor output, got {:?}!", self.output),
@@ -313,6 +325,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         {
             imports.register("burn::tensor::s");
         }
+
+        // No additional imports needed for shape indices (using select)
     }
 }
 
