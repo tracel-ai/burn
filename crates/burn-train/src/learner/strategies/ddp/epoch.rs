@@ -128,7 +128,14 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
                         accumulation_current = 0;
                     }
                 }
-                None => model = model.optimize(&mut optim, lr, item.grads),
+                None => {
+                    // Sync grads with collective
+                    let grads = item
+                        .grads
+                        .all_reduce(peer_id, ReduceOperation::Mean, &model);
+
+                    model = model.optimize(&mut optim, lr, grads);
+                }
             }
 
             let item = LearnerItem::new(
