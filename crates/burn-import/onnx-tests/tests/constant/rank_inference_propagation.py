@@ -211,6 +211,3 @@ if __name__ == '__main__':
         
     except ImportError:
         print("ONNX ReferenceEvaluator not available for validation")
-    except Exception as e:
-        print(f"Validation with ReferenceEvaluator: {e}")
-        print("Note: Shape mismatch is expected due to test model design")
