@@ -127,8 +127,8 @@ impl ResizeNode {
                 let sizes_name = &tensor.name;
                 let mode_token = self.mode.to_tensor_interpolate_mode_token();
                 quote! {
-                    // Convert tensor to shape array
-                    let sizes_data = #sizes_name.to_data();
+                    // Convert tensor to shape array, forcing conversion to i64
+                    let sizes_data = #sizes_name.to_data().convert::<i64>();
                     let sizes_array = sizes_data.as_slice::<i64>().unwrap();
                     let target_height = sizes_array[2] as usize;
                     let target_width = sizes_array[3] as usize;
