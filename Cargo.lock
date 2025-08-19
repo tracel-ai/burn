@@ -414,7 +414,7 @@ dependencies = [
  "clang-sys",
  "itertools 0.13.0",
  "log",
- "prettyplease",
+ "prettyplease 0.2.36",
  "proc-macro2",
  "quote",
  "regex",
@@ -533,7 +533,7 @@ checksum = "a660ebdea4d4d3ec7788cfc9c035b66efb66028b9b97bf6cde7023ccc8e77e28"
 dependencies = [
  "darling 0.21.1",
  "ident_case",
- "prettyplease",
+ "prettyplease 0.2.36",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -1906,7 +1906,7 @@ dependencies = [
  "darling 0.21.1",
  "derive-new",
  "ident_case",
- "prettyplease",
+ "prettyplease 0.2.36",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -5982,6 +5982,16 @@ dependencies = [
 
 [[package]]
 name = "prettyplease"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c8646e95016a7a6c4adea95bafa8a16baab64b583356217f2c85db4a39d9a86"
+dependencies = [
+ "proc-macro2",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "prettyplease"
 version = "0.2.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff24dfcda44452b9816fff4cd4227e1bb73ff5a2f1bc1105aa92fb8565ce44d2"
@@ -6731,6 +6741,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60e7c00b6c3bf5e38a880eec01d7e829d12ca682079f8238a464def3c4b31627"
 dependencies = [
+ "prettyplease 0.1.25",
  "proc-macro2",
  "syn 1.0.109",
 ]
