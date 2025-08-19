@@ -140,6 +140,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
+        println!("Execute fallback");
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
@@ -175,6 +176,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
                 &ElemwiseRunner,
             )
             .unwrap();
+        println!("Trace fallback {:?}", self.info.trace_fallback);
 
         output.merge(output_write)
     }

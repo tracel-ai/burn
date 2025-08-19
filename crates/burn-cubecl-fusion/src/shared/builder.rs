@@ -31,6 +31,18 @@ pub(crate) struct FuseOptimizationBuilder {
     max_bindings: u32,
 }
 
+impl FuseOptimizationBuilder {
+    pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
+        let len_previous = self.len();
+        let mut builder_cloned = self.clone();
+
+        builder_cloned.register(op);
+        let len_after = builder_cloned.len();
+
+        len_after > len_previous
+    }
+}
+
 impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
     fn register(&mut self, op: &OperationIr) {
         if let OptimizationStatus::Closed = self.status {
