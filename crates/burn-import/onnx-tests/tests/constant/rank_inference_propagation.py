@@ -156,9 +156,9 @@ def create_model():
         name='reshape'
     )
     
-    # Create output with dynamic shape
+    # Create output with expected shape
     output = helper.make_tensor_value_info(
-        'output', TensorProto.FLOAT, []  # Unknown rank and shape
+        'output', TensorProto.FLOAT, [None, None, 8, 16]  # Dynamic batch and sequence, fixed last dims
     )
     
     # Create the graph
@@ -208,9 +208,6 @@ if __name__ == '__main__':
         # The reshape operation concatenates sliced input shape [2, 4] with constant [8, 16]
         # to form [2, 4, 8, 16], which matches the number of elements in the
         # concatenated MatMul outputs [2, 4, 128] (2*4*128 = 2*4*8*16 = 1024)
-        
-        # Note: The model has a mathematical inconsistency but that's OK for testing
-        # rank inference propagation
         
     except ImportError:
         print("ONNX ReferenceEvaluator not available for validation")
