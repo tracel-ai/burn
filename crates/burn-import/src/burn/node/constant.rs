@@ -206,17 +206,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
         Node::Constant(self)
     }
 
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        match &self.value {
-            ConstantValue::Tensor(tensor_type, _) => {
-                if let crate::burn::TensorKind::Int = tensor_type.kind {
-                    imports.register("burn::tensor::Int");
-                }
-            }
-            _ => {}
-        }
-    }
-
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if let ConstantValue::Tensor(_, data) = &self.value {
             let data = data.clone().convert::<PS::FloatElem>();
@@ -244,10 +233,7 @@ mod tests {
         output: TokenStream,
     ) -> TokenStream {
         quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -339,11 +325,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -399,12 +381,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Int;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -460,12 +437,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Bool;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -520,10 +492,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

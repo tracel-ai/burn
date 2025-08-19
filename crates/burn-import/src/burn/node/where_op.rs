@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, ScalarType, ShapeType, ToTokens, Type};
+use crate::burn::{ScalarType, ShapeType, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -56,12 +56,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
                 Self::forward_shape(out, &self.condition, &self.x, &self.y)
             }
             other => panic!("Where cannot handle {other:?}"),
-        }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        if matches!(&self.output, Type::Tensor(_)) {
-            imports.register("burn::tensor::Bool");
         }
     }
 
@@ -189,12 +183,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -249,12 +238,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -311,12 +295,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -371,12 +350,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -406,6 +380,7 @@ mod tests {
                     tensor4
                 }
             }
+
         };
 
         assert_tokens(graph.codegen(), expected);
@@ -432,10 +407,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -490,10 +462,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -556,10 +525,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

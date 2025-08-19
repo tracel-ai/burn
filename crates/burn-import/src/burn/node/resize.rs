@@ -181,14 +181,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
             use burn::nn::interpolate::Interpolate2d;
             use burn::nn::interpolate::Interpolate2dConfig;
             use burn::nn::interpolate::InterpolateMode;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate2d,
@@ -236,14 +232,10 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
             use burn::nn::interpolate::Interpolate1d;
             use burn::nn::interpolate::Interpolate1dConfig;
             use burn::nn::interpolate::InterpolateMode;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate1d,

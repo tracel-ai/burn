@@ -761,6 +761,16 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
             },
             OperationIr::Bool(op) => match op {
+                BoolOperationIr::Zeros(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::bool_zeros(shape, &self.device);
+                    handles.register_bool_tensor::<B>(&desc.id, output);
+                }
+                BoolOperationIr::Ones(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::bool_ones(shape, &self.device);
+                    handles.register_bool_tensor::<B>(&desc.id, output);
+                }
                 BoolOperationIr::IntoFloat(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 

@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use super::NodeCodegen;
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -415,22 +415,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::s");
-
-        // Register Int if we have 1D tensor inputs
-        if matches!(&self.starts, SliceParam::Runtime(Type::Tensor(t)) if t.rank == 1)
-            || matches!(&self.ends, SliceParam::Runtime(Type::Tensor(t)) if t.rank == 1)
-        {
-            imports.register("burn::tensor::Int");
-        }
-
-        // For Shape slicing, we might need RangesArg
-        if matches!(&self.input, Type::Shape(_)) {
-            imports.register("burn::tensor::RangesArg");
-        }
-    }
-
     fn into_node(self) -> super::Node<PS> {
         super::Node::Slice(self)
     }
@@ -453,12 +437,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -510,12 +489,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -554,12 +528,7 @@ mod tests {
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -607,12 +576,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -662,12 +626,8 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -713,13 +673,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -770,13 +724,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

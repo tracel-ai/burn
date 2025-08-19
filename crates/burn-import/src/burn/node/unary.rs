@@ -157,14 +157,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
             }
-            UnaryNodeKind::Not => {
-                imports.register("burn::tensor::Bool");
-            }
-            UnaryNodeKind::IsNaN | UnaryNodeKind::IsInf => {
-                if matches!(self.output, Type::Tensor(_)) {
-                    imports.register("burn::tensor::Bool");
-                }
-            }
             UnaryNodeKind::Shape => {
                 imports.register("alloc::vec::Vec");
             }
