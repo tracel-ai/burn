@@ -494,7 +494,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         match action {
             ReshapeAction::UpdateStrides { strides } => {
-                println!("Update strides only for reshape. {:?}", tensor_global);
                 block.writes.remove(&output.tensor_relative.id);
 
                 let handle = CubeFusionHandle {

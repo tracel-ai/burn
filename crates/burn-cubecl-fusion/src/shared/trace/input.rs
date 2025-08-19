@@ -41,6 +41,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let mut handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+
                     handle_smaller_strides(&tensor_global.shape, &mut handle.strides);
 
                     if let TensorStatus::ReadWrite = tensor_relative.status {

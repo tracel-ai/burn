@@ -7,7 +7,6 @@ use crate::{
     stream::{OperationStreams, StreamId, execution::Operation},
     unary_float_ops,
 };
-use burn_common::tensor::reshape_analysis;
 use burn_ir::*;
 use burn_tensor::{
     Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
@@ -613,15 +612,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_reshape(mut tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        match reshape_analysis(&tensor.shape, None, &shape.dims) {
-            burn_common::tensor::ReshapeAnalysis::Broadcasted => {
-                tensor.shape = shape.dims.to_vec();
-                return tensor;
-            }
-            burn_common::tensor::ReshapeAnalysis::NoChange => return tensor,
-            _ => (),
-        };
+    fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
+        if tensor.shape == shape.dims {
+            return tensor;
+        }
 
         #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
