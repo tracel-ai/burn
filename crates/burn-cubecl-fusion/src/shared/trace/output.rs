@@ -521,7 +521,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 });
                 self.globals[output.pos_original] = Some(tensor_global);
             }
-            ReshapeAnalysis::IntoContiguous => {
+            _ => {
                 self.normal_output::<BT>(
                     client,
                     device,
@@ -533,7 +533,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     block_idx,
                 );
             }
-            ReshapeAnalysis::Invalid(msg) => panic!("{msg}"),
         }
     }
 

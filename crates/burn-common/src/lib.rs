@@ -74,8 +74,6 @@ pub mod tensor {
         },
         /// The strides are not compatible, we should go through a contiguous layout.
         IntoContiguous,
-        /// The new shape is incompatible.
-        Invalid(String),
     }
 
     /// Returns the proper action to take when reshaping a tensor.
@@ -88,9 +86,12 @@ pub mod tensor {
         let shape_new_rank = shape_new.len();
 
         if shape_new_rank < shape_rank {
-            return ReshapeAnalysis::Invalid(format!(
-                "Can't reduce the rank of a tensor using reshape. {shape_rank} => {shape_new_rank}"
-            ));
+            return match is_contiguous(&shape, &strides) {
+                true => ReshapeAnalysis::UpdateStrides {
+                    strides: contiguous_strides(shape_new),
+                },
+                false => ReshapeAnalysis::IntoContiguous,
+            };
         }
 
         let n_new_batch = shape_new_rank - shape_rank;

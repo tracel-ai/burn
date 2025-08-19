@@ -635,6 +635,7 @@ impl FuseOptimizationBuilder {
         }
 
         let mut updated = self.current_output_shape.clone();
+        let mut should_update = false;
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
@@ -657,6 +658,7 @@ impl FuseOptimizationBuilder {
 
             // Broadcasted on curr dim - update reference output shape.
             if curr == 0 && self.settings.output_shape_updates {
+                should_update = true;
                 updated[i] = new;
                 continue;
             }
@@ -664,11 +666,14 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        if updated != out.shape {
-            return false;
-        }
+        if should_update {
+            // For now forced to have exact shape.
+            if updated != out.shape {
+                return false;
+            }
 
-        self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape);
+        }
 
         true
     }
