@@ -56,7 +56,16 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     }
 
     fn bool_empty(shape: Shape, _device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<bool> {
+        Self::bool_zeros(shape, _device)
+    }
+
+    fn bool_zeros(shape: Shape, _device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<bool> {
         let values = vec![false; shape.num_elements()];
+        NdArrayTensor::from_data(TensorData::new(values, shape))
+    }
+
+    fn bool_ones(shape: Shape, _device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<bool> {
+        let values = vec![true; shape.num_elements()];
         NdArrayTensor::from_data(TensorData::new(values, shape))
     }
 
