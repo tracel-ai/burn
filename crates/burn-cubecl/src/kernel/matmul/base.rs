@@ -1,5 +1,5 @@
 use super::init_matmul_output;
-use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
+use crate::{CubeRuntime, element::MatmulElement, tensor::CubeTensor};
 use burn_tensor::{DType, quantization::QuantAcc};
 use cubecl::matmul::{MatmulInputHandleRef, components::MatmulSetupError};
 
@@ -27,7 +27,7 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: CubeRuntime, E: FloatElement>(
+pub fn matmul<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
@@ -35,7 +35,7 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
+            let out = out.unwrap_or_else(|| init_matmul_output::<R, E::EO>(&lhs, &rhs));
 
             let client = &lhs.client;
 

@@ -70,7 +70,7 @@ macro_rules! testgen_all {
 
                     pub type BoolType = $bool;
 
-                    $crate::testgen_with_int_param!();
+                    $crate::testgen_with_bool_param!();
                 })*
             }
             $crate::testgen_no_param!();
@@ -302,6 +302,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_gather_scatter!();
         burn_tensor::testgen_bitwise!();
+        burn_tensor::testgen_matmul!();
 
         // test stats
         burn_tensor::testgen_eye!();
@@ -316,7 +317,7 @@ macro_rules! testgen_with_int_param {
 macro_rules! testgen_with_bool_param {
     () => {
         burn_tensor::testgen_all_op!();
-        burn_tensor::testgen_any_op!();
+        burn_tensor::testgen_any!();
         burn_tensor::testgen_argwhere_nonzero!();
         burn_tensor::testgen_cast!();
         burn_tensor::testgen_cat!();
@@ -329,7 +330,7 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_transpose!();
-        burn_tensor::tri_mask!();
+        burn_tensor::testgen_tri_mask!();
     };
 }
 

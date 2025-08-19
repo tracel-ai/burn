@@ -1,22 +1,22 @@
 // Language
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::Distribution;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::IntTensorOps;
+use burn_tensor::{Distribution, ops::IntTensor};
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 use ndarray::IntoDimension;
 
 // Current crate
-use crate::element::FloatNdArrayElement;
 use crate::element::IntNdArrayElement;
 use crate::element::QuantElement;
 use crate::execute_with_float_dtype;
 use crate::new_tensor_float;
 use crate::{NdArray, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED};
+use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 
 // Workspace crates
 use burn_tensor::{DType, Shape, TensorData, backend::Backend};
@@ -55,6 +55,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 
     fn int_empty(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<I> {
         Self::int_zeros(shape, device)
+    }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        matmul(lhs, rhs)
     }
 
     fn int_mask_where(
