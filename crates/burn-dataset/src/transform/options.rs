@@ -10,32 +10,23 @@ use rand::{RngCore, SeedableRng};
 /// use rand::SeedableRng;
 /// use burn_dataset::transform::RngSource;
 ///
-/// // Will construct a new rng via ``StdRng::from_os_rng()``.
-/// let system1: RngSource = Default::default();
-/// // Same as ``Default::default()``.
-/// let system2: RngSource = RngSource::default();
+/// // Default via `StdRng::from_os_rng()` (`RngSource::Default`)
+/// let system: RngSource = RngSource::default();
 ///
-/// // Will construct a new rng via ``StdRng::seed_from_u64(seed)``.
-/// let seed1: RngSource = RngSource::Seed(42);
-/// // Same as ``RngSource::Seed(42)``, via `From<u64>`
-/// let seed2: RngSource = 42.into();
+/// // From a fixed seed (`RngSource::Seed`)
+/// let seeded: RngSource = 42.into();
 ///
-/// let original_rng: StdRng = StdRng::seed_from_u64(42);
-/// // Will contain a snapshot of ``rng1``.
-/// let with_rng1 : RngSource = RngSource::Rng(original_rng.clone());
-/// // Will also contain a snapshot of ``rng1``.
-/// let with_rng2 : RngSource = original_rng.clone().into();
-/// // via `&StdRng`, will also contain a snapshot of ``rng1``.
-/// let with_rng3 : RngSource = (&original_rng).into();
+/// // From an existing rng (`RngSource::Rng`)
+/// let rng = StdRng::seed_from_u64(123);
+/// let with_rng: RngSource = rng.into();
 ///
-/// // Note: Stateful `From<&mut StdRng>` conversions:
-/// // via `&mut StdRng`, will also contain a snapshot of ``rng1``.
-/// let mut stateful = original_rng.clone();
-/// let with_rng3 : RngSource = (&mut stateful).into();
-/// // This advances the source rng;
-/// assert_ne!(stateful, original_rng);
-/// let created_rng: StdRng = with_rng3.into();
-/// assert_eq!(created_rng, stateful);
+/// // From a snapshot of the current state (`RngSource::Rng`)
+/// let rng = StdRng::seed_from_u64(123);
+/// let snapshot: RngSource = (&rng).into();
+///
+/// // Advances the original RNG and then clones its new state
+/// let mut rng = StdRng::seed_from_u64(123);
+/// let stateful: RngSource = (&mut rng).into();
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[allow(clippy::large_enum_variant)]
