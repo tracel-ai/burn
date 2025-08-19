@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -124,22 +124,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BinaryNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Binary(self)
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Check if we need to import Bool and Int for Shape comparisons
-        if self.binary_type == BinaryType::Equal {
-            match (&self.lhs, &self.rhs) {
-                // Shape-to-Tensor comparisons need these imports
-                (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                    imports.register("burn::tensor::Bool");
-                    imports.register("burn::tensor::Int");
-                    imports.register("burn::tensor::Tensor");
-                }
-                // Shape-to-Shape comparison doesn't need any special imports
-                _ => {}
-            }
-        }
     }
 }
 
@@ -731,12 +715,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

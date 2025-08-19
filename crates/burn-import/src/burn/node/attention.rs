@@ -341,14 +341,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::tensor::activation::softmax");
-
-        if let Some(mask) = self.inputs.attn_mask.as_ref() {
-            match mask.kind {
-                TensorKind::Bool => imports.register("burn::tensor::Bool"),
-                TensorKind::Int => imports.register("burn::tensor::Int"),
-                _ => (),
-            }
-        }
     }
 
     fn into_node(self) -> Node<PS> {

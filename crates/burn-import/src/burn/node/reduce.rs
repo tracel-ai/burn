@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, ToTokens, Type};
+use crate::burn::{Scope, TensorKind, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::reduce::ReduceConfig;
 use proc_macro2::TokenStream;
@@ -117,13 +117,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
 
     fn output_types(&self) -> Vec<Type> {
         vec![self.output.clone()]
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion import if output is scalar (needed for .elem() method)
-        if matches!(&self.output, Type::Scalar(_)) {
-            imports.register("burn::tensor::ElementConversion");
-        }
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
@@ -333,8 +326,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -380,8 +372,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -423,8 +414,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -466,8 +456,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -509,8 +498,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -552,8 +540,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -605,8 +592,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -656,8 +642,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -699,8 +684,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -742,8 +726,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
