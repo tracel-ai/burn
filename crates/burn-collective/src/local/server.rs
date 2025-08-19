@@ -15,8 +15,8 @@ use crate::{
     CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
     local::{
-        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastOpCall, BroadcastResult, ReduceOp,
-        ReduceOpCall, ReduceResult, client::LocalCollectiveClient,
+        AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
+        client::LocalCollectiveClient,
     },
 };
 
@@ -221,7 +221,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
-        println!("Finish!");
         if !self.peers.contains(&id) {
             callback
                 .send(Err(CollectiveError::MultipleUnregister))
@@ -362,20 +361,32 @@ impl<B: Backend> LocalCollectiveServer<B> {
             // First call to reduce
             self.reduce_op = Some(ReduceOp::new(tensor.shape(), op, root));
         }
-        let reduce_op = self.reduce_op.as_mut().unwrap();
+        let mut reduce_op = self.reduce_op.take().unwrap();
 
-        // On the last caller, the reduce is done here
-        let call = ReduceOpCall::new(peer_id, tensor, callback.clone());
-        reduce_op
-            .register_call(
-                call,
-                op,
-                root,
-                &self.peers,
-                self.config.as_ref().unwrap(),
-                &mut self.global_client,
-            )
-            .await;
+        // On the last caller, the all-reduce is done here
+        let res = reduce_op.register_call(
+            peer_id,
+            tensor,
+            callback.clone(),
+            op,
+            root,
+            self.peers.len(),
+        );
+
+        // Upon an error or the last call, the all_reduce_op is dropped
+        match res {
+            Ok(is_ready) => {
+                if is_ready {
+                    reduce_op
+                        .execute(root, self.config.as_ref().unwrap(), &mut self.global_client)
+                        .await;
+                } else {
+                    // Put operation back, we're waiting for more calls
+                    self.reduce_op = Some(reduce_op)
+                }
+            }
+            Err(err) => reduce_op.send_err_to_all(err),
+        }
     }
 
     /// Processes a broadcast request from a client
@@ -396,25 +407,32 @@ impl<B: Backend> LocalCollectiveServer<B> {
             // First call to broadcast
             self.broadcast_op = Some(BroadcastOp::new());
         }
-        let broadcast_op = self.broadcast_op.as_mut().unwrap();
         let device = self.devices.get(&caller).unwrap().clone();
 
+        let mut broadcast_op = self.broadcast_op.take().unwrap();
+
         // On the last caller, the all-reduce is done here
-        let call = BroadcastOpCall::new(caller, device, callback.clone());
-        broadcast_op
-            .register_call(
-                call,
-                tensor,
-                &self.peers,
-                self.config.as_ref().unwrap(),
-                &mut self.global_client,
-            )
-            .await;
+        let res =
+            broadcast_op.register_call(caller, tensor, callback.clone(), device, self.peers.len());
+
+        // Upon an error or the last call, the all_reduce_op is dropped
+        match res {
+            Ok(is_ready) => {
+                if is_ready {
+                    broadcast_op
+                        .execute(self.config.as_ref().unwrap(), &mut self.global_client)
+                        .await;
+                } else {
+                    // Put operation back, we're waiting for more calls
+                    self.broadcast_op = Some(broadcast_op)
+                }
+            }
+            Err(err) => broadcast_op.send_err_to_all(err),
+        }
     }
 
     // Reinitializes the collective server
     fn reset(&mut self) {
-        println!("Clearing");
         self.peers.clear();
         self.all_reduce_op = None;
         self.reduce_op = None;

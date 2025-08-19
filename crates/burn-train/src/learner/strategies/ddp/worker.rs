@@ -34,6 +34,7 @@ where
     starting_epoch: usize,
     num_epochs: usize,
     grad_accumulation: Option<usize>,
+    peer_count: usize,
     is_main: bool,
     _p: PhantomData<LC>,
 }
@@ -61,6 +62,7 @@ where
         starting_epoch: usize,
         num_epochs: usize,
         grad_accumulation: Option<usize>,
+        peer_count: usize,
         is_main: bool,
     ) -> JoinHandle<LC::Model> {
         let worker = Self {
@@ -80,6 +82,7 @@ where
             starting_epoch,
             num_epochs,
             grad_accumulation,
+            peer_count,
             is_main,
             _p: PhantomData,
         };
@@ -112,6 +115,7 @@ where
                 self.event_processor.clone(),
                 &self.interrupter,
                 self.peer_id,
+                self.peer_count,
                 self.is_main,
             );
 

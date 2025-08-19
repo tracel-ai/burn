@@ -64,11 +64,11 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
 
         // The reference model is always on the first device provided.
         let main_device = self.devices[0].clone();
-
+        let peer_count = self.devices.len();
         let event_processor = Arc::new(Mutex::new(components.event_processor));
 
         // Start worker for main device
-        // With validation data and event processor
+        // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
             0.into(),
             main_device,
@@ -86,6 +86,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
             starting_epoch,
             components.num_epochs,
             components.grad_accumulation,
+            peer_count,
             true,
         );
 
@@ -110,6 +111,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
                 starting_epoch,
                 components.num_epochs,
                 components.grad_accumulation,
+                peer_count,
                 false,
             );
 
