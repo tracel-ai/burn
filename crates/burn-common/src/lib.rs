@@ -64,4 +64,66 @@ pub mod tensor {
         strides.reverse();
         strides
     }
+
+    /// The result returned by [analyze_reshape()].
+    pub enum ReshapeAnalysis {
+        /// Updating the strides is sufficient to handle the reshape.
+        UpdateStrides {
+            /// The new strides.
+            strides: Vec<usize>,
+        },
+        /// The strides are not compatible, we should go through a contiguous layout.
+        IntoContiguous,
+        /// The new shape is incompatible.
+        Invalid(String),
+    }
+
+    /// Returns the proper action to take when reshaping a tensor.
+    pub fn analyze_reshape(
+        shape: &[usize],
+        strides: &[usize],
+        shape_new: &[usize],
+    ) -> ReshapeAnalysis {
+        let shape_rank = shape.len();
+        let shape_new_rank = shape_new.len();
+
+        if shape_new_rank < shape_rank {
+            return ReshapeAnalysis::Invalid(format!(
+                "Can't reduce the rank of a tensor using reshape. {shape_rank} => {shape_new_rank}"
+            ));
+        }
+
+        let n_new_batch = shape_new_rank - shape_rank;
+
+        let broadcasted = match n_new_batch > 0 {
+            true => {
+                shape == &shape_new[n_new_batch..shape_new_rank]
+                    && &shape_new[0..n_new_batch] == vec![1; n_new_batch]
+            }
+
+            false => {
+                return match shape == shape_new || is_contiguous(&shape, &strides) {
+                    true => ReshapeAnalysis::UpdateStrides {
+                        strides: contiguous_strides(shape_new),
+                    },
+                    false => ReshapeAnalysis::IntoContiguous,
+                };
+            }
+        };
+
+        if !broadcasted {
+            return ReshapeAnalysis::IntoContiguous;
+        }
+
+        let num_elems = shape.iter().product::<usize>();
+        let mut strides_new = vec![num_elems; shape_new_rank];
+
+        for (i, s) in strides.iter().enumerate() {
+            strides_new[i + n_new_batch] = *s;
+        }
+
+        ReshapeAnalysis::UpdateStrides {
+            strides: strides_new,
+        }
+    }
 }

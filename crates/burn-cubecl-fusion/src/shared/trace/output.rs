@@ -1,4 +1,4 @@
-use burn_common::tensor::{contiguous_strides, is_contiguous};
+use burn_common::tensor::{ReshapeAnalysis, analyze_reshape, contiguous_strides, is_contiguous};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
@@ -486,47 +486,54 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             _ => tensor_global.dtype,
         };
 
-        if is_contiguous(
+        let analysis = analyze_reshape(
             &original_handle.global_ir.shape,
             &original_handle.handle.strides,
-        ) {
-            block.writes.remove(&output.tensor_relative.id);
+            &tensor_global.shape,
+        );
 
-            let handle = CubeFusionHandle {
-                client: client.clone(),
-                handle: original_handle.handle.handle.clone(),
-                device: device.clone(),
-                strides,
-                dtype,
-                qparams: original_handle.handle.qparams.clone(),
-            };
-            context
-                .handles
-                .register_handle(tensor_global.id, handle.clone());
+        match analysis {
+            ReshapeAnalysis::UpdateStrides { strides } => {
+                block.writes.remove(&output.tensor_relative.id);
 
-            // IT will never be access, just a way to keep the original position working.
-            self.handles[output.pos_original] = Some(HandleOutput::Alias {
-                input_pos: pos_input,
-                precision: output.precision,
-                #[cfg(feature = "autotune-checks")]
-                debug_info: super::HandleOutputAliasDebugInfo {
-                    relative_id: output.tensor_relative.id,
-                    handle: handle.clone(),
-                    global_shape: tensor_global.shape.clone(),
-                },
-            });
-            self.globals[output.pos_original] = Some(tensor_global);
-        } else {
-            self.normal_output::<BT>(
-                client,
-                device,
-                context,
-                plan,
-                output,
-                tensor_global,
-                strides,
-                block_idx,
-            );
+                let handle = CubeFusionHandle {
+                    client: client.clone(),
+                    handle: original_handle.handle.handle.clone(),
+                    device: device.clone(),
+                    strides,
+                    dtype,
+                    qparams: original_handle.handle.qparams.clone(),
+                };
+                context
+                    .handles
+                    .register_handle(tensor_global.id, handle.clone());
+
+                // IT will never be access, just a way to keep the original position working.
+                self.handles[output.pos_original] = Some(HandleOutput::Alias {
+                    input_pos: pos_input,
+                    precision: output.precision,
+                    #[cfg(feature = "autotune-checks")]
+                    debug_info: super::HandleOutputAliasDebugInfo {
+                        relative_id: output.tensor_relative.id,
+                        handle: handle.clone(),
+                        global_shape: tensor_global.shape.clone(),
+                    },
+                });
+                self.globals[output.pos_original] = Some(tensor_global);
+            }
+            ReshapeAnalysis::IntoContiguous => {
+                self.normal_output::<BT>(
+                    client,
+                    device,
+                    context,
+                    plan,
+                    output,
+                    tensor_global,
+                    strides,
+                    block_idx,
+                );
+            }
+            ReshapeAnalysis::Invalid(msg) => panic!("{msg}"),
         }
     }
 
