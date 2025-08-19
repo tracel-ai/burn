@@ -152,7 +152,6 @@ mod tests {
     #[test]
     fn test_int_matmul_4_3() {
         if (IntType::MAX as u32) < 324 {
-            println!("Skipping because type is too small");
             return;
         }
 
@@ -189,7 +188,6 @@ mod tests {
     #[test]
     fn test_int_matmul_trivial() {
         if (IntType::MAX as u32) < 506 {
-            println!("Skipping because type is too small");
             return;
         }
 
@@ -234,7 +232,6 @@ mod tests {
     #[test]
     fn test_int_matmul_trivial_transposed() {
         if (IntType::MAX as u32) < 734 {
-            println!("Skipping because type is too small");
             return;
         }
 
@@ -279,7 +276,6 @@ mod tests {
     #[test]
     fn test_int_matmul_4_8() {
         if (IntType::MAX as u32) < 6092 {
-            println!("Skipping because type is too small");
             return;
         }
 
