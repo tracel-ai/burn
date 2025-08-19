@@ -924,7 +924,38 @@ impl ParsedOnnxGraph {
 
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let (mode, scales, sizes) = resize_config(&node);
+        let config = resize_config(&node);
+
+        // Convert from onnx-ir types to burn types
+        let mode = match config.mode {
+            onnx_ir::node::resize::ResizeMode::Nearest => {
+                crate::burn::node::resize::ResizeMode::Nearest
+            }
+            onnx_ir::node::resize::ResizeMode::Linear => {
+                crate::burn::node::resize::ResizeMode::Linear
+            }
+            onnx_ir::node::resize::ResizeMode::Cubic => {
+                crate::burn::node::resize::ResizeMode::Cubic
+            }
+        };
+
+        let scales = config.scales.map(|s| match s {
+            onnx_ir::node::resize::ResizeScales::Static(s) => {
+                crate::burn::node::resize::ResizeScales::Static(s)
+            }
+            onnx_ir::node::resize::ResizeScales::Runtime(arg) => {
+                crate::burn::node::resize::ResizeScales::Runtime(Type::from(&arg))
+            }
+        });
+
+        let sizes = config.sizes.map(|s| match s {
+            onnx_ir::node::resize::ResizeSizes::Static(s) => {
+                crate::burn::node::resize::ResizeSizes::Static(s)
+            }
+            onnx_ir::node::resize::ResizeSizes::Runtime(arg) => {
+                crate::burn::node::resize::ResizeSizes::Runtime(Type::from(&arg))
+            }
+        });
 
         ResizeNode::new(name, input, output, mode, scales, sizes)
     }

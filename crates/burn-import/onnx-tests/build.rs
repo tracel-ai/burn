@@ -200,6 +200,8 @@ fn main() {
         .input("tests/resize/resize_2d_bicubic_scale.onnx")
         .input("tests/resize/resize_2d_bilinear_scale.onnx")
         .input("tests/resize/resize_2d_nearest_scale.onnx")
+        .input("tests/resize/resize_with_shape.onnx")
+        .input("tests/resize/resize_with_sizes_tensor.onnx")
         .input("tests/round/round.onnx")
         .input("tests/shape/shape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
