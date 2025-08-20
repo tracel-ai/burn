@@ -213,7 +213,7 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Execute the given function on the inner value.
-    pub fn lazy_map<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
+    pub fn init_mapper<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
     where
         T: 'static,
     {

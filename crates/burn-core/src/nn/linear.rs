@@ -67,25 +67,16 @@ impl LinearConfig {
             }
             LinearLayout::Col => {
                 let shape = [self.d_output, self.d_input];
+
                 self.initializer
                     .init_with(shape, Some(self.d_output), Some(self.d_input), device)
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
-                    .save_mapper(|tensor| {
-                        println!("Save mapper {:?}", tensor.shape());
-                        tensor.transpose()
-                    })
+                    .save_mapper(move |tensor| tensor.transpose())
                     // When loading from record we have to transpose.
-                    .load_mapper(|tensor| {
-                        println!("Transposing tensor {:?}", tensor.shape());
-                        B::sync(&tensor.device());
-                        tensor.transpose()
-                    })
+                    .load_mapper(move |tensor| tensor.transpose())
                     // When loading from initialization, we have to transpose.
-                    .lazy_map(|tensor| {
-                        B::sync(&tensor.device());
-                        tensor.transpose()
-                    })
+                    .init_mapper(|tensor| tensor.transpose())
             }
         };
         let bias = if self.bias {
@@ -148,6 +139,8 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
+    use crate::module::ParamId;
+    use crate::record::{FullPrecisionSettings, NamedMpkBytesRecorder, Recorder};
     use crate::tensor::{Shape, TensorData};
     use burn_tensor::ElementConversion;
     use burn_tensor::{Tolerance, ops::FloatElem};
@@ -250,5 +243,83 @@ mod tests {
             alloc::format!("{linear}"),
             "Linear {d_input: 3, d_output: 5, bias: true, params: 20}"
         );
+    }
+
+    #[test]
+    fn layout() {
+        let device = Default::default();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear = config.init::<TestBackend>(&device);
+
+        assert_eq!(linear.weight.dims(), [6, 12], "Shape is as configured");
+
+        let recorder = NamedMpkBytesRecorder::<FullPrecisionSettings>::new();
+
+        // We go through serialization to trigger the mappers..
+        let record = linear.into_record();
+        let data = recorder.record(record, ()).unwrap();
+        let record = recorder.load(data.clone(), &device).unwrap();
+
+        let config = LinearConfig::new(12, 6).with_layout(LinearLayout::Row);
+        let linear_row = config.init::<TestBackend>(&device).load_record(record);
+
+        assert_eq!(
+            linear_row.weight.dims(),
+            [12, 6],
+            "Shape should be transposed"
+        );
+
+        let record = recorder.load(data.clone(), &device).unwrap();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear_col = config.init::<TestBackend>(&device).load_record(record);
+
+        assert_eq!(
+            linear_col.weight.dims(),
+            [6, 12],
+            "Shape should be as configured"
+        );
+
+        // We go through serialization to trigger the mappers.
+        //
+        // The test will fail if the mapper is not correctly given to the module after loading a
+        // record.
+        let record = linear_col.into_record();
+        let data = recorder.record(record, ()).unwrap();
+
+        let record = recorder.load(data, &device).unwrap();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear_col = config.init::<TestBackend>(&device).load_record(record);
+
+        assert_eq!(
+            linear_col.weight.dims(),
+            [6, 12],
+            "Shape should be as configured"
+        );
+    }
+
+    #[test]
+    fn col_row_same_result() {
+        let device = Default::default();
+        let config_col = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear_col = config_col.init::<TestBackend>(&device);
+        let signal = Tensor::<_, 2>::random([8, 6], burn_tensor::Distribution::Default, &device);
+        let value = linear_col.forward(signal.clone());
+
+        let data_1 = value.into_data();
+
+        let weights = linear_col.weight.val().into_data();
+        let weights = Tensor::from_data(weights, &device);
+
+        let linear = Linear {
+            weight: Param::initialized(ParamId::new(), weights),
+            bias: linear_col
+                .bias
+                .map(|b| Param::initialized(ParamId::new(), b.val())),
+        };
+
+        let value = linear.forward(signal);
+        let data_2 = value.into_data();
+
+        data_1.assert_approx_eq::<f32>(&data_2, Default::default());
     }
 }

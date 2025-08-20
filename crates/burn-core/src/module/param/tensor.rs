@@ -107,7 +107,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 
     fn load_record(self, record: Self::Record) -> Self {
         let (new_id, mut new_value, _mapper) = record.consume();
-        let record_mapper = self.record_mapper.clone();
+        let mapper = self.record_mapper.clone();
 
         let expected_device = self.lazy_device();
         let expected_require_grad = self.lazy_is_require_grad();
@@ -117,12 +117,14 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
             new_value = new_value.to_device(&expected_device).detach();
         }
 
-        new_value = record_mapper.on_load(new_value);
+        new_value = mapper.on_load(new_value);
 
         // Make sure we load the record with the same autodiff setting.
         new_value = new_value.set_require_grad(expected_require_grad);
 
-        Self::initialized(new_id, new_value)
+        let mut loaded = Self::initialized(new_id, new_value);
+        loaded.record_mapper = mapper;
+        loaded
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -202,7 +204,9 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
 
         new_value = mapper.on_load(new_value);
 
-        Self::initialized(new_id, new_value)
+        let mut loaded = Self::initialized(new_id, new_value);
+        loaded.record_mapper = mapper;
+        loaded
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -273,7 +277,9 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
 
         new_value = mapper.on_load(new_value);
 
-        Self::initialized(new_id, new_value)
+        let mut loaded = Self::initialized(new_id, new_value);
+        loaded.record_mapper = mapper;
+        loaded
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
