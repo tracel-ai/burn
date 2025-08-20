@@ -306,6 +306,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::bool_assert_comparison)]
+
     use super::*;
     use crate::FakeDataset;
     use rand::SeedableRng;

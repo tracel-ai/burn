@@ -91,8 +91,8 @@ pub mod prelude {
         module::Module,
         nn,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, Shape, Tensor, TensorData,
-            backend::Backend, s,
+            Bool, Device, ElementConversion, Float, Int, RangesArg, Shape, Tensor, TensorData,
+            backend::Backend, cast::ToElement, s,
         },
     };
 }

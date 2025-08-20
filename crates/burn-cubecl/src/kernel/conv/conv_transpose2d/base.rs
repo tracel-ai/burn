@@ -1,5 +1,5 @@
 use burn_tensor::ops::ConvTransposeOptions;
-use cubecl::convolution::ConvLaunchError;
+use cubecl::convolution::components::ConvSetupError;
 
 use crate::{CubeRuntime, FloatElement, IntElement, tensor::CubeTensor};
 
@@ -44,7 +44,7 @@ pub fn conv_transpose2d<R: CubeRuntime, E: FloatElement, I: IntElement>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     match strategy {
         ConvTranspose2dStrategy::Direct => {
             conv_transpose2d_direct::<R, E>(input, weight, bias, options)

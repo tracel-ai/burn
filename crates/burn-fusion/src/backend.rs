@@ -126,7 +126,7 @@ pub trait OptimizationBuilder<O>: Send {
     fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
 }
 
-/// The number of operations contained in the data strusture.
+/// The number of operations contained in the data structure.
 pub trait NumOperations: core::fmt::Debug {
     /// The number of registered operations.
     fn len(&self) -> usize;

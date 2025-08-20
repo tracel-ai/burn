@@ -112,22 +112,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        match (&self.input, &self.output) {
-            (Type::Scalar(_), Type::Tensor(output)) => {
-                imports.register("burn::tensor::ElementConversion");
-                // Import the correct tensor type
-                match &output.kind {
-                    crate::burn::TensorKind::Int => imports.register("burn::tensor::Int"),
-                    crate::burn::TensorKind::Bool => imports.register("burn::tensor::Bool"),
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
         match &self.axes {
             UnsqueezeConfig::Runtime(_) => {
                 imports.register("alloc::vec::Vec");
-                imports.register("burn::tensor::cast::ToElement");
             }
             _ => {}
         }
@@ -158,11 +145,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -202,7 +185,7 @@ mod tests {
         graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
 
         let expected = quote! {
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -242,7 +225,7 @@ mod tests {
         graph.register_input_output(vec!["scalar1".to_string()], vec!["shape1".to_string()]);
 
         let expected = quote! {
-            use burn::{module::Module, tensor::backend::Backend};
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

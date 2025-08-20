@@ -2,9 +2,9 @@ use alloc::boxed::Box;
 use core::any::Any;
 
 #[cfg(not(feature = "std"))]
-use hashbrown::HashMap;
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
 
 #[cfg(feature = "std")]
 use std::collections::HashMap;

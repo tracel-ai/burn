@@ -1,4 +1,4 @@
-use burn_tensor::{DType, Element};
+use burn_tensor::DType;
 use cubecl::{
     matmul::{
         MatmulInputHandleRef, Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
@@ -14,7 +14,7 @@ use cubecl::{
 };
 
 use crate::{
-    CubeRuntime, CubeTuneId, element::FloatElement, kernel::matmul::utils::init_matmul_output,
+    CubeRuntime, CubeTuneId, element::MatmulElement, kernel::matmul::utils::init_matmul_output,
     tensor::CubeTensor,
 };
 
@@ -28,12 +28,12 @@ fn matmul_input_gen<R: CubeRuntime>(
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
+pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
 ) -> CubeTensor<R> {
-    let output = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
+    let output = out.unwrap_or_else(|| init_matmul_output::<R, E::EO>(&lhs, &rhs));
 
     let client = lhs.client.clone();
 
@@ -152,7 +152,7 @@ fn create_key<R: CubeRuntime>(
     )
 }
 
-fn matmul_simple<R: CubeRuntime, E: FloatElement>(
+fn matmul_simple<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -170,7 +170,7 @@ fn matmul_simple<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_simple_multi_rows<R: CubeRuntime, E: FloatElement>(
+fn matmul_simple_multi_rows<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -188,7 +188,7 @@ fn matmul_simple_multi_rows<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
+fn matmul_double_buffering<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -206,7 +206,7 @@ fn matmul_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
+fn matmul_double_buffering_specialized<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -224,7 +224,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
+fn matmul_ordered_double_buffering<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -247,7 +247,7 @@ fn matmul_ordered_double_buffering<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit_min<R: CubeRuntime, E: FloatElement>(
+fn simple_unit_min<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -264,7 +264,7 @@ fn simple_unit_min<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn simple_unit_max<R: CubeRuntime, E: FloatElement>(
+fn simple_unit_max<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -281,7 +281,7 @@ fn simple_unit_max<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn double_unit<R: CubeRuntime, E: FloatElement>(
+fn double_unit<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,
@@ -296,7 +296,7 @@ fn double_unit<R: CubeRuntime, E: FloatElement>(
     .map_err(|err| format!("{err:?}"))
 }
 
-fn naive<R: CubeRuntime, E: FloatElement>(
+fn naive<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: CubeTensor<R>,

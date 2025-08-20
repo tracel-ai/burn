@@ -1,7 +1,7 @@
 use burn_common::future::DynFut;
 use burn_tensor::{
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
-    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
+    ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
 };
 
 use crate::{
@@ -413,5 +413,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let lhs = Self::int_into_float(lhs);
+        let rhs = Self::int_into_float(rhs);
+
+        let out = Self::float_matmul(lhs, rhs);
+        Self::float_into_int(out)
     }
 }

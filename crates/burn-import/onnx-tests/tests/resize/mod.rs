@@ -5,12 +5,15 @@ include_models!(
     resize_2d_bicubic_scale,
     resize_2d_bilinear_scale,
     resize_2d_nearest_scale,
-    resize_with_sizes
+    resize_with_sizes,
+    resize_with_shape,
+    resize_with_sizes_tensor
 );
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
     use burn::tensor::{Tensor, TensorData, ops::FloatElem};
     use float_cmp::ApproxEq;
 
@@ -39,6 +42,114 @@ mod tests {
         let expected = TensorData::from([[[[0.0f32, 1.5, 3.0], [12.0, 13.5, 15.0]]]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn resize_with_shape() {
+        // Initialize the model without weights
+        let device = Default::default();
+        let model: resize_with_shape::Model<Backend> = resize_with_shape::Model::new(&device);
+
+        // Create input tensor [1, 3, 4, 4]
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[
+                [
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                ],
+                [
+                    [16.0, 17.0, 18.0, 19.0],
+                    [20.0, 21.0, 22.0, 23.0],
+                    [24.0, 25.0, 26.0, 27.0],
+                    [28.0, 29.0, 30.0, 31.0],
+                ],
+                [
+                    [32.0, 33.0, 34.0, 35.0],
+                    [36.0, 37.0, 38.0, 39.0],
+                    [40.0, 41.0, 42.0, 43.0],
+                    [44.0, 45.0, 46.0, 47.0],
+                ],
+            ]],
+            &device,
+        );
+
+        // The model should resize from [1, 3, 4, 4] to [1, 3, 8, 8] using bilinear interpolation
+        let output = model.forward(input);
+
+        // Check output dimensions
+        assert_eq!(output.dims(), [1, 3, 8, 8]);
+
+        // Check that interpolation is working correctly by verifying corner values
+        // The corners should match the original corners
+        let output_data = output.to_data();
+        let values: Vec<f32> = output_data.to_vec().unwrap();
+
+        // Check first channel corners
+        assert_eq!(values[0], 0.0); // Top-left of first channel
+        assert_eq!(values[7], 3.0); // Top-right of first channel
+        assert_eq!(values[56], 12.0); // Bottom-left of first channel
+        assert_eq!(values[63], 15.0); // Bottom-right of first channel
+
+        // Check that the output has the right number of elements
+        assert_eq!(values.len(), 1 * 3 * 8 * 8);
+    }
+
+    #[test]
+    fn resize_with_sizes_tensor() {
+        // Initialize the model without weights
+        let device = Default::default();
+        let model: resize_with_sizes_tensor::Model<Backend> =
+            resize_with_sizes_tensor::Model::new(&device);
+
+        // Create input tensor [1, 3, 4, 4]
+        let input = Tensor::<Backend, 4>::from_floats(
+            [[
+                [
+                    [1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ],
+                [
+                    [17.0, 18.0, 19.0, 20.0],
+                    [21.0, 22.0, 23.0, 24.0],
+                    [25.0, 26.0, 27.0, 28.0],
+                    [29.0, 30.0, 31.0, 32.0],
+                ],
+                [
+                    [33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0],
+                    [41.0, 42.0, 43.0, 44.0],
+                    [45.0, 46.0, 47.0, 48.0],
+                ],
+            ]],
+            &device,
+        );
+
+        // Create sizes tensor [1, 3, 2, 2] - resize to 2x2
+        let sizes = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([1i64, 3, 2, 2], &device);
+
+        // The model should resize from [1, 3, 4, 4] to [1, 3, 2, 2] using nearest neighbor
+        let output = model.forward(input, sizes);
+
+        // Check output dimensions
+        assert_eq!(output.dims(), [1, 3, 2, 2]);
+
+        // With nearest neighbor and downsampling by 2, we should get corners
+        let output_data = output.to_data();
+        let values: Vec<f32> = output_data.to_vec().unwrap();
+
+        // For nearest neighbor with 2x downsampling, we expect to sample at positions (0,0), (0,2), (2,0), (2,2)
+        // First channel should have values [1, 3, 9, 11]
+        assert_eq!(values[0], 1.0); // [0, 0, 0, 0]
+        assert_eq!(values[1], 3.0); // [0, 0, 0, 2]
+        assert_eq!(values[2], 9.0); // [0, 0, 2, 0]
+        assert_eq!(values[3], 11.0); // [0, 0, 2, 2]
+
+        // Check that the output has the right number of elements
+        assert_eq!(values.len(), 1 * 3 * 2 * 2);
     }
 
     #[test]
