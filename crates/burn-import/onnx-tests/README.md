@@ -281,11 +281,13 @@ cargo test --test test_mod my_new_op::test_my_new_op --features test-wgpu
 
 - `burn::backend::NdArray<f32>` (default) - CPU-based computation using ndarray
 - `burn::backend::Wgpu` - GPU-accelerated computation using WebGPU
-- `burn::backend::LibTorch<f32>` - PyTorch backend integration
+- `burn::backend::LibTorch<f32>` - Torch backend integration
 
-**Note:** Only one backend feature should be enabled at a time. The backend selection uses conditional compilation with the following priority:
+**Note:** Only one backend feature should be enabled at a time. The backend selection uses
+conditional compilation with the following priority:
+
 1. `test-wgpu` (highest priority)
-2. `test-tch` 
+2. `test-tch`
 3. `test-ndarray` (default when no other backend is selected)
 
 ## Debugging Failed Tests
