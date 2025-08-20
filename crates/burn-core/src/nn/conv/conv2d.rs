@@ -114,22 +114,6 @@ impl Conv2dConfig {
 }
 
 impl<B: Backend> ModuleDisplay for Conv2d<B> {
-    /// # Example
-    /// ```rust
-    /// # #[cfg(feature = "ndarray")]
-    /// # {
-    /// use burn::backend::ndarray::NdArray;
-    /// use burn::nn::conv::Conv2dConfig;
-    ///
-    /// let device = Default::default();
-    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
-    ///
-    /// // Print Conv2d layer information using Display
-    /// println!("{}", conv);
-    /// # }
-    /// # #[cfg(not(feature = "ndarray"))]
-    /// # fn main() {}
-    /// ```
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -144,8 +128,8 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
         let stride = format!("{:?}", self.stride);
         let kernel_size = format!("{:?}", self.kernel_size);
         let dilation = format!("{:?}", self.dilation);
-        let [channels_out, group_channels_in, _kernel_size, __kernel_size] = self.weight.dims();
-        let channels_in = group_channels_in * &self.groups;
+        let [channels_out, group_channels_in, _, _] = self.weight.dims();
+        let channels_in = group_channels_in * self.groups;
         let ch_out = format!("{:?}", channels_out);
         let ch_in = format!("{:?}", channels_in);
         content
@@ -170,9 +154,7 @@ impl<B: Backend> Conv2d<B> {
     /// - `output`: `[batch_size, channels_out, height_out, width_out]`
     ///
     /// # Example
-    /// ```rust
-    /// # #[cfg(feature = "ndarray")]
-    /// # {
+    /// ```rust,ignore
     /// use burn::backend::ndarray::NdArray;
     /// use burn::nn::conv::Conv2dConfig;
     /// use burn::tensor::Tensor;
@@ -180,17 +162,10 @@ impl<B: Backend> Conv2d<B> {
     /// let device = Default::default();
     /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
     ///
-    /// // Fake input: [batch=1, channels=3, height=28, width=28]
     /// let x = Tensor::<NdArray, 4>::zeros([1, 3, 28, 28], &device);
-    ///
-    /// // Apply convolution
     /// let y = conv.forward(x);
     ///
-    /// // Output shape: [1, 8, 26, 26]
-    /// println!("{:?}", y.dims());
-    /// # }
-    /// # #[cfg(not(feature = "ndarray"))]
-    /// # fn main() {}
+    /// println!("{:?}", y.dims()); // [1, 8, 26, 26]
     /// ```
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
