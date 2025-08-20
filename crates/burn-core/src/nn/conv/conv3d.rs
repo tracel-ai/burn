@@ -253,14 +253,14 @@ mod tests {
 
     #[test]
     fn display() {
-    let config = Conv3dConfig::new([5, 1], [5, 5, 5]);
-    let conv = config.init::<TestBackend>(&Default::default());
+        let config = Conv3dConfig::new([5, 1], [5, 5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
 
-    assert_eq!(
-        alloc::format!("{conv}"),
-        "Conv3d {ch_in: 5, ch_out: 1, stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: Valid, params: 626}"
-    );
-}
+        assert_eq!(
+            alloc::format!("{conv}"),
+            "Conv3d {ch_in: 5, ch_out: 1, stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: Valid, params: 626}"
+        );
+    }
 
     #[test]
     #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]

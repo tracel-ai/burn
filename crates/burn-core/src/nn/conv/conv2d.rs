@@ -155,14 +155,16 @@ impl<B: Backend> Conv2d<B> {
     ///
     /// # Example
     /// ```rust,ignore
-    /// use burn::backend::ndarray::NdArray;
     /// use burn::nn::conv::Conv2dConfig;
     /// use burn::tensor::Tensor;
     ///
-    /// let device = Default::default();
-    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
+    /// // Choose your backend for B (e.g., burn::backend::ndarray::NdArray)
+    /// type B = burn::backend::ndarray::NdArray;
     ///
-    /// let x = Tensor::<NdArray, 4>::zeros([1, 3, 28, 28], &device);
+    /// let device = Default::default();
+    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<B>(&device);
+    ///
+    /// let x = Tensor::<B, 4>::zeros([1, 3, 28, 28], &device);
     /// let y = conv.forward(x);
     ///
     /// println!("{:?}", y.dims()); // [1, 8, 26, 26]
