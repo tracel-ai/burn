@@ -148,7 +148,7 @@ pub mod tensor {
 
         if shape_new_rank < shape_rank {
             let is_contiguous = match strides {
-                Some(strides) => is_contiguous(&shape, &strides),
+                Some(strides) => is_contiguous(shape, strides),
                 None => false,
             };
             return match is_contiguous {
@@ -162,7 +162,7 @@ pub mod tensor {
         match n_new_batch > 0 {
             true => {
                 if shape == &shape_new[n_new_batch..shape_new_rank]
-                    && &shape_new[0..n_new_batch] == vec![1; n_new_batch]
+                    && shape_new[0..n_new_batch] == vec![1; n_new_batch]
                 {
                     return ReshapeAnalysis::Broadcasted;
                 }
@@ -173,7 +173,7 @@ pub mod tensor {
                     return ReshapeAnalysis::NoChange;
                 } else {
                     let is_contiguous = match strides {
-                        Some(strides) => is_contiguous(&shape, &strides),
+                        Some(strides) => is_contiguous(shape, strides),
                         None => false,
                     };
                     if is_contiguous {

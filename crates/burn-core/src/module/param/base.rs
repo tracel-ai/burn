@@ -226,6 +226,7 @@ impl<T: Parameter> Param<T> {
 
         match init.as_mut() {
             Some(value) => {
+                #[allow(clippy::type_complexity)]
                 let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
                     Box::new(|_, _| panic!("Fake func to not have null ref."));
                 core::mem::swap(&mut prev, &mut value.init);
