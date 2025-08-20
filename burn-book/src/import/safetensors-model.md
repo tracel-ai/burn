@@ -109,7 +109,7 @@ use crate::model;
 use burn::record::{FullPrecisionSettings, Recorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
 
-use crate::backend::Backend;
+type Backend = burn_ndarray::NdArray<f32>;
 
 fn main() {
     let device = Default::default();
@@ -136,7 +136,7 @@ use crate::model;
 use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
 
-use crate::backend::Backend;
+type Backend = burn_ndarray::NdArray<f32>;
 
 fn convert_model() {
     let device = Default::default();
