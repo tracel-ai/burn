@@ -94,13 +94,8 @@ pub mod tensor {
     }
 
     impl ReshapeAnalysis {
-        /// Returns the proper action to take when reshaping a tensor.
-        pub fn action(
-            self,
-            shape: &[usize],
-            strides: &[usize],
-            shape_new: &[usize],
-        ) -> ReshapeAction {
+        /// Returns the proper action to take for the current analysis.
+        fn action(self, shape: &[usize], strides: &[usize], shape_new: &[usize]) -> ReshapeAction {
             match self {
                 ReshapeAnalysis::IsContiguous => ReshapeAction::UpdateStrides {
                     strides: contiguous_strides(shape_new),

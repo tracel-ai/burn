@@ -1,7 +1,4 @@
-use burn_common::tensor::{
-    ReshapeAction, ReshapeAnalysis, contiguous_strides, is_contiguous, reshape_action,
-    reshape_analysis,
-};
+use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
@@ -489,26 +486,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             _ => tensor_global.dtype,
         };
 
-        let analysis = reshape_analysis(
+        let action = reshape_action(
             &original_handle.global_ir.shape,
-            Some(&original_handle.handle.strides),
+            &original_handle.handle.strides,
             &tensor_global.shape,
         );
 
-        match analysis {
-            ReshapeAnalysis::IsContiguous
-            | ReshapeAnalysis::Broadcasted
-            | ReshapeAnalysis::NoChange => {
-                let strides = match analysis.action(
-                    &original_handle.global_ir.shape,
-                    &original_handle.handle.strides,
-                    &tensor_global.shape,
-                ) {
-                    ReshapeAction::UpdateStrides { strides } => strides,
-                    ReshapeAction::NoChange => original_handle.handle.strides.clone(),
-                    ReshapeAction::Recompute => unreachable!(),
-                };
+        let update = match action {
+            ReshapeAction::UpdateStrides { strides } => Some(strides),
+            ReshapeAction::NoChange => Some(original_handle.handle.strides.clone()),
+            ReshapeAction::Recompute => None,
+        };
 
+        match update {
+            Some(strides) => {
                 block.writes.remove(&output.tensor_relative.id);
 
                 let handle = CubeFusionHandle {
@@ -536,7 +527,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 });
                 self.globals[output.pos_original] = Some(tensor_global);
             }
-            _ => {
+            None => {
                 self.normal_output::<BT>(
                     client,
                     device,
