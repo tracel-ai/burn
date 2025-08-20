@@ -156,7 +156,6 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor, mapper) = self.consume();
-        println!("On Save {mapper:?}");
         let tensor = mapper.on_save(tensor);
         ParamSerde::new(id.serialize(), tensor.into_item())
     }
