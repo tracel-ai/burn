@@ -26,14 +26,16 @@ mod tests {
     #[test]
     fn argmax_both_keepdims() {
         // Test both keepdims=True and keepdims=False in the same model
-        let model: argmax_both_keepdims::Model<TestBackend> = argmax_both_keepdims::Model::default();
+        let model: argmax_both_keepdims::Model<TestBackend> =
+            argmax_both_keepdims::Model::default();
 
         let device = Default::default();
         // Input: [[1.0, 3.0, 2.0], [4.0, 2.0, 1.0]]
         // ArgMax along dim=1 should return:
         // - keepdims=True: [[1], [0]] (indices in 2D format)
         // - keepdims=False: [1, 0] (indices in 1D format)
-        let input = Tensor::<TestBackend, 2>::from_floats([[1.0, 3.0, 2.0], [4.0, 2.0, 1.0]], &device);
+        let input =
+            Tensor::<TestBackend, 2>::from_floats([[1.0, 3.0, 2.0], [4.0, 2.0, 1.0]], &device);
         let (output_keepdims_true, output_keepdims_false) = model.forward(input);
 
         // Expected outputs based on PyTorch verification:

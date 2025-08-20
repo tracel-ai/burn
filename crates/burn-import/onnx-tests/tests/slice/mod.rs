@@ -173,7 +173,8 @@ mod tests {
 
     #[test]
     fn slice_shape_negative() {
-        let model: slice_shape_negative::Model<TestBackend> = slice_shape_negative::Model::default();
+        let model: slice_shape_negative::Model<TestBackend> =
+            slice_shape_negative::Model::default();
         let device = Default::default();
 
         // Create test input tensor [2, 3, 4, 5]
@@ -229,8 +230,8 @@ mod tests {
         // Create expected tensor directly using from_floats
         let expected_data: alloc::vec::Vec<f32> =
             (43..61).chain(73..91).map(|x| x as f32).collect();
-        let expected =
-            Tensor::<TestBackend, 1>::from_floats(expected_data.as_slice(), &device).reshape([2, 3, 6]);
+        let expected = Tensor::<TestBackend, 1>::from_floats(expected_data.as_slice(), &device)
+            .reshape([2, 3, 6]);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }

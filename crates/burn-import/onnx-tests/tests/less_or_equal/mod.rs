@@ -26,7 +26,8 @@ mod tests {
     #[test]
     fn less_or_equal_scalar() {
         let device = Default::default();
-        let model: less_or_equal_scalar::Model<TestBackend> = less_or_equal_scalar::Model::new(&device);
+        let model: less_or_equal_scalar::Model<TestBackend> =
+            less_or_equal_scalar::Model::new(&device);
 
         let input1 = Tensor::<TestBackend, 2>::from_floats([[1.0, 4.0, 9.0, 0.5]], &device);
         let input2 = 1.0;

@@ -32,7 +32,8 @@ mod tests {
 
     #[test]
     fn test_identity_passthrough() {
-        let model: identity_passthrough::Model<TestBackend> = identity_passthrough::Model::default();
+        let model: identity_passthrough::Model<TestBackend> =
+            identity_passthrough::Model::default();
 
         let device = Default::default();
 

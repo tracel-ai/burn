@@ -36,7 +36,8 @@ mod tests {
     fn bitshift_left_scalar_tensor() {
         // Initialize the model with weights (loaded from the exported file)
         let device = Default::default();
-        let model: bitshift_left_scalar::Model<TestBackend> = bitshift_left_scalar::Model::new(&device);
+        let model: bitshift_left_scalar::Model<TestBackend> =
+            bitshift_left_scalar::Model::new(&device);
         // Run the model
         let input1 = Tensor::<TestBackend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let scalar = 2;
@@ -78,7 +79,8 @@ mod tests {
     #[test]
     fn scalar_bitshift_left_tensor() {
         let device = Default::default();
-        let model: scalar_bitshift_left::Model<TestBackend> = scalar_bitshift_left::Model::new(&device);
+        let model: scalar_bitshift_left::Model<TestBackend> =
+            scalar_bitshift_left::Model::new(&device);
         // Run the model
         let scalar = 4;
         let shift_amounts = Tensor::<TestBackend, 1, Int>::from_ints([1, 1, 2, 2], &device);

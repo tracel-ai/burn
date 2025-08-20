@@ -129,7 +129,8 @@ mod tests {
         );
 
         // Create sizes tensor [1, 3, 2, 2] - resize to 2x2
-        let sizes = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([1i64, 3, 2, 2], &device);
+        let sizes =
+            Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([1i64, 3, 2, 2], &device);
 
         // The model should resize from [1, 3, 4, 4] to [1, 3, 2, 2] using nearest neighbor
         let output = model.forward(input, sizes);

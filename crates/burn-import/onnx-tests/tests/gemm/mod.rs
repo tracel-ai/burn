@@ -15,10 +15,14 @@ mod tests {
         let model = gemm::Model::<TestBackend>::new(&device);
 
         // Create input matrices
-        let a =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
-        let b =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+        let a = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
+            &device,
+        );
+        let b = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[5.0, 6.0], [7.0, 8.0]]),
+            &device,
+        );
         let c = 1.0;
 
         // Expected result of matrix multiplication
@@ -43,10 +47,14 @@ mod tests {
         let model = gemm_non_unit_alpha_beta::Model::<TestBackend>::new(&device);
 
         // Create input matrices
-        let a =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
-        let b =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+        let a = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
+            &device,
+        );
+        let b = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[5.0, 6.0], [7.0, 8.0]]),
+            &device,
+        );
         let c = 1.0;
 
         // Alpha = Beta = 0.5
@@ -72,10 +80,14 @@ mod tests {
         let model = gemm_no_c::Model::<TestBackend>::new(&device);
 
         // Create input matrices
-        let a =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
-        let b =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[5.0, 6.0], [7.0, 8.0]]), &device);
+        let a = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
+            &device,
+        );
+        let b = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[5.0, 6.0], [7.0, 8.0]]),
+            &device,
+        );
 
         // Alpha = Beta = 0.5
         // Expected result of matrix multiplication

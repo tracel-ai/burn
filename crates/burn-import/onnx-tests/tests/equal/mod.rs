@@ -15,7 +15,8 @@ mod tests {
         let model: equal::Model<TestBackend> = equal::Model::default();
 
         // Run the model
-        let input = Tensor::<TestBackend, 4>::from_floats([[[[1., 1., 1., 1.]]]], &Default::default());
+        let input =
+            Tensor::<TestBackend, 4>::from_floats([[[[1., 1., 1., 1.]]]], &Default::default());
 
         let scalar = 2f64;
         let (tensor_out, scalar_out) = model.forward(input, scalar);

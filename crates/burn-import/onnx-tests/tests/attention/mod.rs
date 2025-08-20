@@ -201,7 +201,8 @@ mod tests {
     #[test]
     fn is_causal() {
         let device = Default::default();
-        let model: attention_is_causal::Model<TestBackend> = attention_is_causal::Model::new(&device);
+        let model: attention_is_causal::Model<TestBackend> =
+            attention_is_causal::Model::new(&device);
 
         let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
         let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);

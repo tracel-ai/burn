@@ -90,7 +90,8 @@ mod tests {
         // When casting Shape to float, it should convert to a 1D tensor
 
         let device = Default::default();
-        let model: cast_shape_to_float::Model<TestBackend> = cast_shape_to_float::Model::new(&device);
+        let model: cast_shape_to_float::Model<TestBackend> =
+            cast_shape_to_float::Model::new(&device);
 
         // Create test input with shape [2, 3, 4]
         let input = Tensor::<TestBackend, 3>::ones([2, 3, 4], &device);
@@ -123,8 +124,10 @@ mod tests {
         let output = model.forward(input);
 
         // The output should be [true, true, true] since all dimensions are non-zero
-        let expected =
-            Tensor::<TestBackend, 1, Bool>::from_bool(TensorData::from([true, true, true]), &device);
+        let expected = Tensor::<TestBackend, 1, Bool>::from_bool(
+            TensorData::from([true, true, true]),
+            &device,
+        );
 
         // Check values match
         output.to_data().assert_eq(&expected.to_data(), true);

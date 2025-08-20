@@ -29,11 +29,13 @@ mod tests {
     #[test]
     fn argmin_both_keepdims() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: argmin_both_keepdims::Model<TestBackend> = argmin_both_keepdims::Model::default();
+        let model: argmin_both_keepdims::Model<TestBackend> =
+            argmin_both_keepdims::Model::default();
 
         let device = Default::default();
         // Run the model with test input: [[3.0, 1.0, 2.0], [2.0, 4.0, 1.0]]
-        let input = Tensor::<TestBackend, 2>::from_floats([[3.0, 1.0, 2.0], [2.0, 4.0, 1.0]], &device);
+        let input =
+            Tensor::<TestBackend, 2>::from_floats([[3.0, 1.0, 2.0], [2.0, 4.0, 1.0]], &device);
         let (output_keepdims_true, output_keepdims_false) = model.forward(input);
 
         // Expected: argmin along dim=1

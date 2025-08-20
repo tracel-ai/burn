@@ -10,7 +10,8 @@ mod tests {
 
     #[test]
     fn test_initializer_to_const() {
-        let model: initializer_to_const::Model<TestBackend> = initializer_to_const::Model::default();
+        let model: initializer_to_const::Model<TestBackend> =
+            initializer_to_const::Model::default();
 
         let device = Default::default();
 

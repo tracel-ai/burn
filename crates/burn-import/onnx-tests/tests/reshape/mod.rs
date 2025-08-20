@@ -99,7 +99,8 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_3d_to_scalar::Model<TestBackend> = reshape_3d_to_scalar::Model::new(&device);
+        let model: reshape_3d_to_scalar::Model<TestBackend> =
+            reshape_3d_to_scalar::Model::new(&device);
 
         // Run the model with a 1x1x1 tensor input
         let input = Tensor::<TestBackend, 3>::from_floats([[[2.5]]], &device);

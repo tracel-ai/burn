@@ -14,7 +14,8 @@ mod tests {
         let device = Default::default();
         let model: is_nan::Model<TestBackend> = is_nan::Model::new(&device);
 
-        let input1 = Tensor::<TestBackend, 2>::from_floats([[1.0, f32::NAN, -9.0, f32::NAN]], &device);
+        let input1 =
+            Tensor::<TestBackend, 2>::from_floats([[1.0, f32::NAN, -9.0, f32::NAN]], &device);
 
         let output = model.forward(input1);
         let expected = TensorData::from([[false, true, false, true]]);
