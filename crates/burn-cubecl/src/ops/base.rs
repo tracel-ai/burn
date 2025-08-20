@@ -166,11 +166,15 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
     let analysis = reshape_action(&tensor.shape.dims, &tensor.strides, &shape.dims);
 
-    if let ReshapeAction::UpdateStrides { strides } = analysis {
-        tensor.shape = shape;
-        tensor.strides = strides;
-        return tensor;
-    };
+    match analysis {
+        ReshapeAction::UpdateStrides { strides } => {
+            tensor.shape = shape;
+            tensor.strides = strides;
+            return tensor;
+        }
+        ReshapeAction::NoChange => return tensor,
+        ReshapeAction::Recompute => (),
+    }
 
     let tensor = kernel::into_contiguous(tensor);
 

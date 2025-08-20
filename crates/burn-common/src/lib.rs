@@ -74,9 +74,12 @@ pub mod tensor {
         },
         /// The strides are not compatible, we should recompute the buffer.
         Recompute,
+        /// The strides are already correct.
+        NoChange,
     }
 
     /// The reshape kind.
+    #[derive(Debug)]
     pub enum ReshapeAnalysis {
         /// Original tensor is contiguous, can update the strides.
         IsContiguous,
@@ -90,35 +93,45 @@ pub mod tensor {
         NoChange,
     }
 
+    impl ReshapeAnalysis {
+        /// Returns the proper action to take when reshaping a tensor.
+        pub fn action(
+            self,
+            shape: &[usize],
+            strides: &[usize],
+            shape_new: &[usize],
+        ) -> ReshapeAction {
+            match self {
+                ReshapeAnalysis::IsContiguous => ReshapeAction::UpdateStrides {
+                    strides: contiguous_strides(shape_new),
+                },
+                ReshapeAnalysis::NoChange => ReshapeAction::NoChange,
+                ReshapeAnalysis::HighlyPermutated | ReshapeAnalysis::SmallerRank => {
+                    ReshapeAction::Recompute
+                }
+                ReshapeAnalysis::Broadcasted => {
+                    let shape_rank = shape.len();
+                    let shape_new_rank = shape_new.len();
+                    let n_new_batch = shape_new_rank - shape_rank;
+                    let num_elems = shape.iter().product::<usize>();
+                    let strides_new =
+                        broadcast_strides(n_new_batch, shape_rank, num_elems, strides);
+
+                    ReshapeAction::UpdateStrides {
+                        strides: strides_new,
+                    }
+                }
+            }
+        }
+    }
+
     /// Returns the proper action to take when reshaping a tensor.
     pub fn reshape_action(
         shape: &[usize],
         strides: &[usize],
         shape_new: &[usize],
     ) -> ReshapeAction {
-        let analysis = reshape_analysis(shape, Some(strides), shape_new);
-
-        match analysis {
-            ReshapeAnalysis::IsContiguous | ReshapeAnalysis::NoChange => {
-                ReshapeAction::UpdateStrides {
-                    strides: contiguous_strides(shape_new),
-                }
-            }
-            ReshapeAnalysis::HighlyPermutated | ReshapeAnalysis::SmallerRank => {
-                ReshapeAction::Recompute
-            }
-            ReshapeAnalysis::Broadcasted => {
-                let shape_rank = shape.len();
-                let shape_new_rank = shape_new.len();
-                let n_new_batch = shape_new_rank - shape_rank;
-                let num_elems = shape.iter().product::<usize>();
-                let strides_new = broadcast_strides(n_new_batch, shape_rank, num_elems, strides);
-
-                ReshapeAction::UpdateStrides {
-                    strides: strides_new,
-                }
-            }
-        }
+        reshape_analysis(shape, Some(strides), shape_new).action(shape, strides, shape_new)
     }
 
     /// Calculate the new strides given added batch dimensions.
