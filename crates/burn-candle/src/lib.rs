@@ -34,6 +34,7 @@ mod tests {
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
     pub type FloatType = f32;
+    pub type IntType = i64;
 
     // test activation
     burn_tensor::testgen_gelu!();

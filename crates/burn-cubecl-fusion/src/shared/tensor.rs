@@ -219,6 +219,7 @@ impl LaunchArgExpand for GlobalScalar {
                 FloatKind::TF32 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::F64 => GlobalScalarExpand::F32(expand.into()),
                 FloatKind::E2M1
+                | FloatKind::E2M1x2
                 | FloatKind::E2M3
                 | FloatKind::E3M2
                 | FloatKind::E4M3

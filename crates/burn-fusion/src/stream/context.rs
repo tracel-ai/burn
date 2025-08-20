@@ -544,6 +544,8 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
 impl RelativeOps for BoolOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
+            BoolOperationIr::Ones(desc) => BoolOperationIr::Ones(desc.to_relative(converter)),
+            BoolOperationIr::Zeros(desc) => BoolOperationIr::Zeros(desc.to_relative(converter)),
             BoolOperationIr::IntoFloat(desc) => BoolOperationIr::IntoFloat(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -575,6 +577,11 @@ impl RelativeOps for IntOperationIr {
         match self {
             IntOperationIr::IntoFloat(desc) => IntOperationIr::IntoFloat(UnaryOpIr {
                 input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::Matmul(desc) => IntOperationIr::Matmul(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             IntOperationIr::BitwiseAnd(desc) => IntOperationIr::BitwiseAnd(BinaryOpIr {

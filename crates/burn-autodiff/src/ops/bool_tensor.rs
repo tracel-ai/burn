@@ -40,6 +40,14 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_empty(shape, device)
     }
 
+    fn bool_zeros(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
+        B::bool_zeros(shape, device)
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
+        B::bool_ones(shape, device)
+    }
+
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
         ranges: &[core::ops::Range<usize>],

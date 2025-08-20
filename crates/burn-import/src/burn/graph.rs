@@ -1,6 +1,6 @@
 use super::{BurnImports, Scope, Type};
 use crate::burn::{
-    TensorKind, TensorType,
+    TensorType,
     node::{Node, NodeCodegen},
 };
 use burn::record::{
@@ -257,34 +257,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self.nodes
             .iter()
             .for_each(|node| node.register_imports(&mut self.imports));
-
-        // Combine input and output types into a single vector
-        let all_types = self
-            .graph_input_types
-            .iter()
-            .chain(&self.graph_output_types);
-
-        // Register imports for bool and int tensors
-        for ty in all_types {
-            if matches!(ty, Type::Tensor(_)) {
-                self.imports.register("burn::tensor::Tensor");
-            }
-            match ty {
-                Type::Tensor(TensorType {
-                    kind: TensorKind::Bool,
-                    ..
-                }) => {
-                    self.imports.register("burn::tensor::Bool");
-                }
-                Type::Tensor(TensorType {
-                    kind: TensorKind::Int,
-                    ..
-                }) => {
-                    self.imports.register("burn::tensor::Int");
-                }
-                _ => {}
-            }
-        }
     }
     /// Build the scope state to make sure tensor clones are added where needed.
     fn build_scope(&mut self) {

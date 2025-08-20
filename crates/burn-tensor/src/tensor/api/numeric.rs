@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{TensorMetadata, alloc::borrow::ToOwned};
+use crate::alloc::borrow::ToOwned;
 
 use crate::TensorPrimitive;
 use crate::quantization::QTensorPrimitive;
@@ -400,51 +400,6 @@ where
     /// ```
     pub fn ones_like(&self) -> Self {
         Self::ones(self.shape(), &self.device())
-    }
-
-    /// Create a tensor of the given shape where each element is equal to the provided value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::full(Shape::new([2, 3]), 5.0, &device);
-    ///   println!("{tensor}");
-    ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
-    /// }
-    /// ```
-    pub fn full<S: Into<Shape>, E: ElementConversion>(
-        shape: S,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self {
-        let shape = shape.into();
-        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
-        Self::new(K::full(shape, fill_value, device))
-    }
-
-    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.full_like(5.0);
-    ///    println!("{tensor}");
-    ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
-    /// }
-    /// ```
-    pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
-        Self::full(self.shape(), fill_value, &self.device())
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -2481,32 +2436,6 @@ where
     /// which is more high-level and designed for public use.
     fn ones(shape: Shape, device: &B::Device) -> Self::Primitive;
 
-    /// Creates a tensor filled with elements equal to the given value.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `fill_value` - The value with which to fill the tensor
-    /// * `device` - The device on which the tensor will be allocated.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with elements equal to the given value
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with a specific value, users should prefer the [Tensor::full](Tensor::full) function,
-    /// which is more high-level and designed for public use.
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive;
-
     /// Sums all the elements of the tensor.
     ///
     /// # Arguments
@@ -3510,13 +3439,6 @@ impl<B: Backend> Numeric<B> for Int {
     fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_ones(shape, device)
     }
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device)
-    }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
         B::int_sum(tensor)
@@ -3741,27 +3663,7 @@ impl<B: Backend> Numeric<B> for Int {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        let mut lhs_shape: Vec<usize> = lhs.shape().dims.clone();
-        lhs_shape.push(1);
-        let lhs_shape: Shape = Shape::from(lhs_shape);
-        let lhs = B::int_reshape(lhs, lhs_shape);
-
-        let mut rhs_shape: Vec<usize> = rhs.shape().dims.clone();
-        rhs_shape.insert(rhs_shape.len() - 2, 1);
-        let rhs_shape: Shape = Shape::from(rhs_shape);
-        let rhs = B::int_reshape(rhs, rhs_shape);
-
-        let p = B::int_mul(lhs, rhs);
-
-        let k = p.shape().num_dims();
-
-        let s = B::int_sum_dim(p, k - 2);
-
-        let mut s_shape = s.shape().dims.clone();
-        s_shape.remove(k - 2);
-        let s_shape = Shape::from(s_shape);
-
-        B::int_reshape(s, s_shape)
+        B::int_matmul(lhs, rhs)
     }
 }
 
@@ -3854,14 +3756,6 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
         TensorPrimitive::Float(B::float_ones(shape, device))
-    }
-
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {

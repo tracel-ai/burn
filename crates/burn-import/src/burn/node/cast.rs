@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, ScalarKind, Scope, TensorKind, Type};
+use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ElementType;
 use proc_macro2::TokenStream;
@@ -148,29 +148,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Check if we're converting Shape to Tensor
-        if matches!(self.input, Type::Shape(_)) && matches!(self.output, Type::Tensor(_)) {
-            imports.register("burn::tensor::TensorData");
-            // Register Bool if casting to bool
-            if matches!(self.target_elem_type, ElementType::Bool) {
-                imports.register("burn::tensor::Bool");
-            }
-        }
-
-        // Check tensor kinds directly from input and output types
-        if let (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) =
-            (&self.input, &self.output)
-        {
-            if input_tensor.kind == TensorKind::Bool || output_tensor.kind == TensorKind::Bool {
-                imports.register("burn::tensor::Bool");
-            }
-            if input_tensor.kind == TensorKind::Int || output_tensor.kind == TensorKind::Int {
-                imports.register("burn::tensor::Int");
-            }
-        }
-    }
-
     fn into_node(self) -> Node<PS> {
         Node::Cast(self)
     }
@@ -197,10 +174,7 @@ mod tests {
         graph.register_input_output(vec!["scalar1".to_string()], vec!["scalar2".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -241,12 +215,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -287,13 +256,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Bool;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

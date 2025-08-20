@@ -761,6 +761,16 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
             },
             OperationIr::Bool(op) => match op {
+                BoolOperationIr::Zeros(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::bool_zeros(shape, &self.device);
+                    handles.register_bool_tensor::<B>(&desc.id, output);
+                }
+                BoolOperationIr::Ones(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::bool_ones(shape, &self.device);
+                    handles.register_bool_tensor::<B>(&desc.id, output);
+                }
                 BoolOperationIr::IntoFloat(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
@@ -792,6 +802,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
                     let output = B::int_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                IntOperationIr::Matmul(desc) => {
+                    binary_int_ops!(handles, desc, B::int_matmul)
                 }
                 IntOperationIr::BitwiseAnd(desc) => {
                     binary_int_ops!(handles, desc, B::bitwise_and)

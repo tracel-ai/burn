@@ -1,18 +1,21 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
     convolution::{
-        ConvLaunchError, ConvolutionArgs,
-        algorithm::{
+        ConvolutionArgs,
+        components::{ConvSetupError, global::args::ConcreteInputsFactory},
+        kernels::layered::algorithm::{
             Algorithm, multi_stage_tma::MultiStageTmaConvAlgorithm, simple::SimpleConvAlgorithm,
             simple_tma::SimpleTmaConvAlgorithm,
         },
-        args::ConvInputsLaunch,
         launch_conv,
     },
-    matmul::components::{
-        LhsG, MatmulPrecision, RhsG,
-        global::args::{ConcreteOutputFactory, MatmulArgs},
-        tile::accelerated::AcceleratedMatmul,
+    matmul::{
+        MatmulInputHandleRef,
+        components::{
+            LhsG, MatmulPrecision, RhsG,
+            global::args::{ConcreteOutputFactory, MatmulArgs},
+            tile::accelerated::AcceleratedMatmul,
+        },
     },
 };
 
@@ -32,7 +35,7 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
@@ -51,7 +54,7 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
@@ -70,7 +73,7 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedMatmul>, N>(
         input, weight, bias, options,
     )
@@ -88,14 +91,14 @@ pub fn conv_gemm_with_algo<R: CubeRuntime, MP: MatmulPrecision, Alg: Algorithm, 
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError>
+) -> Result<CubeTensor<R>, ConvSetupError>
 where
     MP::EO: CubeElement,
-    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>>: ConvInputsLaunch,
+    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>, MP::EO>: ConcreteInputsFactory,
     <Alg::Args as MatmulArgs>::Output<MP::EO>: ConcreteOutputFactory,
 {
     if options.groups != 1 {
-        return Err(ConvLaunchError::Groups(options.groups));
+        return Err(ConvSetupError::Groups(options.groups));
     }
 
     let rank = input.shape.num_dims();
@@ -125,10 +128,14 @@ where
 
     let bias = bias.as_ref().map(|bias| bias.as_handle_ref());
 
+    let client = input.client.clone();
+    let input = MatmulInputHandleRef::new(input.as_handle_ref());
+    let weight = MatmulInputHandleRef::new(weight.as_handle_ref());
+
     launch_conv::<R, MP, Alg, N>(
-        &input.client,
-        &input.as_handle_ref(),
-        &weight.as_handle_ref(),
+        &client,
+        &input,
+        &weight,
         &bias,
         &out.as_handle_ref(),
         ConvolutionArgs {

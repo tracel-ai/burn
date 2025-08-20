@@ -19,10 +19,6 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::matmul::components::{
-    self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
-    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
-};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -39,6 +35,13 @@ use cubecl::matmul::{
 };
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::{
+    matmul::components::{
+        self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+        tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+    },
+    std::CubeOption,
+};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -432,7 +435,14 @@ impl FusedMatmul {
 
                 match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -451,7 +461,14 @@ impl FusedMatmul {
                     CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
                 >(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -473,7 +490,14 @@ impl FusedMatmul {
                     OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
                 >(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -490,7 +514,14 @@ impl FusedMatmul {
             FusedMatmulSelector::SimpleUnit(..) => {
                 match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -503,7 +534,14 @@ impl FusedMatmul {
             FusedMatmulSelector::DoubleUnit(..) => {
                 match launch_inner_fix_dtype::<R, EG, DoubleUnitAlgorithm>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,

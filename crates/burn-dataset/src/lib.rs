@@ -14,7 +14,6 @@ extern crate dirs;
 /// Sources for datasets.
 pub mod source;
 
-/// Transformations to be used with datasets.
 pub mod transform;
 
 /// Audio datasets.

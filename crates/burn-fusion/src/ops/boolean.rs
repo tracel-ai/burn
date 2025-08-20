@@ -47,6 +47,62 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct ZerosOps<B: FusionBackend> {
+            desc: TensorIr,
+            device: Device<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::bool_zeros(Shape::from(&self.desc.shape), &self.device);
+                handles.register_bool_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+
+        let desc = out.to_ir_out();
+
+        client.register(
+            OperationStreams::default(),
+            OperationIr::BaseBool(BaseOperationIr::Empty(desc.clone())),
+            ZerosOps::<B>::new(desc, device.clone()),
+        );
+
+        out
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct OnesOps<B: FusionBackend> {
+            desc: TensorIr,
+            device: Device<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::bool_ones(Shape::from(&self.desc.shape), &self.device);
+                handles.register_bool_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), B::BoolElem::dtype());
+
+        let desc = out.to_ir_out();
+
+        client.register(
+            OperationStreams::default(),
+            OperationIr::BaseBool(BaseOperationIr::Empty(desc.clone())),
+            OnesOps::<B>::new(desc, device.clone()),
+        );
+
+        out
+    }
+
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
         tensor.bool_into_data::<B>().await
     }

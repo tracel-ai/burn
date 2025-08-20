@@ -4,7 +4,7 @@ use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
 };
 use burn_tensor::backend::Backend;
-use rand::{Rng, distr::StandardUniform};
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
@@ -80,14 +80,10 @@ where
         // implying that we should shuffle the dataset beforehand, while advancing the current
         // rng to ensure that each new iteration shuffles the dataset differently.
         let dataset = match &self.rng {
-            Some(rng) => {
-                let mut rng = rng.lock();
-
-                Arc::new(ShuffledDataset::with_seed(
-                    self.dataset.clone(),
-                    rng.sample(StandardUniform),
-                ))
-            }
+            Some(rng) => Arc::new(ShuffledDataset::new(
+                self.dataset.clone(),
+                rng.lock().deref_mut(),
+            )),
             None => self.dataset.clone(),
         };
         Box::new(BatchDataloaderIterator::new(

@@ -1,6 +1,5 @@
 use crate::Dataset;
-use crate::transform::SelectionDataset;
-use rand::rngs::StdRng;
+use crate::transform::{RngSource, SelectionDataset};
 
 /// A Shuffled a dataset.
 ///
@@ -32,14 +31,17 @@ where
     /// # Arguments
     ///
     /// * `dataset` - The original dataset to select from.
-    /// * `rng` - A mutable reference to a random number generator.
+    /// * `rng_source` - The source of the random number generator.
     ///
     /// # Returns
     ///
     /// A new `ShuffledDataset`.
-    pub fn new(dataset: D, rng: &mut StdRng) -> Self {
+    pub fn new<R>(dataset: D, rng_source: R) -> Self
+    where
+        R: Into<RngSource>,
+    {
         Self {
-            wrapped: SelectionDataset::new_shuffled(dataset, rng),
+            wrapped: SelectionDataset::new_shuffled(dataset, rng_source),
         }
     }
 
@@ -55,10 +57,9 @@ where
     /// # Returns
     ///
     /// A new `ShuffledDataset`.
+    #[deprecated(since = "0.19.0", note = "Use `new(dataset, seed)` instead`")]
     pub fn with_seed(dataset: D, seed: u64) -> Self {
-        Self {
-            wrapped: SelectionDataset::new_shuffled_with_seed(dataset, seed),
-        }
+        Self::new(dataset, seed)
     }
 }
 
@@ -82,6 +83,7 @@ mod tests {
     use crate::FakeDataset;
     use crate::transform::selection::shuffled_indices;
     use rand::SeedableRng;
+    use rand::prelude::StdRng;
 
     #[test]
     fn test_shuffled_dataset() {
@@ -90,6 +92,7 @@ mod tests {
 
         let seed = 42;
 
+        #[allow(deprecated)]
         let shuffled = ShuffledDataset::with_seed(dataset, seed);
 
         let mut rng = StdRng::seed_from_u64(seed);

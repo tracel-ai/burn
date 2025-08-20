@@ -102,6 +102,7 @@ use onnx_ir::{
         cast::cast_config,
         clip::clip_config,
         concat::concat_config,
+        constant_of_shape::constant_of_shape_config,
         conv_transpose1d::conv_transpose1d_config,
         conv_transpose2d::conv_transpose2d_config,
         conv_transpose3d::conv_transpose3d_config,
@@ -678,11 +679,9 @@ impl ParsedOnnxGraph {
         // Additional types needed for ConstantOfShape:
         use crate::burn::node::constant_of_shape::ConstantValue;
 
-        let input = Type::from(
-            node.inputs
-                .first()
-                .expect("ConstantOfShape requires an input tensor"),
-        );
+        // Get the shape configuration from onnx-ir
+        let shape = constant_of_shape_config(&node);
+
         let output = Type::from(node.outputs.first().unwrap());
 
         // The value of the output elements.Should be a one-element tensor.
@@ -702,7 +701,8 @@ impl ParsedOnnxGraph {
                 ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
-        ConstantOfShapeNode::new(input, output, value)
+
+        ConstantOfShapeNode::new(shape, output, value)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
@@ -924,7 +924,38 @@ impl ParsedOnnxGraph {
 
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let (mode, scales, sizes) = resize_config(&node);
+        let config = resize_config(&node);
+
+        // Convert from onnx-ir types to burn types
+        let mode = match config.mode {
+            onnx_ir::node::resize::ResizeMode::Nearest => {
+                crate::burn::node::resize::ResizeMode::Nearest
+            }
+            onnx_ir::node::resize::ResizeMode::Linear => {
+                crate::burn::node::resize::ResizeMode::Linear
+            }
+            onnx_ir::node::resize::ResizeMode::Cubic => {
+                crate::burn::node::resize::ResizeMode::Cubic
+            }
+        };
+
+        let scales = config.scales.map(|s| match s {
+            onnx_ir::node::resize::ResizeScales::Static(s) => {
+                crate::burn::node::resize::ResizeScales::Static(s)
+            }
+            onnx_ir::node::resize::ResizeScales::Runtime(arg) => {
+                crate::burn::node::resize::ResizeScales::Runtime(Type::from(&arg))
+            }
+        });
+
+        let sizes = config.sizes.map(|s| match s {
+            onnx_ir::node::resize::ResizeSizes::Static(s) => {
+                crate::burn::node::resize::ResizeSizes::Static(s)
+            }
+            onnx_ir::node::resize::ResizeSizes::Runtime(arg) => {
+                crate::burn::node::resize::ResizeSizes::Runtime(Type::from(&arg))
+            }
+        });
 
         ResizeNode::new(name, input, output, mode, scales, sizes)
     }
@@ -1209,18 +1240,18 @@ impl ParsedOnnxGraph {
 
     fn argmax_conversion(node: Node) -> ArgMaxNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmax_config(&node);
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = argmax_config(&node);
 
-        ArgMaxNode::new(input, output, axis)
+        ArgMaxNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn argmin_conversion(node: Node) -> ArgMinNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let axis = argmin_config(&node);
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = argmin_config(&node);
 
-        ArgMinNode::new(input, output, axis)
+        ArgMinNode::new(input, output, config.axis, config.keepdims)
     }
 
     fn bernoulli_conversion(node: Node) -> BernoulliNode {

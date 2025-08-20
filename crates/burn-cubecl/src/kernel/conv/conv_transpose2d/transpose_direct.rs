@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 use crate::{
     CubeRuntime,
@@ -126,7 +126,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims();
