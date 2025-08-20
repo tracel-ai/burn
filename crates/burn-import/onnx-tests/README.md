@@ -242,7 +242,7 @@ You can test with different Burn backends by using feature flags:
 #### WGPU Backend
 
 ```sh
-cargo test --features backend-wgpu
+cargo test --features test-wgpu
 ```
 
 Uses `burn::backend::Wgpu` for GPU-accelerated computation.
@@ -250,15 +250,15 @@ Uses `burn::backend::Wgpu` for GPU-accelerated computation.
 #### LibTorch Backend
 
 ```sh
-cargo test --features backend-tch
+cargo test --features test-tch
 ```
 
-Uses `burn::backend::LibTorch<f32>` for PyTorch backend integration.
+Uses `burn::backend::LibTorch<f32>` for Torch backend integration.
 
 #### NdArray Backend (Explicit)
 
 ```sh
-cargo test --features backend-ndarray
+cargo test --features test-ndarray
 ```
 
 Explicitly uses `burn::backend::NdArray<f32>` (same as default).
@@ -274,7 +274,7 @@ cargo test --test test_mod my_new_op::test_my_new_op
 Run a specific test with a selected backend:
 
 ```sh
-cargo test --test test_mod my_new_op::test_my_new_op --features backend-wgpu
+cargo test --test test_mod my_new_op::test_my_new_op --features test-wgpu
 ```
 
 ### Supported Backends
@@ -282,6 +282,11 @@ cargo test --test test_mod my_new_op::test_my_new_op --features backend-wgpu
 - `burn::backend::NdArray<f32>` (default) - CPU-based computation using ndarray
 - `burn::backend::Wgpu` - GPU-accelerated computation using WebGPU
 - `burn::backend::LibTorch<f32>` - PyTorch backend integration
+
+**Note:** Only one backend feature should be enabled at a time. The backend selection uses conditional compilation with the following priority:
+1. `test-wgpu` (highest priority)
+2. `test-tch` 
+3. `test-ndarray` (default when no other backend is selected)
 
 ## Debugging Failed Tests
 

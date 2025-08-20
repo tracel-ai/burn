@@ -5,10 +5,10 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["backend-ndarray"]
-backend-wgpu = ["burn/wgpu"]
-backend-ndarray = ["burn/ndarray"]
-backend-tch = ["burn/tch"]
+default = ["test-ndarray"]
+test-wgpu = ["burn/wgpu"]
+test-ndarray = ["burn/ndarray"]
+test-tch = ["burn/tch"]
 
 [dev-dependencies]
 burn = { path = "../../burn" }

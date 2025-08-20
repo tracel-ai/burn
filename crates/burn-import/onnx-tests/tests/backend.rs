@@ -1,12 +1,12 @@
-#[cfg(feature = "backend-wgpu")]
+#[cfg(feature = "test-wgpu")]
 pub type Backend = burn::backend::Wgpu;
 
 #[cfg(all(
-    feature = "backend-ndarray",
-    not(feature = "backend-wgpu"),
-    not(feature = "backend-tch")
+    feature = "test-ndarray",
+    not(feature = "test-wgpu"),
+    not(feature = "test-tch")
 ))]
 pub type Backend = burn::backend::NdArray<f32>;
 
-#[cfg(feature = "backend-tch")]
+#[cfg(feature = "test-tch")]
 pub type Backend = burn::backend::LibTorch<f32>;
