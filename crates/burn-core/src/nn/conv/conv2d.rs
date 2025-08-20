@@ -163,7 +163,7 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
 impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [`conv2d`] for more information.
+    /// See [conv2d](crate::tensor::module::conv2d) for more information.
     ///
     /// # Shapes
     /// - `input`: `[batch_size, channels_in, height_in, width_in]`
