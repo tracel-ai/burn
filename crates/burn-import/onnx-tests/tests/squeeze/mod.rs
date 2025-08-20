@@ -14,12 +14,12 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn squeeze() {
         let device = Default::default();
-        let model = squeeze::Model::<Backend>::new(&device);
+        let model = squeeze::Model::<TestBackend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
@@ -30,7 +30,7 @@ mod tests {
     #[test]
     fn squeeze_multiple() {
         let device = Default::default();
-        let model = squeeze_multiple::Model::<Backend>::new(&device);
+        let model = squeeze_multiple::Model::<TestBackend>::new(&device);
         let input_shape = Shape::from([3, 4, 1, 5, 1]);
         let expected_shape = Shape::from([3, 4, 5]);
         let input = Tensor::ones(input_shape, &device);
@@ -41,9 +41,9 @@ mod tests {
     #[test]
     fn squeeze_shape() {
         let device = Default::default();
-        let model = squeeze_shape::Model::<Backend>::new(&device);
+        let model = squeeze_shape::Model::<TestBackend>::new(&device);
         // Input tensor is 3x4x5
-        let input = Tensor::<Backend, 3>::ones([3, 4, 5], &device);
+        let input = Tensor::<TestBackend, 3>::ones([3, 4, 5], &device);
         // The model: Shape -> Slice(0:1) -> Squeeze
         // Expected: [3, 4, 5] -> [3] -> 3
         let output = model.forward(input);
@@ -53,9 +53,9 @@ mod tests {
     #[test]
     fn squeeze_shape_noop() {
         let device = Default::default();
-        let model = squeeze_shape_noop::Model::<Backend>::new(&device);
+        let model = squeeze_shape_noop::Model::<TestBackend>::new(&device);
         // Input tensor is 6x7
-        let input = Tensor::<Backend, 2>::ones([6, 7], &device);
+        let input = Tensor::<TestBackend, 2>::ones([6, 7], &device);
         // The model: Shape -> Squeeze(axis=0)
         // Expected: [6, 7] -> [6, 7] (no-op since axis 0 has size 6, not 1)
         let output = model.forward(input);
@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn squeeze_scalar() {
         let device = Default::default();
-        let model = squeeze_scalar::Model::<Backend>::new(&device);
+        let model = squeeze_scalar::Model::<TestBackend>::new(&device);
         // The model has a constant scalar 1.5 that gets squeezed
         // Expected: 1.5 -> 1.5 (no-op)
         let output = model.forward();
@@ -77,8 +77,8 @@ mod tests {
         // Test verifies that the improved squeeze implementation using .into_scalar()
         // works correctly for float tensors with .elem::<f32>() casting
         let device = Default::default();
-        let model = squeeze_float::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 1>::from_data([14159.222f32], &device);
+        let model = squeeze_float::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 1>::from_data([14159.222f32], &device);
         let output = model.forward(input);
         assert!((output - 14159.222f32).abs() < 1e-6);
     }
@@ -87,8 +87,8 @@ mod tests {
     fn squeeze_tensor_to_scalar() {
         // Test squeezing a multi-dimensional tensor [1, 1, 1] with one element to a scalar
         let device = Default::default();
-        let model = squeeze_tensor_to_scalar::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::from_data([[[42.5f32]]], &device);
+        let model = squeeze_tensor_to_scalar::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3>::from_data([[[42.5f32]]], &device);
         let output = model.forward(input);
         assert!((output - 42.5f32).abs() < 1e-6);
     }

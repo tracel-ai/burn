@@ -6,17 +6,17 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn floor_test() {
         // Test for floor
         let device = Default::default();
-        let model = floor::Model::<Backend>::new(&device);
+        let model = floor::Model::<TestBackend>::new(&device);
 
-        let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
-        let expected = Tensor::<Backend, 1>::from_floats([-1., 1., 2.], &device);
+        let input = Tensor::<TestBackend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
+        let expected = Tensor::<TestBackend, 1>::from_floats([-1., 1., 2.], &device);
 
         let output = model.forward(input);
 

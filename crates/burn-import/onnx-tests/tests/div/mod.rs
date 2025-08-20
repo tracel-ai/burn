@@ -7,16 +7,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn div_tensor_by_scalar_and_tensor_by_tensor() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: div::Model<Backend> = div::Model::new(&device);
+        let model: div::Model<TestBackend> = div::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[3., 6., 6., 9.]]]], &device);
+        let input = Tensor::<TestBackend, 4>::from_floats([[[[3., 6., 6., 9.]]]], &device);
         let scalar1 = 9.0f64;
         let scalar2 = 3.0f64;
         let output = model.forward(input, scalar1, scalar2);
@@ -29,11 +29,11 @@ mod tests {
     fn div_shape_with_scalar_and_shape() {
         // Initialize the model
         let device = Default::default();
-        let model: div_shape::Model<Backend> = div_shape::Model::new(&device);
+        let model: div_shape::Model<TestBackend> = div_shape::Model::new(&device);
 
         // Create input tensors
-        let input1 = Tensor::<Backend, 3>::ones([8, 12, 16], &device);
-        let input2 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
+        let input1 = Tensor::<TestBackend, 3>::ones([8, 12, 16], &device);
+        let input2 = Tensor::<TestBackend, 3>::ones([2, 3, 4], &device);
         let (shape_div_scalar, shape_div_shape) = model.forward(input1, input2);
 
         // Expected outputs

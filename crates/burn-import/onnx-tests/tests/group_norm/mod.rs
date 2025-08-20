@@ -7,15 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn group_norm() {
         let device = Default::default();
-        let model: group_norm::Model<Backend> = group_norm::Model::default();
+        let model: group_norm::Model<TestBackend> = group_norm::Model::default();
 
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [
                 [
                     [[0.5, -0.14, 0.65], [1.52, -0.23, -0.23]],

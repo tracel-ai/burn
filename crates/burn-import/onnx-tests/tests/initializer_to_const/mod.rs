@@ -5,17 +5,17 @@ include_models!(initializer_to_const);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
     use burn::tensor::{Tensor, TensorData};
 
     #[test]
     fn test_initializer_to_const() {
-        let model: initializer_to_const::Model<Backend> = initializer_to_const::Model::default();
+        let model: initializer_to_const::Model<TestBackend> = initializer_to_const::Model::default();
 
         let device = Default::default();
 
         // Create input tensor (2x3 as defined in the Python script)
-        let input = Tensor::<Backend, 2>::from_data(
+        let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([[1.0f32, 1.0, 1.0], [1.0, 1.0, 1.0]]),
             &device,
         );
