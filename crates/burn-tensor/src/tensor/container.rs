@@ -3,6 +3,8 @@ use core::any::Any;
 
 #[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 
 #[cfg(feature = "std")]
 use std::collections::HashMap;
