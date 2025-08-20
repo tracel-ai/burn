@@ -6,7 +6,6 @@ use crate::{
     CubeFusionHandle,
     shared::trace::{QuantParamsHandleInput, QuantValuesHandleInput},
 };
-use burn_common::tensor::handle_smaller_strides;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use cubecl::Runtime;
@@ -38,11 +37,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 RegisterTensor::Normal(tensor_relative, precision) => {
                     let mut tensor_global =
                         context.tensors.get(&tensor_relative.id).unwrap().clone();
-                    let mut handle = context
+                    let handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
-
-                    handle_smaller_strides(&tensor_global.shape, &mut handle.strides);
 
                     if let TensorStatus::ReadWrite = tensor_relative.status {
                         plan.cleared.push(tensor_global.id);
@@ -71,10 +68,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
                 RegisterTensor::QuantValues(tensor_relative) => {
                     let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
-                    let mut handle = context
+                    let handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
-                    handle_smaller_strides(&tensor_global.shape, &mut handle.strides);
 
                     let scheme = match tensor_relative.dtype {
                         burn_tensor::DType::QFloat(scheme) => scheme,

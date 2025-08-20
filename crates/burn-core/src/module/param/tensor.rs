@@ -92,22 +92,22 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let (id, tensor, _mappers) = self.consume();
+        let (id, tensor, _mapper) = self.consume();
         let value = mapper.map_float(id, tensor);
         Self::initialized(id, value)
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mappers) = self.consume();
+        let (new_id, mut new_value, mapper) = self.consume();
 
-        new_value = mappers.on_save(new_value);
+        new_value = mapper.on_save(new_value);
 
         Self::initialized(new_id, new_value)
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _record_mappers) = record.consume();
-        let record_mappers = self.record_mappers.clone();
+        let (new_id, mut new_value, _mapper) = record.consume();
+        let record_mapper = self.record_mapper.clone();
 
         let expected_device = self.lazy_device();
         let expected_require_grad = self.lazy_is_require_grad();
@@ -117,7 +117,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
             new_value = new_value.to_device(&expected_device).detach();
         }
 
-        new_value = record_mappers.on_load(new_value);
+        new_value = record_mapper.on_load(new_value);
 
         // Make sure we load the record with the same autodiff setting.
         new_value = new_value.set_require_grad(expected_require_grad);
@@ -182,16 +182,16 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mappers) = self.consume();
+        let (new_id, mut new_value, mapper) = self.consume();
 
-        new_value = mappers.on_save(new_value);
+        new_value = mapper.on_save(new_value);
 
         Self::initialized(new_id, new_value)
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _mappers) = record.consume();
-        let mappers = self.record_mappers.clone();
+        let (new_id, mut new_value, _mapper) = record.consume();
+        let mapper = self.record_mapper.clone();
 
         let expected_device = self.lazy_device();
 
@@ -200,7 +200,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
             new_value = new_value.to_device(&expected_device);
         }
 
-        new_value = mappers.on_load(new_value);
+        new_value = mapper.on_load(new_value);
 
         Self::initialized(new_id, new_value)
     }
@@ -253,16 +253,16 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mappers) = self.consume();
+        let (new_id, mut new_value, mapper) = self.consume();
 
-        new_value = mappers.on_save(new_value);
+        new_value = mapper.on_save(new_value);
 
         Self::initialized(new_id, new_value)
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _mappers) = record.consume();
-        let mappers = self.record_mappers.clone();
+        let (new_id, mut new_value, _mapper) = record.consume();
+        let mapper = self.record_mapper.clone();
 
         let expected_device = self.lazy_device();
 
@@ -271,7 +271,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
             new_value = new_value.to_device(&expected_device);
         }
 
-        new_value = mappers.on_load(new_value);
+        new_value = mapper.on_load(new_value);
 
         Self::initialized(new_id, new_value)
     }

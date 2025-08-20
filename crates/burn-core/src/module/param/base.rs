@@ -40,32 +40,35 @@ pub struct Param<T: Parameter> {
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
-    pub(crate) record_mappers: RecordMappers<T>,
+    pub(crate) record_mapper: RecordMapper<T>,
 }
 
 #[derive(Clone)]
-pub struct RecordMappers<T: Parameter> {
+/// Applies functions when loading and saving parameters.
+pub struct RecordMapper<T: Parameter> {
     load: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
     save: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
 }
 
-impl<T: Parameter> core::fmt::Debug for RecordMappers<T> {
+impl<T: Parameter> core::fmt::Debug for RecordMapper<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!(
-            "RecordMappers {{ load: {}, save: {} }}",
+            "RecordMapper {{ load: {}, save: {} }}",
             self.load.is_some(),
             self.save.is_some()
         ))
     }
 }
 
-impl<T: Parameter> RecordMappers<T> {
+impl<T: Parameter> RecordMapper<T> {
+    /// Applies the transformation when loading the given parameter.
     pub fn on_load(&self, param: T) -> T {
         match &self.load {
             Some(mapper) => mapper(param),
             None => param,
         }
     }
+    /// Applies the transformation when saving the given parameter.
     pub fn on_save(&self, param: T) -> T {
         match &self.save {
             Some(mapper) => mapper(param),
@@ -74,7 +77,7 @@ impl<T: Parameter> RecordMappers<T> {
     }
 }
 
-impl<T: Parameter> Default for RecordMappers<T> {
+impl<T: Parameter> Default for RecordMapper<T> {
     fn default() -> Self {
         Self {
             load: None,
@@ -91,7 +94,7 @@ impl<T: Parameter> core::fmt::Display for Param<T> {
 
 impl<T: Parameter> core::fmt::Debug for Param<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("Param: {} - {:?}", self.id, self.record_mappers).as_str())
+        f.write_str(format!("Param: {} - {:?}", self.id, self.record_mapper).as_str())
     }
 }
 
@@ -131,7 +134,7 @@ impl<T: Parameter> Param<T> {
             id,
             state: OnceCell::from(value),
             initialization: None,
-            record_mappers: Default::default(),
+            record_mapper: Default::default(),
         }
     }
 
@@ -148,7 +151,7 @@ impl<T: Parameter> Param<T> {
                 device,
                 is_require_grad,
             }))),
-            record_mappers: Default::default(),
+            record_mapper: Default::default(),
         }
     }
 
@@ -174,37 +177,37 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Gets the parameter id and value while consuming the parameter.
-    pub fn consume(self) -> (ParamId, T, RecordMappers<T>) {
+    pub fn consume(self) -> (ParamId, T, RecordMapper<T>) {
         let tensor = self.val();
 
         core::mem::drop(self.state);
 
-        (self.id, tensor, self.record_mappers)
+        (self.id, tensor, self.record_mapper)
     }
 
     /// Execute the given function on the inner value.
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
-        let (id, tensor, record_mappers) = self.consume();
+        let (id, tensor, record_mapper) = self.consume();
         let tensor = func(tensor);
 
         Self {
             id,
             state: OnceCell::from(tensor),
             initialization: None,
-            record_mappers,
+            record_mapper,
         }
     }
 
     /// Runs a transformation on the parameter when loading a saved record.
     pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
-        self.record_mappers.load = Some(Arc::new(func));
+        self.record_mapper.load = Some(Arc::new(func));
 
         self
     }
 
     /// Runs a transformation on the parameter when saving the record.
     pub fn save_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
-        self.record_mappers.save = Some(Arc::new(func));
+        self.record_mapper.save = Some(Arc::new(func));
 
         self
     }
@@ -321,7 +324,7 @@ impl<T: Parameter> Param<T> {
 impl<T: Parameter> Clone for Param<T> {
     fn clone(&self) -> Self {
         let mut param = Param::initialized(self.id, self.val());
-        param.record_mappers = self.record_mappers.clone();
+        param.record_mapper = self.record_mapper.clone();
         param
     }
 }

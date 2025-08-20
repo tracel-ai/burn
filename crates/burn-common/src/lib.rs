@@ -65,18 +65,18 @@ pub mod tensor {
         strides
     }
 
-    /// The result returned by [analyze_reshape()].
+    /// The action to take for a reshape operation.
     pub enum ReshapeAction {
         /// Updating the strides is sufficient to handle the reshape.
         UpdateStrides {
             /// The new strides.
             strides: Vec<usize>,
         },
-        /// The strides are not compatible, we should go through a contiguous layout.
+        /// The strides are not compatible, we should recompute the buffer.
         Recompute,
     }
 
-    /// The result returned by [analyze_reshape()].
+    /// The reshape kind.
     pub enum ReshapeAnalysis {
         /// Original tensor is contiguous, can update the strides.
         IsContiguous,
@@ -118,17 +118,6 @@ pub mod tensor {
                     strides: strides_new,
                 }
             }
-        }
-    }
-
-    /// Calculate the new strides given added batch dimensions.
-    pub fn handle_smaller_strides(shape: &[usize], strides: &mut Vec<usize>) {
-        if strides.len() < shape.len() {
-            let rank_prev = strides.len();
-            let missing_batch = shape.len() - rank_prev;
-            let num_elems = shape.iter().product::<usize>();
-
-            *strides = broadcast_strides(missing_batch, rank_prev, num_elems, &strides);
         }
     }
 

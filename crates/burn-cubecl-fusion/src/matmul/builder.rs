@@ -95,7 +95,6 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
     }
 
     fn build(&self) -> CubeOptimization<R> {
-        println!("Matmul fused {}", self.len());
         let client = R::client(&self.device);
         let trace = self.builder.build();
         let trace_fallback = self.builder_fallback.build();
