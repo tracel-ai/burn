@@ -66,7 +66,6 @@ pub struct Conv2d<B: Backend> {
     pub groups: usize,
     /// The padding configuration.
     pub padding: Ignored<PaddingConfig2d>,
-    
 }
 
 impl Conv2dConfig {
@@ -116,21 +115,21 @@ impl Conv2dConfig {
 
 impl<B: Backend> ModuleDisplay for Conv2d<B> {
     /// # Example
-/// ```rust
-/// # #[cfg(feature = "ndarray")]
-/// # {
-/// use burn::backend::ndarray::NdArray;
-/// use burn::nn::conv::Conv2dConfig;
-///
-/// let device = Default::default();
-/// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
-///
-/// // Print Conv2d layer information using Display
-/// println!("{}", conv);
-/// # }
-/// # #[cfg(not(feature = "ndarray"))]
-/// # fn main() {}
-/// ```
+    /// ```rust
+    /// # #[cfg(feature = "ndarray")]
+    /// # {
+    /// use burn::backend::ndarray::NdArray;
+    /// use burn::nn::conv::Conv2dConfig;
+    ///
+    /// let device = Default::default();
+    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
+    ///
+    /// // Print Conv2d layer information using Display
+    /// println!("{}", conv);
+    /// # }
+    /// # #[cfg(not(feature = "ndarray"))]
+    /// # fn main() {}
+    /// ```
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -162,37 +161,37 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
 }
 
 impl<B: Backend> Conv2d<B> {
-/// Applies the forward pass on the input tensor.
-/// 
-/// See [`conv2d`] for more information.
-/// 
-/// # Shapes
-/// - `input`: `[batch_size, channels_in, height_in, width_in]`
-/// - `output`: `[batch_size, channels_out, height_out, width_out]`
-/// 
-/// # Example
-/// ```rust
-/// # #[cfg(feature = "ndarray")]
-/// # {
-/// use burn::backend::ndarray::NdArray;
-/// use burn::nn::conv::Conv2dConfig;
-/// use burn::tensor::Tensor;
-///
-/// let device = Default::default();
-/// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
-///
-/// // Fake input: [batch=1, channels=3, height=28, width=28]
-/// let x = Tensor::<NdArray, 4>::zeros([1, 3, 28, 28], &device);
-///
-/// // Apply convolution
-/// let y = conv.forward(x);
-///
-/// // Output shape: [1, 8, 26, 26]
-/// println!("{:?}", y.dims());
-/// # }
-/// # #[cfg(not(feature = "ndarray"))]
-/// # fn main() {}
-/// ```
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// See [`conv2d`] for more information.
+    ///
+    /// # Shapes
+    /// - `input`: `[batch_size, channels_in, height_in, width_in]`
+    /// - `output`: `[batch_size, channels_out, height_out, width_out]`
+    ///
+    /// # Example
+    /// ```rust
+    /// # #[cfg(feature = "ndarray")]
+    /// # {
+    /// use burn::backend::ndarray::NdArray;
+    /// use burn::nn::conv::Conv2dConfig;
+    /// use burn::tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<NdArray>(&device);
+    ///
+    /// // Fake input: [batch=1, channels=3, height=28, width=28]
+    /// let x = Tensor::<NdArray, 4>::zeros([1, 3, 28, 28], &device);
+    ///
+    /// // Apply convolution
+    /// let y = conv.forward(x);
+    ///
+    /// // Output shape: [1, 8, 26, 26]
+    /// println!("{:?}", y.dims());
+    /// # }
+    /// # #[cfg(not(feature = "ndarray"))]
+    /// # fn main() {}
+    /// ```
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
@@ -299,9 +298,9 @@ mod tests {
         let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(
-        alloc::format!("{conv}"),
-        "Conv2d {ch_in: 5, ch_out: 1, stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
-);
+            alloc::format!("{conv}"),
+            "Conv2d {ch_in: 5, ch_out: 1, stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
+        );
     }
 
     #[test]
