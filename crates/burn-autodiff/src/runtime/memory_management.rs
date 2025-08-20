@@ -218,7 +218,11 @@ impl GraphMemoryManagement {
                     new_leaves.insert(node_id);
                 }
                 _ => {
-                    to_delete.push(node_id);
+                    // Node may still be referenced by another thread (single autodiff server, multi-device setup)
+                    // Do not mark as deletable just yet, unused roots will be cleaned up once no strong references remain
+                    if !self.try_is_referenced(node_id).unwrap_or(false) {
+                        to_delete.push(node_id);
+                    }
 
                     for parent in self
                         .nodes
@@ -236,11 +240,15 @@ impl GraphMemoryManagement {
         }
     }
 
+    fn try_is_referenced(&self, node_id: NodeID) -> Option<bool> {
+        self.nodes
+            .get_key_value(&node_id)
+            .map(|(key, _value)| Arc::strong_count(key) > 1)
+    }
+
     fn is_referenced(&self, node_id: NodeID) -> bool {
-        match self.nodes.get_key_value(&node_id) {
-            Some((key, _value)) => Arc::strong_count(key) > 1,
-            None => panic!("Node should be in the nodes map"),
-        }
+        self.try_is_referenced(node_id)
+            .expect("Node should be in the nodes map")
     }
 }
 
