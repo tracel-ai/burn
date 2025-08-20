@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use rust_format::{Config, Edition, Formatter, PostProcess, RustFmt};
+use rust_format::{Config, Formatter, PostProcess, PrettyPlease};
 
 /// Formats a token stream into a string.
 pub fn format_tokens(tokens: TokenStream) -> String {
@@ -8,10 +8,8 @@ pub fn format_tokens(tokens: TokenStream) -> String {
     fmt.format_tokens(tokens).expect("Valid token tree")
 }
 
-fn code_formatter() -> RustFmt {
-    let config = Config::new_str()
-        .post_proc(PostProcess::ReplaceMarkersAndDocBlocks)
-        .edition(Edition::Rust2021);
+fn code_formatter() -> PrettyPlease {
+    let config = Config::new_str().post_proc(PostProcess::ReplaceMarkersAndDocBlocks);
 
-    RustFmt::from_config(config)
+    PrettyPlease::from_config(config)
 }

@@ -411,6 +411,10 @@ impl OnnxGraphBuilder {
         nodes: &mut [Node],
         constants_to_convert: &HashMap<String, usize>,
     ) {
+        // Track nodes whose outputs have changed type
+        let mut changed_outputs = HashSet::new();
+
+        // First pass: convert constants and update direct uses
         for node in nodes.iter_mut() {
             match node.node_type {
                 NodeType::Constant => {
@@ -420,6 +424,7 @@ impl OnnxGraphBuilder {
                         && matches!(&output.ty, ArgType::Tensor(t) if t.rank == 1)
                     {
                         output.ty = ArgType::Shape(shape_rank);
+                        changed_outputs.insert(output.name.clone());
                         log::debug!(
                             "Converted constant {} to Shape({})",
                             output.name,
@@ -432,31 +437,148 @@ impl OnnxGraphBuilder {
                 | NodeType::Mul
                 | NodeType::Div
                 | NodeType::Concat => {
-                    // Update input types and re-run rank inference if needed
-                    let mut needs_reinference = false;
-
-                    for input in &mut node.inputs {
-                        if let Some(&shape_rank) = constants_to_convert.get(&input.name)
-                            && matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1)
+                    // Update input types and check if reinference needed
+                    if self.update_node_inputs_to_shape(node, constants_to_convert) {
+                        // Re-run rank inference for Concat (other ops don't change output type)
+                        if node.node_type == NodeType::Concat
+                            && self.reinfer_and_track_changes(node, &mut changed_outputs)
                         {
-                            input.ty = ArgType::Shape(shape_rank);
-                            needs_reinference = true;
-                            log::debug!(
-                                "Updated {} input {} to Shape({})",
-                                node.node_type,
-                                input.name,
-                                shape_rank
-                            );
+                            log::debug!("Concat node {} output type changed", node.name);
                         }
-                    }
-
-                    // Re-run rank inference for Concat if inputs changed
-                    if needs_reinference && node.node_type == NodeType::Concat {
-                        rank_inference(node);
-                        log::debug!("Re-ran rank inference for Concat node {}", node.name);
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // Second pass: propagate rank changes through all downstream nodes
+        if !changed_outputs.is_empty() {
+            self.propagate_type_changes(nodes, changed_outputs);
+        }
+    }
+
+    /// Update node inputs from Tensor to Shape type if they're in the conversion map
+    /// Returns true if any inputs were updated
+    fn update_node_inputs_to_shape(
+        &self,
+        node: &mut Node,
+        constants_to_convert: &HashMap<String, usize>,
+    ) -> bool {
+        let mut updated = false;
+
+        for input in &mut node.inputs {
+            if let Some(&shape_rank) = constants_to_convert.get(&input.name)
+                && matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1)
+            {
+                input.ty = ArgType::Shape(shape_rank);
+                updated = true;
+                log::debug!(
+                    "Updated {} input {} to Shape({})",
+                    node.node_type,
+                    input.name,
+                    shape_rank
+                );
+            }
+        }
+
+        updated
+    }
+
+    /// Re-run rank inference on a node and track if output changed
+    /// Returns true if the output type changed
+    fn reinfer_and_track_changes(
+        &self,
+        node: &mut Node,
+        changed_outputs: &mut HashSet<String>,
+    ) -> bool {
+        let old_output_type = node.outputs.first().map(|o| o.ty.clone());
+        rank_inference(node);
+
+        if let Some(output) = node.outputs.first() {
+            let type_changed = old_output_type != Some(output.ty.clone());
+            if type_changed {
+                changed_outputs.insert(output.name.clone());
+                log::debug!("Node {} output changed type to {:?}", node.name, output.ty);
+            }
+            type_changed
+        } else {
+            false
+        }
+    }
+
+    /// Propagate type changes through the graph until no more changes occur
+    fn propagate_type_changes(&self, nodes: &mut [Node], initial_changes: HashSet<String>) {
+        log::debug!(
+            "Propagating type changes from outputs: {:?}",
+            initial_changes
+        );
+
+        let mut outputs_to_update = initial_changes;
+        let mut processed_nodes = HashSet::new();
+
+        while !outputs_to_update.is_empty() {
+            // Build type map for current round of updates
+            let output_type_map = self.build_output_type_map(nodes, &outputs_to_update);
+            let current_outputs = outputs_to_update;
+            outputs_to_update = HashSet::new();
+
+            // Process each node that uses the changed outputs
+            for (idx, node) in nodes.iter_mut().enumerate() {
+                // Skip already processed nodes and Constants
+                if processed_nodes.contains(&idx) || node.node_type == NodeType::Constant {
+                    continue;
+                }
+
+                // Check if this node uses any changed outputs
+                if node
+                    .inputs
+                    .iter()
+                    .any(|input| current_outputs.contains(&input.name))
+                {
+                    // Update input types
+                    self.update_node_input_types(node, &output_type_map);
+
+                    // Re-run rank inference and check for changes
+                    if self.reinfer_and_track_changes(node, &mut outputs_to_update) {
+                        log::debug!("Node {} output changed, will propagate further", node.name);
+                    }
+
+                    processed_nodes.insert(idx);
+                }
+            }
+        }
+    }
+
+    /// Build a map from output names to their types for the given set of outputs
+    fn build_output_type_map(
+        &self,
+        nodes: &[Node],
+        output_names: &HashSet<String>,
+    ) -> HashMap<String, ArgType> {
+        let mut type_map = HashMap::new();
+
+        for node in nodes {
+            for output in &node.outputs {
+                if output_names.contains(&output.name) {
+                    type_map.insert(output.name.clone(), output.ty.clone());
+                }
+            }
+        }
+
+        type_map
+    }
+
+    /// Update node input types from the type map
+    fn update_node_input_types(&self, node: &mut Node, type_map: &HashMap<String, ArgType>) {
+        for input in &mut node.inputs {
+            if let Some(new_type) = type_map.get(&input.name) {
+                input.ty = new_type.clone();
+                log::debug!(
+                    "Updated {} input {} type to {:?}",
+                    node.name,
+                    input.name,
+                    input.ty
+                );
             }
         }
     }
@@ -467,6 +589,35 @@ impl OnnxGraphBuilder {
                 format!("{}_out{}", &node.name, 1),
                 graph_data.get_current_index(),
             );
+        } else if node.node_type == NodeType::ConstantOfShape {
+            // Special handling for ConstantOfShape - check first input
+            log::debug!("Checking ConstantOfShape node {} for constants", &node.name);
+            if let Some(input) = node.inputs.first_mut() {
+                log::debug!("Checking first input {:?} for const", input);
+                if let Some(const_idx) = self.constants_map.get(&input.name) {
+                    let constant = &graph_data.processed_nodes[*const_idx];
+                    log::debug!(
+                        "Input {} matched constant node {}",
+                        &input.name,
+                        &constant.name
+                    );
+                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
+                        // The value comes from Identity inputs
+                        input.value.clone_from(&constant.inputs[0].value);
+                        input.ty = constant.inputs[0].ty.clone();
+                    } else {
+                        let arg = convert_constant_value(constant);
+                        input.value = arg.value;
+                        input.ty = arg.ty;
+                    }
+                    // The constant values are now embedded in the input, so we can remove the constant node
+                    self.nodes_to_remove.insert(*const_idx);
+                    log::debug!(
+                        "Lifted and removed constant node {} for ConstantOfShape",
+                        constant.name
+                    );
+                }
+            }
         } else if self.constants_types.contains(&node.node_type) {
             log::debug!("Checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
@@ -528,6 +679,16 @@ impl OnnxGraphBuilder {
                 if self.constants_types.contains(&node.node_type) && idx >= 1 {
                     log::debug!(
                         "Skipping constant creation for {} input {} (will be lifted)",
+                        node.name,
+                        idx
+                    );
+                    continue;
+                }
+
+                // Skip first input for ConstantOfShape as it's handled in check_constants
+                if node.node_type == NodeType::ConstantOfShape && idx == 0 {
+                    log::debug!(
+                        "Skipping constant creation for ConstantOfShape {} input {} (handled in check_constants)",
                         node.name,
                         idx
                     );

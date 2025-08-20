@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     NodeId,
     global::shared::GlobalCollectiveError,
-    local::ring::{get_ring_reduce_slice_ranges, get_slice_dim},
+    local::{get_ring_reduce_slice_ranges, get_slice_dim},
     node::sync::SyncService,
 };
 use burn_communication::{Address, Protocol, data_service::TensorDataService};

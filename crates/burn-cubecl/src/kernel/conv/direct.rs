@@ -1,8 +1,11 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
-use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod};
 use cubecl::{
-    calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*,
-    std::tensor::StridedLayout, tensor_line_size_parallel,
+    calculate_cube_count_elemwise, prelude::*, std::tensor::StridedLayout,
+    tensor_line_size_parallel,
+};
+use cubecl::{
+    convolution::components::ConvSetupError,
+    std::{CubeOption, CubeOptionExpand, FastDivmod},
 };
 
 use crate::{
@@ -220,7 +223,7 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
     mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 

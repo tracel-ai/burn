@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 use burn_tensor::{
     Shape,
@@ -261,7 +261,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     mask: Option<CubeTensor<R>>,
     bias: Option<CubeTensor<R>>,
     options: DeformConvOptions<2>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);

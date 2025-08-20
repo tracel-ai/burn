@@ -14,7 +14,8 @@ use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
+/// Get the client for the given device.
+pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
     CLIENTS.client::<B::FusionRuntime>(device)
 }
 
@@ -125,7 +126,7 @@ pub trait OptimizationBuilder<O>: Send {
     fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<O>>;
 }
 
-/// The number of operations contained in the data strusture.
+/// The number of operations contained in the data structure.
 pub trait NumOperations: core::fmt::Debug {
     /// The number of registered operations.
     fn len(&self) -> usize;

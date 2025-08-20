@@ -119,6 +119,28 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+
+        let mut shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+        let ndims = lhs.shape().num_dims();
+
+        shape[ndims - 2] = lhs.shape[ndims - 2];
+        shape[ndims - 1] = rhs.shape[ndims - 1];
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Int(IntOperationIr::Matmul(desc)));
+
+        out
+    }
+
     fn int_mask_where(
         tensor: IntTensor<Self>,
         mask: BoolTensor<Self>,

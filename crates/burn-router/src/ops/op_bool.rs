@@ -22,6 +22,26 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        // Get the runtime client on which to register the operation for execution.
+        let client = get_client::<R>(device);
+        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
+
+        client.register(OperationIr::Bool(BoolOperationIr::Zeros(out.to_ir_out())));
+
+        out
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        // Get the runtime client on which to register the operation for execution.
+        let client = get_client::<R>(device);
+        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
+
+        client.register(OperationIr::Bool(BoolOperationIr::Ones(out.to_ir_out())));
+
+        out
+    }
+
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
         tensor.into_data().await
     }
