@@ -156,7 +156,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::module::ParamId;
-    use crate::record::{FullPrecisionSettings, NamedMpkBytesRecorder, Recorder};
+    use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Shape, TensorData};
     use burn_tensor::ElementConversion;
     use burn_tensor::{Tolerance, ops::FloatElem};
@@ -269,7 +269,7 @@ mod tests {
 
         assert_eq!(linear.weight.dims(), [6, 12], "Shape is as configured");
 
-        let recorder = NamedMpkBytesRecorder::<FullPrecisionSettings>::new();
+        let recorder = BinBytesRecorder::<FullPrecisionSettings>::new();
 
         // We go through serialization to trigger the mappers..
         let record = linear.into_record();
