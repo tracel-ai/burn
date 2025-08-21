@@ -6,8 +6,13 @@ publish = false
 
 [workspace]
 
+[features]
+default = ["ndarray"]
+ndarray = []
+tch = []
+
 [dependencies]
-burn = { path = "../../../../crates/burn", features = ["ndarray"] }
+burn = { path = "../../../../crates/burn", features = ["ndarray", "tch"] }
 
 [build-dependencies]
 burn-import = { path = "../../../burn-import" }
