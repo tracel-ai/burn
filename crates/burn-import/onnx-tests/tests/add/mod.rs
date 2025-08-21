@@ -61,12 +61,12 @@ mod tests {
     #[test]
     fn add_broadcast_tensor_ranks() {
         // Initialize the model
-        let model: add_broadcast::Model<Backend> = add_broadcast::Model::default();
+        let model: add_broadcast::Model<TestBackend> = add_broadcast::Model::default();
 
         let device = Default::default();
 
         // Create test tensors matching the Python script
-        let x_3d = Tensor::<Backend, 3>::from_floats(
+        let x_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [1.0, 2.0, 3.0, 4.0],
@@ -82,7 +82,7 @@ mod tests {
             &device,
         );
 
-        let y_2d = Tensor::<Backend, 2>::from_floats(
+        let y_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [1.0, 1.0, 1.0, 1.0],
                 [2.0, 2.0, 2.0, 2.0],
@@ -91,7 +91,7 @@ mod tests {
             &device,
         );
 
-        let a_2d = Tensor::<Backend, 2>::from_floats(
+        let a_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [0.5, 0.5, 0.5, 0.5],
                 [1.5, 1.5, 1.5, 1.5],
@@ -100,7 +100,7 @@ mod tests {
             &device,
         );
 
-        let b_3d = Tensor::<Backend, 3>::from_floats(
+        let b_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [1.0, 2.0, 3.0, 4.0],
