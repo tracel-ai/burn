@@ -31,11 +31,10 @@ impl AutodiffServer {
     }
 
     pub fn backward(&mut self, grads: Gradients, node_id: NodeID) -> Gradients {
-        let step = self.steps.remove(&node_id).expect(&format!(
-            "Node {} should have a step registered, did you forget to call \
+        let step = self.steps.remove(&node_id).expect(
+            "Node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
-            node_id.value
-        ));
+        );
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
         let (tape, checkpointer) = self.build_tape(node_id, step, builder);
