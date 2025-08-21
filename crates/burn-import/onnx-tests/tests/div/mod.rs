@@ -46,10 +46,10 @@ mod tests {
 
     #[test]
     fn div_broadcast_tensor_ranks() {
-        let model: div_broadcast::Model<Backend> = div_broadcast::Model::default();
+        let model: div_broadcast::Model<TestBackend> = div_broadcast::Model::default();
         let device = Default::default();
 
-        let x_3d = Tensor::<Backend, 3>::from_floats(
+        let x_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [10.0, 20.0, 30.0, 40.0],
@@ -65,7 +65,7 @@ mod tests {
             &device,
         );
 
-        let y_2d = Tensor::<Backend, 2>::from_floats(
+        let y_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [2.0, 4.0, 6.0, 8.0],
                 [10.0, 12.0, 14.0, 16.0],
@@ -74,7 +74,7 @@ mod tests {
             &device,
         );
 
-        let a_2d = Tensor::<Backend, 2>::from_floats(
+        let a_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [100.0, 200.0, 300.0, 400.0],
                 [500.0, 600.0, 700.0, 800.0],
@@ -83,7 +83,7 @@ mod tests {
             &device,
         );
 
-        let b_3d = Tensor::<Backend, 3>::from_floats(
+        let b_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [10.0, 20.0, 30.0, 40.0],

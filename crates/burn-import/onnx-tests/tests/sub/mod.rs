@@ -60,10 +60,10 @@ mod tests {
 
     #[test]
     fn sub_broadcast_tensor_ranks() {
-        let model: sub_broadcast::Model<Backend> = sub_broadcast::Model::default();
+        let model: sub_broadcast::Model<TestBackend> = sub_broadcast::Model::default();
         let device = Default::default();
 
-        let x_3d = Tensor::<Backend, 3>::from_floats(
+        let x_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [10.0, 20.0, 30.0, 40.0],
@@ -79,7 +79,7 @@ mod tests {
             &device,
         );
 
-        let y_2d = Tensor::<Backend, 2>::from_floats(
+        let y_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [1.0, 2.0, 3.0, 4.0],
                 [5.0, 6.0, 7.0, 8.0],
@@ -88,7 +88,7 @@ mod tests {
             &device,
         );
 
-        let a_2d = Tensor::<Backend, 2>::from_floats(
+        let a_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [100.0, 100.0, 100.0, 100.0],
                 [200.0, 200.0, 200.0, 200.0],

@@ -45,10 +45,10 @@ mod tests {
 
     #[test]
     fn mul_broadcast_tensor_ranks() {
-        let model: mul_broadcast::Model<Backend> = mul_broadcast::Model::default();
+        let model: mul_broadcast::Model<TestBackend> = mul_broadcast::Model::default();
         let device = Default::default();
 
-        let x_3d = Tensor::<Backend, 3>::from_floats(
+        let x_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [1.0, 2.0, 3.0, 4.0],
@@ -64,7 +64,7 @@ mod tests {
             &device,
         );
 
-        let y_2d = Tensor::<Backend, 2>::from_floats(
+        let y_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [2.0, 2.0, 2.0, 2.0],
                 [3.0, 3.0, 3.0, 3.0],
@@ -73,7 +73,7 @@ mod tests {
             &device,
         );
 
-        let a_2d = Tensor::<Backend, 2>::from_floats(
+        let a_2d = Tensor::<TestBackend, 2>::from_floats(
             [
                 [1.0, 2.0, 3.0, 4.0],
                 [5.0, 6.0, 7.0, 8.0],
@@ -82,7 +82,7 @@ mod tests {
             &device,
         );
 
-        let b_3d = Tensor::<Backend, 3>::from_floats(
+        let b_3d = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [2.0, 2.0, 2.0, 2.0],
