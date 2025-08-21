@@ -798,6 +798,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> FloatTensor<B> {
         let ndims_in = input.shape().num_dims();
         let [d_input, d_output] = weight.shape().dims();
+
         if ndims_in == 1 {
             // Insert and remove an extra batch dimension for the batch matmul to work.
             let input = B::float_reshape(input, Shape::from([1, d_input]));
@@ -805,10 +806,15 @@ pub trait ModuleOps<B: Backend> {
             return B::float_reshape(output, Shape::from([d_output]));
         }
 
+        // Perform broadcasting
+        //
+        // Important to be done before doing operations to easily fuse.
         let weight = unsqueeze::<B>(weight, ndims_in);
+        let bias = bias.map(|bias| unsqueeze::<B>(bias, ndims_in));
+
         let output = B::float_matmul(input, weight);
         match bias {
-            Some(bias) => B::float_add(output, unsqueeze::<B>(bias, ndims_in)),
+            Some(bias) => B::float_add(output, bias),
             None => output,
         }
     }

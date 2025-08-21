@@ -99,6 +99,8 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
                 }
             }))
             .with(Tunable::new(simple_unit_max::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(simple_vec_mat::<R, E>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(double_vec_mat::<R, E>).group(&unit, |_| PRIORITY_MAX))
             .with(Tunable::new(double_unit::<R, E>).group(&unit, |key| {
                 double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
             }))
@@ -288,6 +290,36 @@ fn double_unit<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleUnit(Default::default()),
+        &lhs.client,
+        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
+        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn simple_vec_mat<R: CubeRuntime, E: MatmulElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::SimpleVecMat(Selection::Inferred(())),
+        &lhs.client,
+        &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
+        &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
+        &out.as_handle_ref(),
+    )
+    .map_err(|err| format!("{err:?}"))
+}
+
+fn double_vec_mat<R: CubeRuntime, E: MatmulElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), String> {
+    cubecl::matmul::launch_ref::<R, E>(
+        &Strategy::DoubleVecMat(Selection::Inferred(())),
         &lhs.client,
         &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
         &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),

@@ -45,9 +45,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         plan.cleared.push(tensor_global.id);
                     }
 
-                    self.analyze(plan, pos, tensor_relative, &handle);
-
                     let mut new_strides = handle.strides.clone();
+
+                    self.analyze(plan, pos, tensor_relative, &handle);
 
                     if tensor_global.shape.len() < plan.rank {
                         let num_elem: usize = tensor_global.shape.iter().product();
@@ -71,6 +71,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let handle = context
                         .handles
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
+
                     let scheme = match tensor_relative.dtype {
                         burn_tensor::DType::QFloat(scheme) => scheme,
                         _ => unreachable!("Can't have quant data without QFloat"),
