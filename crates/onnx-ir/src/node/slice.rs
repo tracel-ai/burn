@@ -66,7 +66,7 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let ends =
         get_slice_input(node, 2).unwrap_or_else(|| panic!("Slice: ends parameter is required"));
 
-    let axes = get_slice_input(node, 3);
+    let mut axes = get_slice_input(node, 3);
     let steps = get_slice_input(node, 4);
 
     // Validate steps if present
@@ -74,6 +74,26 @@ pub fn slice_config(node: &Node) -> SliceConfig {
         && step_values.iter().any(|&x| x != 1)
     {
         panic!("Slice: steps other than 1 are not supported");
+    }
+
+    // Normalize negative axes if we have static axes and know the input rank
+    if let Some(SliceInput::Static(ref mut axes_values)) = axes
+        && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
+    {
+        let rank = tensor_type.rank;
+        for axis in axes_values.iter_mut() {
+            if *axis < 0 {
+                let normalized = rank as i64 + *axis;
+                log::debug!(
+                    "Slice node {}: normalizing negative axis {} to {} (rank={})",
+                    node.name,
+                    *axis,
+                    normalized,
+                    rank
+                );
+                *axis = normalized;
+            }
+        }
     }
 
     SliceConfig {
@@ -286,9 +306,9 @@ mod tests {
             (SliceInput::Static(starts), SliceInput::Static(ends)) => {
                 assert_eq!(starts, &vec![1]);
                 assert_eq!(ends, &vec![3]);
-                // Check axes (should still be negative - conversion happens in burn-import)
+                // Check axes (should be normalized from -3 to 0 for rank 3 tensor)
                 if let Some(SliceInput::Static(axes)) = &result.axes {
-                    assert_eq!(axes, &vec![-3]);
+                    assert_eq!(axes, &vec![0]); // -3 + 3 = 0
                 }
             }
             _ => panic!("Expected static config"),

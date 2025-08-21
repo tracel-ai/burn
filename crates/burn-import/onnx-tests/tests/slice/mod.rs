@@ -12,7 +12,8 @@ include_models!(
     slice_shape_negative_range,
     slice_1d_tensor,
     slice_shape_start_tensor_end,
-    slice_tensor_start_shape_end
+    slice_tensor_start_shape_end,
+    slice_axes
 );
 
 #[cfg(test)]
@@ -282,5 +283,57 @@ mod tests {
         // So it slices: [2:6, 3:10, :]
         // Result shape should be [4, 7, 8]
         assert_eq!(output.shape().dims, [4, 7, 8]);
+    }
+
+    #[test]
+    fn slice_axes() {
+        // This test validates that the axes parameter is correctly handled.
+        // Without axes, slice would operate on dimension 0.
+        // With axes=[1], slice operates on dimension 1.
+        let model: slice_axes::Model<TestBackend> = slice_axes::Model::default();
+        let device = Default::default();
+
+        // Create test input with shape [2, 4, 6]
+        let test_input = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [
+                    [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                    [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
+                    [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
+                ],
+                [
+                    [25.0, 26.0, 27.0, 28.0, 29.0, 30.0],
+                    [31.0, 32.0, 33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0, 41.0, 42.0],
+                    [43.0, 44.0, 45.0, 46.0, 47.0, 48.0],
+                ],
+            ],
+            &device,
+        );
+
+        let output = model.forward(test_input.clone());
+
+        // Expected output shape: [2, 2, 6]
+        // The model slices axis 1 from index 1 to 3
+        // This means taking rows 1 and 2 from each batch
+        assert_eq!(output.shape().dims, [2, 2, 6], "Output shape mismatch");
+
+        // Expected output: input[:, 1:3, :]
+        let expected = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [
+                    [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
+                ],
+                [
+                    [31.0, 32.0, 33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0, 41.0, 42.0],
+                ],
+            ],
+            &device,
+        );
+
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }
