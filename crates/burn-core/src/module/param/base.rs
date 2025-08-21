@@ -1,8 +1,30 @@
 use super::ParamId;
-use alloc::{boxed::Box, format, sync::Arc};
+use alloc::{boxed::Box, format};
 use burn_common::stub::RwLock;
 use core::cell::OnceCell;
 use core::ops::Deref;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
+#[cfg(target_has_atomic = "ptr")]
+type Mapper<T> = Arc<dyn Fn(T) -> T + Send + Sync>;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+type Mapper<T> = Arc<Box<dyn Fn(T) -> T + Send + Sync>>;
+
+#[cfg(target_has_atomic = "ptr")]
+fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
+    Arc::new(func)
+}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
+    Arc::new(Box::new(func))
+}
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
 /// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
@@ -46,8 +68,8 @@ pub struct Param<T: Parameter> {
 #[derive(Clone)]
 /// Applies functions when loading and saving parameters.
 pub struct RecordMapper<T: Parameter> {
-    load: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
-    save: Option<Arc<dyn Fn(T) -> T + Send + Sync>>,
+    load: Option<Mapper<T>>,
+    save: Option<Mapper<T>>,
 }
 
 impl<T: Parameter> core::fmt::Debug for RecordMapper<T> {
@@ -200,14 +222,14 @@ impl<T: Parameter> Param<T> {
 
     /// Runs a transformation on the parameter when loading a saved record.
     pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
-        self.record_mapper.load = Some(Arc::new(func));
+        self.record_mapper.load = Some(new_mapper(func));
 
         self
     }
 
     /// Runs a transformation on the parameter when saving the record.
     pub fn save_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
-        self.record_mapper.save = Some(Arc::new(func));
+        self.record_mapper.save = Some(new_mapper(func));
 
         self
     }
