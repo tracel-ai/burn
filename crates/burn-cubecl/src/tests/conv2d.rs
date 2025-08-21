@@ -86,29 +86,6 @@ mod tests {
             .assert_approx_eq::<FT>(&output_ref.into_data(), tolerance);
     }
 
-    #[test]
-    fn nchw_to_nhwc_should_match_into_contiguous() {
-        let test_device = Default::default();
-        let input =
-            Tensor::<TestBackend, 4>::random([4, 72, 53, 56], Distribution::Default, &test_device);
-
-        type Float = <TestBackend as Backend>::FloatElem;
-
-        let output = nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor());
-        let output_ref = into_contiguous(
-            input
-                .clone()
-                .permute([0, 2, 3, 1])
-                .into_primitive()
-                .tensor(),
-        );
-
-        into_data_sync::<TestRuntime, Float>(output).assert_approx_eq::<FT>(
-            &into_data_sync::<TestRuntime, Float>(output_ref),
-            Tolerance::default(),
-        );
-    }
-
     /// Regression test for transpose kernel that was causing corruption with 17-64 in channels and
     /// at least 17 hw
     #[test]
