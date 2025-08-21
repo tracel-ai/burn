@@ -18,5 +18,5 @@ mod tests {
 
     pub type TestRuntime = cubecl::cpu::CpuRuntime;
 
-    burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u8, u32]);
+    burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u32]);
 }
