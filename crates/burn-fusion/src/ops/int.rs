@@ -90,6 +90,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
+        if tensor.shape == shape.dims {
+            return tensor;
+        }
+
         #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,

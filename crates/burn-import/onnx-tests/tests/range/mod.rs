@@ -6,12 +6,12 @@ mod tests {
     use super::*;
     use burn::tensor::TensorData;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn range() {
         let device = Default::default();
-        let model: range::Model<Backend> = range::Model::new(&device);
+        let model: range::Model<TestBackend> = range::Model::new(&device);
 
         // Run the model
         let start = 0i64;

@@ -14,14 +14,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn add_constant_f32() {
         let device = Default::default();
-        let model = constant_f32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_f32::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -31,9 +31,9 @@ mod tests {
     #[test]
     fn add_constant_f64() {
         let device = Default::default();
-        let model = constant_f64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_f64::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -43,9 +43,9 @@ mod tests {
     #[test]
     fn add_constant_i32() {
         let device = Default::default();
-        let model = constant_i32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_i32::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -55,9 +55,9 @@ mod tests {
     #[test]
     fn add_constant_i64() {
         let device = Default::default();
-        let model = constant_i64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_i64::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -67,10 +67,10 @@ mod tests {
     #[test]
     fn constant_shape() {
         let device = Default::default();
-        let model = constant_shape::Model::<Backend>::new(&device);
+        let model = constant_shape::Model::<TestBackend>::new(&device);
 
         // Create input tensor with shape [2, 4, 6]
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 4, 6]), &device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 4, 6]), &device);
 
         // The model tests Shape operations with constants
         // Input shape: [2, 4, 6]
@@ -113,10 +113,10 @@ mod tests {
         // This should succeed with our fix
         // Without the fix, this would panic during model creation with:
         // "Concat axis 2 is out of bounds for rank 2"
-        let model = rank_inference_propagation::Model::<Backend>::new(&device);
+        let model = rank_inference_propagation::Model::<TestBackend>::new(&device);
 
         // Create a 3D input tensor (batch=2, sequence=4, features=384)
-        let input = Tensor::<Backend, 3>::ones([2, 4, 384], &device);
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 384], &device);
 
         // Run the model
         let output = model.forward(input);

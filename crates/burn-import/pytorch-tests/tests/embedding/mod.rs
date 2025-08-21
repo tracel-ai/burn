@@ -24,7 +24,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
         tensor::Tolerance,
@@ -33,16 +33,16 @@ mod tests {
 
     use super::*;
 
-    fn embedding(record: NetRecord<Backend>, precision: f32) {
+    fn embedding(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
 
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
+        let input = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 3>::from_data(
+        let expected = Tensor::<TestBackend, 3>::from_data(
             [
                 [
                     [-1.609_484_9, -0.10016718, -0.609_188_9],
