@@ -118,15 +118,23 @@ impl<B: Backend> ModuleDisplay for Conv3d<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        // Since padding does not implement ModuleDisplay, we need to format it manually.
+        // Padding doesn't implement ModuleDisplay, so format manually.
         let padding_formatted = format!("{}", &self.padding);
 
-        // Format the stride, kernel_size and dilation as strings, formatted as arrays instead of indexed.
+        // Format arrays as strings (consistent with Conv2d/Conv1d).
         let stride = format!("{:?}", self.stride);
         let kernel_size = format!("{:?}", self.kernel_size);
         let dilation = format!("{:?}", self.dilation);
 
+        // Weight dims: [channels_out, channels_in/groups, k1, k2, k3]
+        let [channels_out, group_channels_in, _, _, _] = self.weight.dims();
+        let channels_in = group_channels_in * self.groups;
+        let ch_out = format!("{:?}", channels_out);
+        let ch_in = format!("{:?}", channels_in);
+
         content
+            .add("ch_in", &ch_in)
+            .add("ch_out", &ch_out)
             .add("stride", &stride)
             .add("kernel_size", &kernel_size)
             .add("dilation", &dilation)
@@ -250,7 +258,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{conv}"),
-            "Conv3d {stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: Valid, params: 626}"
+            "Conv3d {ch_in: 5, ch_out: 1, stride: [1, 1, 1], kernel_size: [5, 5, 5], dilation: [1, 1, 1], groups: 1, padding: Valid, params: 626}"
         );
     }
 
