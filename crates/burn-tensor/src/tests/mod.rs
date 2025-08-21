@@ -239,6 +239,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_tri!();
+        burn_tensor::testgen_unit!();
         burn_tensor::testgen_powf!();
         burn_tensor::testgen_any!();
         burn_tensor::testgen_all_op!();
