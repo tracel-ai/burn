@@ -11,12 +11,12 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn unsqueeze_runtime_axes() {
         let device = Default::default();
-        let model: unsqueeze_runtime_axes::Model<Backend> =
+        let model: unsqueeze_runtime_axes::Model<TestBackend> =
             unsqueeze_runtime_axes::Model::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([1, 3, 1, 4, 5, 1]);
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn unsqueeze_like() {
         let device = Default::default();
-        let model = unsqueeze_like::Model::<Backend>::new(&device);
+        let model = unsqueeze_like::Model::<TestBackend>::new(&device);
         let input_shape = Shape::from([3, 4, 5]);
         let expected_shape = Shape::from([3, 4, 5, 1]);
         let input = Tensor::ones(input_shape, &device);
@@ -49,7 +49,7 @@ mod tests {
         // rather than tensors, which is crucial for efficient dynamic shape operations
         // The generated model takes an i64 scalar and returns a Shape array [i64; 1]
         let device = Default::default();
-        let model = unsqueeze_int_to_shape::Model::<Backend>::new(&device);
+        let model = unsqueeze_int_to_shape::Model::<TestBackend>::new(&device);
 
         // Input: scalar int64 value
         let scalar_value = 42i64;
@@ -70,12 +70,12 @@ mod tests {
         // This verifies that the squeeze/unsqueeze operations are symmetric and maintain
         // type consistency for shape manipulation patterns common in ONNX models
         let device = Default::default();
-        let model = squeeze_unsqueeze_roundtrip::Model::<Backend>::new(&device);
+        let model = squeeze_unsqueeze_roundtrip::Model::<TestBackend>::new(&device);
 
         // Input: 1D tensor with a value
         let input_value = 256i64;
         let input_tensor =
-            Tensor::<Backend, 1, burn::tensor::Int>::from_data([input_value], &device);
+            Tensor::<TestBackend, 1, burn::tensor::Int>::from_data([input_value], &device);
 
         // The roundtrip should preserve the value
         let output_tensor = model.forward(input_tensor.clone());

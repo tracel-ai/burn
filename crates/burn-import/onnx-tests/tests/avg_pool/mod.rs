@@ -7,17 +7,17 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn avg_pool1d() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: avg_pool1d::Model<Backend> = avg_pool1d::Model::new(&device);
+        let model: avg_pool1d::Model<TestBackend> = avg_pool1d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 3>::from_floats(
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [[
                 [-1.526, -0.750, -0.654, -1.609, -0.100],
                 [-0.609, -0.980, -1.609, -0.712, 1.171],
@@ -68,10 +68,10 @@ mod tests {
     fn avg_pool2d() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new(&device);
+        let model: avg_pool2d::Model<TestBackend> = avg_pool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [-0.077, 0.360, -0.782, 0.072, 0.665],
                 [-0.287, 1.621, -1.597, -0.052, 0.611],

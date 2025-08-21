@@ -5167,10 +5167,7 @@ name = "onnx-tests"
 version = "0.19.0"
 dependencies = [
  "burn",
- "burn-autodiff",
  "burn-import",
- "burn-ndarray",
- "burn-wgpu",
  "float-cmp",
  "serde",
 ]

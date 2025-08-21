@@ -244,11 +244,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
             } else {
                 panic!("Unsupported input rank for resize node");
             }
-        } else {
-            // Runtime resize - need tensor interpolate function
-            imports.register("burn::tensor::module::interpolate");
-            imports.register("burn::tensor::ops::InterpolateOptions");
-            imports.register("burn::tensor::ops::InterpolateMode");
         }
     }
 

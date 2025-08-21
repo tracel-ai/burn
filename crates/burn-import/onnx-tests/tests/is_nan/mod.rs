@@ -7,14 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn is_nan() {
         let device = Default::default();
-        let model: is_nan::Model<Backend> = is_nan::Model::new(&device);
+        let model: is_nan::Model<TestBackend> = is_nan::Model::new(&device);
 
-        let input1 = Tensor::<Backend, 2>::from_floats([[1.0, f32::NAN, -9.0, f32::NAN]], &device);
+        let input1 =
+            Tensor::<TestBackend, 2>::from_floats([[1.0, f32::NAN, -9.0, f32::NAN]], &device);
 
         let output = model.forward(input1);
         let expected = TensorData::from([[false, true, false, true]]);
@@ -25,7 +26,7 @@ mod tests {
     #[test]
     fn is_nan_scalar() {
         let device = Default::default();
-        let model: is_nan_scalar::Model<Backend> = is_nan_scalar::Model::new(&device);
+        let model: is_nan_scalar::Model<TestBackend> = is_nan_scalar::Model::new(&device);
 
         let input1 = f32::NAN;
 
