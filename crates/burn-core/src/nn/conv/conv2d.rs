@@ -158,9 +158,7 @@ impl<B: Backend> Conv2d<B> {
     /// use burn::nn::conv::Conv2dConfig;
     /// use burn::tensor::Tensor;
     ///
-    /// // Choose your backend for B (e.g., burn::backend::ndarray::NdArray)
-    /// type B = burn::backend::ndarray::NdArray;
-    ///
+    /// // Assuming backend type alias `B`
     /// let device = Default::default();
     /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<B>(&device);
     ///
