@@ -23,6 +23,9 @@ pub struct SwiGluConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The layout in which the linear parameters are stored.
+    #[config(default = "LinearLayout::Row")]
+    pub layout: LinearLayout,
 }
 
 /// Applies the SwiGLU or Swish Gated Linear Unit to the input tensor.
@@ -64,13 +67,13 @@ impl SwiGluConfig {
         SwiGlu {
             linear_inner: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
-                .with_layout(LinearLayout::Col)
                 .with_initializer(self.initializer.clone())
+                .with_layout(self.layout)
                 .init(device),
             linear_outer: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
-                .with_layout(LinearLayout::Col)
                 .with_initializer(self.initializer.clone())
+                .with_layout(self.layout)
                 .init(device),
         }
     }
