@@ -6,14 +6,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn pad() {
         let device = Default::default();
-        let model: pad::Model<Backend> = pad::Model::new(&device);
+        let model: pad::Model<TestBackend> = pad::Model::new(&device);
 
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2.], [3., 4.], [5., 6.]], &device);
+        let input = Tensor::<TestBackend, 2>::from_floats([[1., 2.], [3., 4.], [5., 6.]], &device);
         let output = model.forward(input).to_data();
         let expected = TensorData::from([
             [0.0_f32, 0., 0., 0., 0., 0., 0., 0.],

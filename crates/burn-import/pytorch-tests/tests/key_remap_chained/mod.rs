@@ -95,13 +95,13 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
     use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
 
@@ -120,7 +120,7 @@ mod tests {
             .load(load_args, &device)
             .expect("Should decode state successfully");
 
-        let model: Model<Backend, _> = Model::new(&device);
+        let model: Model<TestBackend, _> = Model::new(&device);
 
         model.load_record(record);
     }
@@ -140,11 +140,11 @@ mod tests {
             .load(load_args, &device)
             .expect("Should decode state successfully");
 
-        let model: Model<Backend, _> = Model::new(&device);
+        let model: Model<TestBackend, _> = Model::new(&device);
 
         let model = model.load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [0.76193494, 0.626_546_1, 0.49510366, 0.11974698],
@@ -167,7 +167,7 @@ mod tests {
             ]],
             &device,
         );
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.198_967_1, 0.17847246], [0.06883702, 0.20012866]],
                 [[0.17582723, 0.11344293], [0.05444185, 0.13307181]],

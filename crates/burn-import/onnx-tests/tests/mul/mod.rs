@@ -7,16 +7,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn mul_scalar_with_tensor_and_tensor_with_tensor() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: mul::Model<Backend> = mul::Model::default();
+        let model: mul::Model<TestBackend> = mul::Model::default();
 
         let device = Default::default();
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
+        let input = Tensor::<TestBackend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let scalar = 6.0f64;
         let output = model.forward(input, scalar);
         let expected = TensorData::from([[[[126f32, 252., 378., 504.]]]]);
@@ -27,12 +27,12 @@ mod tests {
     #[test]
     fn mul_shape_with_scalar_and_shape() {
         // Initialize the model
-        let model: mul_shape::Model<Backend> = mul_shape::Model::default();
+        let model: mul_shape::Model<TestBackend> = mul_shape::Model::default();
 
         let device = Default::default();
         // Create input tensors
-        let input1 = Tensor::<Backend, 3>::ones([2, 3, 4], &device);
-        let input2 = Tensor::<Backend, 3>::ones([1, 2, 3], &device);
+        let input1 = Tensor::<TestBackend, 3>::ones([2, 3, 4], &device);
+        let input2 = Tensor::<TestBackend, 3>::ones([1, 2, 3], &device);
         let (shape_times_scalar, shape_times_shape) = model.forward(input1, input2);
 
         // Expected outputs

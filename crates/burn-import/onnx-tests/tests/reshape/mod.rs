@@ -15,16 +15,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn reshape() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: reshape::Model<Backend> = reshape::Model::new(&device);
+        let model: reshape::Model<TestBackend> = reshape::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.], &device);
+        let input = Tensor::<TestBackend, 1>::from_floats([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = TensorData::from([[0f32, 1., 2., 3.]]);
 
@@ -38,15 +38,15 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_with_1d_tensor::Model<Backend> =
+        let model: reshape_with_1d_tensor::Model<TestBackend> =
             reshape_with_1d_tensor::Model::new(&device);
 
         // Run the model with shape as tensor input
-        let input = Tensor::<Backend, 1>::from_floats(
+        let input = Tensor::<TestBackend, 1>::from_floats(
             [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11.],
             &device,
         );
-        let shape = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([3, 4], &device);
+        let shape = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([3, 4], &device);
         let output = model.forward(input, shape);
 
         // Output should be 2D with shape [3, 4] as specified in the ONNX model
@@ -61,15 +61,15 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_with_shape::Model<Backend> = reshape_with_shape::Model::new(&device);
+        let model: reshape_with_shape::Model<TestBackend> = reshape_with_shape::Model::new(&device);
 
         // Run the model with input and shape_source tensors
-        let input = Tensor::<Backend, 1>::from_floats(
+        let input = Tensor::<TestBackend, 1>::from_floats(
             [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11.],
             &device,
         );
         // shape_source is used to extract shape via Shape node
-        let shape_source = Tensor::<Backend, 2>::zeros([3, 4], &device);
+        let shape_source = Tensor::<TestBackend, 2>::zeros([3, 4], &device);
         let output = model.forward(input, shape_source);
 
         // Output should be 2D with shape [3, 4] extracted from shape_source
@@ -83,10 +83,10 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_to_scalar::Model<Backend> = reshape_to_scalar::Model::new(&device);
+        let model: reshape_to_scalar::Model<TestBackend> = reshape_to_scalar::Model::new(&device);
 
         // Run the model with a 1x1 tensor input
-        let input = Tensor::<Backend, 2>::from_floats([[1.5]], &device);
+        let input = Tensor::<TestBackend, 2>::from_floats([[1.5]], &device);
         let output = model.forward(input);
 
         // Output should be a scalar value
@@ -99,10 +99,11 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_3d_to_scalar::Model<Backend> = reshape_3d_to_scalar::Model::new(&device);
+        let model: reshape_3d_to_scalar::Model<TestBackend> =
+            reshape_3d_to_scalar::Model::new(&device);
 
         // Run the model with a 1x1x1 tensor input
-        let input = Tensor::<Backend, 3>::from_floats([[[2.5]]], &device);
+        let input = Tensor::<TestBackend, 3>::from_floats([[[2.5]]], &device);
         let output = model.forward(input);
 
         // Output should be a scalar value
@@ -116,11 +117,11 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_shape_to_shape::Model<Backend> =
+        let model: reshape_shape_to_shape::Model<TestBackend> =
             reshape_shape_to_shape::Model::new(&device);
 
         // Run the model with a tensor whose shape will be extracted and reshaped
-        let input = Tensor::<Backend, 3>::zeros([2, 3, 4], &device);
+        let input = Tensor::<TestBackend, 3>::zeros([2, 3, 4], &device);
         let output = model.forward(input);
 
         // Output should be [2, 3, 4] - the shape of the input tensor
@@ -133,11 +134,11 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_shape_with_neg::Model<Backend> =
+        let model: reshape_shape_with_neg::Model<TestBackend> =
             reshape_shape_with_neg::Model::new(&device);
 
         // Run the model with a tensor whose shape will be extracted and reshaped with -1
-        let input = Tensor::<Backend, 3>::zeros([2, 3, 4], &device);
+        let input = Tensor::<TestBackend, 3>::zeros([2, 3, 4], &device);
         let output = model.forward(input);
 
         // Output should be [2, 3, 4] reshaped to 1D with inferred size 3
@@ -150,11 +151,11 @@ mod tests {
 
         // Initialize the model
         let device = Default::default();
-        let model: reshape_shape_partial::Model<Backend> =
+        let model: reshape_shape_partial::Model<TestBackend> =
             reshape_shape_partial::Model::new(&device);
 
         // Run the model with a tensor whose shape will be sliced and reshaped
-        let input = Tensor::<Backend, 4>::zeros([2, 3, 4, 5], &device);
+        let input = Tensor::<TestBackend, 4>::zeros([2, 3, 4, 5], &device);
         let output = model.forward(input);
 
         // Output should be [2, 3] - first two dimensions after slicing

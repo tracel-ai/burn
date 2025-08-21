@@ -7,14 +7,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn maxpool1d() {
         let device = Default::default();
 
-        let model: maxpool1d::Model<Backend> = maxpool1d::Model::new(&device);
-        let input = Tensor::<Backend, 3>::from_floats(
+        let model: maxpool1d::Model<TestBackend> = maxpool1d::Model::new(&device);
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [[
                 [1.927, 1.487, 0.901, -2.106, 0.678],
                 [-1.235, -0.043, -1.605, -0.752, -0.687],
@@ -39,10 +39,10 @@ mod tests {
     fn maxpool2d() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new(&device);
+        let model: maxpool2d::Model<TestBackend> = maxpool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.927, 1.487, 0.901, -2.106, 0.678],
                 [-1.235, -0.043, -1.605, -0.752, -0.687],

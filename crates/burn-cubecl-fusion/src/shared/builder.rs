@@ -31,6 +31,18 @@ pub(crate) struct FuseOptimizationBuilder {
     max_bindings: u32,
 }
 
+impl FuseOptimizationBuilder {
+    pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
+        let len_previous = self.len();
+        let mut builder_cloned = self.clone();
+
+        builder_cloned.register(op);
+        let len_after = builder_cloned.len();
+
+        len_after > len_previous
+    }
+}
+
 impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
     fn register(&mut self, op: &OperationIr) {
         if let OptimizationStatus::Closed = self.status {
@@ -635,6 +647,7 @@ impl FuseOptimizationBuilder {
         }
 
         let mut updated = self.current_output_shape.clone();
+        let mut should_update = false;
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
@@ -657,6 +670,7 @@ impl FuseOptimizationBuilder {
 
             // Broadcasted on curr dim - update reference output shape.
             if curr == 0 && self.settings.output_shape_updates {
+                should_update = true;
                 updated[i] = new;
                 continue;
             }
@@ -664,11 +678,14 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        if updated != out.shape {
-            return false;
-        }
+        if should_update {
+            // For now forced to have exact shape.
+            if updated != out.shape {
+                return false;
+            }
 
-        self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape);
+        }
 
         true
     }

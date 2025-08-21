@@ -155,11 +155,14 @@ impl<O: NumOperations> Processor<O> {
                         store.add_trigger(id, trigger);
                         id
                     }
-                    _ => store.add(ExecutionPlan {
-                        operations: relative.to_vec(),
-                        triggers: vec![trigger],
-                        optimization,
-                    }),
+                    _ => {
+                        let plan = ExecutionPlan {
+                            operations: relative.to_vec(),
+                            triggers: vec![trigger],
+                            optimization,
+                        };
+                        store.add(plan)
+                    }
                 }
             }
             ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
@@ -167,11 +170,14 @@ impl<O: NumOperations> Processor<O> {
                     store.add_trigger(id, ExecutionTrigger::OnSync);
                     id
                 }
-                _ => store.add(ExecutionPlan {
-                    operations: relative.to_vec(),
-                    triggers: vec![ExecutionTrigger::OnSync],
-                    optimization,
-                }),
+                _ => {
+                    let plan = ExecutionPlan {
+                        operations: relative.to_vec(),
+                        triggers: vec![ExecutionTrigger::OnSync],
+                        optimization,
+                    };
+                    store.add(plan)
+                }
             },
         }
     }
