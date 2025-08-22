@@ -1,6 +1,8 @@
 use burn_core::LearningRate;
 use burn_core::data::dataloader::Progress;
 
+use crate::renderer::MetricsRenderer;
+
 /// Event happening during the training/validation process.
 pub enum Event<T> {
     /// Signal that an item have been processed.
@@ -33,6 +35,8 @@ pub trait EventProcessorTraining: Send {
     fn process_train(&mut self, event: Event<Self::ItemTrain>);
     /// Collect a validation event.
     fn process_valid(&mut self, event: Event<Self::ItemValid>);
+    /// Returns the renderer used for training.
+    fn renderer(self) -> Option<Box<dyn MetricsRenderer>>;
 }
 
 /// Process events happening during training and validation.

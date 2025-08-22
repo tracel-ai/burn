@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::renderer::TrainingProgress;
+use crate::renderer::{EvaluationProgress, TrainingProgress};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -38,6 +38,11 @@ impl ProgressBarState {
     /// Update the validation progress.
     pub(crate) fn update_valid(&mut self, _progress: &TrainingProgress) {
         // We don't use the validation for the progress yet.
+    }
+
+    /// Update the testing progress.
+    pub(crate) fn update_test(&mut self, _progress: &EvaluationProgress) {
+        // We don't use the testing for the progress yet.
     }
 
     /// Create a view for the current progress.

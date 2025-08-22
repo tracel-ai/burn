@@ -8,7 +8,9 @@ use crate::{
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
         store::{EventStoreClient, LogEventStore},
     },
-    renderer::cli::CliMetricsRenderer,
+    renderer::{
+        MetricsRenderer, cli::CliMetricsRenderer, default_renderer, tui::TuiMetricsRenderer,
+    },
 };
 use burn_core::{module::Module, prelude::Backend};
 use std::{
@@ -23,6 +25,7 @@ pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
+    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     interrupter: TrainingInterrupter,
     metrics: MetricsEvaluation<TO>,
     directory: PathBuf,
@@ -46,6 +49,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             ))),
             event_store: LogEventStore::default(),
             summary_metrics: Default::default(),
+            renderer: None,
             interrupter: TrainingInterrupter::new(),
             summary: false,
             metrics: MetricsEvaluation::default(),
@@ -64,6 +68,16 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     {
         self.summary_metrics.insert(metric.name());
         self.metrics.register_test_metric_numeric(metric);
+        self
+    }
+
+    /// Replace the default CLI renderer with a custom one.
+    ///
+    /// # Arguments
+    ///
+    /// * `renderer` - The custom renderer.
+    pub fn renderer(mut self, renderer: Option<Box<dyn MetricsRenderer + 'static>>) -> Self {
+        self.renderer = renderer;
         self
     }
 
@@ -92,7 +106,9 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         TI: Send + 'static,
         M: Module<B> + TestStep<TI, TO> + core::fmt::Display + 'static,
     {
-        let renderer = Box::new(CliMetricsRenderer::new());
+        let renderer = self
+            .renderer
+            .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
 
         self.event_store
             .register_logger_test(FileMetricLogger::new_eval(self.directory.join("test")));

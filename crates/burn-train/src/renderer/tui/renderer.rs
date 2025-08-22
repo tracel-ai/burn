@@ -1,5 +1,7 @@
 use crate::TrainingInterrupter;
-use crate::renderer::{MetricState, TrainingProgress};
+use crate::renderer::{
+    EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation, TrainingProgress,
+};
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use ratatui::{
     Terminal,
@@ -46,6 +48,30 @@ pub struct TuiMetricsRenderer {
     persistent: bool,
 }
 
+impl MetricsRendererEvaluation for TuiMetricsRenderer {
+    fn update_test(&mut self, state: MetricState) {
+        match state {
+            MetricState::Generic(entry) => {
+                self.metrics_text.update_test(entry);
+            }
+            MetricState::Numeric(entry, value) => {
+                self.metrics_numeric.push_test(entry.name.clone(), value);
+                self.metrics_text.update_test(entry);
+            }
+        };
+    }
+
+    fn render_test(&mut self, item: EvaluationProgress) {
+        log::info!("Render test");
+        self.progress.update_test(&item);
+        self.metrics_numeric.update_progress_test(&item);
+        self.status.update_test(item);
+        self.render().unwrap();
+    }
+}
+
+impl MetricsRenderer for TuiMetricsRenderer {}
+
 impl MetricsRendererTraining for TuiMetricsRenderer {
     fn update_train(&mut self, state: MetricState) {
         match state {
@@ -86,7 +112,8 @@ impl MetricsRendererTraining for TuiMetricsRenderer {
     }
 
     fn on_train_end(&mut self) -> Result<(), Box<dyn Error>> {
-        self.reset()
+        Ok(())
+        // self.reset()
     }
 }
 

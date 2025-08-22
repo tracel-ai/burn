@@ -3,7 +3,9 @@ use crate::components::{
 };
 #[cfg(feature = "ddp")]
 use crate::ddp::DdpLearningStrategy;
+use crate::metric::processor::EventProcessorTraining;
 use crate::multi::MultiDeviceLearningStrategy;
+use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
 use crate::{Learner, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
@@ -105,6 +107,11 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
+pub struct LearnedModel<LC: LearnerComponentTypes> {
+    pub model: LC::InnerModel,
+    pub renderer: Option<Box<dyn MetricsRenderer>>,
+}
+
 impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.
     ///
@@ -120,10 +127,10 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
         self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::InnerModel {
+    ) -> LearnedModel<LC> {
         log::info!("Fitting the model:\n {}", self.model);
 
-        let model = match &self.learning_strategy {
+        match &self.learning_strategy {
             LearningStrategy::SingleDevice(device) => {
                 let single_device = SingleDeviceLearningStrategy::new(device.clone());
                 single_device.fit(self, dataloader_train, dataloader_valid)
@@ -138,8 +145,6 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
                 let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
                 ddp.fit(self, dataloader_train, dataloader_valid)
             }
-        };
-
-        model.valid()
+        }
     }
 }

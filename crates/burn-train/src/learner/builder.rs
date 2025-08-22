@@ -17,7 +17,7 @@ use crate::metric::processor::{
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
-use crate::renderer::{MetricsRendererTraining, default_renderer};
+use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
@@ -58,7 +58,7 @@ where
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     learning_strategy: LearningStrategy<B>,
-    renderer: Option<Box<dyn MetricsRendererTraining + 'static>>,
+    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TO, VO>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
@@ -158,7 +158,7 @@ where
     /// * `renderer` - The custom renderer.
     pub fn renderer<MR>(mut self, renderer: MR) -> Self
     where
-        MR: MetricsRendererTraining + 'static,
+        MR: MetricsRenderer + 'static,
     {
         self.renderer = Some(Box::new(renderer));
         self

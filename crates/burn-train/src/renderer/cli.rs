@@ -1,6 +1,6 @@
 use crate::renderer::{
-    EvaluationProgress, MetricState, MetricsRendererEvaluation, MetricsRendererTraining,
-    TrainingProgress,
+    EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+    MetricsRendererTraining, TrainingProgress,
 };
 
 /// A simple renderer for when the cli feature is not enabled.
@@ -37,3 +37,5 @@ impl MetricsRendererEvaluation for CliMetricsRenderer {
         println!("{item:?}");
     }
 }
+
+impl MetricsRenderer for CliMetricsRenderer {}

@@ -12,6 +12,7 @@ pub(crate) struct RecentHistoryPlot {
     pub(crate) axes: PlotAxes,
     train: RecentHistoryPoints,
     valid: RecentHistoryPoints,
+    test: RecentHistoryPoints,
     max_samples: usize,
 }
 
@@ -32,6 +33,7 @@ impl RecentHistoryPlot {
             axes: PlotAxes::default(),
             train: RecentHistoryPoints::new(max_samples),
             valid: RecentHistoryPoints::new(max_samples),
+            test: RecentHistoryPoints::new(max_samples),
             max_samples,
         }
     }
@@ -41,7 +43,9 @@ impl RecentHistoryPlot {
 
         self.train.push((x_current, data));
         self.train.update_cursor(x_min);
+
         self.valid.update_cursor(x_min);
+        self.test.update_cursor(x_min);
 
         self.update_bounds();
     }
@@ -51,7 +55,21 @@ impl RecentHistoryPlot {
 
         self.valid.push((x_current, data));
         self.valid.update_cursor(x_min);
+
         self.train.update_cursor(x_min);
+        self.test.update_cursor(x_min);
+
+        self.update_bounds();
+    }
+
+    pub(crate) fn push_test(&mut self, data: f64) {
+        let (x_min, x_current) = self.x();
+
+        self.test.push((x_current, data));
+        self.test.update_cursor(x_min);
+
+        self.train.update_cursor(x_min);
+        self.valid.update_cursor(x_min);
 
         self.update_bounds();
     }
@@ -67,12 +85,20 @@ impl RecentHistoryPlot {
             datasets.push(self.valid.dataset("Valid", Color::LightBlue));
         }
 
+        if self.test.num_visible_points() > 0 {
+            datasets.push(self.test.dataset("Test", Color::LightGreen));
+        }
+
         datasets
     }
 
     fn x(&mut self) -> (f64, f64) {
-        let x_current = f64::max(self.train.max_x, self.valid.max_x) + 1.0;
+        let x_current = f64::max(self.train.max_x, self.valid.max_x);
+        let x_current = f64::max(x_current, self.test.max_x) + 1.0;
+
         let mut x_min = f64::min(self.train.min_x, self.valid.min_x);
+        x_min = f64::min(x_min, self.test.min_x);
+
         if x_current - x_min >= self.max_samples as f64 {
             x_min += 1.0;
         }
@@ -84,8 +110,10 @@ impl RecentHistoryPlot {
         self.axes.update_bounds(
             (self.train.min_x, self.train.max_x),
             (self.valid.min_x, self.valid.max_x),
+            (self.test.min_x, self.test.max_x),
             (self.train.min_y, self.train.max_y),
             (self.valid.min_y, self.valid.max_y),
+            (self.test.min_y, self.test.max_y),
         );
     }
 }

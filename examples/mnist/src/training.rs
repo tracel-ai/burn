@@ -58,7 +58,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
-    let dataloader_test = DataLoaderBuilder::new(MnistBatcher::new(false))
+    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::new(false))
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
@@ -85,13 +85,17 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
         .num_epochs(config.num_epochs)
-        .summary()
+        // .summary()
         .learning_strategy(burn::train::LearningStrategy::SingleDevice(device))
         .build(model, config.optimizer.init(), 1.0e-3);
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = learner.fit(dataloader_train, dataloader_valid);
+    if result.renderer.is_none() {
+        panic!("OUps");
+    }
 
-    model_trained
+    result
+        .model
         .clone()
         .save_file(
             format!("{ARTIFACT_DIR}/model"),
@@ -107,12 +111,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
-        .build(MnistDataset::test());
+        .build(SamplerDataset::new(MnistDataset::test(), 50_000_000));
 
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
+        .renderer(result.renderer)
         .metric_numeric(AccuracyMetric::new())
         .metric_numeric(LossMetric::new())
-        .build(model_trained);
+        .build(result.model);
 
     evaluator.eval(dataloader_test);
 }

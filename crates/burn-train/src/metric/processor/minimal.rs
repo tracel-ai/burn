@@ -54,4 +54,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
             Event::End => {} // no-op for now
         }
     }
+    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+        None
+    }
 }

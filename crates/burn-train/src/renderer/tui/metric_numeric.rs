@@ -1,4 +1,4 @@
-use crate::renderer::TrainingProgress;
+use crate::renderer::{EvaluationProgress, TrainingProgress};
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use ratatui::{
@@ -25,6 +25,7 @@ pub(crate) struct NumericMetricsState {
     kind: PlotKind,
     num_samples_train: Option<usize>,
     num_samples_valid: Option<usize>,
+    num_samples_test: Option<usize>,
 }
 
 /// The kind of plot to display.
@@ -71,6 +72,22 @@ impl NumericMetricsState {
         }
     }
 
+    /// Register a new test value for the metric with the given name.
+    pub(crate) fn push_test(&mut self, key: String, data: f64) {
+        if let Some((recent, full)) = self.data.get_mut(&key) {
+            recent.push_test(data);
+            full.push_test(data);
+        } else {
+            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
+            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
+
+            recent.push_test(data);
+            full.push_test(data);
+
+            self.data.insert(key, (recent, full));
+        }
+    }
+
     /// Update the state with the training progress.
     pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
         if self.num_samples_train.is_some() {
@@ -94,6 +111,22 @@ impl NumericMetricsState {
         }
 
         self.num_samples_valid = Some(progress.progress.items_total);
+    }
+
+    /// Update the state with the testing progress.
+    pub(crate) fn update_progress_test(&mut self, progress: &EvaluationProgress) {
+        if self.num_samples_test.is_some() {
+            return;
+        }
+
+        if let Some(num_sample_train) = self.num_samples_train {
+            for (_, (_recent, full)) in self.data.iter_mut() {
+                let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
+                full.update_max_sample_test(ratio);
+            }
+        }
+
+        self.num_samples_test = Some(progress.progress.items_total);
     }
 
     /// Create a view to display the numeric metrics.

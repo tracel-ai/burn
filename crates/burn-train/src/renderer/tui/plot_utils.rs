@@ -27,13 +27,22 @@ impl PlotAxes {
         &mut self,
         (x_train_min, x_train_max): (f64, f64),
         (x_valid_min, x_valid_max): (f64, f64),
+        (x_test_min, x_test_max): (f64, f64),
         (y_train_min, y_train_max): (f64, f64),
         (y_valid_min, y_valid_max): (f64, f64),
+        (y_test_min, y_test_max): (f64, f64),
     ) {
         let x_min = f64::min(x_train_min, x_valid_min);
+        let x_min = f64::min(x_min, x_test_min);
+
         let x_max = f64::max(x_train_max, x_valid_max);
+        let x_max = f64::max(x_max, x_test_max);
+
         let y_min = f64::min(y_train_min, y_valid_min);
+        let y_min = f64::min(y_min, y_test_min);
+
         let y_max = f64::max(y_train_max, y_valid_max);
+        let y_max = f64::max(y_max, y_test_max);
 
         self.bounds_x = [x_min, x_max];
         self.bounds_y = [y_min, y_max];

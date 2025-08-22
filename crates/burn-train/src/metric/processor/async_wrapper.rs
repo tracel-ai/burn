@@ -30,6 +30,10 @@ impl<P: EventProcessorTraining + 'static> WorkerTraining<P> {
                 match msg {
                     Message::Train(event) => worker.processor.process_train(event),
                     Message::Valid(event) => worker.processor.process_valid(event),
+                    Message::Renderer(callback) => {
+                        callback.send_blocking(worker.processor.renderer()).unwrap();
+                        return;
+                    }
                 }
             }
         });
@@ -70,6 +74,7 @@ impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
 enum Message<P: EventProcessorTraining> {
     Train(Event<P::ItemTrain>),
     Valid(Event<P::ItemValid>),
+    Renderer(Sender<Option<Box<dyn crate::renderer::MetricsRenderer>>>),
 }
 
 impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTraining<P> {
@@ -82,6 +87,18 @@ impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTrainin
 
     fn process_valid(&mut self, event: Event<Self::ItemValid>) {
         self.sender.send_blocking(Message::Valid(event)).unwrap();
+    }
+
+    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+        let (sender, rec) = async_channel::bounded(1);
+        self.sender
+            .send_blocking(Message::Renderer(sender))
+            .unwrap();
+
+        match rec.recv_blocking() {
+            Ok(value) => value,
+            Err(_) => None,
+        }
     }
 }
 

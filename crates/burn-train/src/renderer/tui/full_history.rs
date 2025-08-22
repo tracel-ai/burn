@@ -10,6 +10,7 @@ pub(crate) struct FullHistoryPlot {
     pub(crate) axes: PlotAxes,
     train: FullHistoryPoints,
     valid: FullHistoryPoints,
+    test: FullHistoryPoints,
     next_x_state: usize,
 }
 
@@ -30,6 +31,7 @@ impl FullHistoryPlot {
             axes: PlotAxes::default(),
             train: FullHistoryPoints::new(max_samples),
             valid: FullHistoryPoints::new(max_samples),
+            test: FullHistoryPoints::new(max_samples),
             next_x_state: 0,
         }
     }
@@ -41,6 +43,16 @@ impl FullHistoryPlot {
     pub(crate) fn update_max_sample_valid(&mut self, ratio_train: f64) {
         if self.valid.step_size == 1 {
             self.valid.max_samples = (ratio_train * self.train.max_samples as f64) as usize;
+        }
+    }
+
+    /// Update the maximum amount of sample to display for the testing points.
+    ///
+    /// This is necessary if we want the testing line to have the same point density as the
+    /// training line.
+    pub(crate) fn update_max_sample_test(&mut self, ratio_train: f64) {
+        if self.test.step_size == 1 {
+            self.test.max_samples = (ratio_train * self.train.max_samples as f64) as usize;
         }
     }
 
@@ -61,6 +73,15 @@ impl FullHistoryPlot {
         self.update_bounds();
     }
 
+    /// Register a testing data point.
+    pub(crate) fn push_test(&mut self, data: f64) {
+        let x_current = self.next_x();
+
+        self.test.push((x_current, data));
+
+        self.update_bounds();
+    }
+
     /// Create the training and validation datasets from the data points.
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::with_capacity(2);
@@ -71,6 +92,10 @@ impl FullHistoryPlot {
 
         if !self.valid.is_empty() {
             datasets.push(self.valid.dataset("Valid", Color::LightBlue));
+        }
+
+        if !self.test.is_empty() {
+            datasets.push(self.test.dataset("Test", Color::LightGreen));
         }
 
         datasets
@@ -86,8 +111,10 @@ impl FullHistoryPlot {
         self.axes.update_bounds(
             (self.train.min_x, self.train.max_x),
             (self.valid.min_x, self.valid.max_x),
+            (self.test.min_x, self.test.max_x),
             (self.train.min_y, self.train.max_y),
             (self.valid.min_y, self.valid.max_y),
+            (self.test.min_y, self.test.max_y),
         );
     }
 }

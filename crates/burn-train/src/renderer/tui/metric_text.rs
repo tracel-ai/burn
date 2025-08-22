@@ -18,6 +18,7 @@ pub(crate) struct TextMetricsState {
 pub(crate) struct MetricData {
     train: Option<MetricEntry>,
     valid: Option<MetricEntry>,
+    test: Option<MetricEntry>,
 }
 
 impl TextMetricsState {
@@ -26,7 +27,7 @@ impl TextMetricsState {
             existing.train = Some(metric);
         } else {
             let key = metric.name.clone();
-            let value = MetricData::new(Some(metric), None);
+            let value = MetricData::new(Some(metric), None, None);
 
             self.names.push(key.clone());
             self.data.insert(key, value);
@@ -37,7 +38,18 @@ impl TextMetricsState {
             existing.valid = Some(metric);
         } else {
             let key = metric.name.clone();
-            let value = MetricData::new(None, Some(metric));
+            let value = MetricData::new(None, Some(metric), None);
+
+            self.names.push(key.clone());
+            self.data.insert(key, value);
+        }
+    }
+    pub(crate) fn update_test(&mut self, metric: MetricEntry) {
+        if let Some(existing) = self.data.get_mut(&metric.name) {
+            existing.test = Some(metric);
+        } else {
+            let key = metric.name.clone();
+            let value = MetricData::new(None, None, Some(metric));
 
             self.names.push(key.clone());
             self.data.insert(key, value);
@@ -69,6 +81,12 @@ impl TextMetricView {
                 Span::from(formatted.to_string()).italic(),
             ]
         };
+        let test_line = |formatted: &str| {
+            vec![
+                Span::from("   Test  ").bold(),
+                Span::from(formatted.to_string()).italic(),
+            ]
+        };
 
         for name in names {
             lines.push(start_line(name));
@@ -81,6 +99,10 @@ impl TextMetricView {
 
             if let Some(entry) = &entry.valid {
                 lines.push(valid_line(&entry.formatted));
+            }
+
+            if let Some(entry) = &entry.test {
+                lines.push(test_line(&entry.formatted));
             }
 
             lines.push(vec![Span::from("")]);

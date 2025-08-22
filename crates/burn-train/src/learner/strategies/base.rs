@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
-    ValidLoader,
+    EarlyStoppingStrategyRef, LearnedModel, Learner, LearnerCheckpointer, TrainLoader,
+    TrainingInterrupter, ValidLoader,
     components::LearnerComponentTypes,
     metric::{
         processor::{Event, EventProcessorTraining},
@@ -68,7 +68,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         mut learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::Model {
+    ) -> LearnedModel<LC> {
         let mut model = learner.model;
         let mut optim = learner.optim;
         let mut lr_scheduler = learner.lr_scheduler;
@@ -121,7 +121,10 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             }
         }
 
-        model
+        let model = model.valid();
+        let renderer = event_processor.renderer();
+
+        LearnedModel { model, renderer }
     }
 
     /// Prepare the dataloaders for this strategy.

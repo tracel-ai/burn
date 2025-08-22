@@ -1,7 +1,7 @@
 use super::{Event, EventProcessorTraining, ItemLazy, MetricsTraining};
 use crate::metric::processor::{EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::EventStoreClient;
-use crate::renderer::{MetricState, MetricsRendererEvaluation, MetricsRendererTraining};
+use crate::renderer::{MetricState, MetricsRenderer, MetricsRendererEvaluation};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -9,7 +9,7 @@ use std::sync::Arc;
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
 pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
-    renderer: Box<dyn MetricsRendererTraining>,
+    renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
 }
 
@@ -25,7 +25,7 @@ pub struct FullEventProcessorEvaluation<T: ItemLazy> {
 impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
     pub(crate) fn new(
         metrics: MetricsTraining<T, V>,
-        renderer: Box<dyn MetricsRendererTraining>,
+        renderer: Box<dyn MetricsRenderer>,
         store: Arc<EventStoreClient>,
     ) -> Self {
         Self {
@@ -166,5 +166,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             }
             Event::End => {} // no-op for now
         }
+    }
+    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+        Some(self.renderer)
     }
 }

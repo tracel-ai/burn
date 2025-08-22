@@ -42,6 +42,8 @@ pub trait MetricsRendererTraining: Send + Sync {
     }
 }
 
+pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {}
+
 /// Trait for rendering metrics.
 pub trait MetricsRendererEvaluation: Send + Sync {
     /// Updates the training metric state.
