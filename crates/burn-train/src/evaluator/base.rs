@@ -9,6 +9,7 @@ use crate::{
 use burn_core::data::dataloader::DataLoader;
 use std::sync::Arc;
 
+/// TODO: Docs
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
     pub(crate) interrupter: TrainingInterrupter,
@@ -22,6 +23,7 @@ pub(crate) type TestInput<EC> = <EC as EvaluatorComponentTypes>::TestInput;
 pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestBackend<EC>, TestInput<EC>>>;
 
 impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
+    /// TODO: Docs
     pub fn eval(mut self, dataloader: TestLoader<EC>) {
         let mut iterator = dataloader.iter();
         let mut iteration = 0;

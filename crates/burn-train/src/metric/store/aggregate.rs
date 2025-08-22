@@ -131,7 +131,7 @@ mod tests {
     impl TestLogger {
         fn new() -> Self {
             Self {
-                logger: FileMetricLogger::new("/tmp"),
+                logger: FileMetricLogger::new_train("/tmp"),
                 epoch: 1,
             }
         }

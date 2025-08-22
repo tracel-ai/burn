@@ -32,7 +32,7 @@ pub trait MetricLogger: Send {
 pub struct FileMetricLogger {
     loggers: HashMap<String, AsyncLogger<String>>,
     directory: PathBuf,
-    epoch: usize,
+    epoch: Option<usize>,
 }
 
 impl FileMetricLogger {
@@ -45,16 +45,38 @@ impl FileMetricLogger {
     /// # Returns
     ///
     /// The file metric logger.
-    pub fn new(directory: impl AsRef<Path>) -> Self {
+    pub fn new_train(directory: impl AsRef<Path>) -> Self {
         Self {
             loggers: HashMap::new(),
             directory: directory.as_ref().to_path_buf(),
-            epoch: 1,
+            epoch: Some(1),
+        }
+    }
+    ///
+    /// Create a new file metric logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `directory` - The directory.
+    ///
+    /// # Returns
+    ///
+    /// The file metric logger.
+    pub fn new_eval(directory: impl AsRef<Path>) -> Self {
+        Self {
+            loggers: HashMap::new(),
+            directory: directory.as_ref().to_path_buf(),
+            epoch: None,
         }
     }
 
     /// Number of epochs recorded.
     pub(crate) fn epochs(&self) -> usize {
+        if self.epoch.is_none() {
+            log::warn!("Number of epochs not available when testing.");
+            return 0;
+        }
+
         let mut max_epoch = 0;
 
         for path in fs::read_dir(&self.directory).unwrap() {
@@ -80,20 +102,30 @@ impl FileMetricLogger {
         max_epoch
     }
 
-    fn epoch_directory(&self, epoch: usize) -> PathBuf {
+    fn train_directory(&self, epoch: usize) -> PathBuf {
         let name = format!("{EPOCH_PREFIX}{epoch}");
         self.directory.join(name)
     }
 
-    fn file_path(&self, name: &str, epoch: usize) -> PathBuf {
-        let directory = self.epoch_directory(epoch);
+    fn eval_directory(&self) -> PathBuf {
+        self.directory.clone()
+    }
+
+    fn file_path(&self, name: &str, epoch: Option<usize>) -> PathBuf {
+        let directory = match epoch {
+            Some(epoch) => self.train_directory(epoch),
+            None => self.eval_directory(),
+        };
         let name = name.replace(' ', "_");
         let name = format!("{name}.log");
         directory.join(name)
     }
 
-    fn create_directory(&self, epoch: usize) {
-        let directory = self.epoch_directory(epoch);
+    fn create_directory(&self, epoch: Option<usize>) {
+        let directory = match epoch {
+            Some(epoch) => self.train_directory(epoch),
+            None => self.eval_directory(),
+        };
         std::fs::create_dir_all(directory).ok();
     }
 }
@@ -124,7 +156,10 @@ impl MetricLogger for FileMetricLogger {
 
     fn end_epoch(&mut self, epoch: usize) {
         self.loggers.clear();
-        self.epoch = epoch + 1;
+        if self.epoch.is_none() {
+            panic!("Only evaluation logger supported.");
+        }
+        self.epoch = Some(epoch + 1);
     }
 
     fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<NumericEntry>, String> {
@@ -132,7 +167,7 @@ impl MetricLogger for FileMetricLogger {
             value.sync()
         }
 
-        let file_path = self.file_path(name, epoch);
+        let file_path = self.file_path(name, Some(epoch));
 
         let mut errors = false;
 

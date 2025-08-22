@@ -339,9 +339,9 @@ where
 
         if self.num_loggers == 0 {
             self.event_store
-                .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
+                .register_logger_train(FileMetricLogger::new_train(self.directory.join("train")));
             self.event_store
-                .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
+                .register_logger_valid(FileMetricLogger::new_train(self.directory.join("valid")));
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));

@@ -123,4 +123,8 @@ impl LogEventStore {
     pub(crate) fn register_logger_valid<ML: MetricLogger + 'static>(&mut self, logger: ML) {
         self.loggers_valid.push(Box::new(logger));
     }
+    /// Register a logger for testing metrics.
+    pub(crate) fn register_logger_test<ML: MetricLogger + 'static>(&mut self, logger: ML) {
+        self.loggers_test.push(Box::new(logger));
+    }
 }

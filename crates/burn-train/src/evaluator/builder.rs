@@ -2,6 +2,7 @@ use crate::{
     ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, TestStep,
     TrainingInterrupter,
     evaluator::components::EvaluatorComponentTypesMarker,
+    logger::FileMetricLogger,
     metric::{
         Adaptor, ItemLazy, Metric,
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
@@ -17,6 +18,7 @@ use std::{
     sync::Arc,
 };
 
+/// TODO: Docs
 pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     event_store: LogEventStore,
@@ -73,8 +75,9 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         self
     }
 
+    /// Builds the evaluator.
     pub fn build<M>(
-        self,
+        mut self,
         model: M,
     ) -> Evaluator<
         EvaluatorComponentTypesMarker<
@@ -91,7 +94,10 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     {
         let renderer = Box::new(CliMetricsRenderer::new());
 
+        self.event_store
+            .register_logger_test(FileMetricLogger::new_eval(self.directory.join("test")));
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
+
         let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
             self.metrics,
             renderer,
