@@ -2,7 +2,7 @@ use super::PlotAxes;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
-    widgets::{Dataset, GraphType},
+    widgets::{Bar, Dataset, GraphType},
 };
 
 const FACTOR_BEFORE_RESIZE: usize = 2;

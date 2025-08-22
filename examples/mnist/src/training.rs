@@ -1,10 +1,7 @@
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
-    data::{
-        dataloader::DataLoaderBuilder,
-        dataset::{transform::SamplerDataset, vision::MnistDataset},
-    },
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
@@ -22,7 +19,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 1)]
+    #[config(default = 30)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -90,9 +87,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .build(model, config.optimizer.init(), 1.0e-3);
 
     let result = learner.fit(dataloader_train, dataloader_valid);
-    if result.renderer.is_none() {
-        panic!("OUps");
-    }
 
     result
         .model
@@ -111,7 +105,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(config.num_workers)
-        .build(SamplerDataset::new(MnistDataset::test(), 50_000_000));
+        .build(MnistDataset::test());
 
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(result.renderer)

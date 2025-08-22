@@ -1,3 +1,4 @@
+mod bar_chart;
 mod base;
 mod controls;
 mod full_history;
@@ -10,6 +11,7 @@ mod recent_history;
 mod renderer;
 mod status;
 
+pub(crate) use bar_chart::*;
 pub(crate) use base::*;
 pub(crate) use controls::*;
 pub(crate) use full_history::*;

@@ -2,7 +2,7 @@ use super::PlotAxes;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
-    widgets::{Dataset, GraphType},
+    widgets::{Bar, Dataset, GraphType},
 };
 
 /// A plot that shows the full history at a reduced resolution.
@@ -19,6 +19,8 @@ struct FullHistoryPoints {
     max_x: f64,
     min_y: f64,
     max_y: f64,
+    avg: f64,
+    avg_counter: f64,
     points: Vec<(f64, f64)>,
     max_samples: usize,
     step_size: usize,
@@ -101,6 +103,39 @@ impl FullHistoryPlot {
         datasets
     }
 
+    pub(crate) fn reset_avg(&mut self) {
+        self.train.avg = 0.0;
+        self.train.avg_counter = 0.0;
+        self.valid.avg = 0.0;
+        self.valid.avg_counter = 0.0;
+        self.test.avg = 0.0;
+        self.test.avg_counter = 0.0;
+    }
+
+    pub(crate) fn bars(&self, min: u64, max: u64) -> Vec<Bar<'_>> {
+        let mut bars = Vec::with_capacity(2);
+
+        if !self.train.is_empty() {
+            if let Some(bar) = self.train.bar(Color::LightRed, min, max) {
+                bars.push(bar);
+            }
+        }
+
+        if !self.valid.is_empty() {
+            if let Some(bar) = self.valid.bar(Color::LightBlue, min, max) {
+                bars.push(bar);
+            }
+        }
+
+        if !self.test.is_empty() {
+            if let Some(bar) = self.test.bar(Color::LightGreen, min, max) {
+                bars.push(bar);
+            }
+        }
+
+        bars
+    }
+
     fn next_x(&mut self) -> f64 {
         let value = self.next_x_state;
         self.next_x_state += 1;
@@ -126,6 +161,8 @@ impl FullHistoryPoints {
             max_x: 0.,
             min_y: f64::MAX,
             max_y: f64::MIN,
+            avg: 0.0,
+            avg_counter: 0.0,
             points: Vec::with_capacity(max_samples),
             max_samples,
             step_size: 1,
@@ -148,6 +185,15 @@ impl FullHistoryPoints {
         }
         if y < self.min_y {
             self.min_y = y
+        }
+
+        self.avg += y;
+        self.avg_counter += 1.0;
+
+        // For numerical stability. Can accumulate for ever.
+        if self.avg_counter >= 1000.0 {
+            self.avg = self.avg / self.avg_counter;
+            self.avg_counter = 1.0;
         }
 
         self.points.push((x, y));
@@ -202,6 +248,26 @@ impl FullHistoryPoints {
             .style(Style::default().fg(color).bold())
             .graph_type(GraphType::Line)
             .data(&self.points)
+    }
+
+    fn bar<'a>(&'a self, color: Color, min: u64, max: u64) -> Option<Bar<'a>> {
+        if self.avg == 0.0 {
+            return None;
+        }
+
+        // let range_current = self.max_y - self.min_y;
+        // let range_expected = max - min;
+        let factor = max as f64;
+
+        let avg = self.avg / self.avg_counter;
+
+        Some(
+            Bar::default()
+                .value((avg * factor) as u64)
+                .style(color)
+                .text_value(format!("{:.2}", avg))
+                .label("Avg".into()),
+        )
     }
 
     fn is_empty(&self) -> bool {

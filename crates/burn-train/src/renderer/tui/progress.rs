@@ -21,6 +21,10 @@ const MINUTE: u64 = 60;
 const HOUR: u64 = 60 * 60;
 const DAY: u64 = 24 * 60 * 60;
 
+pub enum Event {
+    OnNewEpoch,
+}
+
 impl ProgressBarState {
     pub fn new(checkpoint: Option<usize>) -> Self {
         Self {

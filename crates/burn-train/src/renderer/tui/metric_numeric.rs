@@ -6,7 +6,10 @@ use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
-    widgets::{Axis, Block, Borders, Chart, LegendPosition, Paragraph, Tabs},
+    widgets::{
+        Axis, Bar, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph,
+        Tabs,
+    },
 };
 use std::collections::HashMap;
 
@@ -36,6 +39,7 @@ pub(crate) enum PlotKind {
     Full,
     /// Display only the recent history of the metric, but with more resolution.
     Recent,
+    Summary,
 }
 
 impl NumericMetricsState {
@@ -95,6 +99,13 @@ impl NumericMetricsState {
         }
 
         self.num_samples_train = Some(progress.progress.items_total);
+
+        // We reset the avg each new epoch.
+        if progress.iteration == 1 {
+            self.data
+                .values_mut()
+                .for_each(|(_, full)| full.reset_avg());
+        }
     }
 
     /// Update the state with the validation progress.
@@ -111,6 +122,13 @@ impl NumericMetricsState {
         }
 
         self.num_samples_valid = Some(progress.progress.items_total);
+
+        // We reset the avg each new epoch.
+        if progress.iteration == 1 {
+            self.data
+                .values_mut()
+                .for_each(|(_, full)| full.reset_avg());
+        }
     }
 
     /// Update the state with the testing progress.
@@ -133,7 +151,17 @@ impl NumericMetricsState {
     pub(crate) fn view(&self) -> NumericMetricView<'_> {
         match self.names.is_empty() {
             true => NumericMetricView::None,
-            false => NumericMetricView::Plots(&self.names, self.selected, self.chart(), self.kind),
+            false => match self.kind {
+                PlotKind::Summary => {
+                    NumericMetricView::BarPlots(&self.names, self.selected, self.bar_chart())
+                }
+                _ => NumericMetricView::LinePlots(
+                    &self.names,
+                    self.selected,
+                    self.line_chart(),
+                    self.kind,
+                ),
+            },
         }
     }
 
@@ -160,7 +188,8 @@ impl NumericMetricsState {
     fn switch_kind(&mut self) {
         self.kind = match self.kind {
             PlotKind::Full => PlotKind::Recent,
-            PlotKind::Recent => PlotKind::Full,
+            PlotKind::Recent => PlotKind::Summary,
+            PlotKind::Summary => PlotKind::Full,
         };
     }
 
@@ -182,13 +211,14 @@ impl NumericMetricsState {
         }
     }
 
-    fn chart<'a>(&'a self) -> Chart<'a> {
+    fn line_chart<'a>(&'a self) -> Chart<'a> {
         let name = self.names.get(self.selected).unwrap();
         let (recent, full) = self.data.get(name).unwrap();
 
         let (datasets, axes) = match self.kind {
             PlotKind::Full => (full.datasets(), &full.axes),
             PlotKind::Recent => (recent.datasets(), &recent.axes),
+            _ => unreachable!(),
         };
 
         Chart::<'a>::new(datasets)
@@ -208,19 +238,34 @@ impl NumericMetricsState {
             )
             .legend_position(Some(LegendPosition::Right))
     }
+
+    fn bar_chart<'a>(&'a self) -> BarChart<'a> {
+        let name = self.names.get(self.selected).unwrap();
+        let (_recent, full) = self.data.get(name).unwrap();
+        let (min, max) = (0, 100);
+        let bars = full.bars(min, max);
+
+        let data = BarGroup::default().bars(&bars);
+        BarChart::default()
+            .block(Block::default().padding(Padding::new(2, 2, 2, 0)))
+            .bar_width(6)
+            .bar_gap(2)
+            .data(data)
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(new)]
 pub(crate) enum NumericMetricView<'a> {
-    Plots(&'a [String], usize, Chart<'a>, PlotKind),
+    LinePlots(&'a [String], usize, Chart<'a>, PlotKind),
+    BarPlots(&'a [String], usize, BarChart<'a>),
     None,
 }
 
 impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
-            Self::Plots(titles, selected, chart, kind) => {
+            Self::LinePlots(titles, selected, chart, kind) => {
                 let block = Block::default()
                     .borders(Borders::ALL)
                     .title("Plots")
@@ -254,7 +299,48 @@ impl NumericMetricView<'_> {
                 let title = match kind {
                     PlotKind::Full => "Full History",
                     PlotKind::Recent => "Recent History",
+                    _ => unreachable!(),
                 };
+
+                let plot_type =
+                    Paragraph::new(Line::from(title.bold())).alignment(Alignment::Center);
+
+                frame.render_widget(tabs, chunks[0]);
+                frame.render_widget(plot_type, chunks[1]);
+                frame.render_widget(chart, chunks[2]);
+            }
+            Self::BarPlots(titles, selected, chart) => {
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Resume")
+                    .title_alignment(Alignment::Left);
+                let size_new = block.inner(size);
+                frame.render_widget(block, size);
+
+                let size = size_new;
+
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(
+                        [
+                            Constraint::Length(2),
+                            Constraint::Length(1),
+                            Constraint::Min(0),
+                        ]
+                        .as_ref(),
+                    )
+                    .split(size);
+
+                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.clone().yellow()])))
+                    .select(selected)
+                    .style(Style::default())
+                    .highlight_style(
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .add_modifier(Modifier::UNDERLINED)
+                            .fg(Color::LightYellow),
+                    );
+                let title = "Resume";
 
                 let plot_type =
                     Paragraph::new(Line::from(title.bold())).alignment(Alignment::Center);
