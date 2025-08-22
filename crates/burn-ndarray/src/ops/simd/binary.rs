@@ -8,7 +8,7 @@ use macerator::{
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, NdArrayTensor, ops::simd::uninit_array_like};
 
 use super::{
     MinMax,
@@ -213,7 +213,7 @@ fn binary_simd_same<
         binary(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buf) }
     } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
+        let mut out = uninit_array_like(&lhs.array);
         let lhs = lhs.array.as_slice().unwrap();
         let rhs = rhs.array.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
