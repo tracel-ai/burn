@@ -19,6 +19,7 @@ pub mod transformer;
 /// Interpolate module
 pub mod interpolate;
 
+mod activation;
 mod dropout;
 mod embedding;
 mod gelu;
@@ -39,6 +40,7 @@ mod swiglu;
 mod tanh;
 mod unfold;
 
+pub use activation::*;
 pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
