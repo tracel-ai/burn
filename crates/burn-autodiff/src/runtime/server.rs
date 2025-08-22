@@ -108,6 +108,8 @@ impl AutodiffContext {
     }
 }
 
+// TODO: contexts cleanup
+
 #[derive(Default)]
 pub struct AutodiffServer {
     contexts: HashMap<ContextId, AutodiffContext>,
@@ -125,9 +127,8 @@ impl AutodiffServer {
     }
 
     fn get_mut_context(&mut self, context_id: ContextId) -> &mut AutodiffContext {
-        self.contexts.entry(context_id).or_insert_with(|| {
-            println!("New autodiff context {context_id:?}");
-            AutodiffContext::default()
-        })
+        self.contexts
+            .entry(context_id)
+            .or_insert_with(AutodiffContext::default)
     }
 }
