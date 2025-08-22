@@ -1,4 +1,4 @@
-use crate::metric::processor::{Event, EventProcessor, LearnerItem};
+use crate::metric::processor::{Event, EventProcessorTraining, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
 use burn_core::{lr_scheduler::LrScheduler, optim::GradientsAccumulator, tensor::backend::Backend};

@@ -1,6 +1,6 @@
 use crate::TrainingInterrupter;
 use crate::renderer::{MetricState, TrainingProgress};
-use crate::renderer::{MetricsRenderer, tui::NumericMetricsState};
+use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use ratatui::{
     Terminal,
     crossterm::{
@@ -46,7 +46,7 @@ pub struct TuiMetricsRenderer {
     persistent: bool,
 }
 
-impl MetricsRenderer for TuiMetricsRenderer {
+impl MetricsRendererTraining for TuiMetricsRenderer {
     fn update_train(&mut self, state: MetricState) {
         match state {
             MetricState::Generic(entry) => {

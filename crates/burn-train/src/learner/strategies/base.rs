@@ -9,7 +9,7 @@ use crate::{
     ValidLoader,
     components::LearnerComponentTypes,
     metric::{
-        processor::{Event, EventProcessor},
+        processor::{Event, EventProcessorTraining},
         store::EventStoreClient,
     },
 };

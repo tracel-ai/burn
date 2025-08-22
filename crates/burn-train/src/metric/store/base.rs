@@ -57,6 +57,8 @@ pub enum Split {
     Train,
     /// The validation split.
     Valid,
+    /// The testing split.
+    Test,
 }
 
 #[derive(Copy, Clone)]

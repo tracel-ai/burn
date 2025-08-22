@@ -1,4 +1,4 @@
-use super::{Event, EventProcessor, ItemLazy, Metrics};
+use super::{Event, EventProcessorTraining, ItemLazy, MetricsTraining};
 use crate::metric::store::EventStoreClient;
 use std::sync::Arc;
 
@@ -7,11 +7,11 @@ use std::sync::Arc;
 #[allow(dead_code)]
 #[derive(new)]
 pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
-    metrics: Metrics<T, V>,
+    metrics: MetricsTraining<T, V>,
     store: Arc<EventStoreClient>,
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessor for MinimalEventProcessor<T, V> {
+impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 

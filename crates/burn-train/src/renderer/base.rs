@@ -1,9 +1,8 @@
+use crate::metric::MetricEntry;
 use burn_core::data::dataloader::Progress;
 
-use crate::metric::MetricEntry;
-
 /// Trait for rendering metrics.
-pub trait MetricsRenderer: Send + Sync {
+pub trait MetricsRendererTraining: Send + Sync {
     /// Updates the training metric state.
     ///
     /// # Arguments
@@ -43,6 +42,32 @@ pub trait MetricsRenderer: Send + Sync {
     }
 }
 
+/// Trait for rendering metrics.
+pub trait MetricsRendererEvaluation: Send + Sync {
+    /// Updates the training metric state.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The metric state.
+    fn update_test(&mut self, state: MetricState);
+    /// Renders the training progress.
+    ///
+    /// # Arguments
+    ///
+    /// * `item` - The training progress.
+    fn render_test(&mut self, item: EvaluationProgress);
+
+    /// Callback method invoked when testing ends, whether it
+    /// completed successfully or was interrupted.
+    ///
+    /// # Returns
+    ///
+    /// A result indicating whether the end-of-testing actions were successful.
+    fn on_test_end(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+        Ok(())
+    }
+}
+
 /// The state of a metric.
 #[derive(Debug)]
 pub enum MetricState {
@@ -64,6 +89,16 @@ pub struct TrainingProgress {
 
     /// The total number of epochs.
     pub epoch_total: usize,
+
+    /// The iteration.
+    pub iteration: usize,
+}
+
+/// Evaluation progress.
+#[derive(Debug)]
+pub struct EvaluationProgress {
+    /// The progress.
+    pub progress: Progress,
 
     /// The iteration.
     pub iteration: usize,

@@ -5,8 +5,10 @@ use crate::logger::MetricLogger;
 pub(crate) struct LogEventStore {
     loggers_train: Vec<Box<dyn MetricLogger>>,
     loggers_valid: Vec<Box<dyn MetricLogger>>,
+    loggers_test: Vec<Box<dyn MetricLogger>>,
     aggregate_train: NumericMetricsAggregate,
     aggregate_valid: NumericMetricsAggregate,
+    aggregate_test: NumericMetricsAggregate,
 }
 
 impl EventStore for LogEventStore {
@@ -35,6 +37,17 @@ impl EventStore for LogEventStore {
                                 .for_each(|logger| logger.log(entry));
                         });
                 }
+                Split::Test => {
+                    update
+                        .entries
+                        .iter()
+                        .chain(update.entries_numeric.iter().map(|(entry, _value)| entry))
+                        .for_each(|entry| {
+                            self.loggers_test
+                                .iter_mut()
+                                .for_each(|logger| logger.log(entry));
+                        });
+                }
             },
             Event::EndEpoch(epoch) => match split {
                 Split::Train => self
@@ -43,6 +56,10 @@ impl EventStore for LogEventStore {
                     .for_each(|logger| logger.end_epoch(epoch)),
                 Split::Valid => self
                     .loggers_valid
+                    .iter_mut()
+                    .for_each(|logger| logger.end_epoch(epoch)),
+                Split::Test => self
+                    .loggers_test
                     .iter_mut()
                     .for_each(|logger| logger.end_epoch(epoch)),
             },
@@ -65,6 +82,10 @@ impl EventStore for LogEventStore {
                 self.aggregate_valid
                     .find_epoch(name, aggregate, direction, &mut self.loggers_valid)
             }
+            Split::Test => {
+                self.aggregate_test
+                    .find_epoch(name, aggregate, direction, &mut self.loggers_test)
+            }
         }
     }
 
@@ -83,6 +104,10 @@ impl EventStore for LogEventStore {
             Split::Valid => {
                 self.aggregate_valid
                     .aggregate(name, epoch, aggregate, &mut self.loggers_valid)
+            }
+            Split::Test => {
+                self.aggregate_test
+                    .aggregate(name, epoch, aggregate, &mut self.loggers_test)
             }
         }
     }

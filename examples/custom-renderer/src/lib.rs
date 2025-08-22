@@ -5,7 +5,7 @@ use burn::{
     tensor::backend::AutodiffBackend,
     train::{
         LearnerBuilder, LearningStrategy,
-        renderer::{MetricState, MetricsRenderer, TrainingProgress},
+        renderer::{MetricState, MetricsRendererTraining, TrainingProgress},
     },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
@@ -28,7 +28,7 @@ pub struct MnistTrainingConfig {
 
 struct CustomRenderer {}
 
-impl MetricsRenderer for CustomRenderer {
+impl MetricsRendererTraining for CustomRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}

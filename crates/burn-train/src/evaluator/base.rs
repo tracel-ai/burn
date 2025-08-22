@@ -1,13 +1,12 @@
-use burn_core::data::dataloader::DataLoader;
-
 use crate::{
     TrainingInterrupter,
     evaluator::components::{EvaluatorComponentTypes, TestStep},
     metric::{
-        processor::{Event, EventProcessor, LearnerItem},
+        processor::{Event, EventProcessorEvaluation, LearnerItem},
         store::EventStoreClient,
     },
 };
+use burn_core::data::dataloader::DataLoader;
 use std::sync::Arc;
 
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
@@ -35,14 +34,12 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             let item = LearnerItem::new(item, progress, 0, 1, iteration, None);
 
             self.event_processor
-                .process_train(Event::ProcessedItem(item));
+                .process_test(Event::ProcessedItem(item));
 
             if self.interrupter.should_stop() {
                 log::info!("Testing interrupted.");
                 break;
             }
         }
-        self.event_processor.process_train(Event::EndEpoch(1));
-        self.event_processor.process_valid(Event::EndEpoch(1));
     }
 }

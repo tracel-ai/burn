@@ -12,10 +12,12 @@ use crate::components::{LearnerComponentsMarker, LearningDataMarker};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{AsyncProcessor, FullEventProcessor, ItemLazy, Metrics};
+use crate::metric::processor::{
+    AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
+};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
-use crate::renderer::{MetricsRenderer, default_renderer};
+use crate::renderer::{MetricsRendererTraining, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
@@ -56,8 +58,8 @@ where
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     learning_strategy: LearningStrategy<B>,
-    renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<TO, VO>,
+    renderer: Option<Box<dyn MetricsRendererTraining + 'static>>,
+    metrics: MetricsTraining<TO, VO>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -97,7 +99,7 @@ where
             directory,
             grad_accumulation: None,
             learning_strategy: LearningStrategy::default(),
-            metrics: Metrics::default(),
+            metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
@@ -156,7 +158,7 @@ where
     /// * `renderer` - The custom renderer.
     pub fn renderer<MR>(mut self, renderer: MR) -> Self
     where
-        MR: MetricsRenderer + 'static,
+        MR: MetricsRendererTraining + 'static,
     {
         self.renderer = Some(Box::new(renderer));
         self
@@ -316,7 +318,7 @@ where
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
             AsyncCheckpointer<S::Record<B>, B>,
-            AsyncProcessor<FullEventProcessor<TO, VO>>,
+            AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
             Box<dyn CheckpointingStrategy>,
             LearningDataMarker<TI, VI, TO, VO>,
         >,
@@ -343,7 +345,7 @@ where
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = AsyncProcessor::new(FullEventProcessor::new(
+        let event_processor = AsyncProcessorTraining::new(FullEventProcessorTraining::new(
             self.metrics,
             renderer,
             event_store.clone(),

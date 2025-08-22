@@ -4,10 +4,10 @@ use crate::{
     evaluator::components::EvaluatorComponentTypesMarker,
     metric::{
         Adaptor, ItemLazy, Metric,
-        processor::{AsyncProcessor, FullEventProcessor, Metrics},
+        processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
         store::{EventStoreClient, LogEventStore},
     },
-    renderer::{MetricsRenderer, cli::CliMetricsRenderer},
+    renderer::cli::CliMetricsRenderer,
 };
 use burn_core::{module::Module, prelude::Backend};
 use std::{
@@ -22,7 +22,7 @@ pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
     interrupter: TrainingInterrupter,
-    metrics: Metrics<TO, ()>,
+    metrics: MetricsEvaluation<TO>,
     directory: PathBuf,
     summary: bool,
     _p: PhantomData<(B, TI, TO)>,
@@ -46,7 +46,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             summary_metrics: Default::default(),
             interrupter: TrainingInterrupter::new(),
             summary: false,
-            metrics: Metrics::default(),
+            metrics: MetricsEvaluation::default(),
             directory,
             _p: PhantomData,
         }
@@ -61,7 +61,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name());
-        self.metrics.register_train_metric_numeric(metric);
+        self.metrics.register_test_metric_numeric(metric);
         self
     }
 
@@ -77,7 +77,13 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         self,
         model: M,
     ) -> Evaluator<
-        EvaluatorComponentTypesMarker<B, M, AsyncProcessor<FullEventProcessor<TO, ()>>, TI, TO>,
+        EvaluatorComponentTypesMarker<
+            B,
+            M,
+            AsyncProcessorEvaluation<FullEventProcessorEvaluation<TO>>,
+            TI,
+            TO,
+        >,
     >
     where
         TI: Send + 'static,
@@ -86,7 +92,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         let renderer = Box::new(CliMetricsRenderer::new());
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = AsyncProcessor::new(FullEventProcessor::new(
+        let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
             self.metrics,
             renderer,
             event_store.clone(),

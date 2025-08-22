@@ -4,7 +4,7 @@ use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::Gradie
 use std::sync::Arc;
 
 use crate::components::OutputTrain;
-use crate::metric::processor::{Event, EventProcessor, LearnerItem};
+use crate::metric::processor::{Event, EventProcessorTraining, LearnerItem};
 use crate::{TrainStep, ValidLoader, ValidStep};
 use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
 

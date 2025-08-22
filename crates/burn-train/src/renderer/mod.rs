@@ -22,7 +22,7 @@ use crate::TrainingInterrupter;
 pub(crate) fn default_renderer(
     interuptor: TrainingInterrupter,
     checkpoint: Option<usize>,
-) -> Box<dyn MetricsRenderer> {
+) -> Box<dyn MetricsRendererTraining> {
     #[cfg(feature = "tui")]
     if std::io::stdout().is_terminal() {
         return Box::new(tui::TuiMetricsRenderer::new(interuptor, checkpoint));

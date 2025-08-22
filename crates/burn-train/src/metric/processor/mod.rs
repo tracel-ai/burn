@@ -11,13 +11,13 @@ pub(crate) use metrics::*;
 #[cfg(test)]
 pub(crate) use minimal::*;
 
-pub use async_wrapper::AsyncProcessor;
+pub use async_wrapper::{AsyncProcessorEvaluation, AsyncProcessorTraining};
 
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::metric::{
         Adaptor, LossInput,
-        processor::{Event, EventProcessor, LearnerItem, MinimalEventProcessor},
+        processor::{Event, EventProcessorTraining, LearnerItem, MinimalEventProcessor},
     };
     use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
 

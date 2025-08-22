@@ -23,7 +23,7 @@ pub trait ItemLazy: Send {
 }
 
 /// Process events happening during training and validation.
-pub trait EventProcessor: Send {
+pub trait EventProcessorTraining: Send {
     /// The training item.
     type ItemTrain: ItemLazy;
     /// The validation item.
@@ -33,6 +33,15 @@ pub trait EventProcessor: Send {
     fn process_train(&mut self, event: Event<Self::ItemTrain>);
     /// Collect a validation event.
     fn process_valid(&mut self, event: Event<Self::ItemValid>);
+}
+
+/// Process events happening during training and validation.
+pub trait EventProcessorEvaluation: Send {
+    /// The test item.
+    type ItemTest: ItemLazy;
+
+    /// Collect a training event.
+    fn process_test(&mut self, event: Event<Self::ItemTest>);
 }
 
 /// A learner item.

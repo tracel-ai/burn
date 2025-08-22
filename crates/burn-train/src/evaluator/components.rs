@@ -1,8 +1,6 @@
-use std::marker::PhantomData;
-
+use crate::metric::{ItemLazy, processor::EventProcessorEvaluation};
 use burn_core::{module::Module, prelude::Backend};
-
-use crate::metric::{ItemLazy, processor::EventProcessor};
+use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
 pub trait EvaluatorComponentTypes {
@@ -13,14 +11,14 @@ pub trait EvaluatorComponentTypes {
         + TestStep<Self::TestInput, Self::TestOutput>
         + core::fmt::Display
         + 'static;
-    type EventProcessor: EventProcessor<ItemTrain = Self::TestOutput, ItemValid = ()> + 'static;
+    type EventProcessor: EventProcessorEvaluation<ItemTest = Self::TestOutput> + 'static;
     /// Type of input to the evaluation step
     type TestInput: Send + 'static;
     /// Type of output of the evaluation step
     type TestOutput: ItemLazy + 'static;
 }
 
-// Trait to be implemented for validating models.
+/// Trait to be implemented for validating models.
 pub trait TestStep<TI, TO> {
     /// Runs a test step.
     ///
@@ -42,7 +40,7 @@ impl<B, M, E, TI, TO> EvaluatorComponentTypes for EvaluatorComponentTypesMarker<
 where
     B: Backend,
     M: Module<B> + TestStep<TI, TO> + core::fmt::Display + 'static,
-    E: EventProcessor<ItemTrain = TO, ItemValid = ()> + 'static,
+    E: EventProcessorEvaluation<ItemTest = TO> + 'static,
     TI: Send + 'static,
     TO: ItemLazy + 'static,
 {

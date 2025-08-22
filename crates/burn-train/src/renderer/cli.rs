@@ -1,4 +1,7 @@
-use crate::renderer::{MetricState, MetricsRenderer, TrainingProgress};
+use crate::renderer::{
+    EvaluationProgress, MetricState, MetricsRendererEvaluation, MetricsRendererTraining,
+    TrainingProgress,
+};
 
 /// A simple renderer for when the cli feature is not enabled.
 pub struct CliMetricsRenderer;
@@ -11,7 +14,7 @@ impl CliMetricsRenderer {
     }
 }
 
-impl MetricsRenderer for CliMetricsRenderer {
+impl MetricsRendererTraining for CliMetricsRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
@@ -21,6 +24,16 @@ impl MetricsRenderer for CliMetricsRenderer {
     }
 
     fn render_valid(&mut self, item: TrainingProgress) {
+        println!("{item:?}");
+    }
+}
+
+impl MetricsRendererEvaluation for CliMetricsRenderer {
+    fn update_test(&mut self, _state: MetricState) {
+        //
+    }
+
+    fn render_test(&mut self, item: EvaluationProgress) {
         println!("{item:?}");
     }
 }

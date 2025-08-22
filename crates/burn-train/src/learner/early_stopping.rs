@@ -148,7 +148,7 @@ mod tests {
         metric::{
             LossMetric,
             processor::{
-                Metrics, MinimalEventProcessor,
+                MetricsTraining, MinimalEventProcessor,
                 test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
@@ -221,7 +221,7 @@ mod tests {
             StoppingCondition::NoImprovementSince { n_epochs },
         );
         let mut store = LogEventStore::default();
-        let mut metrics = Metrics::<f64, f64>::default();
+        let mut metrics = MetricsTraining::<f64, f64>::default();
 
         store.register_logger_train(InMemoryMetricLogger::default());
         metrics.register_train_metric_numeric(loss);

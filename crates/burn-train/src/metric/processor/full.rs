@@ -1,21 +1,31 @@
-use super::{Event, EventProcessor, ItemLazy, Metrics};
+use super::{Event, EventProcessorTraining, ItemLazy, MetricsTraining};
+use crate::metric::processor::{EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::EventStoreClient;
-use crate::renderer::{MetricState, MetricsRenderer};
+use crate::renderer::{MetricState, MetricsRendererEvaluation, MetricsRendererTraining};
 use std::sync::Arc;
 
-/// An [event processor](EventProcessor) that handles:
+/// An [event processor](EventProcessorTraining) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct FullEventProcessor<T: ItemLazy, V: ItemLazy> {
-    metrics: Metrics<T, V>,
-    renderer: Box<dyn MetricsRenderer>,
+pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
+    metrics: MetricsTraining<T, V>,
+    renderer: Box<dyn MetricsRendererTraining>,
     store: Arc<EventStoreClient>,
 }
 
-impl<T: ItemLazy, V: ItemLazy> FullEventProcessor<T, V> {
+/// An [event processor](EventProcessorEvaluation) that handles:
+///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
+///   - Render metrics using a [metrics renderer](MetricsRenderer).
+pub struct FullEventProcessorEvaluation<T: ItemLazy> {
+    metrics: MetricsEvaluation<T>,
+    renderer: Box<dyn MetricsRendererEvaluation>,
+    store: Arc<EventStoreClient>,
+}
+
+impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
     pub(crate) fn new(
-        metrics: Metrics<T, V>,
-        renderer: Box<dyn MetricsRenderer>,
+        metrics: MetricsTraining<T, V>,
+        renderer: Box<dyn MetricsRendererTraining>,
         store: Arc<EventStoreClient>,
     ) -> Self {
         Self {
@@ -26,7 +36,61 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessor<T, V> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
+impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
+    pub(crate) fn new(
+        metrics: MetricsEvaluation<T>,
+        renderer: Box<dyn MetricsRendererEvaluation>,
+        store: Arc<EventStoreClient>,
+    ) -> Self {
+        Self {
+            metrics,
+            renderer,
+            store,
+        }
+    }
+}
+
+impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
+    type ItemTest = T;
+
+    fn process_test(&mut self, event: Event<Self::ItemTest>) {
+        match event {
+            Event::ProcessedItem(item) => {
+                let item = item.sync();
+                let progress = (&item).into();
+                let metadata = (&item).into();
+
+                let update = self.metrics.update_test(&item, &metadata);
+
+                self.store
+                    .add_event_test(crate::metric::store::Event::MetricsUpdate(update.clone()));
+
+                update
+                    .entries
+                    .into_iter()
+                    .for_each(|entry| self.renderer.update_test(MetricState::Generic(entry)));
+
+                update
+                    .entries_numeric
+                    .into_iter()
+                    .for_each(|(entry, value)| {
+                        self.renderer
+                            .update_test(MetricState::Numeric(entry, value))
+                    });
+
+                self.renderer.render_test(progress);
+            }
+            Event::EndEpoch(_) => {
+                log::warn!("Changing epoch doesn't make sense during evaluation")
+            }
+            Event::End => {
+                self.renderer.on_test_end().ok();
+            }
+        }
+    }
+}
+
+impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTraining<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
