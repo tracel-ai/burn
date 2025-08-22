@@ -17,31 +17,31 @@ use crate::nn::{
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationLayerConfig {
-    /// [`GeLU`] activation layer config.
+    /// [`Gelu`] activation layer.
     GeLu,
 
-    /// [`PReLU`] activation layer config.
+    /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
 
-    /// [`ReLU`] activation layer config.
-    ReLu,
+    /// [`Relu`] activation layer.
+    Relu,
 
-    /// [`LeakyRelu`] activation layer config.
+    /// [`LeakyRelu`] activation layer.
     LeakyRelu(LeakyReluConfig),
 
-    /// [`SwiGlu`] activation layer config.
+    /// [`SwiGlu`] activation layer.
     SwiGlu(SwiGluConfig),
 
-    /// [`Sigmoid`] activation layer config.
+    /// [`Sigmoid`] activation layer.
     Sigmoid,
 
-    /// [`Tanh`] activation layer config.
+    /// [`Tanh`] activation layer.
     Tanh,
 
-    /// [`HardSigmoid`] activation layer config.
+    /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoidConfig),
 
-    /// [`Linear`] activation layer config.
+    /// [`Linear`] activation layer.
     Linear(LinearConfig),
 }
 
@@ -49,7 +49,7 @@ impl ActivationLayerConfig {
     /// Initialize a wrapped activation layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> ActivationLayer<B> {
         match self {
-            ActivationLayerConfig::ReLu => ActivationLayer::ReLu(Relu),
+            ActivationLayerConfig::Relu => ActivationLayer::Relu(Relu),
             ActivationLayerConfig::LeakyRelu(conf) => ActivationLayer::LeakyRelu(conf.init()),
             ActivationLayerConfig::GeLu => ActivationLayer::Gelu(Gelu),
             ActivationLayerConfig::PRelu(conf) => ActivationLayer::PRelu(conf.init(device)),
@@ -71,11 +71,11 @@ pub enum ActivationLayer<B: Backend> {
     /// [`Gelu`] activation layer.
     Gelu(Gelu),
 
-    /// [`PReLU`] activation layer.
+    /// [`PRelu`] activation layer.
     PRelu(PRelu<B>),
 
-    /// [`ReLU`] activation layer.
-    ReLu(Relu),
+    /// [`Relu`] activation layer.
+    Relu(Relu),
 
     /// [`LeakyRelu`] activation layer.
     LeakyRelu(LeakyRelu),
@@ -100,7 +100,7 @@ impl<B: Backend> ActivationLayer<B> {
     /// Forward pass.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         match self {
-            ActivationLayer::ReLu(layer) => layer.forward(input),
+            ActivationLayer::Relu(layer) => layer.forward(input),
             ActivationLayer::LeakyRelu(layer) => layer.forward(input),
             ActivationLayer::Gelu(layer) => layer.forward(input),
             ActivationLayer::PRelu(layer) => layer.forward(input),
@@ -137,8 +137,7 @@ impl DimSelectActivationLayerConfig {
 
 /// [`ActivationLayer`] wrapper with `dim`-select support.
 ///
-/// Support for many in-built `burn::nn` activations.
-/// Support for setting the target `dim`.
+/// Swaps the specified `dim` to the last dimension, applies the activation, then swaps back.
 #[derive(Module, Debug)]
 pub struct DimSelectActivationLayer<B: Backend> {
     /// Configuration of the inner layer.
@@ -236,7 +235,7 @@ mod tests {
 
         let expected = Relu::default().forward(input.clone());
 
-        check_stateless_config_output(ActivationLayerConfig::ReLu, input, expected, &device)
+        check_stateless_config_output(ActivationLayerConfig::Relu, input, expected, &device)
     }
 
     #[test]
@@ -358,7 +357,7 @@ mod tests {
 
         let expected = Relu::default().forward(input.clone());
 
-        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::ReLu);
+        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::Relu);
         let act = config.init(&device);
         let output = act.forward(input);
         expect_tensor(output, expected);
@@ -409,7 +408,7 @@ mod tests {
         let expected = native_result.swap_dims(1, 2);
         println!("expected: {:?}\n", expected);
 
-        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::ReLu).with_dim(1);
+        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::Relu).with_dim(1);
         let act = config.init(&device);
         assert_eq!(act.canonicalize_dim(3), 1);
 
