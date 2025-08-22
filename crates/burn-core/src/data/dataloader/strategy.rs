@@ -37,7 +37,6 @@ pub trait BatchStrategy<I>: Send + Sync {
 pub struct FixBatchStrategy<I> {
     items: Vec<I>,
     batch_size: usize,
-    drop_last: bool, // NEW
 }
 
 impl<I> FixBatchStrategy<I> {
@@ -54,15 +53,6 @@ impl<I> FixBatchStrategy<I> {
         FixBatchStrategy {
             items: Vec::with_capacity(batch_size),
             batch_size,
-            drop_last: false, // default
-        }
-    }
-    /// Creates a new strategy to batch items with a fixed batch size and drop_last option.
-    pub fn new_with_drop_last(batch_size: usize, drop_last: bool) -> Self {
-        FixBatchStrategy {
-            items: Vec::with_capacity(batch_size),
-            batch_size,
-            drop_last,
         }
     }
 }
@@ -75,10 +65,6 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
         if self.items.len() < self.batch_size && !force {
             return None;
         }
-        if self.items.len() < self.batch_size && force && self.drop_last {
-            self.items.clear();
-            return None;
-        }
         let mut items = Vec::with_capacity(self.batch_size);
         std::mem::swap(&mut items, &mut self.items);
         if items.is_empty() {
@@ -87,7 +73,7 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
         Some(items)
     }
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
-        Box::new(Self::new_with_drop_last(self.batch_size, self.drop_last))
+        Box::new(Self::new(self.batch_size))
     }
 
     fn batch_size(&self) -> Option<usize> {
