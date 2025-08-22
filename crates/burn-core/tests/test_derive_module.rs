@@ -92,7 +92,7 @@ mod compiletime_clone_impl_check {
     };
 
     use super::*;
-    
+
     type RecordItem<M, B, S> = <<M as Module<B>>::Record as Record<B>>::Item<S>;
 
     fn implements_clone<T: Clone>() {}
