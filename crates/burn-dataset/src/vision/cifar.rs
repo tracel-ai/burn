@@ -1,3 +1,41 @@
+//! CIFAR Dataset Module
+//!
+//! This module provides functionality for loading the CIFAR-10 and CIFAR-100 image classification datasets.
+//! CIFAR (Canadian Institute For Advanced Research) datasets are widely used benchmarks in computer vision,
+//! consisting of 32×32 pixel color images split into training (50,000 images) and test (10,000 images) sets.
+//!
+//! ## Dataset Variants
+//! - **CIFAR-10**: Contains 10 distinct classes (e.g., airplane, automobile, bird, cat)
+//!     - CIFAR-10 mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L44).
+//!     - Licensed under the [Apache License](https://github.com/fastai/fastai/blob/master/LICENSE).
+//! - **CIFAR-100**: Contains 100 fine-grained classes (e.g., beaver, dolphin, oak tree)
+//!     - CIFAR-100 mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L75).
+//!     - Licensed under the [Apache License](https://github.com/fastai/fastai/blob/master/LICENSE).
+//!
+//! ## Usage Example
+//! ```rust
+//! use burn_dataset::vision::CifarDataset;
+//! use burn_dataset::vision::CifarType;
+//!
+//! // Create a CIFAR-10 dataset accessor
+//! let dataset = CifarDataset::new(CifarType::Cifar10);
+//!
+//! // Access training and test sets
+//! let train_dataset = dataset.train();
+//! let test_dataset = dataset.test();
+//! ```
+//! ```rust
+//! use burn_dataset::vision::CifarDataset;
+//! use burn_dataset::vision::CifarType;
+//!
+//! // Create a CIFAR-100 dataset accessor
+//! let dataset = CifarDataset::new(CifarType::Cifar100);
+//!
+//! // Access training and test sets
+//! let train_dataset = dataset.train();
+//! let test_dataset = dataset.test();
+//! ```
+
 use std::path::PathBuf;
 
 use burn_common::network::downloader;

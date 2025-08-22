@@ -22,6 +22,7 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
+cifar = ["vision", "dep:tar"]
 # internal
 __sqlite-shared = [
     "dep:r2d2",
@@ -56,7 +57,7 @@ serde = { workspace = true, features = ["std", "derive"] }
 serde_json = { workspace = true, features = ["std"] }
 serde_rusqlite = { workspace = true, optional = true }
 strum = { workspace = true }
-tar = "0.4.44"
+tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 
