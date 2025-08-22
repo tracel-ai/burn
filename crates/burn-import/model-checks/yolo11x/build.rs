@@ -3,6 +3,12 @@ use std::path::Path;
 
 fn main() {
     let onnx_path = "artifacts/yolo11x_opset16.onnx";
+    let test_data_path = "artifacts/test_data.pt";
+
+    // Tell Cargo to only rebuild if these files change
+    println!("cargo:rerun-if-changed={}", onnx_path);
+    println!("cargo:rerun-if-changed={}", test_data_path);
+    println!("cargo:rerun-if-changed=build.rs");
 
     // Check if the ONNX model file exists
     if !Path::new(onnx_path).exists() {

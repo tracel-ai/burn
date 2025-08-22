@@ -7,12 +7,20 @@ publish = false
 [workspace]
 
 [features]
-default = ["ndarray"]
+default = ["tch"]
 ndarray = []
 tch = []
+wgpu = []
+metal = []
 
 [dependencies]
-burn = { path = "../../../../crates/burn", features = ["ndarray", "tch"] }
+burn = { path = "../../../../crates/burn", features = [
+    "ndarray",
+    "tch",
+    "wgpu",
+    "metal",
+] }
+burn-import = { path = "../../../burn-import", features = ["pytorch"] }
 
 [build-dependencies]
 burn-import = { path = "../../../burn-import" }
