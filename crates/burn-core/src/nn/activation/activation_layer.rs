@@ -12,8 +12,8 @@ use burn_tensor::backend::Backend;
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationLayerConfig {
-    // TODO: GLU
-    // GLU's dim-select interaction with DimSelectActivationLayer needs thought.
+    // TODO: GLU's dim-select interaction with DimSelectActivationLayer needs thought.
+
     /// [`Gelu`] activation layer.
     GeLu,
 
