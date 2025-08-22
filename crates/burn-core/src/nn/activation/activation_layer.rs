@@ -1,22 +1,19 @@
-//! # Activation Layer Wrapper.
-//!
-//! Permits module abstraction over the built-in activation layers.
-
 use crate as burn;
-use burn_derive::Config;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn_derive::{Config, Module};
 
-use crate::module::Module;
 use crate::nn::{
     Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, Linear, LinearConfig, PRelu,
     PReluConfig, Relu, Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };
+use burn_tensor::Tensor;
+use burn_tensor::backend::Backend;
 
 /// [`ActivationLayer`] Configuration.
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationLayerConfig {
+    // TODO: GLU
+    // GLU's dim-select interaction with DimSelectActivationLayer needs thought.
     /// [`Gelu`] activation layer.
     GeLu,
 
@@ -180,6 +177,7 @@ impl<B: Backend> DimSelectActivationLayer<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
+    use crate::prelude::Module;
     use burn_tensor::Distribution;
     use burn_tensor::activation::relu;
 
