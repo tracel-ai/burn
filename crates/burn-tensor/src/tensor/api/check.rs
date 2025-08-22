@@ -167,7 +167,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape_args_i32<const D: usize>(target: &[i32; D]) -> Self {
+    pub(crate) fn reshape_args_i64<const D: usize>(target: &[i64; D]) -> Self {
         let mut check = Self::Ok;
 
         if target.iter().any(|&dim| dim < -1) {

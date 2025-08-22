@@ -136,23 +136,37 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 
     fn on_elemwise_read(&mut self, operation: &OperationIr) {
-        self.builder.register(operation);
+        let can_register = self.builder.can_register(operation)
+            && self.builder_read_fallback.can_register(operation);
 
-        if self.builder_read_fallback.len() < self.builder.len() {
-            self.builder_read_fallback.register(operation);
-        }
+        match can_register {
+            true => {
+                self.builder.can_register(operation);
+                self.builder_read_fallback.can_register(operation);
+            }
+            false => {
+                self.builder.close();
+                self.builder_read_fallback.close();
+            }
+        };
 
         self.status = self.builder.status();
     }
 
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
-        self.builder.register(operation);
+        let can_register = self.builder.can_register(operation)
+            && self.builder_write_fallback.can_register(operation);
 
-        let num_ops_write = self.builder.len() - self.builder_read_fallback.len();
-
-        if self.builder_write_fallback.len() < num_ops_write {
-            self.builder_write_fallback.register(operation);
-        }
+        match can_register {
+            true => {
+                self.builder.can_register(operation);
+                self.builder_write_fallback.can_register(operation);
+            }
+            false => {
+                self.builder.close();
+                self.builder_write_fallback.close();
+            }
+        };
 
         self.status = self.builder.status();
     }

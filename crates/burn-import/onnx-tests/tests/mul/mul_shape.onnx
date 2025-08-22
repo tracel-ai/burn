@@ -1,0 +1,32 @@
+
+onnx-tests:Ë
+
+input1shape1"Shape
+
+input2shape2"Shape
+3scalar"Constant*
+value*:Bconst_tensor 
+)
+shape1
+scalarshape_times_scalar"Mul
+(
+shape1
+shape2shape_times_shape"Mulshape_mul_testZ
+input1
+
+
+
+Z
+input2
+
+
+
+b 
+shape_times_scalar
+
+
+b
+shape_times_shape
+
+
+B

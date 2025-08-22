@@ -5,18 +5,18 @@ include_models!(constant_lifting_multiple);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
     use burn::tensor::{Tensor, TensorData};
 
     #[test]
     fn test_constant_lifting_multiple() {
-        let model: constant_lifting_multiple::Model<Backend> =
+        let model: constant_lifting_multiple::Model<TestBackend> =
             constant_lifting_multiple::Model::default();
 
         let device = Default::default();
 
         // Create input tensor (2x3 as defined in the Python script)
-        let input = Tensor::<Backend, 2>::from_data(
+        let input = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([[1.0f32, -2.0, 8.0], [-4.0, 5.0, 3.0]]),
             &device,
         );

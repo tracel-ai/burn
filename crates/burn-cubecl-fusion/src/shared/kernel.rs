@@ -317,6 +317,17 @@ fn fuse(
                 scheme.scheme,
                 config,
             ),
+            FuseOp::Rem(op) => {
+                rem::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => clamp::<NumericExpand<DYN_ELEM_ID>>(
+                inputs, outputs, locals, pos, input, min, max, out, config,
+            ),
         }
     }
 }
@@ -720,6 +731,26 @@ fn conditional_assign<C: CubePrimitive>(
 }
 
 #[cube]
+fn clamp<C: Numeric>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] min: Arg,
+    #[comptime] max: Arg,
+    #[comptime] out: Arg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
+    let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
+    let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
+    let result = Line::<C>::clamp(input, min, max);
+
+    write::<C>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
+#[cube]
 #[allow(clippy::explicit_counter_loop)]
 fn dequantize<C: Float>(
     inputs: &GlobalArgs,
@@ -803,6 +834,7 @@ comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Line::<C>::powf, Float);
+binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
 unary_func!(log, Line::<C>::log, Float);

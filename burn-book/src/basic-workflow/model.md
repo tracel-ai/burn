@@ -243,8 +243,8 @@ Output:
 
 ```rust , ignore
 Model {
-  conv1: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 80}
-  conv2: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 1168}
+  conv1: Conv2d {ch_in: 1, ch_out: 8, stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 80}
+  conv2: Conv2d {ch_in: 8, ch_out: 16, stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 1168}
   pool: AdaptiveAvgPool2d {output_size: [8, 8]}
   dropout: Dropout {prob: 0.5}
   linear1: Linear {d_input: 1024, d_output: 512, bias: true, params: 524800}

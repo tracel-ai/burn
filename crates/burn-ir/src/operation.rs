@@ -575,11 +575,19 @@ pub enum IntOperationIr {
     ///
     /// Int => [bitwise right shift scalar](burn_tensor::ops::IntTensorOps::bitwise_right_shift_scalar).
     BitwiseRightShiftScalar(ScalarOpIr<i32>),
+    /// Operation corresponding to [matmul](burn_tensor::ops::IntTensorOps::int_matmul).
+    Matmul(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to a bool tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BoolOperationIr {
+    /// Operation corresponding to:
+    /// [ones](burn_tensor::ops::BoolTensorOps::bool_zeros).
+    Zeros(TensorIr),
+    /// Operation corresponding to:
+    /// [ones](burn_tensor::ops::BoolTensorOps::bool_ones).
+    Ones(TensorIr),
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(UnaryOpIr),
     /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
@@ -1922,6 +1930,9 @@ impl FloatOperationIr {
 impl IntOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
+            IntOperationIr::Matmul(repr) => {
+                vec![&repr.lhs, &repr.rhs, &repr.out]
+            }
             IntOperationIr::IntoFloat(repr) => vec![&repr.input, &repr.out],
             IntOperationIr::BitwiseAnd(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
@@ -1963,6 +1974,10 @@ impl IntOperationIr {
         let mut output = Vec::new();
 
         match self {
+            IntOperationIr::Matmul(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
             IntOperationIr::IntoFloat(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
@@ -2013,6 +2028,8 @@ impl IntOperationIr {
 impl BoolOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
+            BoolOperationIr::Zeros(repr) => vec![repr],
+            BoolOperationIr::Ones(repr) => vec![repr],
             BoolOperationIr::IntoFloat(repr) => vec![&repr.input, &repr.out],
             BoolOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
             BoolOperationIr::Not(repr) => vec![&repr.input, &repr.out],
@@ -2024,6 +2041,8 @@ impl BoolOperationIr {
         let mut output = Vec::new();
 
         match self {
+            BoolOperationIr::Zeros(_) => {}
+            BoolOperationIr::Ones(_) => {}
             BoolOperationIr::IntoFloat(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }

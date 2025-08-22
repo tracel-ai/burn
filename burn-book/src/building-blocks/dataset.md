@@ -75,10 +75,10 @@ let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
 let explicit = SelectionDataset::from_indices_checked(dataset.clone(), vec![0, 1, 2, 0]);
 
 let shuffled = SelectionDataset::new_shuffled(dataset.clone(), &mut rng);
-let shuffled = SelectionDataset::new_shuffled_with_seed(dataset.clone(), 42);
+let shuffled = SelectionDataset::new_shuffled(dataset.clone(), 42);
 
 let mut mutable = SelectionDataset::new_select_all(dataset.clone(), vec![0, 1, 2, 0]);
-mutable.shuffle_with_seed(42);
+mutable.shuffle(42);
 mutable.shuffle(&mut rng);
 ```
 
@@ -89,7 +89,8 @@ mutable.shuffle(&mut rng);
   The `ShuffledDataset` is a thin wrapper around the `SelectionDataset`.
 
 ```rust, ignore
-let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
+let dataset = ShuffledDataset<DbPedia, DbPediaItem>::new(dataset, &mut rng);
+let dataset = ShuffledDataset<DbPedia, DbPediaItem>::new(dataset, 42);
 ```
 
 - **PartialDataset**: This transform is useful to return a view of the dataset with specified start

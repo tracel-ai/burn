@@ -90,6 +90,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
+        if tensor.shape == shape.dims {
+            return tensor;
+        }
+
         #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
@@ -207,6 +211,35 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc.clone())),
             SliceAssignOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(MatmulOps, B::int_matmul);
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&lhs);
+        streams.tensor(&rhs);
+        let dtype = lhs.dtype;
+        let mut shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+        let ndims = burn_tensor::TensorMetadata::shape(&lhs).num_dims();
+
+        shape[ndims - 2] = lhs.shape[ndims - 2];
+        shape[ndims - 1] = rhs.shape[ndims - 1];
+
+        let out = lhs.client.tensor_uninitialized(shape, dtype);
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::Matmul(desc.clone())),
+            MatmulOps::<B>::new(desc),
         );
 
         out

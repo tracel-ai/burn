@@ -1,5 +1,5 @@
-use crate::ops::NdArrayOps;
-use crate::{UnsafeSharedRef, element::FloatNdArrayElement, tensor::NdArrayTensor};
+use crate::{NdArrayElement, ops::NdArrayOps};
+use crate::{UnsafeSharedRef, tensor::NdArrayTensor};
 
 use alloc::{vec, vec::Vec};
 use burn_common::{iter_range_par, run_par};
@@ -9,7 +9,7 @@ use ndarray::s;
 
 pub(crate) fn matmul<E>(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E>
 where
-    E: FloatNdArrayElement,
+    E: NdArrayElement,
 {
     let shape_lhs = lhs.shape();
     let shape_rhs = rhs.shape();

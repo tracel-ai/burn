@@ -93,6 +93,7 @@ impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: BasicOps<B>,
+    K::Elem: Element,
 {
     /// Executes an operation on the tensor and modifies its value.
     ///
@@ -153,6 +154,51 @@ where
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
         Self::new(K::empty(shape, device))
+    }
+
+    /// Create a tensor of the given shape where each element is equal to the provided value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::full(Shape::new([2, 3]), 5.0, &device);
+    ///   println!("{tensor}");
+    ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
+    /// }
+    /// ```
+    pub fn full<S: Into<Shape>, E: ElementConversion>(
+        shape: S,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self {
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
+        Self::new(K::full(shape, fill_value, device))
+    }
+
+    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.full_like(5.0);
+    ///    println!("{tensor}");
+    ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
+    /// }
+    /// ```
+    pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
+        Self::full(self.shape(), fill_value, &self.device())
     }
 
     /// Returns the dimensions of the current tensor.
@@ -2319,6 +2365,32 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
 
+    /// Creates a tensor of the given shape where each element is equal to the provided value.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `fill_value` - The value with which to fill the tensor.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// The empty tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating full tensors, users should prefer the [Tensor::full](Tensor::full) function,
+    /// which is more high-level and designed for public use.
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive;
+
     /// Reshapes the tensor.
     ///
     /// # Arguments
@@ -2783,6 +2855,14 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
+    }
+
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
         tr.register_float(tensor);
     }
@@ -2964,6 +3044,14 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_empty(shape, device)
     }
 
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive {
+        B::int_full(shape, fill_value.elem(), device)
+    }
+
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
         tr.register_int(tensor);
     }
@@ -3066,6 +3154,18 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
+    }
+
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive {
+        if fill_value.elem() {
+            B::bool_ones(shape, device)
+        } else {
+            B::bool_zeros(shape, device)
+        }
     }
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
@@ -3300,16 +3400,16 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     }
 }
 
-impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+impl<const D2: usize> ReshapeArgs<D2> for [i64; D2] {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
     ) -> Shape {
         // Validate the reshape arguments
-        check!(TensorCheck::reshape_args_i32(&self));
+        check!(TensorCheck::reshape_args_i64(&self));
 
         // Temporary shape
-        let mut new_shape: [i32; D2] = [1; D2];
+        let mut new_shape: [i64; D2] = [1; D2];
 
         // We need to find the index of the 0 dimension and
         // replace it with the actual dimension value.
@@ -3317,7 +3417,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
             if s != 0 {
                 new_shape[i] = s;
             } else {
-                new_shape[i] = tensor.dims()[i] as i32;
+                new_shape[i] = tensor.dims()[i] as i64;
             }
         }
 
@@ -3333,7 +3433,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
                     product *= s;
                 }
             }
-            let product_current = tensor.shape().num_elements() as i32;
+            let product_current = tensor.shape().num_elements() as i64;
 
             new_shape[index] = product_current / product;
 
@@ -3351,6 +3451,17 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
 
         Shape::from(new_shape)
+    }
+}
+
+impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+        self,
+        tensor: &Tensor<B, D, K>,
+    ) -> Shape {
+        // Convert i32 array to i64 array and use existing implementation
+        let i64_array: [i64; D2] = self.map(|x| x as i64);
+        ReshapeArgs::into_shape(i64_array, tensor)
     }
 }
 

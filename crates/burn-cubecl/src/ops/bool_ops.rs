@@ -7,7 +7,7 @@ use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor
 use burn_tensor::{Shape, TensorData};
 use std::ops::Range;
 
-use super::{expand, permute};
+use super::{expand, numeric, permute};
 
 impl<R, F, I, BT> BoolTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -18,6 +18,14 @@ where
 {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         super::empty::<R, BT>(shape, device)
+    }
+
+    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        numeric::zeros::<R, BT>(shape, device)
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        numeric::ones::<R, BT>(shape, device)
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {

@@ -34,6 +34,15 @@ pub struct ScalarType {
     pub kind: ScalarKind,
 }
 
+/// Represents a shape type in the ONNX model.
+///
+/// Shapes are represented as arrays of i64 values ([i64; N]) for several important reasons:
+/// 1. **Negative indexing support**: ONNX operations like Slice, Gather, etc. support negative
+///    indices to count from the end of dimensions (e.g., -1 means last element)
+/// 2. **Large dimension support**: i64 provides sufficient range for very large tensor dimensions
+/// 3. **ONNX spec compliance**: The ONNX specification uses int64 for shape-related operations
+/// 4. **Unified type system**: Using a single type [i64; N] simplifies code generation and
+///    eliminates the need for type conversions in shape arithmetic operations
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeType {
     pub name: Ident,
@@ -177,10 +186,14 @@ impl ShapeType {
             rank,
         }
     }
+
     pub fn ty(&self) -> TokenStream {
         let rank = self.rank.to_tokens();
-
-        quote! { [usize; #rank] }
+        // Shape arrays use i64 as the element type to support:
+        // - Negative indices in operations (e.g., -1 for last element)
+        // - Large tensor dimensions without overflow
+        // - Direct compatibility with ONNX spec which uses int64
+        quote! { [i64; #rank] }
     }
 
     /// Helper for Ops that need to process a shape as a tensor on device

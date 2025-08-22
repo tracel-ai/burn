@@ -24,21 +24,21 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_import::pytorch::PyTorchFileRecorder;
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
 
-    fn layer_norm(record: NetRecord<Backend>, precision: f32) {
+    fn layer_norm(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
 
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.757_631_6, 0.27931088], [0.40306926, 0.73468447]],
                 [[0.02928156, 0.799_858_6], [0.39713734, 0.75437194]],
@@ -48,7 +48,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.99991274, -0.999_912_5], [-0.999_818_3, 0.999_818_3]],
                 [[-0.999_966_2, 0.99996626], [-0.99984336, 0.99984336]],

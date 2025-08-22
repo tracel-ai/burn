@@ -601,6 +601,18 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of applying the modulus of the scalar to the tensor.
     fn int_remainder_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 
+    /// Multiplies two tensors together using matrix multiplication.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together using matrix multiplication.
+    fn int_matmul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
     /// Element-wise negation.
     ///
     /// # Arguments

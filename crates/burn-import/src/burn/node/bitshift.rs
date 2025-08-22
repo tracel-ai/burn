@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, Type};
+use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -80,16 +80,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
     fn into_node(self) -> Node<PS> {
         Node::BitShift(self)
     }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion for scalar operations
-        if matches!(
-            (&self.inputs[0], &self.inputs[1]),
-            (Type::Tensor(_), Type::Scalar(_))
-        ) {
-            imports.register("burn::tensor::ElementConversion");
-        }
-    }
 }
 
 #[cfg(test)]
@@ -122,12 +112,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -173,12 +158,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

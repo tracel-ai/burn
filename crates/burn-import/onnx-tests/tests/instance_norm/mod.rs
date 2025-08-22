@@ -7,15 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn instance_norm1d() {
         let device = Default::default();
-        let model: instance_norm1d::Model<Backend> = instance_norm1d::Model::default();
+        let model: instance_norm1d::Model<TestBackend> = instance_norm1d::Model::default();
 
-        let input = Tensor::<Backend, 3>::from_floats(
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [
                 [
                     [0., 1., 2., 3.], //
@@ -51,9 +51,9 @@ mod tests {
     #[test]
     fn instance_norm2d() {
         let device = Default::default();
-        let model: instance_norm2d::Model<Backend> = instance_norm2d::Model::default();
+        let model: instance_norm2d::Model<TestBackend> = instance_norm2d::Model::default();
 
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [
                 [
                     [
@@ -117,9 +117,9 @@ mod tests {
     #[test]
     fn instance_norm3d() {
         let device = Default::default();
-        let model: instance_norm3d::Model<Backend> = instance_norm3d::Model::default();
+        let model: instance_norm3d::Model<TestBackend> = instance_norm3d::Model::default();
 
-        let input = Tensor::<Backend, 5>::from_floats(
+        let input = Tensor::<TestBackend, 5>::from_floats(
             [
                 [
                     [[[0., 1.], [2., 3.]], [[4., 5.], [6., 7.]]],

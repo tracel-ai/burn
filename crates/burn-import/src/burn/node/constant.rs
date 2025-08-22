@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarKind, ScalarType, Scope, TensorType, ToTokens, Type};
+use crate::burn::{ScalarKind, ScalarType, Scope, ShapeType, TensorType, ToTokens, Type};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
@@ -31,6 +31,9 @@ pub enum ConstantValue {
 
     /// Tensor constant.
     Tensor(TensorType, TensorData),
+
+    /// Shape constant.
+    Shape(Vec<usize>),
 }
 
 impl ConstantValue {
@@ -45,6 +48,10 @@ impl ConstantValue {
                 let ty = tensor_type.ty();
                 quote! { burn::module::Param<#ty>}
             }
+            ConstantValue::Shape(shape_vec) => {
+                let rank = proc_macro2::Literal::usize_unsuffixed(shape_vec.len());
+                quote! { [i64; #rank] }
+            }
         }
     }
 
@@ -57,6 +64,16 @@ impl ConstantValue {
             ConstantValue::Bool(val) => quote! { #val },
             ConstantValue::Tensor(_, _) => {
                 panic!("Tensor constant is not assignable.")
+            }
+            ConstantValue::Shape(shape_vec) => {
+                let values: Vec<_> = shape_vec
+                    .iter()
+                    .map(|&v| {
+                        let v_lit = proc_macro2::Literal::i64_suffixed(v as i64);
+                        quote! { #v_lit }
+                    })
+                    .collect();
+                quote! { [#(#values),*] }
             }
         }
     }
@@ -95,6 +112,9 @@ impl ConstantNode {
             }),
 
             ConstantValue::Tensor(tensor_type, _) => Type::Tensor(tensor_type.clone()),
+            ConstantValue::Shape(shape_vec) => {
+                Type::Shape(ShapeType::new(name.to_string(), shape_vec.len()))
+            }
         }
     }
 }
@@ -201,7 +221,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 mod tests {
     use super::*;
     use crate::burn::{
-        ScalarKind, ScalarType, TensorType, graph::BurnGraph, node::test::assert_tokens,
+        ScalarKind, ScalarType, ShapeType, TensorType, graph::BurnGraph, node::test::assert_tokens,
     };
     use burn::record::FullPrecisionSettings;
     use burn::tensor::TensorData;
@@ -213,10 +233,7 @@ mod tests {
         output: TokenStream,
     ) -> TokenStream {
         quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -308,11 +325,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -368,12 +381,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Int;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -429,12 +437,7 @@ mod tests {
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
-            use burn::tensor::Bool;
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -463,6 +466,52 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self) -> Tensor<B, 3, Bool> {
                     let output = self.const_tensor_3d.val();
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_constant_shape() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        let const_shape = Ident::new("const_shape", Span::call_site());
+        let shape_values = vec![2, 3, 4];
+        let rank = shape_values.len();
+        let constant = ConstantValue::Shape(shape_values.clone());
+
+        graph.register(ConstantNode::new(
+            const_shape.to_string(),
+            constant.clone(),
+            Type::Shape(ShapeType::new("output", rank)),
+        ));
+
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> [i64; 3] {
+                    let output: [i64; 3] = [2i64, 3i64, 4i64];
                     output
                 }
             }

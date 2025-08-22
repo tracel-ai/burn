@@ -10,15 +10,16 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
         );
     }
 
-    // Extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    // Extract the rank of the input (works for both Tensor and Shape types)
+    let input_rank = match &curr.inputs.first().unwrap().ty {
+        ArgType::Tensor(tensor) => tensor.rank,
+        ArgType::Shape(size) => *size,
+        _ => panic!("Shape operation requires Tensor or Shape input"),
     };
 
     // Default: all axes up to the last one (included)
     let mut start_dim: i64 = 0;
-    let mut end_dim: i64 = tensor.rank as i64;
+    let mut end_dim: i64 = input_rank as i64;
 
     // Extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -31,10 +32,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // If dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.rank as i64;
+        start_dim += input_rank as i64;
     }
     if end_dim < 0 {
-        end_dim += tensor.rank as i64;
+        end_dim += input_rank as i64;
     }
 
     (start_dim as usize, end_dim as usize)
@@ -107,10 +108,36 @@ pub fn same_as_input(node: &mut Node) {
 pub fn same_as_input_broadcast(node: &mut Node) {
     log::debug!("Broadcasting operation for node {}", node.name);
 
+    // Check if any input is a Shape type
+    let has_shape_input = node
+        .inputs
+        .iter()
+        .any(|input| matches!(&input.ty, ArgType::Shape(_)));
+
+    if has_shape_input {
+        // If any input is a Shape, find the first Shape input and use its rank for the output
+        let shape_rank = node
+            .inputs
+            .iter()
+            .find_map(|input| match &input.ty {
+                ArgType::Shape(rank) => Some(*rank),
+                _ => None,
+            })
+            .expect("Shape input must exist");
+
+        log::debug!(
+            "Shape input detected for node {}, output will be Shape with rank {}",
+            node.name,
+            shape_rank
+        );
+        node.outputs[0].ty = ArgType::Shape(shape_rank);
+        return;
+    }
+
     let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
         ArgType::Tensor(tensor) => acc.max(tensor.rank),
         ArgType::Scalar(_) => acc,
-        _ => panic!("Unsupported input type for broadcasting operation"),
+        ArgType::Shape(_) => unreachable!("Shape case handled above"),
     });
 
     log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
@@ -272,6 +299,69 @@ mod tests {
                 assert_eq!(tensor.rank, 5);
             }
             _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_same_as_input_broadcast_with_shape() {
+        let mut node = create_test_node(NodeType::Add, vec![3]);
+        // Add a Shape input
+        node.inputs.push(Argument {
+            name: "shape_input".to_string(),
+            ty: ArgType::Shape(3),
+            value: None,
+            passed: true,
+        });
+
+        same_as_input_broadcast(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 3);
+            }
+            _ => panic!("Expected shape output when one input is Shape"),
+        }
+    }
+
+    #[test]
+    fn test_same_as_input_broadcast_shape_and_scalar() {
+        let mut node = Node {
+            node_type: NodeType::Mul,
+            name: "test_mul".to_string(),
+            inputs: vec![
+                Argument {
+                    name: "shape_input".to_string(),
+                    ty: ArgType::Shape(4),
+                    value: None,
+                    passed: true,
+                },
+                Argument {
+                    name: "scalar_input".to_string(),
+                    ty: ArgType::Scalar(ElementType::Int64),
+                    value: None,
+                    passed: true,
+                },
+            ],
+            outputs: vec![Argument {
+                name: "output".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 0,
+                    static_shape: None,
+                }),
+                value: None,
+                passed: true,
+            }],
+            attrs: HashMap::new(),
+        };
+
+        same_as_input_broadcast(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 4);
+            }
+            _ => panic!("Expected shape output when one input is Shape"),
         }
     }
 }
