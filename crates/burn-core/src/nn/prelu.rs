@@ -37,7 +37,7 @@ impl<B: Backend> ModuleDisplay for PRelu<B> {
 }
 
 /// Configuration to create a [Parametric Relu](PRelu) layer using the [init function](PReluConfig::init).
-#[derive(Config, Debug, PartialEq)]
+#[derive(Config, Debug)]
 pub struct PReluConfig {
     /// The number of parameters.
     #[config(default = "1")]
