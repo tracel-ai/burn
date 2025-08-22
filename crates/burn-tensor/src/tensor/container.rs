@@ -2,6 +2,8 @@ use alloc::boxed::Box;
 use core::any::Any;
 
 #[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
 
 #[cfg(feature = "std")]
@@ -81,5 +83,10 @@ where
     /// If any tensor is contained.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Get id of every tensor in the container
+    pub fn ids(&self) -> Vec<&ID> {
+        self.tensors.keys().collect()
     }
 }
