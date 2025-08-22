@@ -218,11 +218,7 @@ impl GraphMemoryManagement {
                     new_leaves.insert(node_id);
                 }
                 _ => {
-                    // Node may still be referenced by another thread (single autodiff server, multi-device setup)
-                    // Do not mark as deletable just yet, unused roots will be cleaned up once no strong references remain
-                    if !self.try_is_referenced(node_id).unwrap_or(false) {
-                        to_delete.push(node_id);
-                    }
+                    to_delete.push(node_id);
 
                     for parent in self
                         .nodes

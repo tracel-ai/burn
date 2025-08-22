@@ -6,6 +6,7 @@ use crate::{
         builder::CheckpointerBuilder,
     },
     collections::HashMap,
+    context::ContextId,
     grads::Gradients,
     graph::{StepBoxed, traversal::BreadthFirstSearch},
     tensor::NodeRefCount,
@@ -13,13 +14,13 @@ use crate::{
 use alloc::vec::Vec;
 
 #[derive(Default)]
-pub struct AutodiffServer {
+pub struct AutodiffContext {
     steps: HashMap<NodeID, StepBoxed>,
     actions_builder: HashMap<NodeID, CheckpointerBuilder>,
     memory_management: GraphMemoryManagement,
 }
 
-impl AutodiffServer {
+impl AutodiffContext {
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let parents = step.parents();
         let node_id = *rc.as_ref();
@@ -104,5 +105,29 @@ impl AutodiffServer {
         assert!(checkpointer.is_empty());
 
         grads
+    }
+}
+
+#[derive(Default)]
+pub struct AutodiffServer {
+    contexts: HashMap<ContextId, AutodiffContext>,
+}
+
+impl AutodiffServer {
+    pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
+        let context = self.get_mut_context(ContextId::default());
+        context.register(rc, step, actions);
+    }
+
+    pub fn backward(&mut self, grads: Gradients, node_id: NodeID) -> Gradients {
+        let context = self.get_mut_context(ContextId::default());
+        context.backward(grads, node_id)
+    }
+
+    fn get_mut_context(&mut self, context_id: ContextId) -> &mut AutodiffContext {
+        self.contexts.entry(context_id).or_insert_with(|| {
+            println!("New autodiff context {context_id:?}");
+            AutodiffContext::default()
+        })
     }
 }
