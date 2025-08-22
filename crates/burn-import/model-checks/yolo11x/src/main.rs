@@ -20,7 +20,6 @@ pub type MyBackend = burn::backend::LibTorch<f32>;
 pub type MyBackend = burn::backend::Metal;
 
 // Import the generated model code as a module
-#[allow(clippy::type_complexity)]
 pub mod yolo11x {
     include!(concat!(env!("OUT_DIR"), "/model/yolo11x_opset16.rs"));
 }
@@ -115,8 +114,8 @@ fn main() {
         let reference_flat = reference_output.clone().flatten::<1>(0, 2);
 
         for i in 0..5.min(output_flat.dims()[0]) {
-            let model_val: f32 = output_flat.clone().slice([i..i + 1]).into_scalar();
-            let ref_val: f32 = reference_flat.clone().slice([i..i + 1]).into_scalar();
+            let model_val: f32 = output_flat.clone().slice(s![i..i + 1]).into_scalar();
+            let ref_val: f32 = reference_flat.clone().slice(s![i..i + 1]).into_scalar();
             println!(
                 "    [{}] Model: {:.6}, Reference: {:.6}, Diff: {:.6}",
                 i,
