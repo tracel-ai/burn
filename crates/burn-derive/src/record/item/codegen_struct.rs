@@ -60,7 +60,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         quote! {
 
             /// The record item type for the module.
-            #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
+            #[derive(burn::serde::Serialize, burn::serde::Deserialize, Clone)]
             #[serde(crate = "burn::serde")]
             #[serde(bound = #bound)]
             #vis struct #item_name #generics #generics_where {
