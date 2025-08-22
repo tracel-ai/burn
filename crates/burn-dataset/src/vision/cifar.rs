@@ -36,7 +36,7 @@
 //! let test_dataset = dataset.test();
 //! ```
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
 use burn_common::network::downloader;
 use flate2::read::GzDecoder;
@@ -108,7 +108,15 @@ impl CifarDataset {
     }
 }
 
+/// CIFAR dataset download lock.
+///
+/// This lock ensures that only one thread downloads the CIFAR dataset at a time.
+static DOWNLOAD_LOCK: Mutex<()> = Mutex::new(());
+
 fn download(cifar_type: &CifarType) -> PathBuf {
+    // Acquire the lock. This will block if another thread already holds the lock.
+    let _lock = DOWNLOAD_LOCK.lock().unwrap();
+
     // Dataset files are stored in the burn-dataset cache directory
     let cache_dir = dirs::home_dir()
         .expect("Could not get home directory")
