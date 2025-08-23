@@ -1,4 +1,4 @@
-use crate::metric::processor::{Event, EventProcessorTraining, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
 use burn_core::{lr_scheduler::LrScheduler, optim::GradientsAccumulator, tensor::backend::Backend};
@@ -87,7 +87,7 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
                     Some(lr),
                 );
 
-                processor.process_train(Event::ProcessedItem(item));
+                processor.process_train(LearnerEvent::ProcessedItem(item));
 
                 if interrupter.should_stop() {
                     log::info!("Training interrupted.");
@@ -101,7 +101,7 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
             }
         }
 
-        processor.process_train(Event::EndEpoch(self.epoch));
+        processor.process_train(LearnerEvent::EndEpoch(self.epoch));
 
         self.epoch += 1;
 

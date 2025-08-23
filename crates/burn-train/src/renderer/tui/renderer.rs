@@ -1,6 +1,7 @@
 use crate::TrainingInterrupter;
 use crate::renderer::{
-    EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation, TrainingProgress,
+    EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+    TrainingProgress,
 };
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use ratatui::{
@@ -49,7 +50,7 @@ pub struct TuiMetricsRenderer {
 }
 
 impl MetricsRendererEvaluation for TuiMetricsRenderer {
-    fn update_test(&mut self, state: MetricState) {
+    fn update_test(&mut self, name: EvaluationName, state: MetricState) {
         match state {
             MetricState::Generic(entry) => {
                 self.metrics_text.update_test(entry);
@@ -62,7 +63,6 @@ impl MetricsRendererEvaluation for TuiMetricsRenderer {
     }
 
     fn render_test(&mut self, item: EvaluationProgress) {
-        log::info!("Render test");
         self.progress.update_test(&item);
         self.metrics_numeric.update_progress_test(&item);
         self.status.update_test(item);

@@ -1,7 +1,7 @@
-use super::{Event, EventProcessorTraining, ItemLazy, MetricsTraining};
-use crate::metric::processor::{EventProcessorEvaluation, MetricsEvaluation};
+use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
+use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::EventStoreClient;
-use crate::renderer::{MetricState, MetricsRenderer, MetricsRendererEvaluation};
+use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -18,7 +18,7 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
 pub struct FullEventProcessorEvaluation<T: ItemLazy> {
     metrics: MetricsEvaluation<T>,
-    renderer: Box<dyn MetricsRendererEvaluation>,
+    renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
 }
 
@@ -39,7 +39,7 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
 impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
     pub(crate) fn new(
         metrics: MetricsEvaluation<T>,
-        renderer: Box<dyn MetricsRendererEvaluation>,
+        renderer: Box<dyn MetricsRenderer>,
         store: Arc<EventStoreClient>,
     ) -> Self {
         Self {
@@ -53,9 +53,9 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
 impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
     type ItemTest = T;
 
-    fn process_test(&mut self, event: Event<Self::ItemTest>) {
+    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
         match event {
-            Event::ProcessedItem(item) => {
+            EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -65,28 +65,29 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 self.store
                     .add_event_test(crate::metric::store::Event::MetricsUpdate(update.clone()));
 
-                update
-                    .entries
-                    .into_iter()
-                    .for_each(|entry| self.renderer.update_test(MetricState::Generic(entry)));
+                update.entries.into_iter().for_each(|entry| {
+                    self.renderer
+                        .update_test(name.clone(), MetricState::Generic(entry))
+                });
 
                 update
                     .entries_numeric
                     .into_iter()
                     .for_each(|(entry, value)| {
                         self.renderer
-                            .update_test(MetricState::Numeric(entry, value))
+                            .update_test(name.clone(), MetricState::Numeric(entry, value))
                     });
 
                 self.renderer.render_test(progress);
             }
-            Event::EndEpoch(_) => {
-                log::warn!("Changing epoch doesn't make sense during evaluation")
-            }
-            Event::End => {
+            EvaluatorEvent::End => {
                 self.renderer.on_test_end().ok();
             }
         }
+    }
+
+    fn renderer(self) -> Option<Box<dyn MetricsRenderer>> {
+        Some(self.renderer)
     }
 }
 
@@ -94,9 +95,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn process_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
         match event {
-            Event::ProcessedItem(item) => {
+            LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -121,20 +122,20 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
 
                 self.renderer.render_train(progress);
             }
-            Event::EndEpoch(epoch) => {
+            LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
-            Event::End => {
+            LearnerEvent::End => {
                 self.renderer.on_train_end().ok();
             }
         }
     }
 
-    fn process_valid(&mut self, event: Event<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
         match event {
-            Event::ProcessedItem(item) => {
+            LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -159,12 +160,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
 
                 self.renderer.render_valid(progress);
             }
-            Event::EndEpoch(epoch) => {
+            LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
-            Event::End => {} // no-op for now
+            LearnerEvent::End => {} // no-op for now
         }
     }
     fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {

@@ -1,4 +1,4 @@
-use super::{Event, EventProcessorTraining, ItemLazy, MetricsTraining};
+use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::metric::store::EventStoreClient;
 use std::sync::Arc;
 
@@ -15,9 +15,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn process_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
         match event {
-            Event::ProcessedItem(item) => {
+            LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
 
@@ -26,18 +26,18 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
             }
-            Event::EndEpoch(epoch) => {
+            LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
             }
-            Event::End => {} // no-op for now
+            LearnerEvent::End => {} // no-op for now
         }
     }
 
-    fn process_valid(&mut self, event: Event<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
         match event {
-            Event::ProcessedItem(item) => {
+            LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
 
@@ -46,12 +46,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
             }
-            Event::EndEpoch(epoch) => {
+            LearnerEvent::EndEpoch(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
             }
-            Event::End => {} // no-op for now
+            LearnerEvent::End => {} // no-op for now
         }
     }
     fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {

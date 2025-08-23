@@ -1,14 +1,22 @@
 use burn_core::LearningRate;
 use burn_core::data::dataloader::Progress;
 
-use crate::renderer::MetricsRenderer;
+use crate::renderer::{EvaluationName, MetricsRenderer};
 
 /// Event happening during the training/validation process.
-pub enum Event<T> {
+pub enum LearnerEvent<T> {
     /// Signal that an item have been processed.
     ProcessedItem(LearnerItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
+    /// Signal the end of the process (e.g., training end).
+    End,
+}
+
+/// Event happening during the training/validation process.
+pub enum EvaluatorEvent<T> {
+    /// Signal that an item have been processed.
+    ProcessedItem(EvaluationName, LearnerItem<T>),
     /// Signal the end of the process (e.g., training end).
     End,
 }
@@ -32,9 +40,9 @@ pub trait EventProcessorTraining: Send {
     type ItemValid: ItemLazy;
 
     /// Collect a training event.
-    fn process_train(&mut self, event: Event<Self::ItemTrain>);
+    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>);
     /// Collect a validation event.
-    fn process_valid(&mut self, event: Event<Self::ItemValid>);
+    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>);
     /// Returns the renderer used for training.
     fn renderer(self) -> Option<Box<dyn MetricsRenderer>>;
 }
@@ -45,7 +53,10 @@ pub trait EventProcessorEvaluation: Send {
     type ItemTest: ItemLazy;
 
     /// Collect a training event.
-    fn process_test(&mut self, event: Event<Self::ItemTest>);
+    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>);
+
+    /// Returns the renderer used for evaluation.
+    fn renderer(self) -> Option<Box<dyn MetricsRenderer>>;
 }
 
 /// A learner item.

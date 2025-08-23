@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::metric::MetricEntry;
 use burn_core::data::dataloader::Progress;
 
@@ -44,6 +46,19 @@ pub trait MetricsRendererTraining: Send + Sync {
 
 pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {}
 
+#[derive(Clone)]
+pub struct EvaluationName {
+    pub(crate) name: Arc<String>,
+}
+
+impl EvaluationName {
+    pub fn new<S: core::fmt::Display>(s: S) -> Self {
+        Self {
+            name: Arc::new(format!("{s}")),
+        }
+    }
+}
+
 /// Trait for rendering metrics.
 pub trait MetricsRendererEvaluation: Send + Sync {
     /// Updates the training metric state.
@@ -51,7 +66,7 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     /// # Arguments
     ///
     /// * `state` - The metric state.
-    fn update_test(&mut self, state: MetricState);
+    fn update_test(&mut self, name: EvaluationName, state: MetricState);
     /// Renders the training progress.
     ///
     /// # Arguments

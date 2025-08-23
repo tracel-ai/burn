@@ -1,6 +1,6 @@
-use crate::metric::processor::EventProcessorEvaluation;
+use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation};
 
-use super::{Event, EventProcessorTraining};
+use super::{EventProcessorTraining, LearnerEvent};
 use async_channel::{Receiver, Sender};
 
 pub struct AsyncProcessorTraining<P: EventProcessorTraining> {
@@ -8,7 +8,7 @@ pub struct AsyncProcessorTraining<P: EventProcessorTraining> {
 }
 
 pub struct AsyncProcessorEvaluation<P: EventProcessorEvaluation> {
-    sender: Sender<Event<P::ItemTest>>,
+    sender: Sender<EvalMessage<P>>,
 }
 
 struct WorkerTraining<P: EventProcessorTraining> {
@@ -18,7 +18,7 @@ struct WorkerTraining<P: EventProcessorTraining> {
 
 struct WorkerEvaluation<P: EventProcessorEvaluation> {
     processor: P,
-    rec: Receiver<Event<P::ItemTest>>,
+    rec: Receiver<EvalMessage<P>>,
 }
 
 impl<P: EventProcessorTraining + 'static> WorkerTraining<P> {
@@ -40,12 +40,18 @@ impl<P: EventProcessorTraining + 'static> WorkerTraining<P> {
     }
 }
 impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
-    pub fn start(processor: P, rec: Receiver<Event<P::ItemTest>>) {
+    pub fn start(processor: P, rec: Receiver<EvalMessage<P>>) {
         let mut worker = Self { processor, rec };
 
         std::thread::spawn(move || {
             while let Ok(event) = worker.rec.recv_blocking() {
-                worker.processor.process_test(event)
+                match event {
+                    EvalMessage::Test(event) => worker.processor.process_test(event),
+                    EvalMessage::Renderer(sender) => {
+                        sender.send_blocking(worker.processor.renderer());
+                        return;
+                    }
+                }
             }
         });
     }
@@ -72,8 +78,13 @@ impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
 }
 
 enum Message<P: EventProcessorTraining> {
-    Train(Event<P::ItemTrain>),
-    Valid(Event<P::ItemValid>),
+    Train(LearnerEvent<P::ItemTrain>),
+    Valid(LearnerEvent<P::ItemValid>),
+    Renderer(Sender<Option<Box<dyn crate::renderer::MetricsRenderer>>>),
+}
+
+enum EvalMessage<P: EventProcessorEvaluation> {
+    Test(EvaluatorEvent<P::ItemTest>),
     Renderer(Sender<Option<Box<dyn crate::renderer::MetricsRenderer>>>),
 }
 
@@ -81,11 +92,11 @@ impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTrainin
     type ItemTrain = P::ItemTrain;
     type ItemValid = P::ItemValid;
 
-    fn process_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
         self.sender.send_blocking(Message::Train(event)).unwrap();
     }
 
-    fn process_valid(&mut self, event: Event<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
         self.sender.send_blocking(Message::Valid(event)).unwrap();
     }
 
@@ -105,7 +116,19 @@ impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTrainin
 impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEvaluation<P> {
     type ItemTest = P::ItemTest;
 
-    fn process_test(&mut self, event: Event<Self::ItemTest>) {
-        self.sender.send_blocking(event).unwrap();
+    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
+        self.sender.send_blocking(EvalMessage::Test(event)).unwrap();
+    }
+
+    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+        let (sender, rec) = async_channel::bounded(1);
+        self.sender
+            .send_blocking(EvalMessage::Renderer(sender))
+            .unwrap();
+
+        match rec.recv_blocking() {
+            Ok(value) => value,
+            Err(_) => None,
+        }
     }
 }

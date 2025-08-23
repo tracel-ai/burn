@@ -2,9 +2,10 @@ use crate::{
     TrainingInterrupter,
     evaluator::components::{EvaluatorComponentTypes, TestStep},
     metric::{
-        processor::{Event, EventProcessorEvaluation, LearnerItem},
+        processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerEvent, LearnerItem},
         store::EventStoreClient,
     },
+    renderer::{EvaluationName, MetricsRenderer},
 };
 use burn_core::data::dataloader::DataLoader;
 use std::sync::Arc;
@@ -24,7 +25,12 @@ pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestBackend<EC>, TestInput<E
 
 impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
     /// TODO: Docs
-    pub fn eval(mut self, dataloader: TestLoader<EC>) {
+    pub fn eval<S: core::fmt::Display>(
+        mut self,
+        name: S,
+        dataloader: TestLoader<EC>,
+    ) -> Option<Box<dyn MetricsRenderer>> {
+        let name = EvaluationName::new(name);
         let mut iterator = dataloader.iter();
         let mut iteration = 0;
 
@@ -36,12 +42,14 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             let item = LearnerItem::new(item, progress, 0, 1, iteration, None);
 
             self.event_processor
-                .process_test(Event::ProcessedItem(item));
+                .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item));
 
             if self.interrupter.should_stop() {
                 log::info!("Testing interrupted.");
                 break;
             }
         }
+
+        self.event_processor.renderer()
     }
 }

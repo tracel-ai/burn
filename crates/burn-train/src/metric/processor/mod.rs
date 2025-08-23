@@ -17,7 +17,7 @@ pub use async_wrapper::{AsyncProcessorEvaluation, AsyncProcessorTraining};
 pub(crate) mod test_utils {
     use crate::metric::{
         Adaptor, LossInput,
-        processor::{Event, EventProcessorTraining, LearnerItem, MinimalEventProcessor},
+        processor::{EventProcessorTraining, LearnerEvent, LearnerItem, MinimalEventProcessor},
     };
     use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
 
@@ -50,7 +50,7 @@ pub(crate) mod test_utils {
         let num_epochs = 3;
         let dummy_iteration = 1;
 
-        processor.process_train(Event::ProcessedItem(LearnerItem::new(
+        processor.process_train(LearnerEvent::ProcessedItem(LearnerItem::new(
             value,
             dummy_progress,
             epoch,
@@ -61,7 +61,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.process_train(Event::EndEpoch(epoch));
-        processor.process_valid(Event::EndEpoch(epoch));
+        processor.process_train(LearnerEvent::EndEpoch(epoch));
+        processor.process_valid(LearnerEvent::EndEpoch(epoch));
     }
 }

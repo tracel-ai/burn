@@ -107,8 +107,8 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-pub struct LearnedModel<LC: LearnerComponentTypes> {
-    pub model: LC::InnerModel,
+pub struct LearnedModel<M> {
+    pub model: M,
     pub renderer: Option<Box<dyn MetricsRenderer>>,
 }
 
@@ -127,7 +127,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
         self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LearnedModel<LC> {
+    ) -> LearnedModel<LC::InnerModel> {
         log::info!("Fitting the model:\n {}", self.model);
 
         match &self.learning_strategy {

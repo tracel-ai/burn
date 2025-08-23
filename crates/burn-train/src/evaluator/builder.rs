@@ -8,9 +8,7 @@ use crate::{
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
         store::{EventStoreClient, LogEventStore},
     },
-    renderer::{
-        MetricsRenderer, cli::CliMetricsRenderer, default_renderer, tui::TuiMetricsRenderer,
-    },
+    renderer::{MetricsRenderer, default_renderer},
 };
 use burn_core::{module::Module, prelude::Backend};
 use std::{

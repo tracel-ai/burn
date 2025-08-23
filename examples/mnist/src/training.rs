@@ -12,6 +12,7 @@ use burn::{
             AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
             store::{Aggregate, Direction, Split},
         },
+        renderer::MetricsRenderer,
     },
 };
 
@@ -55,7 +56,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .shuffle(config.seed)
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
-    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::new(false))
+    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::new(true))
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
@@ -79,7 +80,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 2 },
+            StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .num_epochs(config.num_epochs)
         // .summary()
@@ -101,17 +102,28 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    let batcher = MnistBatcher::new(false);
-    let dataloader_test = DataLoaderBuilder::new(batcher)
-        .batch_size(config.batch_size)
-        .num_workers(config.num_workers)
-        .build(MnistDataset::test());
+    let evaluate = |augmentation: bool,
+                    model: Model<B::InnerBackend>,
+                    renderer: Option<Box<dyn MetricsRenderer>>| {
+        let batcher = MnistBatcher::new(augmentation);
+        let name = match augmentation {
+            true => "MNIST-Augmented",
+            false => "MNIST-Plain",
+        };
+        let dataloader_test = DataLoaderBuilder::new(batcher)
+            .batch_size(config.batch_size)
+            .num_workers(config.num_workers)
+            .build(MnistDataset::test());
 
-    let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
-        .renderer(result.renderer)
-        .metric_numeric(AccuracyMetric::new())
-        .metric_numeric(LossMetric::new())
-        .build(result.model);
+        let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
+            .renderer(renderer)
+            .metric_numeric(AccuracyMetric::new())
+            .metric_numeric(LossMetric::new())
+            .build(model);
 
-    evaluator.eval(dataloader_test);
+        evaluator.eval(name, dataloader_test)
+    };
+
+    let rendered = evaluate(false, result.model.clone(), result.renderer);
+    evaluate(true, result.model, rendered);
 }

@@ -4,7 +4,7 @@ use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::Gradie
 use std::sync::Arc;
 
 use crate::components::OutputTrain;
-use crate::metric::processor::{Event, EventProcessorTraining, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{TrainStep, ValidLoader, ValidStep};
 use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
 
@@ -58,14 +58,14 @@ impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
                 None,
             );
 
-            processor.process_valid(Event::ProcessedItem(item));
+            processor.process_valid(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        processor.process_valid(Event::EndEpoch(self.epoch));
+        processor.process_valid(LearnerEvent::EndEpoch(self.epoch));
     }
 }
 
@@ -132,14 +132,14 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
                 Some(lr),
             );
 
-            processor.process_train(Event::ProcessedItem(item));
+            processor.process_train(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        processor.process_train(Event::EndEpoch(self.epoch));
+        processor.process_train(LearnerEvent::EndEpoch(self.epoch));
 
         self.epoch += 1;
 

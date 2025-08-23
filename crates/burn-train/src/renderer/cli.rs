@@ -29,12 +29,12 @@ impl MetricsRendererTraining for CliMetricsRenderer {
 }
 
 impl MetricsRendererEvaluation for CliMetricsRenderer {
-    fn update_test(&mut self, _state: MetricState) {
-        //
-    }
-
     fn render_test(&mut self, item: EvaluationProgress) {
         println!("{item:?}");
+    }
+
+    fn update_test(&mut self, _name: super::EvaluationName, _state: MetricState) {
+        //
     }
 }
 

@@ -9,7 +9,7 @@ use crate::{
     TrainingInterrupter, ValidLoader,
     components::LearnerComponentTypes,
     metric::{
-        processor::{Event, EventProcessorTraining},
+        processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
 };
@@ -68,7 +68,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         mut learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LearnedModel<LC> {
+    ) -> LearnedModel<LC::InnerModel> {
         let mut model = learner.model;
         let mut optim = learner.optim;
         let mut lr_scheduler = learner.lr_scheduler;
@@ -109,7 +109,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             self.learn(model, dataloaders, starting_epoch, components);
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor.process_train(Event::End);
+        event_processor.process_train(LearnerEvent::End);
 
         let summary = learner.summary;
         if let Some(summary) = summary {
@@ -124,7 +124,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        LearnedModel { model, renderer }
+        LearnedModel::<LC::InnerModel> { model, renderer }
     }
 
     /// Prepare the dataloaders for this strategy.
