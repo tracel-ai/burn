@@ -60,8 +60,16 @@ impl SliceNode {
                             let axis_idx = axis as usize;
                             if axis_idx < rank {
                                 let start = start.to_tokens();
-                                let end = end.to_tokens();
-                                ranges[axis_idx] = quote! { #start..#end };
+                                // Check for i64::MAX which means "to the end"
+                                // Slice indices are i32
+                                if *end == i64::MAX {
+                                    ranges[axis_idx] = quote! { #start.. };
+                                } else if *end > i32::MAX as i64 {
+                                    panic!("Slice end index {} exceeds i32::MAX", end);
+                                } else {
+                                    let end = end.to_tokens();
+                                    ranges[axis_idx] = quote! { #start..#end };
+                                }
                             }
                         }
                     }
@@ -70,8 +78,16 @@ impl SliceNode {
                     let limit = starts.len().min(ends.len()).min(rank);
                     for (i, range) in ranges.iter_mut().enumerate().take(limit) {
                         let start = starts[i].to_tokens();
-                        let end = ends[i].to_tokens();
-                        *range = quote! { #start..#end };
+                        // Check for i64::MAX which means "to the end"
+                        // Slice indices are i32
+                        if ends[i] == i64::MAX {
+                            *range = quote! { #start.. };
+                        } else if ends[i] > i32::MAX as i64 {
+                            panic!("Slice end index {} exceeds i32::MAX", ends[i]);
+                        } else {
+                            let end = ends[i].to_tokens();
+                            *range = quote! { #start..#end };
+                        }
                     }
                 }
             }
@@ -185,9 +201,9 @@ impl SliceNode {
                 return quote! {
                     let #input_dims_var = #input.dims();
                     let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #start_vec_var: Vec<i64> = #start_data_var.iter::<i64>().collect();
                     let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #end_vec_var: Vec<i64> = #end_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
             }
@@ -219,7 +235,7 @@ impl SliceNode {
                 return quote! {
                     let #input_dims_var = #input.dims();
                     let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #end_vec_var: Vec<i64> = #end_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
             }
@@ -251,7 +267,7 @@ impl SliceNode {
                 return quote! {
                     let #input_dims_var = #input.dims();
                     let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #start_vec_var: Vec<i64> = #start_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
             }
@@ -284,7 +300,7 @@ impl SliceNode {
                 return quote! {
                     let #input_dims_var = #input.dims();
                     let #end_data_var = #end_name.to_data();
-                    let #end_vec_var: alloc::vec::Vec<i64> = #end_data_var.iter::<i64>().collect();
+                    let #end_vec_var: Vec<i64> = #end_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
             }
@@ -315,7 +331,7 @@ impl SliceNode {
 
                 return quote! {
                     let #start_data_var = #start_name.to_data();
-                    let #start_vec_var: alloc::vec::Vec<i64> = #start_data_var.iter::<i64>().collect();
+                    let #start_vec_var: Vec<i64> = #start_data_var.iter::<i64>().collect();
                     let #output = #input.slice(s![#(#range_exprs),*]);
                 };
             }
@@ -769,9 +785,9 @@ mod tests {
                 pub fn forward(&self, tensor1: Tensor<B, 3>, starts: Tensor<B, 1, Int>, ends: Tensor<B, 1, Int>) -> Tensor<B, 3> {
                     let input_dims = tensor1.dims();
                     let start_data = starts.to_data();
-                    let start_vec: alloc::vec::Vec<i64> = start_data.iter::<i64>().collect();
+                    let start_vec: Vec<i64> = start_data.iter::<i64>().collect();
                     let end_data = ends.to_data();
-                    let end_vec: alloc::vec::Vec<i64> = end_data.iter::<i64>().collect();
+                    let end_vec: Vec<i64> = end_data.iter::<i64>().collect();
                     let tensor2 = tensor1.slice(s![
                         start_vec.get(0).map(|&s| s as usize).unwrap_or(0)..end_vec.get(0).map(|&e| e as usize).unwrap_or(input_dims[0]),
                         start_vec.get(1).map(|&s| s as usize).unwrap_or(0)..end_vec.get(1).map(|&e| e as usize).unwrap_or(input_dims[1]),
@@ -820,7 +836,7 @@ mod tests {
                 pub fn forward(&self, tensor1: Tensor<B, 2>, ends: Tensor<B, 1, Int>) -> Tensor<B, 2> {
                     let input_dims = tensor1.dims();
                     let end_data = ends.to_data();
-                    let end_vec: alloc::vec::Vec<i64> = end_data.iter::<i64>().collect();
+                    let end_vec: Vec<i64> = end_data.iter::<i64>().collect();
                     let tensor2 = tensor1.slice(s![
                         0i64 as usize..end_vec.get(0).map(|&e| e as usize).unwrap_or(input_dims[0]),
                         1i64 as usize..end_vec.get(1).map(|&e| e as usize).unwrap_or(input_dims[1])
