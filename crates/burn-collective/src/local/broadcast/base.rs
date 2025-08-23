@@ -29,20 +29,6 @@ pub struct BroadcastOpCall<B: Backend> {
     result_sender: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
 }
 
-impl<B: Backend> BroadcastOpCall<B> {
-    pub fn new(
-        caller: PeerId,
-        device: B::Device,
-        result_sender: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
-    ) -> Self {
-        Self {
-            caller,
-            device,
-            result_sender,
-        }
-    }
-}
-
 /// Type sent to the collective client upon completion of a broadcast op
 pub(crate) type BroadcastResult<T> = Result<T, CollectiveError>;
 
@@ -55,40 +41,51 @@ impl<B: Backend> BroadcastOp<B> {
         }
     }
 
-    /// Register a call to broadcast in this operation.
-    /// When the last caller registers an broadcast, the operation is executed.
-    pub async fn register_call(
+    /// Register a call to reduce in this operation.
+    /// When the last caller registers a reduce, the operation is executed.
+    pub fn register_call(
         &mut self,
-        call: BroadcastOpCall<B>,
-        tensor: Option<B::FloatTensorPrimitive>,
-        peers: &[PeerId],
+        caller: PeerId,
+        input: Option<B::FloatTensorPrimitive>,
+        result_sender: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
+        device: B::Device,
+        peer_count: usize,
+    ) -> Result<bool, CollectiveError> {
+        if input.is_some() {
+            if self.tensor.is_some() {
+                return Err(CollectiveError::BroadcastMultipleTensors);
+            }
+            self.tensor = input;
+        }
+
+        self.calls.push(BroadcastOpCall {
+            caller,
+            device,
+            result_sender,
+        });
+
+        Ok(self.calls.len() == peer_count)
+    }
+
+    /// Runs the broadcast if the operation is ready. Otherwise, do nothing
+    pub async fn execute(
+        mut self,
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
     ) {
-        if tensor.is_some() {
-            if self.tensor.is_some() {
-                self.send_err_to_all(CollectiveError::BroadcastMultipleTensors);
+        // all registered callers have sent a tensor to aggregate
+        let tensors = self.broadcast(config, global_client).await;
+        match tensors {
+            Ok(mut tensors) => {
+                // Return resulting tensors
+                self.calls.drain(..).for_each(|op| {
+                    let result = tensors.remove(&op.caller).unwrap();
+                    op.result_sender.send(Ok(result)).unwrap();
+                });
             }
-            self.tensor = tensor;
-        }
-
-        self.calls.push(call);
-
-        let tensor_count = self.calls.len();
-        if tensor_count == peers.len() {
-            // Do broadcast
-            match self.broadcast(config, global_client).await {
-                Ok(mut result) => {
-                    // Return resulting tensors to each corresponding peer
-                    self.calls.drain(..).for_each(|op| {
-                        op.result_sender
-                            .send(Ok(result.remove(&op.caller).unwrap()))
-                            .unwrap();
-                    });
-                }
-                Err(err) => {
-                    self.send_err_to_all(err);
-                }
+            Err(err) => {
+                // Send error to all subscribers
+                self.send_err_to_all(err);
             }
         }
     }
@@ -135,7 +132,7 @@ impl<B: Backend> BroadcastOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    fn send_err_to_all(&mut self, err: CollectiveError) {
+    pub fn send_err_to_all(&mut self, err: CollectiveError) {
         self.calls.drain(..).for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
