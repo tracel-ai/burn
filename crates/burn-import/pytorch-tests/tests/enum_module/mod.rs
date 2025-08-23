@@ -5,6 +5,7 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Conv<B: Backend> {
     DwsConv(DwsConv<B>),
     Conv(Conv2d<B>),
