@@ -236,11 +236,15 @@ impl GraphMemoryManagement {
         }
     }
 
+    fn try_is_referenced(&self, node_id: NodeID) -> Option<bool> {
+        self.nodes
+            .get_key_value(&node_id)
+            .map(|(key, _value)| Arc::strong_count(key) > 1)
+    }
+
     fn is_referenced(&self, node_id: NodeID) -> bool {
-        match self.nodes.get_key_value(&node_id) {
-            Some((key, _value)) => Arc::strong_count(key) > 1,
-            None => panic!("Node should be in the nodes map"),
-        }
+        self.try_is_referenced(node_id)
+            .expect("Node should be in the nodes map")
     }
 }
 
