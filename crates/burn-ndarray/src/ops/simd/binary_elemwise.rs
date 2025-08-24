@@ -8,7 +8,7 @@ use macerator::{
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, NdArrayTensor, ops::simd::uninit_array_like};
 
 use super::{MinMax, should_use_simd};
 
@@ -308,7 +308,7 @@ fn binary_scalar_simd_owned<
     input: NdArrayTensor<T>,
     elem: Op::Rhs,
 ) -> NdArrayTensor<Out> {
-    let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
+    let mut out = uninit_array_like(&input.array);
     let input = input.array.as_slice_memory_order().unwrap();
     let out_slice = out.as_slice_memory_order_mut().unwrap();
     binary_scalar_slice::<T, Out, Op>(input, out_slice, elem, PhantomData);

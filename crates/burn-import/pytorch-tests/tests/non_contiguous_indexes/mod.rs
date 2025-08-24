@@ -32,12 +32,12 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
 
@@ -52,9 +52,9 @@ mod tests {
             .load(load_args, &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<TestBackend>::new_with(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [
@@ -82,7 +82,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000],

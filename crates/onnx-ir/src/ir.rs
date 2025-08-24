@@ -61,7 +61,7 @@ impl Argument {
 }
 
 /// The type of an argument.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArgType {
     Scalar(ElementType),
     Shape(Rank),
@@ -96,7 +96,7 @@ pub enum ElementType {
 }
 
 /// Represents the type of a tensor.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TensorType {
     /// The element type of the tensor values (e.g. Float32, Int64, etc.)
     pub elem_type: ElementType,

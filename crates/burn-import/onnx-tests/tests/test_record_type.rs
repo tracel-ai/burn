@@ -24,10 +24,10 @@ macro_rules! test_model {
         #[test]
         fn $mod_name() {
             // Initialize the model with weights (loaded from the exported file)
-            let model: $mod_name::Model<Backend> = $mod_name::Model::default();
+            let model: $mod_name::Model<TestBackend> = $mod_name::Model::default();
 
             // Run the model with pi as input for easier testing
-            let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI, &Default::default());
+            let input = Tensor::<TestBackend, 3>::full([6, 4, 10], consts::PI, &Default::default());
 
             let output = model.forward(input);
 
@@ -46,7 +46,7 @@ macro_rules! test_model {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
     use std::f64::consts;

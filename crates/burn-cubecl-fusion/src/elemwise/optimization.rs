@@ -32,9 +32,17 @@ pub struct ElemwiseOptimizationState {
 impl<R: Runtime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
-        self.trace
-            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
-            .unwrap();
+        match self.trace.run::<R, BT, ElemwiseRunner>(
+            &self.client,
+            &self.device,
+            context,
+            &ElemwiseRunner,
+        ) {
+            Ok(_) => (),
+            Err(err) => {
+                panic!("{err:?} - {:?}", self.trace);
+            }
+        }
     }
 
     /// Number of element wise operations fused.

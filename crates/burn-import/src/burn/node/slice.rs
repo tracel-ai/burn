@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use super::NodeCodegen;
-use crate::burn::{BurnImports, Scope, ToTokens, Type};
+use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -52,11 +52,27 @@ impl SliceNode {
         match (&self.starts, &self.ends) {
             // Both static: simple case
             (SliceParam::Static(starts), SliceParam::Static(ends)) => {
-                let limit = starts.len().min(ends.len()).min(rank);
-                for (i, range) in ranges.iter_mut().enumerate().take(limit) {
-                    let start = starts[i].to_tokens();
-                    let end = ends[i].to_tokens();
-                    *range = quote! { #start..#end };
+                // Check if axes are provided
+                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                    // Apply slicing to specified axes (already normalized by onnx-ir)
+                    for (idx, (start, end)) in starts.iter().zip(ends.iter()).enumerate() {
+                        if let Some(&axis) = axes.get(idx) {
+                            let axis_idx = axis as usize;
+                            if axis_idx < rank {
+                                let start = start.to_tokens();
+                                let end = end.to_tokens();
+                                ranges[axis_idx] = quote! { #start..#end };
+                            }
+                        }
+                    }
+                } else {
+                    // No axes provided - use default behavior (slice first dimensions)
+                    let limit = starts.len().min(ends.len()).min(rank);
+                    for (i, range) in ranges.iter_mut().enumerate().take(limit) {
+                        let start = starts[i].to_tokens();
+                        let end = ends[i].to_tokens();
+                        *range = quote! { #start..#end };
+                    }
                 }
             }
 
@@ -67,35 +83,79 @@ impl SliceNode {
             ) => {
                 let start_name = &start_shape.name;
                 let end_name = &end_shape.name;
-                let num_dims = start_shape.rank.min(end_shape.rank).min(rank);
 
-                for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    *range = quote! { #start_name[#idx]..#end_name[#idx] };
+                // Check if axes are provided
+                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                    // Apply slicing to specified axes (already normalized by onnx-ir)
+                    let num_dims = axes.len().min(start_shape.rank).min(end_shape.rank);
+                    for i in 0..num_dims {
+                        let axis_idx = axes[i] as usize;
+                        if axis_idx < rank {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            ranges[axis_idx] = quote! { #start_name[#idx]..#end_name[#idx] };
+                        }
+                    }
+                } else {
+                    // No axes provided - use default behavior
+                    let num_dims = start_shape.rank.min(end_shape.rank).min(rank);
+                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        *range = quote! { #start_name[#idx]..#end_name[#idx] };
+                    }
                 }
             }
 
             // Static start, runtime shape end
             (SliceParam::Static(starts), SliceParam::Runtime(Type::Shape(end_shape))) => {
                 let end_name = &end_shape.name;
-                let num_dims = starts.len().min(end_shape.rank).min(rank);
 
-                for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
-                    let start = starts[i].to_tokens();
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    *range = quote! { #start..#end_name[#idx] };
+                // Check if axes are provided
+                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                    // Apply slicing to specified axes (already normalized by onnx-ir)
+                    let num_dims = axes.len().min(starts.len()).min(end_shape.rank);
+                    for i in 0..num_dims {
+                        let axis_idx = axes[i] as usize;
+                        if axis_idx < rank {
+                            let start = starts[i].to_tokens();
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            ranges[axis_idx] = quote! { #start..#end_name[#idx] };
+                        }
+                    }
+                } else {
+                    // No axes provided - use default behavior
+                    let num_dims = starts.len().min(end_shape.rank).min(rank);
+                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                        let start = starts[i].to_tokens();
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        *range = quote! { #start..#end_name[#idx] };
+                    }
                 }
             }
 
             // Runtime shape start, static end
             (SliceParam::Runtime(Type::Shape(start_shape)), SliceParam::Static(ends)) => {
                 let start_name = &start_shape.name;
-                let num_dims = start_shape.rank.min(ends.len()).min(rank);
 
-                for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
-                    let idx = proc_macro2::Literal::usize_unsuffixed(i);
-                    let end = ends[i].to_tokens();
-                    *range = quote! { #start_name[#idx]..#end };
+                // Check if axes are provided
+                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                    // Apply slicing to specified axes (already normalized by onnx-ir)
+                    let num_dims = axes.len().min(start_shape.rank).min(ends.len());
+                    for i in 0..num_dims {
+                        let axis_idx = axes[i] as usize;
+                        if axis_idx < rank {
+                            let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                            let end = ends[i].to_tokens();
+                            ranges[axis_idx] = quote! { #start_name[#idx]..#end };
+                        }
+                    }
+                } else {
+                    // No axes provided - use default behavior
+                    let num_dims = start_shape.rank.min(ends.len()).min(rank);
+                    for (i, range) in ranges.iter_mut().enumerate().take(num_dims) {
+                        let idx = proc_macro2::Literal::usize_unsuffixed(i);
+                        let end = ends[i].to_tokens();
+                        *range = quote! { #start_name[#idx]..#end };
+                    }
                 }
             }
 
@@ -260,10 +320,26 @@ impl SliceNode {
                 };
             }
 
-            // Default: scalar slicing for first dimension
+            // Default: scalar slicing
             _ => {
                 let (start_expr, end_expr) = self.get_slice_range_expressions();
-                ranges[0] = quote! { #start_expr..#end_expr };
+
+                // Check if axes are provided for scalar slicing
+                if let Some(SliceParam::Static(ref axes)) = self.axes {
+                    if !axes.is_empty() {
+                        // Axes are already normalized by onnx-ir
+                        let axis_idx = axes[0] as usize;
+                        if axis_idx < rank {
+                            ranges[axis_idx] = quote! { #start_expr..#end_expr };
+                        }
+                    } else {
+                        // Empty axes array - use first dimension
+                        ranges[0] = quote! { #start_expr..#end_expr };
+                    }
+                } else {
+                    // No axes provided - default to first dimension
+                    ranges[0] = quote! { #start_expr..#end_expr };
+                }
             }
         }
 
@@ -415,22 +491,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SliceNode {
         }
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::s");
-
-        // Register Int if we have 1D tensor inputs
-        if matches!(&self.starts, SliceParam::Runtime(Type::Tensor(t)) if t.rank == 1)
-            || matches!(&self.ends, SliceParam::Runtime(Type::Tensor(t)) if t.rank == 1)
-        {
-            imports.register("burn::tensor::Int");
-        }
-
-        // For Shape slicing, we might need RangesArg
-        if matches!(&self.input, Type::Shape(_)) {
-            imports.register("burn::tensor::RangesArg");
-        }
-    }
-
     fn into_node(self) -> super::Node<PS> {
         super::Node::Slice(self)
     }
@@ -453,12 +513,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -510,12 +565,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -554,12 +604,7 @@ mod tests {
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -607,12 +652,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::RangesArg;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -662,12 +702,8 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -713,13 +749,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -770,13 +800,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

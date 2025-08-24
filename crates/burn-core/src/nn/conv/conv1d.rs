@@ -74,19 +74,31 @@ impl<B: Backend> ModuleDisplay for Conv1d<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        // Since padding does not implement ModuleDisplay, we need to format it manually.
+        // Format padding
         let padding_formatted = format!("{}", &self.padding);
 
+        // Format stride/dilation as strings
+        let stride = format!("{:?}", self.stride);
+        let kernel_size = format!("{:?}", self.kernel_size);
+        let dilation = format!("{:?}", self.dilation);
+
+        // Extract channels in/out from weight dims
+        let [channels_out, group_channels_in, _] = self.weight.dims();
+        let channels_in = group_channels_in * self.groups;
+        let ch_out = format!("{:?}", channels_out);
+        let ch_in = format!("{:?}", channels_in);
+
         content
-            .add("stride", &self.stride)
-            .add("kernel_size", &self.kernel_size)
-            .add("dilation", &self.dilation)
+            .add("ch_in", &ch_in)
+            .add("ch_out", &ch_out)
+            .add("stride", &stride)
+            .add("kernel_size", &kernel_size)
+            .add("dilation", &dilation)
             .add("groups", &self.groups)
             .add("padding", &padding_formatted)
             .optional()
     }
 }
-
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
@@ -200,7 +212,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{conv}"),
-            "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
+            "Conv1d {ch_in: 5, ch_out: 5, stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
         );
     }
 

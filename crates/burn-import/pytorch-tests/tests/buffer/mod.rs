@@ -24,7 +24,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::{
         record::{FullPrecisionSettings, Recorder},
@@ -41,13 +41,13 @@ mod tests {
             .load("tests/buffer/buffer.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<TestBackend>::new_with(record);
 
-        let input = Tensor::<Backend, 2>::ones([3, 3], &device);
+        let input = Tensor::<TestBackend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 2>::ones([3, 3], &device) * 2.0;
+        let expected = Tensor::<TestBackend, 2>::ones([3, 3], &device) * 2.0;
 
         output
             .to_data()

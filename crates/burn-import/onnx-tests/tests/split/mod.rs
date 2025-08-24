@@ -6,12 +6,12 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn split() {
         let device = Default::default();
-        let model = split::Model::<Backend>::new(&device);
+        let model = split::Model::<TestBackend>::new(&device);
         let shape = [5, 2];
         let input = Tensor::ones(shape, &device);
 

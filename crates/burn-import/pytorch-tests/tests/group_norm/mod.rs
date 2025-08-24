@@ -24,19 +24,19 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn::tensor::Tolerance;
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    fn group_norm(record: NetRecord<Backend>, precision: f32) {
+    fn group_norm(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
 
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.757_631_6, 0.27931088], [0.40306926, 0.73468447]],
                 [[0.02928156, 0.799_858_6], [0.39713734, 0.75437194]],
@@ -50,7 +50,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[1.042_578_5, -1.122_016_7], [-0.56195974, 0.938_733_6]],
                 [[-2.253_500_7, 1.233_672_9], [-0.588_804_1, 1.027_827_3]],

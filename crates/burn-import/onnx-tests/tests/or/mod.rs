@@ -7,18 +7,18 @@ mod tests {
     use super::*;
     use burn::tensor::{Bool, Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn or() {
         let device = Default::default();
-        let model: or::Model<Backend> = or::Model::new(&device);
+        let model: or::Model<TestBackend> = or::Model::new(&device);
 
-        let input_x = Tensor::<Backend, 4, Bool>::from_bool(
+        let input_x = Tensor::<TestBackend, 4, Bool>::from_bool(
             TensorData::from([[[[false, false, true, true]]]]),
             &device,
         );
-        let input_y = Tensor::<Backend, 4, Bool>::from_bool(
+        let input_y = Tensor::<TestBackend, 4, Bool>::from_bool(
             TensorData::from([[[[false, true, false, true]]]]),
             &device,
         );

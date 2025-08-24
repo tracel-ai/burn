@@ -28,7 +28,7 @@ pub fn gather_update_outputs(node: &mut Node) {
     let indices_rank = match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         ArgType::Scalar(_) => 0,
-        _ => panic!("Only tensor indices is valid, got {:?}", node.inputs[1].ty),
+        ArgType::Shape(_) => 1, // Shape indices become 1D tensors at runtime
     };
     log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
 
@@ -289,6 +289,50 @@ mod tests {
                 assert_eq!(tensor.elem_type, crate::ir::ElementType::Float32);
             }
             other => panic!("Expected tensor output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_shape_indices() {
+        // Test gather with Shape indices - this was the bug that caused the original issue
+        // Gathering from a shape tensor using shape indices should work correctly
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_indices")
+            .attr_int("axis", 0)
+            .input_shape("data", 3) // Shape input (represents shape of a 3D tensor)
+            .add_input("indices", ArgType::Shape(1)) // Shape(1) indices - this was causing the panic
+            .output_shape("output", 1) // Output should be Shape(1)
+            .build();
+
+        // This should not panic - it was panicking before the fix
+        gather_update_outputs(&mut node);
+
+        // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 1);
+            }
+            other => panic!("Expected Shape output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_shape_scalar_indices() {
+        // Test gather with scalar indices on shape input -> scalar output
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_scalar")
+            .attr_int("axis", 0)
+            .input_shape("data", 2) // Shape input (represents shape of a 2D tensor)
+            .add_input("indices", ArgType::Scalar(crate::ir::ElementType::Int64)) // Scalar indices
+            .output_tensor_i64("output", 0, None) // Will be updated by gather_update_outputs
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output scalar when gathering from shape with scalar indices
+        match &node.outputs[0].ty {
+            ArgType::Scalar(elem_type) => {
+                assert_eq!(*elem_type, crate::ir::ElementType::Int64);
+            }
+            other => panic!("Expected scalar output, got {:?}", other),
         }
     }
 }

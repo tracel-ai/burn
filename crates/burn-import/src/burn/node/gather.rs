@@ -248,6 +248,15 @@ impl GatherNode {
                             },
                         }
                     }
+                    GatherIndices::Runtime(Type::Shape(shape_type)) => {
+                        let shape_name = &shape_type.name;
+
+                        // Shape array can be directly used to create tensor data
+                        quote! {
+                            let indices = Tensor::<B, 1, _>::from_data(#shape_name, &*self.device);
+                            let #output = Tensor::select(#input, #dim, indices);
+                        }
+                    }
                     GatherIndices::Static(indices) => {
                         // Static indices for tensor gathering
                         let indices_tokens = indices
@@ -260,7 +269,10 @@ impl GatherNode {
                             let #output = Tensor::select(#input, #dim, indices);
                         }
                     }
-                    _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
+                    _ => panic!(
+                        "Gather needs Scalar, Tensor, or Shape index, got {:?}!",
+                        self.index
+                    ),
                 }
             }
             _ => panic!("Gather needs Tensor output, got {:?}!", self.output),
@@ -296,23 +308,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         Node::Gather(self)
     }
 
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion trait when doing tensor-to-scalar gather
-        if matches!(self.input, crate::burn::Type::Tensor(_))
-            && matches!(self.output, crate::burn::Type::Scalar(_))
-        {
-            imports.register("burn::tensor::ElementConversion");
-        }
-
-        // Register slice macro for tensor slice operations with scalar indices
-        if matches!(self.input, crate::burn::Type::Tensor(_))
-            && matches!(
-                self.index,
-                GatherIndices::Runtime(crate::burn::Type::Scalar(_))
-            )
-        {
-            imports.register("burn::tensor::s");
-        }
+    fn register_imports(&self, _imports: &mut BurnImports) {
+        // s is already available in burn::prelude::*
     }
 }
 
@@ -344,12 +341,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -399,12 +391,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -469,12 +456,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -528,12 +510,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::s;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -580,11 +557,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -630,10 +603,7 @@ mod tests {
         graph.register_input_output(vec!["shape1".to_string()], vec!["shape2".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -678,10 +648,7 @@ mod tests {
         graph.register_input_output(vec!["shape1".to_string()], vec!["dim1".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

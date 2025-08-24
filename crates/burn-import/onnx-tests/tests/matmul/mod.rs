@@ -7,24 +7,24 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn matmul() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: matmul::Model<Backend> = matmul::Model::default();
+        let model: matmul::Model<TestBackend> = matmul::Model::default();
 
         let device = Default::default();
-        let a = Tensor::<Backend, 1, Int>::arange(0..24, &device)
+        let a = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
             .reshape([1, 2, 3, 4])
             .float();
-        let b = Tensor::<Backend, 1, Int>::arange(0..16, &device)
+        let b = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
             .reshape([1, 2, 4, 2])
             .float();
-        let c = Tensor::<Backend, 1, Int>::arange(0..96, &device)
+        let c = Tensor::<TestBackend, 1, Int>::arange(0..96, &device)
             .reshape([2, 3, 4, 4])
             .float();
-        let d = Tensor::<Backend, 1, Int>::arange(0..4, &device).float();
+        let d = Tensor::<TestBackend, 1, Int>::arange(0..4, &device).float();
 
         let (output_mm, output_mv, output_vm) = model.forward(a, b, c, d);
         // matrix-matrix `a @ b`

@@ -1,4 +1,9 @@
 #![no_std]
+#![allow(
+    clippy::approx_constant,
+    clippy::excessive_precision,
+    clippy::identity_op
+)]
 
 extern crate alloc;
 
@@ -113,7 +118,7 @@ macro_rules! include_models {
     ($($model:ident),*) => {
         $(
             // Allow type complexity for generated code
-            #[allow(clippy::type_complexity)]
+            #[allow(clippy::type_complexity,unused_variables)]
             pub mod $model {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }

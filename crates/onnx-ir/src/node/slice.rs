@@ -19,45 +19,44 @@ pub enum SliceInput {
     Runtime(Argument),
 }
 
+/// Normalize negative axes to positive indices based on tensor rank.
+fn normalize_axes(axes: &mut [i64], rank: usize, node_name: &str) {
+    for axis in axes.iter_mut() {
+        if *axis < 0 {
+            let normalized = rank as i64 + *axis;
+            log::debug!(
+                "Slice node {}: normalizing negative axis {} to {} (rank={})",
+                node_name,
+                *axis,
+                normalized,
+                rank
+            );
+            *axis = normalized;
+        }
+    }
+}
+
 /// Creates a configuration for tensor slicing based on the ONNX Slice operator.
 /// Returns either static ranges or runtime arguments for slicing.
 ///
 /// Note: we leave the negative indices as is, but we need to handle them properly when slicing
 /// during the actual slicing operation using the runtime shape information.
 pub fn slice_config(node: &Node) -> SliceConfig {
-    /// Extracts int64 values from a node's input at the specified index if it has a static value.
-    /// Returns None if the input doesn't exist or doesn't have a static value.
-    fn get_static_input_values(node: &Node, index: usize) -> Option<Vec<i64>> {
-        node.inputs.get(index)?;
-
-        match &node.inputs[index].value {
-            Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) => Some(shape.clone()),
-            Some(v) => {
-                panic!("Tensor data type for input at index {index} must be int64 but got {v:?}")
-            }
-            None => None, // Input exists but has no static value (runtime)
-        }
-    }
-
     /// Creates a SliceInput from either a static value or runtime argument.
     fn get_slice_input(node: &Node, index: usize) -> Option<SliceInput> {
-        // Check if input exists
-        if let Some(input) = node.inputs.get(index) {
-            if input.value.is_none() {
-                // Runtime input
-                return Some(SliceInput::Runtime(input.clone()));
-            } else {
-                // Static input
-                if let Some(values) = get_static_input_values(node, index) {
-                    return Some(SliceInput::Static(values));
-                }
-            }
-        }
+        let input = node.inputs.get(index)?;
 
-        None
+        match &input.value {
+            None => Some(SliceInput::Runtime(input.clone())),
+            Some(TensorData {
+                data: Data::Int64s(values),
+                ..
+            }) => Some(SliceInput::Static(values.clone())),
+            Some(v) => panic!(
+                "Slice input at index {} must be int64 but got {:?}",
+                index, v
+            ),
+        }
     }
 
     let starts =
@@ -66,7 +65,7 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let ends =
         get_slice_input(node, 2).unwrap_or_else(|| panic!("Slice: ends parameter is required"));
 
-    let axes = get_slice_input(node, 3);
+    let mut axes = get_slice_input(node, 3);
     let steps = get_slice_input(node, 4);
 
     // Validate steps if present
@@ -76,12 +75,70 @@ pub fn slice_config(node: &Node) -> SliceConfig {
         panic!("Slice: steps other than 1 are not supported");
     }
 
+    // Normalize negative axes if we have static axes and know the input rank
+    if let Some(SliceInput::Static(ref mut axes_values)) = axes
+        && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
+    {
+        normalize_axes(axes_values, tensor_type.rank, &node.name);
+    }
+
     SliceConfig {
         starts,
         ends,
         axes,
         steps,
     }
+}
+
+/// Calculate output length for slicing a Shape.
+/// Handles negative indices and special cases.
+fn calculate_shape_slice_output_len(
+    start: i64,
+    end: i64,
+    shape_rank: usize,
+    node_name: &str,
+) -> usize {
+    let shape_len = shape_rank as i64;
+
+    // Normalize negative indices
+    let norm_start = if start < 0 {
+        (shape_len + start).max(0)
+    } else {
+        start.min(shape_len)
+    };
+
+    // Handle special end values
+    let norm_end = if end == i64::MAX || end >= shape_len {
+        shape_len
+    } else if end < 0 {
+        (shape_len + end).max(0)
+    } else {
+        end.min(shape_len)
+    };
+
+    // Calculate output length
+    let output_len = (norm_end - norm_start).max(0) as usize;
+
+    log::debug!(
+        "Shape slice for node {}: [{}, {}] -> [{}, {}] on rank {} = output length {}",
+        node_name,
+        start,
+        end,
+        norm_start,
+        norm_end,
+        shape_rank,
+        output_len
+    );
+
+    // Special case logging for common patterns
+    if start == -1 && (end == i64::MAX || end >= shape_len) {
+        log::debug!(
+            "Slice pattern [-1:] detected for node {} - getting last element",
+            node_name
+        );
+    }
+
+    output_len
 }
 
 /// Update output type for Slice operation.
@@ -102,74 +159,26 @@ pub fn slice_update_output_rank(node: &mut Node) {
             log::debug!("Slice input for {} is Shape", node.name);
             let config = slice_config(node);
 
-            // Check if both starts and ends are static
-            match (&config.starts, &config.ends) {
-                (SliceInput::Static(starts), SliceInput::Static(ends)) => {
-                    if starts.len() != 1 || ends.len() != 1 {
-                        panic!(
-                            "Slice on Shape input requires exactly one dimension slice config for node {}",
-                            node.name
-                        );
-                    }
+            // Only static slicing is supported for Shape inputs
+            let (starts, ends) = match (&config.starts, &config.ends) {
+                (SliceInput::Static(s), SliceInput::Static(e)) => (s, e),
+                _ => panic!(
+                    "Runtime slice on Shape input is not supported for node {}",
+                    node.name
+                ),
+            };
 
-                    let start = starts[0];
-                    let end = ends[0];
-
-                    // Special case: slice[-1:] is common for getting the last dimension
-                    if start == -1 && (end == i64::MAX || end >= *shape_rank as i64) {
-                        // This gets the last element, output is Shape(1)
-                        node.outputs[0].ty = ArgType::Shape(1);
-                        log::debug!(
-                            "Slice on Shape with [-1:] pattern for node {}, output: Shape(1)",
-                            node.name
-                        );
-                    } else if start < 0 || end < 0 {
-                        // Handle negative indices - convert to positive for size calculation
-                        // For shapes, we know the rank at compile time
-                        let shape_len = *shape_rank as i64;
-                        let pos_start = if start < 0 { shape_len + start } else { start };
-                        let pos_end = if end < 0 { shape_len + end } else { end };
-
-                        if pos_start >= 0 && pos_end >= 0 && pos_end > pos_start {
-                            let output_len = (pos_end - pos_start) as usize;
-                            node.outputs[0].ty = ArgType::Shape(output_len);
-                            log::debug!(
-                                "Slice on Shape with negative indices (start={}, end={}) for node {}, output: Shape({})",
-                                start,
-                                end,
-                                node.name,
-                                output_len
-                            );
-                        } else {
-                            // Invalid slice bounds, keep original shape rank as fallback
-                            log::warn!(
-                                "Slice on Shape with negative indices (start={}, end={}) has invalid bounds for node {}. Keeping original rank.",
-                                start,
-                                end,
-                                node.name
-                            );
-                            node.outputs[0].ty = ArgType::Shape(*shape_rank);
-                        }
-                    } else {
-                        // Positive indices
-                        let normalized_end = if end == i64::MAX || end >= *shape_rank as i64 {
-                            *shape_rank
-                        } else {
-                            end as usize
-                        };
-
-                        let output_len = normalized_end.saturating_sub(start as usize);
-                        node.outputs[0].ty = ArgType::Shape(output_len);
-                    }
-                }
-                _ => {
-                    // For runtime slice on Shape, we can't determine the output size at compile time
-                    panic!(
-                        "Runtime slice on Shape input is not supported for node {}",
-                        node.name
-                    );
-                }
+            // Require exactly one dimension for Shape slicing
+            if starts.len() != 1 || ends.len() != 1 {
+                panic!(
+                    "Slice on Shape input requires exactly one dimension slice config for node {}",
+                    node.name
+                );
             }
+
+            let output_len =
+                calculate_shape_slice_output_len(starts[0], ends[0], *shape_rank, &node.name);
+            node.outputs[0].ty = ArgType::Shape(output_len);
         }
         // Handle unsupported input types
         unsupported_type => {
@@ -286,9 +295,9 @@ mod tests {
             (SliceInput::Static(starts), SliceInput::Static(ends)) => {
                 assert_eq!(starts, &vec![1]);
                 assert_eq!(ends, &vec![3]);
-                // Check axes (should still be negative - conversion happens in burn-import)
+                // Check axes (should be normalized from -3 to 0 for rank 3 tensor)
                 if let Some(SliceInput::Static(axes)) = &result.axes {
-                    assert_eq!(axes, &vec![-3]);
+                    assert_eq!(axes, &vec![0]); // -3 + 3 = 0
                 }
             }
             _ => panic!("Expected static config"),

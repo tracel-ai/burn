@@ -5,7 +5,7 @@ use macerator::{Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, NdArrayTensor, ops::simd::uninit_array_like};
 
 use super::should_use_simd;
 
@@ -144,7 +144,7 @@ fn cmp_simd_same<T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
         cmp(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<bool>>(buf) }
     } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
+        let mut out = uninit_array_like(&lhs.array);
         let lhs = lhs.array.as_slice().unwrap();
         let rhs = rhs.array.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
@@ -274,7 +274,7 @@ mod elemwise {
         input: NdArrayTensor<T>,
         elem: T,
     ) -> NdArrayTensor<bool> {
-        let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
+        let mut out = uninit_array_like(&input.array);
         let input = input.array.as_slice_memory_order().unwrap();
         let out_slice = out.as_slice_memory_order_mut().unwrap();
         cmp_scalar_slice::<T, Op>(input, out_slice, elem, PhantomData);

@@ -12,7 +12,8 @@ include_models!(
     slice_shape_negative_range,
     slice_1d_tensor,
     slice_shape_start_tensor_end,
-    slice_tensor_start_shape_end
+    slice_tensor_start_shape_end,
+    slice_axes
 );
 
 #[cfg(test)]
@@ -20,14 +21,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn slice() {
-        let model: slice::Model<Backend> = slice::Model::default();
+        let model: slice::Model<TestBackend> = slice::Model::default();
         let device = Default::default();
 
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<TestBackend, 2>::from_floats(
             [
                 [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.],
                 [11., 12., 13., 14., 15., 16., 17., 18., 19., 20.],
@@ -49,10 +50,10 @@ mod tests {
 
     #[test]
     fn slice_shape() {
-        let model: slice_shape::Model<Backend> = slice_shape::Model::default();
+        let model: slice_shape::Model<TestBackend> = slice_shape::Model::default();
         let device = Default::default();
 
-        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 1], &device);
+        let input = Tensor::<TestBackend, 4>::zeros([1, 2, 3, 1], &device);
 
         // Slice Start == 1, End == 3
         let output = model.forward(input);
@@ -62,10 +63,10 @@ mod tests {
 
     #[test]
     fn slice_scalar() {
-        let model: slice_scalar::Model<Backend> = slice_scalar::Model::default();
+        let model: slice_scalar::Model<TestBackend> = slice_scalar::Model::default();
         let device = Default::default();
 
-        let input = Tensor::<Backend, 2>::ones([5, 3], &device);
+        let input = Tensor::<TestBackend, 2>::ones([5, 3], &device);
         let start = 1;
         let end = 4;
 
@@ -77,11 +78,11 @@ mod tests {
 
     #[test]
     fn slice_mixed() {
-        let model: slice_mixed::Model<Backend> = slice_mixed::Model::default();
+        let model: slice_mixed::Model<TestBackend> = slice_mixed::Model::default();
         let device = Default::default();
 
         // Create test input tensor [5, 3]
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<TestBackend, 2>::from_floats(
             [
                 [1.0, 2.0, 3.0],
                 [4.0, 5.0, 6.0],
@@ -104,11 +105,11 @@ mod tests {
 
     #[test]
     fn slice_shape_gather() {
-        let model: slice_shape_gather::Model<Backend> = slice_shape_gather::Model::default();
+        let model: slice_shape_gather::Model<TestBackend> = slice_shape_gather::Model::default();
         let device = Default::default();
 
         // Create test input tensor [2, 4, 6, 8]
-        let input = Tensor::<Backend, 4>::ones([2, 4, 6, 8], &device);
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 6, 8], &device);
 
         let output = model.forward(input.clone());
 
@@ -129,14 +130,14 @@ mod tests {
 
     #[test]
     fn slice_shape_runtime() {
-        let model: slice_shape_runtime::Model<Backend> = slice_shape_runtime::Model::default();
+        let model: slice_shape_runtime::Model<TestBackend> = slice_shape_runtime::Model::default();
         let device = Default::default();
 
         // Create test input tensor [10, 8, 6]
-        let input = Tensor::<Backend, 3>::ones([10, 8, 6], &device);
+        let input = Tensor::<TestBackend, 3>::ones([10, 8, 6], &device);
 
         // Create shape input tensor [3, 4] - its shape will be used as slice ends
-        let shape_input = Tensor::<Backend, 2>::ones([3, 4], &device);
+        let shape_input = Tensor::<TestBackend, 2>::ones([3, 4], &device);
 
         let output = model.forward(input, shape_input);
 
@@ -149,18 +150,18 @@ mod tests {
 
     #[test]
     fn slice_shape_multi() {
-        let model: slice_shape_multi::Model<Backend> = slice_shape_multi::Model::default();
+        let model: slice_shape_multi::Model<TestBackend> = slice_shape_multi::Model::default();
         let device = Default::default();
 
         // Create test input tensor [8, 6, 10, 12]
-        let input = Tensor::<Backend, 4>::ones([8, 6, 10, 12], &device);
+        let input = Tensor::<TestBackend, 4>::ones([8, 6, 10, 12], &device);
 
         // Create shape tensors whose shapes will be used as slice parameters
         // start_shape_input has shape [1, 2, 3] -> used as start indices
-        let start_shape_input = Tensor::<Backend, 3>::zeros([1, 2, 3], &device);
+        let start_shape_input = Tensor::<TestBackend, 3>::zeros([1, 2, 3], &device);
 
         // end_shape_input has shape [5, 4, 7] -> used as end indices
-        let end_shape_input = Tensor::<Backend, 3>::zeros([5, 4, 7], &device);
+        let end_shape_input = Tensor::<TestBackend, 3>::zeros([5, 4, 7], &device);
 
         let output = model.forward(input, start_shape_input, end_shape_input);
 
@@ -173,11 +174,12 @@ mod tests {
 
     #[test]
     fn slice_shape_negative() {
-        let model: slice_shape_negative::Model<Backend> = slice_shape_negative::Model::default();
+        let model: slice_shape_negative::Model<TestBackend> =
+            slice_shape_negative::Model::default();
         let device = Default::default();
 
         // Create test input tensor [2, 3, 4, 5]
-        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let input = Tensor::<TestBackend, 4>::ones([2, 3, 4, 5], &device);
 
         let output = model.forward(input);
 
@@ -189,12 +191,12 @@ mod tests {
 
     #[test]
     fn slice_shape_negative_range() {
-        let model: slice_shape_negative_range::Model<Backend> =
+        let model: slice_shape_negative_range::Model<TestBackend> =
             slice_shape_negative_range::Model::default();
         let device = Default::default();
 
         // Create test input tensor [2, 3, 4, 5]
-        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let input = Tensor::<TestBackend, 4>::ones([2, 3, 4, 5], &device);
 
         let output: [i64; 2] = model.forward(input);
 
@@ -206,17 +208,17 @@ mod tests {
 
     #[test]
     fn slice_1d_tensor() {
-        let model: slice_1d_tensor::Model<Backend> = slice_1d_tensor::Model::default();
+        let model: slice_1d_tensor::Model<TestBackend> = slice_1d_tensor::Model::default();
         let device = Default::default();
 
         // Create test input tensor [4, 5, 6] using range and reshape
-        let input = Tensor::<Backend, 1, burn::tensor::Int>::arange(1..121, &device)
+        let input = Tensor::<TestBackend, 1, burn::tensor::Int>::arange(1..121, &device)
             .float()
             .reshape([4, 5, 6]);
 
         // Create 1D tensors for starts and ends
-        let starts = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([1i64, 2i64], &device);
-        let ends = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([3i64, 5i64], &device);
+        let starts = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([1i64, 2i64], &device);
+        let ends = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([3i64, 5i64], &device);
 
         let output = model.forward(input, starts, ends);
 
@@ -229,26 +231,26 @@ mod tests {
         // Create expected tensor directly using from_floats
         let expected_data: alloc::vec::Vec<f32> =
             (43..61).chain(73..91).map(|x| x as f32).collect();
-        let expected =
-            Tensor::<Backend, 1>::from_floats(expected_data.as_slice(), &device).reshape([2, 3, 6]);
+        let expected = Tensor::<TestBackend, 1>::from_floats(expected_data.as_slice(), &device)
+            .reshape([2, 3, 6]);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
 
     #[test]
     fn slice_shape_start_tensor_end() {
-        let model: slice_shape_start_tensor_end::Model<Backend> =
+        let model: slice_shape_start_tensor_end::Model<TestBackend> =
             slice_shape_start_tensor_end::Model::default();
         let device = Default::default();
 
         // Create test input tensor [6, 8, 10]
-        let input = Tensor::<Backend, 3>::ones([6, 8, 10], &device);
+        let input = Tensor::<TestBackend, 3>::ones([6, 8, 10], &device);
 
         // Create shape input tensor [2, 3] - its shape will be used as starts
-        let shape_input = Tensor::<Backend, 2>::ones([2, 3], &device);
+        let shape_input = Tensor::<TestBackend, 2>::ones([2, 3], &device);
 
         // Create 1D tensor for ends
-        let ends = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([5i64, 8i64], &device);
+        let ends = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([5i64, 8i64], &device);
 
         let output = model.forward(input, shape_input, ends);
 
@@ -261,18 +263,18 @@ mod tests {
 
     #[test]
     fn slice_tensor_start_shape_end() {
-        let model: slice_tensor_start_shape_end::Model<Backend> =
+        let model: slice_tensor_start_shape_end::Model<TestBackend> =
             slice_tensor_start_shape_end::Model::default();
         let device = Default::default();
 
         // Create test input tensor [10, 12, 8]
-        let input = Tensor::<Backend, 3>::ones([10, 12, 8], &device);
+        let input = Tensor::<TestBackend, 3>::ones([10, 12, 8], &device);
 
         // Create 1D tensor for starts
-        let starts = Tensor::<Backend, 1, burn::tensor::Int>::from_ints([2i64, 3i64], &device);
+        let starts = Tensor::<TestBackend, 1, burn::tensor::Int>::from_ints([2i64, 3i64], &device);
 
         // Create shape input tensor [6, 10] - its shape will be used as ends
-        let shape_input = Tensor::<Backend, 2>::ones([6, 10], &device);
+        let shape_input = Tensor::<TestBackend, 2>::ones([6, 10], &device);
 
         let output = model.forward(input, starts, shape_input);
 
@@ -281,5 +283,57 @@ mod tests {
         // So it slices: [2:6, 3:10, :]
         // Result shape should be [4, 7, 8]
         assert_eq!(output.shape().dims, [4, 7, 8]);
+    }
+
+    #[test]
+    fn slice_axes() {
+        // This test validates that the axes parameter is correctly handled.
+        // Without axes, slice would operate on dimension 0.
+        // With axes=[1], slice operates on dimension 1.
+        let model: slice_axes::Model<TestBackend> = slice_axes::Model::default();
+        let device = Default::default();
+
+        // Create test input with shape [2, 4, 6]
+        let test_input = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [
+                    [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                    [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
+                    [19.0, 20.0, 21.0, 22.0, 23.0, 24.0],
+                ],
+                [
+                    [25.0, 26.0, 27.0, 28.0, 29.0, 30.0],
+                    [31.0, 32.0, 33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0, 41.0, 42.0],
+                    [43.0, 44.0, 45.0, 46.0, 47.0, 48.0],
+                ],
+            ],
+            &device,
+        );
+
+        let output = model.forward(test_input.clone());
+
+        // Expected output shape: [2, 2, 6]
+        // The model slices axis 1 from index 1 to 3
+        // This means taking rows 1 and 2 from each batch
+        assert_eq!(output.shape().dims, [2, 2, 6], "Output shape mismatch");
+
+        // Expected output: input[:, 1:3, :]
+        let expected = Tensor::<TestBackend, 3>::from_floats(
+            [
+                [
+                    [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
+                ],
+                [
+                    [31.0, 32.0, 33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0, 41.0, 42.0],
+                ],
+            ],
+            &device,
+        );
+
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 }

@@ -62,12 +62,8 @@ mod tests {
         graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
             use burn::tensor::Distribution;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -109,13 +105,8 @@ mod tests {
         graph.register_input_output(vec!["input1".to_string()], vec!["output1".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::Int;
+            use burn::prelude::*;
             use burn::tensor::Distribution;
-            use burn::tensor::Tensor;
-            use burn::{
-                module::Module,
-                tensor::backend::Backend,
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

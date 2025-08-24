@@ -6,16 +6,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn topk() {
         // Initialize the model
         let device = Default::default();
-        let model = topk::Model::<Backend>::new(&device);
+        let model = topk::Model::<TestBackend>::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<TestBackend, 2>::from_floats(
             [
                 [0.33669037, 0.12880941, 0.23446237, 0.23033303, -1.12285638],
                 [-0.18632829, 2.20820141, -0.63799703, 0.46165723, 0.26735088],

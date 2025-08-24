@@ -8,14 +8,14 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn batch_norm() {
-        let model: batch_norm::Model<Backend> = batch_norm::Model::default();
+        let model: batch_norm::Model<TestBackend> = batch_norm::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones([1, 20, 1], &Default::default());
+        let input = Tensor::<TestBackend, 3>::ones([1, 20, 1], &Default::default());
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 5, 2, 2]);
