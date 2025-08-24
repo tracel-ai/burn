@@ -207,8 +207,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Binary operation is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).add(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.add(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Addition is supported for tensor, scalar, and shape types only"),
         };
@@ -265,8 +278,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Binary operation is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).sub(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.sub(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
@@ -323,8 +349,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Multiplication is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).mul(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.mul(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Multiplication is supported for tensor, scalar, and shape types only"),
         };
@@ -380,8 +419,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Division is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).div(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.div(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Division is supported for tensor, scalar, and shape types only"),
         };
