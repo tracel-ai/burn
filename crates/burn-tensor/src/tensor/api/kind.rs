@@ -1,4 +1,7 @@
-use crate::{DType, Shape, backend::Backend};
+use crate::{
+    DType, Shape,
+    backend::{Backend, ComplexTensorBackend},
+};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -90,7 +93,7 @@ impl<B: Backend> TensorKind<B> for Bool {
     }
 }
 
-impl<B: Backend> TensorKind<B> for Complex {
+impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
     type Primitive = B::ComplexTensorPrimitive;
     fn name() -> &'static str {
         "Complex"

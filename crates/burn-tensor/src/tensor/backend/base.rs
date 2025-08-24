@@ -56,7 +56,6 @@ pub trait Backend:
     FloatTensorOps<Self>
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
-    + ComplexTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>
@@ -86,11 +85,6 @@ pub trait Backend:
     type BoolTensorPrimitive: TensorMetadata + 'static;
     /// Tensor primitive to be used for all bool operations.
     type BoolElem: Element;
-
-    /// Tensor primitive to be used for all complex operations.
-    type ComplexTensorPrimitive: TensorMetadata + 'static;
-    /// Complex element type.
-    type ComplexElem: Element;
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
@@ -280,4 +274,37 @@ pub trait AutodiffBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+}
+
+/// We can use this trait to define shared behavior only meant to be used for a specific layout (such as butterfly operations).
+pub trait ComplexLayout {}
+
+/// Indicates that the underlying implementation has separate real and imaginary tensors.
+pub struct DualTensorLayout;
+
+/// Indicates that the underlying implementation uses a complex primitive type [float,float] like that found in the
+/// num_complex trait.
+pub struct ComplexElementLayout;
+
+/// Indicates that the underlying implementation uses an interleaved layout for complex numbers.
+pub struct InterleavedLayout;
+
+pub trait ComplexTensorBackend: Backend + ComplexTensorOps<Self> {
+    /// The inner backend type.
+    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem>;
+
+    /// Tensor primitive to be used for all complex operations.
+    type ComplexTensorPrimitive: TensorMetadata + 'static;
+    /// Complex element type.
+    type ComplexElem: Element;
+    /// The underlaying layout for the complex elements
+    type Layout: ComplexLayout;
+
+    /// Returns the real part of a complex tensor.
+    fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
+    /// Returns the imaginary part of a complex tensor.
+    fn imag(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
+
+    fn to_complex(tensor: FloatTensor<Self::InnerBackend>) -> ComplexTensor<Self>;
+    // can reuse float random
 }

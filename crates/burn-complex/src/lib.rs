@@ -1,15 +1,4 @@
 pub mod tensor;
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// since backends that directly use complex primitives will probably need to use num-complex
+// it makes sense to reexport it.
+pub use num_complex;

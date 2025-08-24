@@ -1,8 +1,12 @@
 use super::{ComplexElem, ComplexTensor, Device};
-use crate::{Distribution, TensorData, backend::Backend, tensor::Shape};
+use crate::{
+    Distribution, TensorData,
+    backend::{Backend, ComplexTensorBackend},
+    tensor::Shape,
+};
 
 /// Operations on complex tensors.
-pub trait ComplexTensorOps<B: Backend> {
+pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// Creates a new complex tensor from the data structure.
     ///
     /// # Arguments

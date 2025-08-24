@@ -1,6 +1,7 @@
 use crate::{
     BasicOps, Complex, DType, Element, ElementConversion, Numeric, Shape, Tensor, TensorData,
-    backend::Backend, ops::Device,
+    backend::{Backend, ComplexTensorBackend},
+    ops::Device,
 };
 use alloc::vec::Vec;
 use core::ops::Range;
@@ -8,7 +9,7 @@ use core::ops::Range;
 use super::Transaction;
 
 #[allow(unused_variables)]
-impl<B: Backend> BasicOps<B> for Complex {
+impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
     type Elem = B::ComplexElem;
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
@@ -132,7 +133,7 @@ impl<B: Backend> BasicOps<B> for Complex {
 }
 
 #[allow(unused_variables)]
-impl<B: Backend> Numeric<B> for Complex
+impl<B: ComplexTensorBackend> Numeric<B> for Complex
 where
     B::ComplexElem: Element,
 {
@@ -498,7 +499,7 @@ where
 // Complex-specific methods for Tensor<B, D, Complex>
 impl<B, const D: usize> Tensor<B, D, Complex>
 where
-    B: Backend,
+    B: ComplexTensorBackend,
 {
     /// Returns the complex conjugate of the tensor.
     ///
