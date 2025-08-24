@@ -1,3 +1,5 @@
+Cargo.lock
+
 # Ignore model artifacts and temporary resources in all subdirectories
 */artifacts/
 
