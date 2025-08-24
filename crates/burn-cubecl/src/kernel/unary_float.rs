@@ -1,14 +1,6 @@
-use crate::{
-    CubeRuntime,
-    element::CubeElement,
-    kernel::utils::{linear_tensor, linear_tensor_alias},
-    ops::{into_data_sync, numeric::empty_device},
-    tensor::CubeTensor,
-};
+use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
 use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::tensor::{layout::linear::LinearTensorView, r#virtual::ReadWrite},
+    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
     tensor_line_size_parallel,
 };
 
@@ -26,9 +18,11 @@ pub(crate) trait FloatUnaryOp<F: Float>: 'static + Send + Sync {
 
 #[cube(launch_unchecked)]
 pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
-    input: &LinearTensorView<F>,
-    output: &mut LinearTensorView<F, ReadWrite>,
+    input: &Tensor<Line<F>>,
+    output: &mut Tensor<Line<F>>,
     options: &O::Options<F>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] to_contiguous: bool,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -36,7 +30,20 @@ pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
         terminate!();
     }
 
-    output[offset_output] = O::Unary::<F>::execute(input[offset_output], options);
+    if comptime![to_contiguous] {
+        let offset_input = index_offset_with_layout::<F, F>(
+            input,
+            output,
+            offset_output,
+            0,
+            rank.unwrap_or_else(|| output.rank()),
+            rank.is_some(),
+        );
+
+        output[offset_output] = O::Unary::<F>::execute(input[offset_input], options);
+    } else {
+        output[offset_output] = O::Unary::<F>::execute(input[offset_output], options);
+    }
 }
 
 pub(crate) fn launch_unary_float<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
@@ -61,8 +68,7 @@ where
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-
-    println!("unary input: {}", into_data_sync::<R, E>(tensor.clone()));
+    let is_contiguous = tensor.is_contiguous();
 
     unsafe {
         if tensor.can_mut() && tensor.is_contiguous_buffer() {
@@ -70,12 +76,13 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                linear_tensor(&tensor, &line_size),
-                linear_tensor_alias(&tensor, &line_size, 0),
+                tensor.as_tensor_arg::<E>(line_size),
+                TensorArg::alias(0),
                 args(&()),
+                None,
+                false,
             );
 
-            println!("unary output: {}", into_data_sync::<R, E>(tensor.clone()));
             tensor
         } else {
             let output = empty_device::<R, E>(
@@ -88,11 +95,12 @@ where
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_tensor(&tensor, &line_size),
-                linear_tensor(&output, &line_size),
+                tensor.as_tensor_arg::<E>(line_size),
+                output.as_tensor_arg::<E>(line_size),
                 args(&()),
+                Some(ndims as u32),
+                !is_contiguous,
             );
-            println!("unary output: {}", into_data_sync::<R, E>(output.clone()));
             output
         }
     }

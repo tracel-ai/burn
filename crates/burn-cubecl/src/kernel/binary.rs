@@ -4,7 +4,7 @@ use crate::{
     CubeRuntime,
     element::CubeElement,
     kernel::utils::{linear_tensor, linear_tensor_alias},
-    ops::{into_data_sync, max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
 use burn_tensor::Shape;
@@ -290,16 +290,10 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
-    println!(
-        "scalar binop input: {}",
-        into_data_sync::<R, E>(tensor.clone())
-    );
-    println!("scalar binop scalar: {}", scalar);
-
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    let output = unsafe {
+    unsafe {
         if tensor.can_mut() {
             kernel_scalar_binop::launch_unchecked::<E, O, R>(
                 &client,
@@ -329,10 +323,5 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
 
             output
         }
-    };
-    println!(
-        "scalar binop output: {}",
-        into_data_sync::<R, E>(output.clone())
-    );
-    output
+    }
 }

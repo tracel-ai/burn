@@ -1,19 +1,11 @@
 use std::marker::PhantomData;
 
 use crate::{
-    BoolElement, CubeRuntime,
-    element::CubeElement,
-    kernel::utils::{linear_tensor, linear_tensor_alias},
-    ops::{into_data_sync, numeric::empty_device},
-    tensor::CubeTensor,
+    BoolElement, CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor,
 };
 use burn_tensor::Shape;
 use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::tensor::{
-        index_offset_with_layout, layout::linear::LinearTensorView, r#virtual::ReadWrite,
-    },
+    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
     tensor_vectorization_factor,
 };
 
@@ -99,15 +91,44 @@ pub(crate) fn kernel_scalar_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
 
 #[cube(launch)]
 pub(crate) fn kernel_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
-    lhs: &LinearTensorView<SS::C>,
-    rhs: &LinearTensorView<SS::C>,
-    out: &mut LinearTensorView<SS::B, ReadWrite>,
+    lhs: &Tensor<Line<SS::C>>,
+    rhs: &Tensor<Line<SS::C>>,
+    out: &mut Tensor<Line<SS::B>>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] to_contiguous_lhs: bool,
+    #[comptime] to_contiguous_rhs: bool,
 ) {
-    if ABSOLUTE_POS >= out.len() {
+    let offset_out = ABSOLUTE_POS;
+    let mut offset_lhs = ABSOLUTE_POS;
+    let mut offset_rhs = ABSOLUTE_POS;
+
+    if offset_out >= out.len() {
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = Line::cast_from(O::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]));
+    if to_contiguous_lhs {
+        offset_lhs = index_offset_with_layout::<SS::C, SS::B>(
+            lhs,
+            out,
+            offset_out,
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
+        );
+    }
+
+    if to_contiguous_rhs {
+        offset_rhs = index_offset_with_layout::<SS::C, SS::B>(
+            rhs,
+            out,
+            offset_out,
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
+        );
+    }
+
+    out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
 pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: ComparisonOp<E>>(
@@ -120,7 +141,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
     let vectorization_factor_rhs =
         tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
 
-    let line_size = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
+    let vectorization_factor = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
     let mut shape_out = vec![0; ndims];
     lhs.shape
@@ -137,20 +158,21 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
     let num_elems = shape_out.num_elements();
 
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-
-    println!("cmp lhs: {}", into_data_sync::<R, E>(lhs.clone()));
-    println!("cmp rhs: {}", into_data_sync::<R, E>(rhs.clone()));
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
-    let out = if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
+    if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
         kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             cube_dim,
-            linear_tensor(&lhs, &line_size),
-            linear_tensor(&rhs, &line_size),
-            linear_tensor_alias(&lhs, &line_size, 0),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
+            TensorArg::alias(0),
+            None,
+            false,
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
         );
 
         CubeTensor::new(
@@ -166,9 +188,12 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             CubeDim::default(),
-            linear_tensor(&lhs, &line_size),
-            linear_tensor(&rhs, &line_size),
-            linear_tensor_alias(&lhs, &line_size, 1),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
+            TensorArg::alias(1),
+            None,
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            false,
         );
 
         CubeTensor::new(
@@ -181,20 +206,23 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
         )
     } else {
         let output = empty_device::<R, BT>(lhs.client.clone(), lhs.device.clone(), shape_out);
+        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
+        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
         kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            linear_tensor(&lhs, &line_size),
-            linear_tensor(&rhs, &line_size),
-            linear_tensor(&output, &line_size),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
+            output.as_tensor_arg::<BT>(vectorization_factor),
+            None,
+            to_contiguous_lhs,
+            to_contiguous_rhs,
         );
 
         output
-    };
-    println!("cmp out: {}", into_data_sync::<R, BT>(out.clone()));
-    out
+    }
 }
 
 pub(crate) fn launch_scalar_cmp<

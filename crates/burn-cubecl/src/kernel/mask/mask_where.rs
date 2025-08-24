@@ -1,47 +1,50 @@
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::tensor::{layout::linear::LinearTensorView, r#virtual::ReadWrite},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout};
 
 use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
-    kernel::utils::linear_tensor,
-    ops::{into_data_sync, max_line_size, numeric::empty_device},
+    ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
 
 #[cube(launch)]
 fn mask_where_readonly_kernel<T: CubePrimitive, B: Int>(
-    input: &LinearTensorView<T>,
-    mask: &LinearTensorView<B>,
-    value: &LinearTensorView<T>,
-    output: &mut LinearTensorView<T, ReadWrite>,
+    input: &Tensor<Line<T>>,
+    mask: &Tensor<Line<B>>,
+    value: &Tensor<Line<T>>,
+    output: &mut Tensor<Line<T>>,
+    #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
-    let mask = Line::cast_from(mask[ABSOLUTE_POS]);
+    let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
+    let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
+    let index_value = index_offset_with_layout(value, output, ABSOLUTE_POS, 0, rank, true);
+    let mask = Line::cast_from(mask[index_mask]);
 
-    output[ABSOLUTE_POS] = select_many(mask, value[ABSOLUTE_POS], input[ABSOLUTE_POS]);
+    output[ABSOLUTE_POS] = select_many(mask, value[index_value], input[index_input]);
 }
 
 #[cube(launch)]
 fn mask_where_inplace_kernel<T: CubePrimitive, B: Int>(
-    input: &mut LinearTensorView<T, ReadWrite>,
-    mask: &LinearTensorView<B>,
-    value: &LinearTensorView<T>,
+    input: &mut Tensor<Line<T>>,
+    mask: &Tensor<Line<B>>,
+    value: &Tensor<Line<T>>,
     reverse: B,
+    #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= input.len() {
         terminate!();
     }
 
+    let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
+    let index_value = index_offset_with_layout(value, input, ABSOLUTE_POS, 0, rank, true);
+
     input[ABSOLUTE_POS] = select(
-        mask[ABSOLUTE_POS] != Line::new(reverse),
-        value[ABSOLUTE_POS],
+        mask[index_mask] != Line::new(reverse),
+        value[index_value],
         input[ABSOLUTE_POS],
     );
 }
@@ -80,6 +83,7 @@ fn mask_where_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    let ndims = input.shape.num_dims();
     let output = empty_device::<R, EI>(
         input.client.clone(),
         input.device.clone(),
@@ -88,16 +92,17 @@ fn mask_where_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let line_size = max_line_size(&input);
+    let vectorization = max_line_size(&input);
 
     mask_where_readonly_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        linear_tensor(&input, &line_size),
-        linear_tensor(&mask, &line_size),
-        linear_tensor(&value, &line_size),
-        linear_tensor(&output, &line_size),
+        input.as_tensor_arg::<EI>(vectorization),
+        mask.as_tensor_arg::<EM>(vectorization),
+        value.as_tensor_arg::<EI>(vectorization),
+        output.as_tensor_arg::<EI>(vectorization),
+        ndims as u32,
     );
 
     output
@@ -109,34 +114,20 @@ fn mask_where_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     value: CubeTensor<R>,
     reverse: bool,
 ) -> CubeTensor<R> {
+    let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
-    let line_size = max_line_size(&input);
-
-    println!(
-        "mask where input: {}",
-        into_data_sync::<R, EI>(input.clone())
-    );
-    println!("mask where mask: {}", into_data_sync::<R, EM>(mask.clone()));
-    println!(
-        "mask where value: {}",
-        into_data_sync::<R, EI>(value.clone())
-    );
-    println!("mask where reverse: {}", reverse);
+    let vectorization = max_line_size(&input);
 
     mask_where_inplace_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        linear_tensor(&input, &line_size),
-        linear_tensor(&mask, &line_size),
-        linear_tensor(&value, &line_size),
+        input.as_tensor_arg::<EI>(vectorization),
+        mask.as_tensor_arg::<EM>(vectorization),
+        value.as_tensor_arg::<EI>(vectorization),
         ScalarArg::new(EM::new_bool(reverse)),
-    );
-
-    println!(
-        "mask where output: {}",
-        into_data_sync::<R, EI>(input.clone())
+        ndims as u32,
     );
 
     input
