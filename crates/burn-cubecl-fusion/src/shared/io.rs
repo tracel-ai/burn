@@ -406,9 +406,9 @@ fn get_offset(
 }
 
 #[cube]
-pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> comptime_type!(u32) {
     let tensor = global.tensors.index(pos);
-    u32::cast_from(tensor.tensor.line_size())
+    tensor.tensor.line_size()
 }
 
 #[cube]
@@ -488,6 +488,11 @@ pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
 #[cube]
 pub fn ref_stride(locals: &LocalArgs, dim: u32) -> u32 {
     locals.ref_strides[dim]
+}
+
+#[cube]
+pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(u32) {
+    comptime![locals.ref_line_size]
 }
 
 #[cube]

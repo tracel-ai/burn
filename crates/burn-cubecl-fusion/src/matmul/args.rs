@@ -7,8 +7,9 @@ use cubecl::{
 use crate::shared::{
     DYN_ELEM_ID,
     io::{
-        global_buffer_len, global_len, global_rank, global_shape, global_stride, num_elements,
-        read_input, read_input_window, ref_buffer_len, ref_len, ref_shape, ref_stride,
+        global_buffer_len, global_len, global_line_size, global_rank, global_shape, global_stride,
+        num_elements, read_input, read_input_window, ref_buffer_len, ref_len, ref_line_size,
+        ref_shape, ref_stride,
     },
     ir::{
         Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
@@ -442,6 +443,51 @@ impl MatmulArgs for FusedMatmulArgs {
         };
         #[allow(unreachable_code)]
         TensorMap::dummy()
+    }
+    fn line_size_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> comptime_type!(u32) {
+        let pos = comptime! {
+            match state.a.clone() {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_line_size(unsafe { &(*state.inputs) }, pos)
+    }
+    fn line_size_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> comptime_type!(u32) {
+        let pos = comptime! {
+            match state.b.clone() {
+                Arg::Input(pos, ..) => pos,
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_line_size(unsafe { &(*state.inputs) }, pos)
+    }
+    fn line_size_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> comptime_type!(u32) {
+        if comptime![state.c.is_none()] {
+            1
+        } else {
+            let pos = comptime! {
+                match state.c.clone().unwrap() {
+                    Arg::Input(pos, ..) => pos,
+                    _ => panic!("Lhs isn't an input"),
+                }
+            };
+
+            global_line_size(unsafe { &(*state.inputs) }, pos)
+        }
+    }
+    fn line_size_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> comptime_type!(u32) {
+        ref_line_size(unsafe { &(*state.locals) })
     }
 }
 
