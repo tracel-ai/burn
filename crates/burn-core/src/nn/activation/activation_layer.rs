@@ -9,11 +9,10 @@ use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
 /// [`ActivationLayer`] Configuration.
+// TODO: GLU's dim-select interaction with DimSelectActivationLayer needs thought.
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationLayerConfig {
-    // TODO: GLU's dim-select interaction with DimSelectActivationLayer needs thought.
-
     /// [`Gelu`] activation layer.
     GeLu,
 
@@ -179,7 +178,6 @@ mod tests {
     use crate::TestBackend;
     use crate::prelude::Module;
     use burn_tensor::Distribution;
-    use burn_tensor::activation::relu;
 
     fn make_input<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
         Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], device)
@@ -362,56 +360,22 @@ mod tests {
     }
 
     #[test]
-    fn test_reproduce_swap_dims_bug() {
-        // This is broken; see: https://github.com/tracel-ai/burn/issues/3602
-        type B = TestBackend;
-        let device = Default::default();
-
-        // This appears to be shape-dependent; there are shapes for which the bug is not triggered.
-
-        let input: Tensor<B, 3> =
-            Tensor::random([2, 5, 4], Distribution::Normal(0.0, 1.0), &device);
-        println!("input: {:?}\n", input);
-
-        let swapped_input = input.clone().swap_dims(1, 2);
-        println!("swapped_input: {:?}\n", swapped_input);
-
-        let coherent: Tensor<B, 3> = Tensor::from_data(swapped_input.to_data(), &device);
-        println!("coherent_input: {:?}\n", coherent);
-
-        let swapped_result = relu(swapped_input.clone());
-        println!("swapped result: {:?}\n", swapped_result);
-
-        let coherent_result = relu(coherent);
-        println!("coherent result: {:?}\n", coherent_result);
-
-        swapped_result
-            .to_data()
-            .assert_eq(&coherent_result.to_data(), true);
-    }
-
-    #[test]
     fn test_dim_select_activation_layer_with_dim() {
         // This is broken; see: https://github.com/tracel-ai/burn/issues/3602
         let device = Default::default();
 
         let input: Tensor<TestBackend, 3> =
             Tensor::random([2, 5, 4], Distribution::Normal(0.0, 1.0), &device);
-        println!("input: {:?}\n", input);
 
-        let swapped_input = input.clone().swap_dims(1, 2);
-        println!("input.swap: {:?}\n", swapped_input);
-        let native_result = Relu::default().forward(swapped_input);
-        println!("native output: {:?}\n", native_result);
-        let expected = native_result.swap_dims(1, 2);
-        println!("expected: {:?}\n", expected);
+        let expected = Relu::default()
+            .forward(input.clone().swap_dims(1, 2))
+            .swap_dims(1, 2);
 
         let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::Relu).with_dim(1);
         let act = config.init(&device);
         assert_eq!(act.canonicalize_dim(3), 1);
 
         let result = act.forward(input);
-        println!("result: {:?}\n", result);
         expect_tensor(result, expected);
     }
 }
