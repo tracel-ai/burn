@@ -5,6 +5,7 @@ use burn::prelude::*;
 use burn::record::*;
 
 use burn_import::pytorch::PyTorchFileRecorder;
+use std::path::Path;
 use std::time::Instant;
 
 #[cfg(feature = "wgpu")]
@@ -35,6 +36,14 @@ fn main() {
     println!("YOLO11x Burn Model Test");
     println!("========================================\n");
 
+    // Check if artifacts exist
+    let artifacts_dir = Path::new("artifacts");
+    if !artifacts_dir.exists() {
+        eprintln!("Error: artifacts directory not found!");
+        eprintln!("Please run get_model.py first to download the model and test data.");
+        std::process::exit(1);
+    }
+
     // Initialize the model (without weights for now)
     println!("Initializing YOLO11x model...");
     let start = Instant::now();
@@ -42,6 +51,13 @@ fn main() {
     let model: yolo11x::Model<MyBackend> = yolo11x::Model::default();
     let init_time = start.elapsed();
     println!("  Model initialized in {:.2?}", init_time);
+
+    // Save model structure to file
+    println!("\nSaving model structure to artifacts/model.txt...");
+    let model_str = format!("{}", model);
+    std::fs::write("artifacts/model.txt", &model_str)
+        .expect("Failed to write model structure to file");
+    println!("  Model structure saved");
 
     // Load test data from PyTorch file
     println!("\nLoading test data from artifacts/test_data.pt...");
