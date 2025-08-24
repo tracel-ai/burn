@@ -6,53 +6,104 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
-    data: HashMap<String, MetricData>,
+    data: HashMap<String, MetricGroup>,
     names: Vec<String>,
 }
 
-#[derive(new)]
-pub(crate) struct MetricData {
-    train: Option<MetricEntry>,
-    valid: Option<MetricEntry>,
-    test: Option<MetricEntry>,
+struct MetricGroup {
+    groups: HashMap<TuiGroup, MetricSplits>,
+}
+
+impl MetricGroup {
+    fn new(group: TuiGroup, metric: MetricSplits) -> Self {
+        Self {
+            groups: HashMap::from_iter(Some((group, metric)).into_iter()),
+        }
+    }
+    fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
+        match self.groups.get_mut(&group) {
+            Some(value) => value.update(split, metric),
+            None => {
+                let value = MetricSplits::new(split, metric);
+
+                self.groups.insert(group, value);
+            }
+        }
+    }
+}
+
+#[derive(Hash, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TuiSplit {
+    Train,
+    Valid,
+    Test,
+}
+
+#[derive(Hash, Clone, PartialEq, Eq)]
+pub(crate) enum TuiGroup {
+    Default,
+    Named(Arc<String>),
+}
+
+impl core::fmt::Display for TuiGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TuiGroup::Default => f.write_str(""),
+            TuiGroup::Named(group) => f.write_fmt(format_args!("{group} ")),
+        }
+    }
+}
+
+impl core::fmt::Display for TuiSplit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TuiSplit::Train => f.write_str("Train"),
+            TuiSplit::Valid => f.write_str("Valid"),
+            TuiSplit::Test => f.write_str("Test"),
+        }
+    }
+}
+
+impl TuiSplit {
+    pub(crate) fn color(&self) -> Color {
+        match self {
+            TuiSplit::Train => Color::LightRed,
+            TuiSplit::Valid => Color::LightBlue,
+            TuiSplit::Test => Color::LightGreen,
+        }
+    }
+}
+
+struct MetricSplits {
+    splits: HashMap<TuiSplit, MetricEntry>,
+}
+
+impl MetricSplits {
+    fn new(split: TuiSplit, metric: MetricEntry) -> Self {
+        Self {
+            splits: HashMap::from_iter(Some((split, metric)).into_iter()),
+        }
+    }
+
+    fn update(&mut self, split: TuiSplit, metric: MetricEntry) {
+        self.splits.insert(split, metric);
+    }
 }
 
 impl TextMetricsState {
-    pub(crate) fn update_train(&mut self, metric: MetricEntry) {
+    pub(crate) fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
         if let Some(existing) = self.data.get_mut(&metric.name) {
-            existing.train = Some(metric);
+            existing.update(split, group, metric);
         } else {
             let key = metric.name.clone();
-            let value = MetricData::new(Some(metric), None, None);
+            let value = MetricSplits::new(split, metric);
 
             self.names.push(key.clone());
-            self.data.insert(key, value);
-        }
-    }
-    pub(crate) fn update_valid(&mut self, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(&metric.name) {
-            existing.valid = Some(metric);
-        } else {
-            let key = metric.name.clone();
-            let value = MetricData::new(None, Some(metric), None);
-
-            self.names.push(key.clone());
-            self.data.insert(key, value);
-        }
-    }
-    pub(crate) fn update_test(&mut self, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(&metric.name) {
-            existing.test = Some(metric);
-        } else {
-            let key = metric.name.clone();
-            let value = MetricData::new(None, None, Some(metric));
-
-            self.names.push(key.clone());
-            self.data.insert(key, value);
+            self.data.insert(key, MetricGroup::new(group.into(), value));
         }
     }
     pub(crate) fn view(&self) -> TextMetricView {
@@ -65,25 +116,13 @@ pub(crate) struct TextMetricView {
 }
 
 impl TextMetricView {
-    fn new(names: &[String], data: &HashMap<String, MetricData>) -> Self {
+    fn new(names: &[String], data: &HashMap<String, MetricGroup>) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
 
         let start_line = |title: &str| vec![Span::from(format!(" {title} ")).bold().yellow()];
-        let train_line = |formatted: &str| {
+        let format_line = |group: &TuiGroup, split: &TuiSplit, formatted: &str| {
             vec![
-                Span::from("   Train ").bold(),
-                Span::from(formatted.to_string()).italic(),
-            ]
-        };
-        let valid_line = |formatted: &str| {
-            vec![
-                Span::from("   Valid ").bold(),
-                Span::from(formatted.to_string()).italic(),
-            ]
-        };
-        let test_line = |formatted: &str| {
-            vec![
-                Span::from("   Test  ").bold(),
+                Span::from(format!(" {group}{split} ")).bold(),
                 Span::from(formatted.to_string()).italic(),
             ]
         };
@@ -93,16 +132,10 @@ impl TextMetricView {
 
             let entry = data.get(name).unwrap();
 
-            if let Some(entry) = &entry.train {
-                lines.push(train_line(&entry.formatted));
-            }
-
-            if let Some(entry) = &entry.valid {
-                lines.push(valid_line(&entry.formatted));
-            }
-
-            if let Some(entry) = &entry.test {
-                lines.push(test_line(&entry.formatted));
+            for (name, group) in entry.groups.iter() {
+                for (split, entry) in group.splits.iter() {
+                    lines.push(format_line(name, split, &entry.formatted));
+                }
             }
 
             lines.push(vec![Span::from("")]);

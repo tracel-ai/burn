@@ -1,4 +1,7 @@
-use crate::renderer::{EvaluationProgress, TrainingProgress};
+use crate::renderer::{
+    EvaluationProgress, TrainingProgress,
+    tui::{TuiGroup, TuiSplit},
+};
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use ratatui::{
@@ -7,8 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     text::Line,
     widgets::{
-        Axis, Bar, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph,
-        Tabs,
+        Axis, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph, Tabs,
     },
 };
 use std::collections::HashMap;
@@ -44,51 +46,19 @@ pub(crate) enum PlotKind {
 
 impl NumericMetricsState {
     /// Register a new training value for the metric with the given name.
-    pub(crate) fn push_train(&mut self, name: String, data: f64) {
+    pub(crate) fn push(&mut self, split: TuiSplit, group: TuiGroup, name: String, data: f64) {
         if let Some((recent, full)) = self.data.get_mut(&name) {
-            recent.push_train(data);
-            full.push_train(data);
+            recent.push(split, group.clone(), data);
+            full.push(split, group, data);
         } else {
             let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
             let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
 
-            recent.push_train(data);
-            full.push_train(data);
+            recent.push(split, group.clone(), data);
+            full.push(split, group, data);
 
             self.names.push(name.clone());
             self.data.insert(name, (recent, full));
-        }
-    }
-
-    /// Register a new validation value for the metric with the given name.
-    pub(crate) fn push_valid(&mut self, key: String, data: f64) {
-        if let Some((recent, full)) = self.data.get_mut(&key) {
-            recent.push_valid(data);
-            full.push_valid(data);
-        } else {
-            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
-            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
-
-            recent.push_valid(data);
-            full.push_valid(data);
-
-            self.data.insert(key, (recent, full));
-        }
-    }
-
-    /// Register a new test value for the metric with the given name.
-    pub(crate) fn push_test(&mut self, key: String, data: f64) {
-        if let Some((recent, full)) = self.data.get_mut(&key) {
-            recent.push_test(data);
-            full.push_test(data);
-        } else {
-            let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
-            let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
-
-            recent.push_test(data);
-            full.push_test(data);
-
-            self.data.insert(key, (recent, full));
         }
     }
 

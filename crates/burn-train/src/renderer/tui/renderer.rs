@@ -1,4 +1,5 @@
 use crate::TrainingInterrupter;
+use crate::renderer::tui::TuiSplit;
 use crate::renderer::{
     EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
     TrainingProgress,
@@ -23,7 +24,7 @@ use std::{
 
 use super::{
     Callback, CallbackFn, ControlsView, MetricsView, PopupState, ProgressBarState, StatusState,
-    TextMetricsState,
+    TextMetricsState, TuiGroup,
 };
 
 /// The current terminal backend.
@@ -51,15 +52,7 @@ pub struct TuiMetricsRenderer {
 
 impl MetricsRendererEvaluation for TuiMetricsRenderer {
     fn update_test(&mut self, name: EvaluationName, state: MetricState) {
-        match state {
-            MetricState::Generic(entry) => {
-                self.metrics_text.update_test(entry);
-            }
-            MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push_test(entry.name.clone(), value);
-                self.metrics_text.update_test(entry);
-            }
-        };
+        self.update_metric(TuiSplit::Test, TuiGroup::Named(name.name), state);
     }
 
     fn render_test(&mut self, item: EvaluationProgress) {
@@ -74,27 +67,11 @@ impl MetricsRenderer for TuiMetricsRenderer {}
 
 impl MetricsRendererTraining for TuiMetricsRenderer {
     fn update_train(&mut self, state: MetricState) {
-        match state {
-            MetricState::Generic(entry) => {
-                self.metrics_text.update_train(entry);
-            }
-            MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push_train(entry.name.clone(), value);
-                self.metrics_text.update_train(entry);
-            }
-        };
+        self.update_metric(TuiSplit::Train, TuiGroup::Default, state);
     }
 
     fn update_valid(&mut self, state: MetricState) {
-        match state {
-            MetricState::Generic(entry) => {
-                self.metrics_text.update_valid(entry);
-            }
-            MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push_valid(entry.name.clone(), value);
-                self.metrics_text.update_valid(entry);
-            }
-        };
+        self.update_metric(TuiSplit::Valid, TuiGroup::Default, state);
     }
 
     fn render_train(&mut self, item: TrainingProgress) {
@@ -118,6 +95,19 @@ impl MetricsRendererTraining for TuiMetricsRenderer {
 }
 
 impl TuiMetricsRenderer {
+    fn update_metric(&mut self, split: TuiSplit, group: TuiGroup, state: MetricState) {
+        match state {
+            MetricState::Generic(entry) => {
+                self.metrics_text.update(split, group, entry);
+            }
+            MetricState::Numeric(entry, value) => {
+                self.metrics_numeric
+                    .push(split, group.clone(), entry.name.clone(), value);
+                self.metrics_text.update(split, group, entry);
+            }
+        };
+    }
+
     /// Create a new terminal UI renderer.
     pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
