@@ -383,7 +383,7 @@ mod tests {
     use burn_tensor::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::QuantizationParametersPrimitive,
+        quantization::{QuantStore, QuantizationParametersPrimitive},
     };
 
     #[test]
@@ -449,7 +449,9 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
         };

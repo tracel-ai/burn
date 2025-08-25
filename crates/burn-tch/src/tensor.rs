@@ -452,7 +452,9 @@ mod tests {
     fn should_support_qtensor_strategy() {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scales: TchTensor::from_data::<f32>(
                 TensorData::from([0.009_019_608]),
