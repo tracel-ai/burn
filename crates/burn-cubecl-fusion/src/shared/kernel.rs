@@ -782,12 +782,13 @@ fn dequantize<C: Float>(
         Arg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    let scales = input_as_slice::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
+    // Assume scales have plain layout for now
+    let scales = input_as_linear_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
     let result = dequantize_packed_value_at::<
         C,
         ElemExpand<Q_PARAM_DYN_ELEM_ID>,
         ElemExpand<Q_STORE_DYN_ELEM_ID>,
-    >(write_pos, input, scales, scheme);
+    >(write_pos, input, &scales, scheme);
 
     let line_size = input.line_size();
     let num_quants = comptime!(scheme.num_quants() as u32);

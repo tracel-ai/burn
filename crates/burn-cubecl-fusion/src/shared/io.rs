@@ -4,6 +4,7 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
+    std::tensor::{TensorView, layout::linear::LinearLayout},
 };
 use serde::{Deserialize, Serialize};
 
@@ -209,6 +210,16 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.to_slice();
     slice.try_cast_unchecked()
+}
+
+#[cube]
+pub fn input_as_linear_view<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    #[comptime] pos: u32,
+) -> TensorView<C, u32> {
+    let slice = input_as_slice::<Line<C>>(inputs, pos);
+    let layout = LinearLayout::new_Plain(slice.len());
+    TensorView::new::<Slice<Line<C>>>(slice, layout.virt())
 }
 
 #[cube]
