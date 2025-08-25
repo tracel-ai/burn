@@ -13,12 +13,14 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(store);
+        let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+
         let input = Tensor::<TestBackend, 1, Int>::arange(0..128, &Default::default()).float();
         let input_ref =
             Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
-        let output_ref = input_ref.quantize_dynamic(&scheme);
+        let output_ref = input_ref.quantize_dynamic(&scheme_ref);
 
         output.to_data().assert_eq(&output_ref.to_data(), false);
 
@@ -35,6 +37,7 @@ mod tests {
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(8))
             .with_store(store);
+        let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
         let input = Tensor::<TestBackend, 2>::from_floats(
             [
@@ -53,7 +56,7 @@ mod tests {
             Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
-        let output_ref = input_ref.quantize_dynamic(&scheme);
+        let output_ref = input_ref.quantize_dynamic(&scheme_ref);
 
         output.to_data().assert_eq(&output_ref.to_data(), false);
 
