@@ -71,9 +71,9 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         });
 
         let clone_impl = quote! {
-            impl #generics Clone for #item_name #type_generics #clone_bounds{
-                fn clone(&self) -> Self{
-                    Self{
+            impl #generics Clone for #item_name #type_generics #clone_bounds {
+                fn clone(&self) -> Self {
+                    Self {
                         #clone_delegate
                     }
                 }

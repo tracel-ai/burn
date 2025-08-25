@@ -71,9 +71,9 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
         });
 
         let clone_impl = quote! {
-            impl #generics Clone for #item_name #type_generics #clone_bounds{
-                fn clone(&self) -> Self{
-                    match self{
+            impl #generics Clone for #item_name #type_generics #clone_bounds {
+                fn clone(&self) -> Self {
+                    match self {
                         #clone_match_arms
                     }
                 }
