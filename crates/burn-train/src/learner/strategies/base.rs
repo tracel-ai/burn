@@ -111,20 +111,24 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         event_processor.process_train(LearnerEvent::End);
 
-        let summary = learner.summary;
-        if let Some(summary) = summary {
-            match summary.init() {
-                Ok(summary) => {
-                    println!("{}", summary.with_model(model.to_string()))
-                }
-                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
-            }
-        }
+        let summary = learner
+            .summary
+            .map(|summary| {
+                summary
+                    .init()
+                    .map(|summary| summary.with_model(model.to_string()))
+                    .ok()
+            })
+            .flatten();
 
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        TrainingResult::<LC::InnerModel> { model, renderer }
+        TrainingResult::<LC::InnerModel> {
+            model,
+            renderer,
+            summary,
+        }
     }
 
     /// Prepare the dataloaders for this strategy.

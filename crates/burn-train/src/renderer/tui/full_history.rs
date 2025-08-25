@@ -15,7 +15,7 @@ pub(crate) struct FullHistoryPlot {
     pub(crate) axes: PlotAxes,
     points: BTreeMap<TuiTag, FullHistoryPoints>,
     max_samples: usize,
-    max_samples_split: BTreeMap<TuiSplit, usize>,
+    max_samples_ratio: BTreeMap<TuiSplit, f64>,
     next_x_state: usize,
 }
 
@@ -38,7 +38,7 @@ impl FullHistoryPlot {
             points: BTreeMap::default(),
             axes: PlotAxes::default(),
             max_samples,
-            max_samples_split: BTreeMap::default(),
+            max_samples_ratio: BTreeMap::default(),
             next_x_state: 0,
         }
     }
@@ -47,14 +47,14 @@ impl FullHistoryPlot {
     ///
     /// This is necessary if we want the validation line to have the same point density as the
     /// training line.
-    pub(crate) fn update_max_sample(&mut self, split: TuiSplit, max_samples: usize) {
-        self.max_samples_split.insert(split.clone(), max_samples);
+    pub(crate) fn update_max_sample(&mut self, split: TuiSplit, ratio: f64) {
+        self.max_samples_ratio.insert(split.clone(), ratio);
 
         self.points
             .iter_mut()
             .filter(|(tag, _)| tag.split == split)
             .for_each(|(_, points)| {
-                points.max_samples = max_samples;
+                points.max_samples = (self.max_samples as f64 * ratio) as usize;
             });
     }
 
@@ -65,9 +65,9 @@ impl FullHistoryPlot {
             Some(val) => val,
             None => {
                 let max_samples = self
-                    .max_samples_split
+                    .max_samples_ratio
                     .get(&tag.split)
-                    .cloned()
+                    .map(|ratio| (*ratio * self.max_samples as f64) as usize)
                     .unwrap_or(self.max_samples);
                 self.points
                     .insert(tag.clone(), FullHistoryPoints::new(max_samples));
@@ -263,7 +263,7 @@ mod tests {
         let mut chart = FullHistoryPlot::new(10);
         let tag_train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
         let tag_valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
-        chart.update_max_sample(tag_valid.split, 4);
+        chart.update_max_sample(tag_valid.split, 0.6);
 
         for i in 0..100 {
             chart.push(tag_train.clone(), NumericEntry::Value(i as f64));

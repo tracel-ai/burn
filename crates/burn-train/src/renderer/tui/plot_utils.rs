@@ -26,8 +26,6 @@ impl PlotAxes {
     pub(crate) fn update_bounds(&mut self, (x_min, x_max): (f64, f64), (y_min, y_max): (f64, f64)) {
         self.bounds_x = [x_min, x_max];
         self.bounds_y = [y_min, y_max];
-        log::info!("{:?}", self.bounds_x);
-        log::info!("{:?}", self.bounds_y);
 
         // We know x are integers.
         self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];

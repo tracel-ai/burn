@@ -67,6 +67,9 @@ impl MetricsRenderer for TuiMetricsRenderer {
     fn manual_close(&mut self) {
         loop {
             self.render().unwrap();
+            if self.interuptor.should_stop() {
+                return;
+            }
             std::thread::sleep(Duration::from_millis(100));
         }
     }
@@ -96,8 +99,9 @@ impl MetricsRendererTraining for TuiMetricsRenderer {
     }
 
     fn on_train_end(&mut self) -> Result<(), Box<dyn Error>> {
+        // Reset for following steps.
+        self.interuptor.reset();
         Ok(())
-        // self.reset()
     }
 }
 

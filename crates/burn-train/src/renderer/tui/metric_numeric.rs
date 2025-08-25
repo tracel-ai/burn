@@ -65,11 +65,12 @@ impl NumericMetricsState {
 
     /// Update the state with the training progress.
     pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
+        self.epoch = progress.epoch;
+
         if self.num_samples_train.is_some() {
             return;
         }
 
-        self.epoch = progress.epoch;
         self.num_samples_train = Some(progress.progress.items_total);
     }
 
@@ -82,10 +83,8 @@ impl NumericMetricsState {
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
                 let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
-                full.update_max_sample(
-                    TuiSplit::Valid,
-                    ratio as usize * num_sample_train * (self.epoch + 1),
-                );
+
+                full.update_max_sample(TuiSplit::Valid, ratio);
             }
         }
 
@@ -102,10 +101,7 @@ impl NumericMetricsState {
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
                 let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
-                full.update_max_sample(
-                    TuiSplit::Test,
-                    ratio as usize * num_sample_train * (self.epoch + 1),
-                );
+                full.update_max_sample(TuiSplit::Test, ratio);
             }
         }
 

@@ -24,8 +24,8 @@ impl<B: Backend> Model<B> {
         let conv1 = ConvBlock::new([1, 64], [3, 3], device, true); // out: max_pool -> [Batch,32,13,13]
         let conv2 = ConvBlock::new([64, 64], [3, 3], device, true); // out: max_pool -> [Batch,64,5,5]
         let hidden_size = 64 * 5 * 5;
-        let fc1 = nn::LinearConfig::new(hidden_size, 128).init(device);
-        let fc2 = nn::LinearConfig::new(128, 128).init(device);
+        let fc1 = nn::LinearConfig::new(hidden_size, 256).init(device);
+        let fc2 = nn::LinearConfig::new(256, 128).init(device);
         let fc3 = nn::LinearConfig::new(128, NUM_CLASSES).init(device);
 
         let dropout = nn::DropoutConfig::new(0.25).init();

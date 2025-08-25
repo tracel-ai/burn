@@ -125,6 +125,11 @@ impl TrainingInterrupter {
         self.state.store(true, Ordering::Relaxed);
     }
 
+    /// Reset the interrupter.
+    pub fn reset(&self) {
+        self.state.store(false, Ordering::Relaxed);
+    }
+
     /// True if .stop() has been called.
     pub fn should_stop(&self) -> bool {
         self.state.load(Ordering::Relaxed)
