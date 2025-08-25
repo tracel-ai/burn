@@ -1,5 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::metric::store::EventStoreClient;
+use crate::{metric::store::EventStoreClient, renderer::cli::CliMetricsRenderer};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
@@ -54,7 +54,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
             LearnerEvent::End => {} // no-op for now
         }
     }
-    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
-        None
+    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+        // TODO: Check for another default.
+        Box::new(CliMetricsRenderer::new())
     }
 }

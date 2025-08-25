@@ -56,7 +56,7 @@ impl NumericMetricsAggregate {
                 NumericEntry::Value(v) => (v, 1),
                 // Right now the mean is the only aggregate available, so we can assume that the sum
                 // of an entry corresponds to (value * number of elements)
-                NumericEntry::Aggregated(v, n) => (v * n as f64, n),
+                NumericEntry::Aggregated { sum, count, .. } => (sum * count as f64, count),
             })
             .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
             .unwrap();
@@ -191,7 +191,12 @@ mod tests {
         let entry = MetricEntry::new(
             metric_name.to_string(),
             loss_2.to_string(),
-            NumericEntry::Aggregated(loss_2, 2).serialize(),
+            NumericEntry::Aggregated {
+                sum: loss_2,
+                count: 2,
+                current: 0.,
+            }
+            .serialize(),
         );
         logger.log(&entry);
 

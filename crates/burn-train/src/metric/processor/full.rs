@@ -1,7 +1,7 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::EventStoreClient;
-use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
+use crate::renderer::{MetricState, MetricsRenderer};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -86,8 +86,8 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
         }
     }
 
-    fn renderer(self) -> Option<Box<dyn MetricsRenderer>> {
-        Some(self.renderer)
+    fn renderer(self) -> Box<dyn MetricsRenderer> {
+        self.renderer
     }
 }
 
@@ -168,7 +168,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             LearnerEvent::End => {} // no-op for now
         }
     }
-    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
-        Some(self.renderer)
+    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+        self.renderer
     }
 }

@@ -23,29 +23,11 @@ impl Default for PlotAxes {
 
 impl PlotAxes {
     /// Update the bounds based on the min max of each X and Y axes with both train and valid data.
-    pub(crate) fn update_bounds(
-        &mut self,
-        (x_train_min, x_train_max): (f64, f64),
-        (x_valid_min, x_valid_max): (f64, f64),
-        (x_test_min, x_test_max): (f64, f64),
-        (y_train_min, y_train_max): (f64, f64),
-        (y_valid_min, y_valid_max): (f64, f64),
-        (y_test_min, y_test_max): (f64, f64),
-    ) {
-        let x_min = f64::min(x_train_min, x_valid_min);
-        let x_min = f64::min(x_min, x_test_min);
-
-        let x_max = f64::max(x_train_max, x_valid_max);
-        let x_max = f64::max(x_max, x_test_max);
-
-        let y_min = f64::min(y_train_min, y_valid_min);
-        let y_min = f64::min(y_min, y_test_min);
-
-        let y_max = f64::max(y_train_max, y_valid_max);
-        let y_max = f64::max(y_max, y_test_max);
-
+    pub(crate) fn update_bounds(&mut self, (x_min, x_max): (f64, f64), (y_min, y_max): (f64, f64)) {
         self.bounds_x = [x_min, x_max];
         self.bounds_y = [y_min, y_max];
+        log::info!("{:?}", self.bounds_x);
+        log::info!("{:?}", self.bounds_y);
 
         // We know x are integers.
         self.labels_x = vec![format!("{x_min}"), format!("{x_max}")];

@@ -48,7 +48,7 @@ impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
                 match event {
                     EvalMessage::Test(event) => worker.processor.process_test(event),
                     EvalMessage::Renderer(sender) => {
-                        sender.send_blocking(worker.processor.renderer());
+                        sender.send_blocking(worker.processor.renderer()).unwrap();
                         return;
                     }
                 }
@@ -80,12 +80,12 @@ impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
 enum Message<P: EventProcessorTraining> {
     Train(LearnerEvent<P::ItemTrain>),
     Valid(LearnerEvent<P::ItemValid>),
-    Renderer(Sender<Option<Box<dyn crate::renderer::MetricsRenderer>>>),
+    Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
 enum EvalMessage<P: EventProcessorEvaluation> {
     Test(EvaluatorEvent<P::ItemTest>),
-    Renderer(Sender<Option<Box<dyn crate::renderer::MetricsRenderer>>>),
+    Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
 impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTraining<P> {
@@ -100,7 +100,7 @@ impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTrainin
         self.sender.send_blocking(Message::Valid(event)).unwrap();
     }
 
-    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
         let (sender, rec) = async_channel::bounded(1);
         self.sender
             .send_blocking(Message::Renderer(sender))
@@ -108,7 +108,7 @@ impl<P: EventProcessorTraining> EventProcessorTraining for AsyncProcessorTrainin
 
         match rec.recv_blocking() {
             Ok(value) => value,
-            Err(_) => None,
+            Err(err) => panic!("{err:?}"),
         }
     }
 }
@@ -120,7 +120,7 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
         self.sender.send_blocking(EvalMessage::Test(event)).unwrap();
     }
 
-    fn renderer(self) -> Option<Box<dyn crate::renderer::MetricsRenderer>> {
+    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
         let (sender, rec) = async_channel::bounded(1);
         self.sender
             .send_blocking(EvalMessage::Renderer(sender))
@@ -128,7 +128,7 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
 
         match rec.recv_blocking() {
             Ok(value) => value,
-            Err(_) => None,
+            Err(err) => panic!("{err:?}"),
         }
     }
 }

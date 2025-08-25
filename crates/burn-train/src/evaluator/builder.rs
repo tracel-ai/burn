@@ -74,8 +74,8 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
-    pub fn renderer(mut self, renderer: Option<Box<dyn MetricsRenderer + 'static>>) -> Self {
-        self.renderer = renderer;
+    pub fn renderer(mut self, renderer: Box<dyn MetricsRenderer + 'static>) -> Self {
+        self.renderer = Some(renderer);
         self
     }
 

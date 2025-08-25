@@ -1,6 +1,6 @@
 /// RAM use metric
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, NumericEntry};
 use std::time::{Duration, Instant};
 use sysinfo::System;
 
@@ -71,8 +71,8 @@ impl Metric for CpuMemory {
 }
 
 impl Numeric for CpuMemory {
-    fn value(&self) -> f64 {
-        bytes2gb(self.ram_bytes_used)
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
 }
 

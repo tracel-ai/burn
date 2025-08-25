@@ -49,7 +49,7 @@ impl Metric for IterationSpeedMetric {
 }
 
 impl Numeric for IterationSpeedMetric {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }

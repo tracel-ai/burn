@@ -170,7 +170,7 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
 
 impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
     /// Returns the current value of the metric.
-    fn value(&self) -> f64 {
+    fn value(&self) -> crate::metric::NumericEntry {
         self.state.value()
     }
 }
@@ -190,7 +190,7 @@ mod tests {
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -202,7 +202,7 @@ mod tests {
             Tensor::from_data([[[[0, 1], [0, 1]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!(metric.value() < 1e-6);
+        assert!(metric.value().current() < 1e-6);
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         // intersection = 1, sum = 2+2=4, dice = 2*1/4 = 0.5
-        assert!((metric.value() - 0.5).abs() < 1e-6);
+        assert!((metric.value().current() - 0.5).abs() < 1e-6);
     }
 
     #[test]
@@ -227,7 +227,7 @@ mod tests {
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -255,7 +255,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -271,7 +271,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]

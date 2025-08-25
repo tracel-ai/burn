@@ -44,7 +44,7 @@ pub trait EventProcessorTraining: Send {
     /// Collect a validation event.
     fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>);
     /// Returns the renderer used for training.
-    fn renderer(self) -> Option<Box<dyn MetricsRenderer>>;
+    fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
 
 /// Process events happening during training and validation.
@@ -56,7 +56,7 @@ pub trait EventProcessorEvaluation: Send {
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>);
 
     /// Returns the renderer used for evaluation.
-    fn renderer(self) -> Option<Box<dyn MetricsRenderer>>;
+    fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
 
 /// A learner item.

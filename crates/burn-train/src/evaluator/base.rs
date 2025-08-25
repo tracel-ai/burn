@@ -2,7 +2,7 @@ use crate::{
     TrainingInterrupter,
     evaluator::components::{EvaluatorComponentTypes, TestStep},
     metric::{
-        processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerEvent, LearnerItem},
+        processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
         store::EventStoreClient,
     },
     renderer::{EvaluationName, MetricsRenderer},
@@ -29,7 +29,7 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         mut self,
         name: S,
         dataloader: TestLoader<EC>,
-    ) -> Option<Box<dyn MetricsRenderer>> {
+    ) -> Box<dyn MetricsRenderer> {
         let name = EvaluationName::new(name);
         let mut iterator = dataloader.iter();
         let mut iteration = 0;

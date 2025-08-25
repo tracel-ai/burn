@@ -1,9 +1,9 @@
-use crate::renderer::{
-    EvaluationProgress, TrainingProgress,
-    tui::{TuiGroup, TuiSplit},
+use crate::{
+    metric::NumericEntry,
+    renderer::{EvaluationProgress, TrainingProgress, tui::TuiTag},
 };
 
-use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
+use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame, TuiSplit};
 use ratatui::{
     crossterm::event::{Event, KeyCode, KeyEventKind},
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
@@ -13,7 +13,7 @@ use ratatui::{
         Axis, BarChart, BarGroup, Block, Borders, Chart, LegendPosition, Padding, Paragraph, Tabs,
     },
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// 1000 seems to be required to see some improvement.
 const MAX_NUM_SAMPLES_RECENT: usize = 1000;
@@ -24,13 +24,14 @@ const MAX_NUM_SAMPLES_FULL: usize = 250;
 /// Numeric metrics state that handles creating plots.
 #[derive(Default)]
 pub(crate) struct NumericMetricsState {
-    data: HashMap<String, (RecentHistoryPlot, FullHistoryPlot)>,
+    data: BTreeMap<String, (RecentHistoryPlot, FullHistoryPlot)>,
     names: Vec<String>,
     selected: usize,
     kind: PlotKind,
     num_samples_train: Option<usize>,
     num_samples_valid: Option<usize>,
     num_samples_test: Option<usize>,
+    epoch: usize,
 }
 
 /// The kind of plot to display.
@@ -46,16 +47,16 @@ pub(crate) enum PlotKind {
 
 impl NumericMetricsState {
     /// Register a new training value for the metric with the given name.
-    pub(crate) fn push(&mut self, split: TuiSplit, group: TuiGroup, name: String, data: f64) {
+    pub(crate) fn push(&mut self, tag: TuiTag, name: String, data: NumericEntry) {
         if let Some((recent, full)) = self.data.get_mut(&name) {
-            recent.push(split, group.clone(), data);
-            full.push(split, group, data);
+            recent.push(tag.clone(), data.current());
+            full.push(tag, data);
         } else {
             let mut recent = RecentHistoryPlot::new(MAX_NUM_SAMPLES_RECENT);
             let mut full = FullHistoryPlot::new(MAX_NUM_SAMPLES_FULL);
 
-            recent.push(split, group.clone(), data);
-            full.push(split, group, data);
+            recent.push(tag.clone(), data.current());
+            full.push(tag, data);
 
             self.names.push(name.clone());
             self.data.insert(name, (recent, full));
@@ -68,14 +69,8 @@ impl NumericMetricsState {
             return;
         }
 
+        self.epoch = progress.epoch;
         self.num_samples_train = Some(progress.progress.items_total);
-
-        // We reset the avg each new epoch.
-        if progress.iteration == 1 {
-            self.data
-                .values_mut()
-                .for_each(|(_, full)| full.reset_avg());
-        }
     }
 
     /// Update the state with the validation progress.
@@ -87,18 +82,15 @@ impl NumericMetricsState {
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
                 let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
-                full.update_max_sample_valid(ratio);
+                full.update_max_sample(
+                    TuiSplit::Valid,
+                    ratio as usize * num_sample_train * (self.epoch + 1),
+                );
             }
         }
 
+        self.epoch = progress.epoch;
         self.num_samples_valid = Some(progress.progress.items_total);
-
-        // We reset the avg each new epoch.
-        if progress.iteration == 1 {
-            self.data
-                .values_mut()
-                .for_each(|(_, full)| full.reset_avg());
-        }
     }
 
     /// Update the state with the testing progress.
@@ -110,7 +102,10 @@ impl NumericMetricsState {
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
                 let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
-                full.update_max_sample_test(ratio);
+                full.update_max_sample(
+                    TuiSplit::Test,
+                    ratio as usize * num_sample_train * (self.epoch + 1),
+                );
             }
         }
 
@@ -212,13 +207,13 @@ impl NumericMetricsState {
     fn bar_chart<'a>(&'a self) -> BarChart<'a> {
         let name = self.names.get(self.selected).unwrap();
         let (_recent, full) = self.data.get(name).unwrap();
-        let (min, max) = (0, 100);
-        let bars = full.bars(min, max);
+        let mut bar_width = 0;
+        let bars = full.bars(100, &mut bar_width);
 
         let data = BarGroup::default().bars(&bars);
         BarChart::default()
             .block(Block::default().padding(Padding::new(2, 2, 2, 0)))
-            .bar_width(6)
+            .bar_width(bar_width as u16)
             .bar_gap(2)
             .data(data)
     }

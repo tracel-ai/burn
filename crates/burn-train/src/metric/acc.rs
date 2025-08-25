@@ -83,7 +83,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 }
 
 impl<B: Backend> Numeric for AccuracyMetric<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -111,7 +111,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     #[test]
@@ -135,6 +135,6 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 }

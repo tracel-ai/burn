@@ -44,7 +44,7 @@ impl Metric for LearningRateMetric {
 }
 
 impl Numeric for LearningRateMetric {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }

@@ -68,7 +68,12 @@ impl NumericMetricState {
         let value_current = value;
         let value_running = self.sum / self.count as f64;
         // Numeric metric state is an aggregated value
-        let serialized = NumericEntry::Aggregated(value_current, batch_size).serialize();
+        let serialized = NumericEntry::Aggregated {
+            sum: value_current,
+            count: batch_size,
+            current: value_current,
+        }
+        .serialize();
 
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => (
@@ -90,8 +95,12 @@ impl NumericMetricState {
 }
 
 impl Numeric for NumericMetricState {
-    fn value(&self) -> f64 {
-        self.current
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Aggregated {
+            sum: self.sum,
+            count: self.count,
+            current: self.current,
+        }
     }
 }
 

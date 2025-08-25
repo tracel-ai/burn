@@ -104,7 +104,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
 }
 
 impl<B: Backend> Numeric for AurocMetric<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -133,7 +133,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 100.0);
+        assert_eq!(metric.value().current(), 100.0);
     }
 
     #[test]
@@ -147,7 +147,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 100.0); // Perfect AUC
+        assert_eq!(metric.value().current(), 100.0); // Perfect AUC
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 50.0);
+        assert_eq!(metric.value().current(), 50.0);
     }
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 0.0);
+        assert_eq!(metric.value().current(), 0.0);
     }
 
     #[test]

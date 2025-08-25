@@ -24,7 +24,7 @@ use std::{
 
 use super::{
     Callback, CallbackFn, ControlsView, MetricsView, PopupState, ProgressBarState, StatusState,
-    TextMetricsState, TuiGroup,
+    TextMetricsState, TuiGroup, TuiTag,
 };
 
 /// The current terminal backend.
@@ -63,7 +63,14 @@ impl MetricsRendererEvaluation for TuiMetricsRenderer {
     }
 }
 
-impl MetricsRenderer for TuiMetricsRenderer {}
+impl MetricsRenderer for TuiMetricsRenderer {
+    fn manual_close(&mut self) {
+        loop {
+            self.render().unwrap();
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
 
 impl MetricsRendererTraining for TuiMetricsRenderer {
     fn update_train(&mut self, state: MetricState) {
@@ -101,8 +108,11 @@ impl TuiMetricsRenderer {
                 self.metrics_text.update(split, group, entry);
             }
             MetricState::Numeric(entry, value) => {
-                self.metrics_numeric
-                    .push(split, group.clone(), entry.name.clone(), value);
+                self.metrics_numeric.push(
+                    TuiTag::new(split, group.clone()),
+                    entry.name.clone(),
+                    value,
+                );
                 self.metrics_text.update(split, group, entry);
             }
         };

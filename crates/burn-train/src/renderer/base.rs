@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::metric::MetricEntry;
+use crate::metric::{MetricEntry, NumericEntry};
 use burn_core::data::dataloader::Progress;
 
 /// Trait for rendering metrics.
@@ -44,14 +44,22 @@ pub trait MetricsRendererTraining: Send + Sync {
     }
 }
 
-pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {}
+/// A renderer that can be used for both training and evaluation.
+pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {
+    /// Keep the renderer from automatically closing, requiring manual action to close it.
+    fn manual_close(&mut self);
+}
 
 #[derive(Clone)]
+/// The name of an evaluation.
+///
+/// This is going to group matrics together for easier analysis.
 pub struct EvaluationName {
     pub(crate) name: Arc<String>,
 }
 
 impl EvaluationName {
+    /// Creates a new metric name.
     pub fn new<S: core::fmt::Display>(s: S) -> Self {
         Self {
             name: Arc::new(format!("{s}")),
@@ -90,9 +98,8 @@ pub trait MetricsRendererEvaluation: Send + Sync {
 pub enum MetricState {
     /// A generic metric.
     Generic(MetricEntry),
-
     /// A numeric metric.
-    Numeric(MetricEntry, f64),
+    Numeric(MetricEntry, NumericEntry),
 }
 
 /// Training progress.

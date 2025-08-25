@@ -78,7 +78,7 @@ impl<T> Adaptor<()> for T {
 /// This is useful to plot the values of a metric during training.
 pub trait Numeric {
     /// Returns the numeric value of the metric.
-    fn value(&self) -> f64;
+    fn value(&self) -> NumericEntry;
 }
 
 /// Data type that contains the current state of a metric at a given time.
@@ -93,18 +93,32 @@ pub struct MetricEntry {
 }
 
 /// Numeric metric entry.
+#[derive(Debug, Clone)]
 pub enum NumericEntry {
     /// Single numeric value.
     Value(f64),
     /// Aggregated numeric (value, number of elements).
-    Aggregated(f64, usize),
+    Aggregated {
+        sum: f64,
+        count: usize,
+        current: f64,
+    },
+}
+
+impl NumericEntry {
+    pub fn current(&self) -> f64 {
+        match self {
+            NumericEntry::Value(val) => *val,
+            NumericEntry::Aggregated { current, .. } => *current,
+        }
+    }
 }
 
 impl NumericEntry {
     pub(crate) fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
-            Self::Aggregated(v, n) => format!("{v},{n}"),
+            Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
         }
     }
 
@@ -124,7 +138,11 @@ impl NumericEntry {
             let (value, numel) = (values[0], values[1]);
             match value.parse::<f64>() {
                 Ok(value) => match numel.parse::<usize>() {
-                    Ok(numel) => Ok(NumericEntry::Aggregated(value, numel)),
+                    Ok(numel) => Ok(NumericEntry::Aggregated {
+                        sum: value,
+                        count: numel,
+                        current: value,
+                    }),
                     Err(err) => Err(err.to_string()),
                 },
                 Err(err) => Err(err.to_string()),

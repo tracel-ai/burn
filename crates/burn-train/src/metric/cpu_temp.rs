@@ -1,6 +1,6 @@
 /// CPU Temperature metric
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, NumericEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
@@ -51,7 +51,7 @@ impl Metric for CpuTemperature {
 }
 
 impl Numeric for CpuTemperature {
-    fn value(&self) -> f64 {
-        self.temp_celsius as f64
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.temp_celsius as f64)
     }
 }

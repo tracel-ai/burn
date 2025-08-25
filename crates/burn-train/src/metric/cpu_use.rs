@@ -1,5 +1,5 @@
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, NumericEntry};
 use std::time::{Duration, Instant};
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
@@ -67,7 +67,7 @@ impl Metric for CpuUse {
 }
 
 impl Numeric for CpuUse {
-    fn value(&self) -> f64 {
-        self.current
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.current)
     }
 }

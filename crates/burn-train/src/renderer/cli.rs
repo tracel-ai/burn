@@ -38,4 +38,8 @@ impl MetricsRendererEvaluation for CliMetricsRenderer {
     }
 }
 
-impl MetricsRenderer for CliMetricsRenderer {}
+impl MetricsRenderer for CliMetricsRenderer {
+    fn manual_close(&mut self) {
+        // Nothing to do.
+    }
+}

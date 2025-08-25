@@ -40,7 +40,7 @@ impl StatusState {
         self.mode = Mode::Valid;
     }
     /// Update the testing information.
-    pub(crate) fn update_test(&mut self, progress: EvaluationProgress) {
+    pub(crate) fn update_test(&mut self, _progress: EvaluationProgress) {
         // TODO: Use the progress here.
         // self.progress = progress;
         self.mode = Mode::Evaluation;

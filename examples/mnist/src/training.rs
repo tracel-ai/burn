@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{data::MnistBatcher, model::Model};
 
 use burn::{
@@ -102,28 +104,30 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    let evaluate = |augmentation: bool,
-                    model: Model<B::InnerBackend>,
-                    renderer: Option<Box<dyn MetricsRenderer>>| {
-        let batcher = MnistBatcher::new(augmentation);
-        let name = match augmentation {
-            true => "MNIST-Augmented",
-            false => "MNIST-Plain",
+    let evaluate =
+        |augmentation: bool, model: Model<B::InnerBackend>, renderer: Box<dyn MetricsRenderer>| {
+            let batcher = MnistBatcher::new(augmentation);
+            let name = match augmentation {
+                true => "MNIST-Augmented",
+                false => "MNIST-Plain",
+            };
+            let dataloader_test = DataLoaderBuilder::new(batcher)
+                .batch_size(config.batch_size)
+                .num_workers(config.num_workers)
+                .build(MnistDataset::test());
+
+            let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
+                .renderer(renderer)
+                .metric_numeric(AccuracyMetric::new())
+                .metric_numeric(LossMetric::new())
+                .build(model);
+
+            evaluator.eval(name, dataloader_test)
         };
-        let dataloader_test = DataLoaderBuilder::new(batcher)
-            .batch_size(config.batch_size)
-            .num_workers(config.num_workers)
-            .build(MnistDataset::test());
 
-        let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
-            .renderer(renderer)
-            .metric_numeric(AccuracyMetric::new())
-            .metric_numeric(LossMetric::new())
-            .build(model);
+    let renderer = result.renderer;
+    let rendered = evaluate(false, result.model.clone(), renderer);
+    let mut rendered = evaluate(true, result.model, rendered);
 
-        evaluator.eval(name, dataloader_test)
-    };
-
-    let rendered = evaluate(false, result.model.clone(), result.renderer);
-    evaluate(true, result.model, rendered);
+    rendered.manual_close();
 }

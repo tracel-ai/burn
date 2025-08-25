@@ -1,27 +1,30 @@
 use super::TerminalFrame;
-use crate::metric::MetricEntry;
+use crate::{
+    metric::MetricEntry,
+    renderer::tui::{TuiGroup, TuiSplit},
+};
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::collections::BTreeMap;
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
-    data: HashMap<String, MetricGroup>,
+    data: BTreeMap<String, MetricGroup>,
     names: Vec<String>,
 }
 
 struct MetricGroup {
-    groups: HashMap<TuiGroup, MetricSplits>,
+    groups: BTreeMap<TuiGroup, MetricSplits>,
 }
 
 impl MetricGroup {
     fn new(group: TuiGroup, metric: MetricSplits) -> Self {
         Self {
-            groups: HashMap::from_iter(Some((group, metric)).into_iter()),
+            groups: BTreeMap::from_iter(Some((group, metric)).into_iter()),
         }
     }
     fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
@@ -36,56 +39,14 @@ impl MetricGroup {
     }
 }
 
-#[derive(Hash, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TuiSplit {
-    Train,
-    Valid,
-    Test,
-}
-
-#[derive(Hash, Clone, PartialEq, Eq)]
-pub(crate) enum TuiGroup {
-    Default,
-    Named(Arc<String>),
-}
-
-impl core::fmt::Display for TuiGroup {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TuiGroup::Default => f.write_str(""),
-            TuiGroup::Named(group) => f.write_fmt(format_args!("{group} ")),
-        }
-    }
-}
-
-impl core::fmt::Display for TuiSplit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TuiSplit::Train => f.write_str("Train"),
-            TuiSplit::Valid => f.write_str("Valid"),
-            TuiSplit::Test => f.write_str("Test"),
-        }
-    }
-}
-
-impl TuiSplit {
-    pub(crate) fn color(&self) -> Color {
-        match self {
-            TuiSplit::Train => Color::LightRed,
-            TuiSplit::Valid => Color::LightBlue,
-            TuiSplit::Test => Color::LightGreen,
-        }
-    }
-}
-
 struct MetricSplits {
-    splits: HashMap<TuiSplit, MetricEntry>,
+    splits: BTreeMap<TuiSplit, MetricEntry>,
 }
 
 impl MetricSplits {
     fn new(split: TuiSplit, metric: MetricEntry) -> Self {
         Self {
-            splits: HashMap::from_iter(Some((split, metric)).into_iter()),
+            splits: BTreeMap::from_iter(Some((split, metric)).into_iter()),
         }
     }
 
@@ -116,7 +77,7 @@ pub(crate) struct TextMetricView {
 }
 
 impl TextMetricView {
-    fn new(names: &[String], data: &HashMap<String, MetricGroup>) -> Self {
+    fn new(names: &[String], data: &BTreeMap<String, MetricGroup>) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
 
         let start_line = |title: &str| vec![Span::from(format!(" {title} ")).bold().yellow()];

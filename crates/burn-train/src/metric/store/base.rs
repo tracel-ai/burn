@@ -1,4 +1,4 @@
-use crate::metric::MetricEntry;
+use crate::metric::{MetricEntry, NumericEntry};
 
 /// Event happening during the training/validation process.
 pub enum Event {
@@ -14,7 +14,7 @@ pub struct MetricsUpdate {
     /// Metrics information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,
     /// Metrics information related to numeric metrics.
-    pub entries_numeric: Vec<(MetricEntry, f64)>,
+    pub entries_numeric: Vec<(MetricEntry, NumericEntry)>,
 }
 
 /// Defines how training and validation events are collected and searched.

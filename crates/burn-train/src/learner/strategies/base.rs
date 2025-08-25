@@ -5,8 +5,8 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 
 use crate::{
-    EarlyStoppingStrategyRef, LearnedModel, Learner, LearnerCheckpointer, TrainLoader,
-    TrainingInterrupter, ValidLoader,
+    EarlyStoppingStrategyRef, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
+    TrainingResult, ValidLoader,
     components::LearnerComponentTypes,
     metric::{
         processor::{EventProcessorTraining, LearnerEvent},
@@ -68,7 +68,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         mut learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LearnedModel<LC::InnerModel> {
+    ) -> TrainingResult<LC::InnerModel> {
         let mut model = learner.model;
         let mut optim = learner.optim;
         let mut lr_scheduler = learner.lr_scheduler;
@@ -124,7 +124,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         let model = model.valid();
         let renderer = event_processor.renderer();
 
-        LearnedModel::<LC::InnerModel> { model, renderer }
+        TrainingResult::<LC::InnerModel> { model, renderer }
     }
 
     /// Prepare the dataloaders for this strategy.

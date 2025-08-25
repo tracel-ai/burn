@@ -1,6 +1,8 @@
 use super::{ItemLazy, LearnerItem};
 use crate::{
-    metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, store::MetricsUpdate},
+    metric::{
+        Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, NumericEntry, store::MetricsUpdate,
+    },
     renderer::{EvaluationProgress, TrainingProgress},
 };
 
@@ -219,7 +221,11 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
 }
 
 trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64);
+    fn update(
+        &mut self,
+        item: &LearnerItem<T>,
+        metadata: &MetricMetadata,
+    ) -> (MetricEntry, NumericEntry);
     fn clear(&mut self);
 }
 
@@ -239,7 +245,11 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64) {
+    fn update(
+        &mut self,
+        item: &LearnerItem<T>,
+        metadata: &MetricMetadata,
+    ) -> (MetricEntry, NumericEntry) {
         let update = self.metric.update(&item.item.adapt(), metadata);
         let numeric = self.metric.value();
 

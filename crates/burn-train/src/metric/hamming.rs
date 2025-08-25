@@ -90,7 +90,7 @@ impl<B: Backend> Metric for HammingScore<B> {
 }
 
 impl<B: Backend> Numeric for HammingScore<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -128,7 +128,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y.clone()),
             &MetricMetadata::fake(),
         );
-        assert_eq!(100.0, metric.value());
+        assert_eq!(100.0, metric.value().current());
 
         // Invert all targets: y = (1 - y)
         let y = y.neg().add_scalar(1);
@@ -136,7 +136,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(0.0, metric.value());
+        assert_eq!(0.0, metric.value().current());
 
         // Invert 5 target values -> 1 - (5/20) = 0.75
         let y = Tensor::from_data(
@@ -152,7 +152,7 @@ mod tests {
             &HammingScoreInput::new(x, y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(75.0, metric.value());
+        assert_eq!(75.0, metric.value().current());
     }
 
     #[test]
