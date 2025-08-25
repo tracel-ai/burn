@@ -815,6 +815,7 @@ dependencies = [
  "serde_json",
  "serde_rusqlite",
  "strum 0.27.2",
+ "tar",
  "tempfile",
  "thiserror 2.0.16",
 ]
