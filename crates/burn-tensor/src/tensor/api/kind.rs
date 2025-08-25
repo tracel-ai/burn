@@ -1,4 +1,7 @@
-use crate::{DType, Shape, backend::Backend};
+use crate::{
+    DType, Shape,
+    backend::{Backend, ComplexTensorBackend},
+};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -11,6 +14,10 @@ pub struct Int;
 /// A type-level representation of the kind of a bool tensor.
 #[derive(Clone, Debug)]
 pub struct Bool;
+
+/// A type-level representation of the kind of a complex tensor.
+#[derive(Clone, Debug)]
+pub struct Complex;
 
 #[derive(Debug, Clone)]
 /// A primitive tensor representation.
@@ -83,5 +90,12 @@ impl<B: Backend> TensorKind<B> for Bool {
     type Primitive = B::BoolTensorPrimitive;
     fn name() -> &'static str {
         "Bool"
+    }
+}
+
+impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
+    type Primitive = B::ComplexTensorPrimitive;
+    fn name() -> &'static str {
+        "Complex"
     }
 }
