@@ -5,8 +5,9 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
-        QuantizationStrategy, QuantizedBytes, SymmetricQuantization,
+        QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
+        QuantizationParametersPrimitive, QuantizationStrategy, QuantizedBytes,
+        SymmetricQuantization,
     },
 };
 
@@ -49,7 +50,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        value: QuantValue::QInt8,
+                        value: QuantValue::Q8F | QuantValue::Q8S,
+                        store: QuantStore::Native,
                         ..
                     } => {
                         // We should probably check that `Q` matches i8.. but it's the only valid type now
@@ -68,6 +70,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                             qparams,
                         }
                     }
+                    QuantScheme {
+                        value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                        store: QuantStore::Native,
+                        ..
+                    }
+                    | QuantScheme {
+                        store: QuantStore::U32,
+                        ..
+                    } => unimplemented!(),
                 }
             }
             _ => panic!(
@@ -87,7 +98,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
+                store: QuantStore::Native,
                 ..
             } => {
                 let scales = into_data_f(qparams.scales).iter().next().unwrap();
@@ -101,7 +113,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
+                store: QuantStore::Native,
                 ..
             } => {
                 let (strategy, qparams) = into_data_f(qparams.scales)
@@ -113,6 +126,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     qparams,
                 )
             }
+            QuantScheme {
+                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                store: QuantStore::Native,
+                ..
+            }
+            | QuantScheme {
+                store: QuantStore::U32,
+                ..
+            } => unimplemented!(),
         };
 
         let shape = tensor.shape();

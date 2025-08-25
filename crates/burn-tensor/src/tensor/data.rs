@@ -255,7 +255,7 @@ impl TensorData {
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        value: QuantValue::QInt8,
+                        value: QuantValue::Q8F | QuantValue::Q8S,
                         ..
                     } => {
                         // Quantized int8 values
@@ -274,6 +274,7 @@ impl TensorData {
                                 .into_iter(),
                         )
                     }
+                    _ => todo!(),
                 },
             }
         }
@@ -816,11 +817,12 @@ impl core::fmt::Display for TensorData {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    value: QuantValue::QInt8,
+                    value: QuantValue::Q8F | QuantValue::Q8S,
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }
+                _ => todo!(),
             },
         };
         f.write_str(fmt.as_str())

@@ -450,7 +450,10 @@ impl From<DType> for FusePrecision {
             DType::F64 => Self::F64,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
-                    QuantValue::QInt8 => Self::I8,
+                    QuantValue::Q8F | QuantValue::Q8S => Self::I8,
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                        panic!("Can't store native sub-byte values")
+                    }
                 },
                 QuantStore::U32 => Self::U32,
             },

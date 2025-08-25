@@ -55,7 +55,10 @@ mod cube {
                 crate::DType::Bool => Elem::Bool,
                 crate::DType::QFloat(scheme) => match scheme.store {
                     QuantStore::Native => match scheme.value {
-                        QuantValue::QInt8 => Self::Int(IntKind::I8),
+                        QuantValue::Q8F | QuantValue::Q8S => Self::Int(IntKind::I8),
+                        QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                            panic!("Can't store native sub-byte values")
+                        }
                     },
                     QuantStore::U32 => Self::UInt(UIntKind::U32),
                 },

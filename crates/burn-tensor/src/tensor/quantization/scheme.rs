@@ -99,12 +99,10 @@ pub fn compute_q_params<B: Backend>(
         QuantScheme {
             level: QuantLevel::Tensor | QuantLevel::Block(_),
             mode: QuantMode::Symmetric,
-            value: QuantValue::QInt8,
             ..
         } => {
             // Quantized range `[a, b]`
-            let b = i8::MAX as i32;
-            let a = -b;
+            let (a, b) = scheme.value.range();
 
             // Compute scale to convert an input value in range `[-alpha, alpha]`
             let values_range = range.min.abs().max_pair(range.max.abs()).mul_scalar(2);

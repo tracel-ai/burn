@@ -4,8 +4,8 @@ use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
-        QuantizedBytes,
+        QParams, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
+        QuantizationParametersPrimitive, QuantizedBytes,
     },
 };
 
@@ -28,13 +28,24 @@ fn quantize<E: TchElement>(
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            value: QuantValue::QInt8,
+            value: QuantValue::Q8F | QuantValue::Q8S,
+            store: QuantStore::Native,
             ..
         } => tensor.quantize_per_tensor(qparams.scales.elem(), 0, tch::Kind::QInt8),
         QuantScheme {
             level: QuantLevel::Block(_),
+            value: QuantValue::Q8S | QuantValue::Q8F,
             ..
-        } => unimplemented!("LibTorch backend does not support per-block quantization"),
+        }
+        | QuantScheme {
+            value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+            store: QuantStore::Native,
+            ..
+        }
+        | QuantScheme {
+            store: QuantStore::U32,
+            ..
+        } => unimplemented!("LibTorch backend does not support quantization scheme {scheme:?}"),
     }
 }
 
@@ -48,8 +59,14 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         // So for now we have to load the dequantized values to quantize them back since the dequantization
         // methods take the values provided when quantizing.
         match data.dtype {
-            DType::QFloat(scheme) => match scheme.level {
-                QuantLevel::Tensor => {
+            DType::QFloat(scheme) => match scheme {
+                QuantScheme {
+                    level: QuantLevel::Tensor,
+                    mode: QuantMode::Symmetric,
+                    value: QuantValue::Q8F | QuantValue::Q8S,
+                    store: QuantStore::Native,
+                    ..
+                } => {
                     let num_elements = data.num_elements();
                     let q_bytes = QuantizedBytes {
                         bytes: data.into_bytes(),
@@ -69,9 +86,22 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                         scheme,
                     }
                 }
-                QuantLevel::Block(_) => {
-                    unimplemented!("LibTorch backend does not support per-block quantization")
+                QuantScheme {
+                    level: QuantLevel::Block(_),
+                    value: QuantValue::Q8S | QuantValue::Q8F,
+                    ..
                 }
+                | QuantScheme {
+                    value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                    store: QuantStore::Native,
+                    ..
+                }
+                | QuantScheme {
+                    store: QuantStore::U32,
+                    ..
+                } => unimplemented!(
+                    "LibTorch backend does not support quantization scheme {scheme:?}"
+                ),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -95,7 +125,8 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
+                store: QuantStore::Native,
                 ..
             } => tensor.tensor.quantize_per_tensor_tensor_qparams(
                 &qparams.scales.tensor,
@@ -104,8 +135,20 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             ),
             QuantScheme {
                 level: QuantLevel::Block(_),
+                value: QuantValue::Q8S | QuantValue::Q8F,
                 ..
-            } => unimplemented!("LibTorch backend does not support per-block quantization"),
+            }
+            | QuantScheme {
+                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                store: QuantStore::Native,
+                ..
+            }
+            | QuantScheme {
+                store: QuantStore::U32,
+                ..
+            } => {
+                unimplemented!("LibTorch backend does not support quantization scheme {scheme:?}")
+            }
         };
 
         TchQTensor {
@@ -119,9 +162,11 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
+                store: QuantStore::Native,
                 ..
             } => {
+                // TODO remove tch quantization
                 log::warn!(
                     "LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization"
                 );
@@ -131,8 +176,20 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
             }
             QuantScheme {
                 level: QuantLevel::Block(_),
+                value: QuantValue::Q8S | QuantValue::Q8F,
                 ..
-            } => unimplemented!("LibTorch backend does not support per-block quantization"),
+            }
+            | QuantScheme {
+                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                store: QuantStore::Native,
+                ..
+            }
+            | QuantScheme {
+                store: QuantStore::U32,
+                ..
+            } => {
+                unimplemented!("LibTorch backend does not support quantization scheme {scheme:?}")
+            }
         };
 
         TchQTensor {

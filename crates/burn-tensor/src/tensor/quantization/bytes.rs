@@ -134,7 +134,7 @@ impl QuantizedBytes {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8S | QuantValue::Q8F,
                 ..
             } => {
                 let (values, qparams) = self.into_vec_i8();
@@ -146,7 +146,7 @@ impl QuantizedBytes {
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8S | QuantValue::Q8F,
                 ..
             } => {
                 let (values, qparams) = self.into_vec_i8();
@@ -161,6 +161,7 @@ impl QuantizedBytes {
                 );
                 (strategy.dequantize(&values), qparams)
             }
+            _ => unimplemented!(),
         }
     }
 }
