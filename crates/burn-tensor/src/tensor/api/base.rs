@@ -201,6 +201,24 @@ where
         Self::full(self.shape(), fill_value, &self.device())
     }
 
+    /// Returns a new tensor of shape ``[1; D]`` filled with the provided value.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::unit(0.5, &device);
+    ///    println!("{tensor}");
+    ///    // [[0.5]]
+    /// }
+    /// ```
+    pub fn unit<E: ElementConversion>(fill_value: E, device: &B::Device) -> Self {
+        Self::full([1; D], fill_value, device)
+    }
+
     /// Returns the dimensions of the current tensor.
     ///
     /// # Example
