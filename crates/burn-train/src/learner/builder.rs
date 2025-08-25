@@ -242,6 +242,12 @@ where
         self.interrupter.clone()
     }
 
+    /// Override the handle for stopping training with an externally provided handle
+    pub fn with_interrupter(mut self, interrupter: TrainingInterrupter) -> Self {
+        self.interrupter = interrupter;
+        self
+    }
+
     /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
