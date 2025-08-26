@@ -18,7 +18,7 @@ pub struct ComposedLrSchedulerConfig {
 }
 
 #[derive(Clone)]
-/// Compose multiple [learning rate schedulers](LrScheduler) togheter.
+/// Compose multiple [learning rate schedulers](LrScheduler) together.
 pub struct ComposedLrScheduler {
     schedulers: Vec<LrSchedulerItem>,
     reduction: SchedulerReduction,
