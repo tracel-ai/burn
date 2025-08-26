@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_core::{LearningRate, data::dataloader::Progress};
 
 /// Metric metadata that can be used when computing metrics.
@@ -52,13 +54,15 @@ pub trait Metric: Send + Sync {
     ///
     /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
     /// values of k), the name should be unique for each instance.
-    fn name(&self) -> String;
+    fn name(&self) -> MetricName;
 
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
 }
+
+pub type MetricName = Arc<String>;
 
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
@@ -82,14 +86,28 @@ pub trait Numeric {
 }
 
 /// Data type that contains the current state of a metric at a given time.
-#[derive(new, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct MetricEntry {
     /// The name of the metric.
-    pub name: String,
+    pub name: Arc<String>,
     /// The string to be displayed.
     pub formatted: String,
     /// The string to be saved.
     pub serialize: String,
+    /// Tags linked to the metric.
+    pub tags: Vec<Arc<String>>,
+}
+
+impl MetricEntry {
+    /// Create a new metric.
+    pub fn new(name: Arc<String>, formatted: String, serialize: String) -> Self {
+        Self {
+            name,
+            formatted,
+            serialize,
+            tags: Vec::new(),
+        }
+    }
 }
 
 /// Numeric metric entry.

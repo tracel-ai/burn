@@ -1,3 +1,5 @@
+use crate::metric::MetricName;
+
 use super::{
     Metric, MetricEntry, MetricMetadata, Numeric,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
@@ -9,18 +11,36 @@ use burn_core::{
     tensor::cast::ToElement,
 };
 use core::marker::PhantomData;
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
 ///
 /// The `beta` parameter represents the ratio of recall importance to precision importance.
 /// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
-#[derive(Default)]
 pub struct FBetaScoreMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     _b: PhantomData<B>,
     config: ClassificationMetricConfig,
     beta: f64,
+}
+
+impl<B: Backend> Default for FBetaScoreMetric<B> {
+    fn default() -> Self {
+        let config: ClassificationMetricConfig = Default::default();
+        let beta = 0.0;
+
+        Self {
+            name: Arc::new(format!(
+                "FBetaScore ({}) @ {:?} [{:?}]",
+                beta, config.decision_rule, config.class_reduction
+            )),
+            config,
+            state: Default::default(),
+            beta,
+            _b: PhantomData,
+        }
+    }
 }
 
 impl<B: Backend> FBetaScoreMetric<B> {
@@ -133,12 +153,8 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        // "FBetaScore (0.5) @ TopK(1) [Macro]"
-        format!(
-            "FBetaScore ({}) @ {:?} [{:?}]",
-            self.beta, self.config.decision_rule, self.config.class_reduction
-        )
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

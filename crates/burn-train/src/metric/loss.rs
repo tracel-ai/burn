@@ -1,14 +1,17 @@
+use std::sync::Arc;
+
 use super::MetricEntry;
 use super::MetricMetadata;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
+use crate::metric::MetricName;
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::Tensor;
 use burn_core::tensor::backend::Backend;
 
 /// The loss metric.
-#[derive(Default)]
 pub struct LossMetric<B: Backend> {
+    name: Arc<String>,
     state: NumericMetricState,
     _b: B,
 }
@@ -22,7 +25,11 @@ pub struct LossInput<B: Backend> {
 impl<B: Backend> LossMetric<B> {
     /// Create the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: Arc::new("Loss".to_string()),
+            state: NumericMetricState::default(),
+            _b: Default::default(),
+        }
     }
 }
 
@@ -51,8 +58,8 @@ impl<B: Backend> Metric for LossMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "Loss".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

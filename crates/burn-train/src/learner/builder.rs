@@ -203,7 +203,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.summary_metrics.insert(metric.name());
+        self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
         self
     }
@@ -216,7 +216,7 @@ where
     where
         <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.summary_metrics.insert(metric.name());
+        self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
         self
     }

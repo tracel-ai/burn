@@ -2,13 +2,13 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The accuracy metric.
-#[derive(Default)]
 pub struct AccuracyMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
@@ -24,7 +24,12 @@ pub struct AccuracyInput<B: Backend> {
 impl<B: Backend> AccuracyMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: MetricName::new("Accuracy".to_string()),
+            state: Default::default(),
+            pad_token: Default::default(),
+            _b: PhantomData,
+        }
     }
 
     /// Sets the pad token.
@@ -77,8 +82,8 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "Accuracy".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

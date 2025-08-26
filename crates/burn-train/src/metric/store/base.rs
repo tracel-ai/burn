@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::metric::{MetricEntry, NumericEntry};
 
 /// Event happening during the training/validation process.
@@ -15,6 +17,15 @@ pub struct MetricsUpdate {
     pub entries: Vec<MetricEntry>,
     /// Metrics information related to numeric metrics.
     pub entries_numeric: Vec<(MetricEntry, NumericEntry)>,
+}
+
+impl MetricsUpdate {
+    /// Appends a tag to the config.
+    pub fn tag(&mut self, tag: Arc<String>) {
+        self.entries.iter_mut().for_each(|entry| {
+            entry.tags.push(tag.clone());
+        });
+    }
 }
 
 /// Defines how training and validation events are collected and searched.

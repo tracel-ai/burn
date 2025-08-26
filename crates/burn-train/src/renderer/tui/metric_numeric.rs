@@ -1,5 +1,5 @@
 use crate::{
-    metric::NumericEntry,
+    metric::{MetricName, NumericEntry},
     renderer::{EvaluationProgress, TrainingProgress, tui::TuiTag},
 };
 
@@ -24,8 +24,8 @@ const MAX_NUM_SAMPLES_FULL: usize = 250;
 /// Numeric metrics state that handles creating plots.
 #[derive(Default)]
 pub(crate) struct NumericMetricsState {
-    data: BTreeMap<String, (RecentHistoryPlot, FullHistoryPlot)>,
-    names: Vec<String>,
+    data: BTreeMap<MetricName, (RecentHistoryPlot, FullHistoryPlot)>,
+    names: Vec<MetricName>,
     selected: usize,
     kind: PlotKind,
     num_samples_train: Option<usize>,
@@ -47,8 +47,8 @@ pub(crate) enum PlotKind {
 
 impl NumericMetricsState {
     /// Register a new training value for the metric with the given name.
-    pub(crate) fn push(&mut self, tag: TuiTag, name: String, data: NumericEntry) {
-        if let Some((recent, full)) = self.data.get_mut(&name) {
+    pub(crate) fn push(&mut self, tag: TuiTag, name: MetricName, data: NumericEntry) {
+        if let Some((recent, full)) = self.data.get_mut(name.as_ref()) {
             recent.push(tag.clone(), data.current());
             full.push(tag, data);
         } else {
@@ -218,8 +218,8 @@ impl NumericMetricsState {
 #[allow(clippy::large_enum_variant)]
 #[derive(new)]
 pub(crate) enum NumericMetricView<'a> {
-    LinePlots(&'a [String], usize, Chart<'a>, PlotKind),
-    BarPlots(&'a [String], usize, BarChart<'a>),
+    LinePlots(&'a [MetricName], usize, Chart<'a>, PlotKind),
+    BarPlots(&'a [MetricName], usize, BarChart<'a>),
     None,
 }
 
@@ -248,15 +248,19 @@ impl NumericMetricView<'_> {
                     )
                     .split(size);
 
-                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.clone().yellow()])))
-                    .select(selected)
-                    .style(Style::default())
-                    .highlight_style(
-                        Style::default()
-                            .add_modifier(Modifier::BOLD)
-                            .add_modifier(Modifier::UNDERLINED)
-                            .fg(Color::LightYellow),
-                    );
+                let tabs = Tabs::new(
+                    titles
+                        .iter()
+                        .map(|i| Line::from(vec![i.to_string().yellow()])),
+                )
+                .select(selected)
+                .style(Style::default())
+                .highlight_style(
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .add_modifier(Modifier::UNDERLINED)
+                        .fg(Color::LightYellow),
+                );
                 let title = match kind {
                     PlotKind::Full => "Full History",
                     PlotKind::Recent => "Recent History",
@@ -282,17 +286,14 @@ impl NumericMetricView<'_> {
 
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints(
-                        [
-                            Constraint::Length(2),
-                            Constraint::Length(1),
-                            Constraint::Min(0),
-                        ]
-                        .as_ref(),
-                    )
+                    .constraints([
+                        Constraint::Length(2),
+                        Constraint::Length(1),
+                        Constraint::Min(0),
+                    ])
                     .split(size);
 
-                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.clone().yellow()])))
+                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.to_string().yellow()])))
                     .select(selected)
                     .style(Style::default())
                     .highlight_style(

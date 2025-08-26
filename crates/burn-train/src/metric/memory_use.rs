@@ -1,11 +1,15 @@
 /// RAM use metric
 use super::{MetricMetadata, Numeric};
 use crate::metric::{Metric, MetricEntry, NumericEntry};
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use sysinfo::System;
 
 /// Memory information
 pub struct CpuMemory {
+    name: Arc<String>,
     last_refresh: Instant,
     refresh_frequency: Duration,
     sys: System,
@@ -17,6 +21,7 @@ impl CpuMemory {
     /// Creates a new memory metric
     pub fn new() -> Self {
         let mut metric = Self {
+            name: Arc::new("CPU Memory".into()),
             last_refresh: Instant::now(),
             refresh_frequency: Duration::from_millis(200),
             sys: System::new(),
@@ -65,8 +70,8 @@ impl Metric for CpuMemory {
 
     fn clear(&mut self) {}
 
-    fn name(&self) -> String {
-        "CPU Memory".to_string()
+    fn name(&self) -> Arc<String> {
+        self.name.clone()
     }
 }
 

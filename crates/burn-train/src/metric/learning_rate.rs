@@ -1,11 +1,14 @@
+use std::sync::Arc;
+
 use super::{
     MetricMetadata, Numeric,
     state::{FormatOptions, NumericMetricState},
 };
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, MetricName};
 
 /// Track the learning rate across iterations.
 pub struct LearningRateMetric {
+    name: MetricName,
     state: NumericMetricState,
 }
 
@@ -13,6 +16,7 @@ impl LearningRateMetric {
     /// Creates a new learning rate metric.
     pub fn new() -> Self {
         Self {
+            name: Arc::new("Learning Rate".to_string()),
             state: NumericMetricState::new(),
         }
     }
@@ -38,8 +42,8 @@ impl Metric for LearningRateMetric {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "Learning Rate".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

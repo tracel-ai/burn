@@ -10,7 +10,7 @@ use crate::{
 use burn_core::data::dataloader::DataLoader;
 use std::sync::Arc;
 
-/// TODO: Docs
+/// Evaluates a model on a specific dataset.
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
     pub(crate) interrupter: TrainingInterrupter,

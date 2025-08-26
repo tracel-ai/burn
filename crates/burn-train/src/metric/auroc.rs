@@ -3,13 +3,13 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also referred to as [ROC AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)) for binary classification.
-#[derive(Default)]
 pub struct AurocMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     _b: PhantomData<B>,
 }
@@ -24,7 +24,11 @@ pub struct AurocInput<B: Backend> {
 impl<B: Backend> AurocMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: MetricName::new("AUROC".to_string()),
+            state: Default::default(),
+            _b: PhantomData,
+        }
     }
 
     fn binary_auroc(&self, probabilities: &Tensor<B, 1>, targets: &Tensor<B, 1, Int>) -> f64 {
@@ -98,8 +102,8 @@ impl<B: Backend> Metric for AurocMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "AUROC".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

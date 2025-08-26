@@ -1,6 +1,6 @@
 use super::TerminalFrame;
 use crate::{
-    metric::MetricEntry,
+    metric::{MetricEntry, MetricName},
     renderer::tui::{TuiGroup, TuiSplit},
 };
 use ratatui::{
@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
     data: BTreeMap<String, MetricGroup>,
-    names: Vec<String>,
+    names: Vec<MetricName>,
 }
 
 struct MetricGroup {
@@ -57,14 +57,15 @@ impl MetricSplits {
 
 impl TextMetricsState {
     pub(crate) fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(&metric.name) {
+        if let Some(existing) = self.data.get_mut(metric.name.as_ref()) {
             existing.update(split, group, metric);
         } else {
             let key = metric.name.clone();
             let value = MetricSplits::new(split, metric);
 
             self.names.push(key.clone());
-            self.data.insert(key, MetricGroup::new(group.into(), value));
+            self.data
+                .insert(key.to_string(), MetricGroup::new(group.into(), value));
         }
     }
     pub(crate) fn view(&self) -> TextMetricView {
@@ -77,7 +78,7 @@ pub(crate) struct TextMetricView {
 }
 
 impl TextMetricView {
-    fn new(names: &[String], data: &BTreeMap<String, MetricGroup>) -> Self {
+    fn new(names: &[MetricName], data: &BTreeMap<String, MetricGroup>) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
 
         let start_line = |title: &str| vec![Span::from(format!(" {title} ")).bold().yellow()];
@@ -91,7 +92,7 @@ impl TextMetricView {
         for name in names {
             lines.push(start_line(name));
 
-            let entry = data.get(name).unwrap();
+            let entry = data.get(name.as_ref()).unwrap();
 
             for (name, group) in entry.groups.iter() {
                 for (split, entry) in group.splits.iter() {

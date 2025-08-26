@@ -1,3 +1,5 @@
+use crate::metric::MetricName;
+
 use super::{
     Metric, MetricEntry, MetricMetadata, Numeric,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
@@ -9,14 +11,32 @@ use burn_core::{
     tensor::cast::ToElement,
 };
 use core::marker::PhantomData;
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 
 ///The Recall Metric
-#[derive(Default)]
 pub struct RecallMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     _b: PhantomData<B>,
     config: ClassificationMetricConfig,
+}
+
+impl<B: Backend> Default for RecallMetric<B> {
+    fn default() -> Self {
+        let state = Default::default();
+        let config: ClassificationMetricConfig = Default::default();
+        let name = Arc::new(format!(
+            "Recall @ {:?} [{:?}]",
+            config.decision_rule, config.class_reduction
+        ));
+
+        Self {
+            state,
+            config,
+            name,
+            _b: Default::default(),
+        }
+    }
 }
 
 impl<B: Backend> RecallMetric<B> {
@@ -117,12 +137,8 @@ impl<B: Backend> Metric for RecallMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        // "Recall @ Threshold(0.5) [Macro]"
-        format!(
-            "Recall @ {:?} [{:?}]",
-            self.config.decision_rule, self.config.class_reduction
-        )
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::metric::{
-    Metric,
+    Metric, MetricName,
     store::{Aggregate, Direction, EventStoreClient, Split},
 };
 
@@ -48,7 +48,7 @@ impl Clone for Box<dyn CloneEarlyStoppingStrategy> {
 #[derive(Clone)]
 pub struct MetricEarlyStoppingStrategy {
     condition: StoppingCondition,
-    metric_name: String,
+    metric_name: MetricName,
     aggregate: Aggregate,
     direction: Direction,
     split: Split,

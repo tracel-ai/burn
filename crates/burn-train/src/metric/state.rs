@@ -1,4 +1,6 @@
-use crate::metric::{MetricEntry, Numeric, NumericEntry, format_float};
+use std::sync::Arc;
+
+use crate::metric::{MetricEntry, MetricName, Numeric, NumericEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -14,16 +16,16 @@ pub struct NumericMetricState {
 
 /// Formatting options for the [numeric metric state](NumericMetricState).
 pub struct FormatOptions {
-    name: String,
+    name: Arc<String>,
     unit: Option<String>,
     precision: Option<usize>,
 }
 
 impl FormatOptions {
     /// Create the [formatting options](FormatOptions) with a name.
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new(name: MetricName) -> Self {
         Self {
-            name: name.into(),
+            name: name.clone(),
             unit: None,
             precision: None,
         }

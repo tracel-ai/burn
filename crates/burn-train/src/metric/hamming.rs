@@ -1,12 +1,14 @@
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid, backend::Backend};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
 pub struct HammingScore<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     threshold: f32,
     sigmoid: bool,
@@ -42,9 +44,13 @@ impl<B: Backend> HammingScore<B> {
 impl<B: Backend> Default for HammingScore<B> {
     /// Creates a new metric instance with default values.
     fn default() -> Self {
+        let threshold = 0.5;
+        let name = Arc::new(format!("Hamming Score @ Threshold({})", threshold));
+
         Self {
+            name,
             state: NumericMetricState::default(),
-            threshold: 0.5,
+            threshold,
             sigmoid: false,
             _b: PhantomData,
         }
@@ -84,8 +90,8 @@ impl<B: Backend> Metric for HammingScore<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        format!("Hamming Score @ Threshold({})", self.threshold)
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

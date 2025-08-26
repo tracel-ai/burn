@@ -2,7 +2,7 @@ use super::CheckpointingStrategy;
 use crate::{
     checkpoint::CheckpointingAction,
     metric::{
-        Metric,
+        Metric, MetricName,
         store::{Aggregate, Direction, EventStoreClient, Split},
     },
 };
@@ -13,7 +13,7 @@ pub struct MetricCheckpointingStrategy {
     aggregate: Aggregate,
     direction: Direction,
     split: Split,
-    name: String,
+    name: MetricName,
 }
 
 impl MetricCheckpointingStrategy {

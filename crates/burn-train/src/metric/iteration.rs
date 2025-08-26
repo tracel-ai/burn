@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use super::MetricEntry;
 use super::MetricMetadata;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
+use crate::metric::MetricName;
 use crate::metric::{Metric, Numeric};
 
 /// The loss metric.
-#[derive(Default)]
 pub struct IterationSpeedMetric {
+    name: MetricName,
     state: NumericMetricState,
     instant: Option<std::time::Instant>,
 }
@@ -14,7 +17,11 @@ pub struct IterationSpeedMetric {
 impl IterationSpeedMetric {
     /// Create the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: Arc::new("Iteration Speed".to_string()),
+            state: Default::default(),
+            instant: Default::default(),
+        }
     }
 }
 
@@ -43,8 +50,8 @@ impl Metric for IterationSpeedMetric {
         self.instant = None;
     }
 
-    fn name(&self) -> String {
-        "Iteration Speed".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 

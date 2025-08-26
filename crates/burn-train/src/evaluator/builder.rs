@@ -64,7 +64,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     where
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.summary_metrics.insert(metric.name());
+        self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric_numeric(metric);
         self
     }

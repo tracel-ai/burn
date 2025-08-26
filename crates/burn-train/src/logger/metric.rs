@@ -135,7 +135,7 @@ impl MetricLogger for FileMetricLogger {
         let key = &item.name;
         let value = &item.serialize;
 
-        let logger = match self.loggers.get_mut(key) {
+        let logger = match self.loggers.get_mut(key.as_ref()) {
             Some(val) => val,
             None => {
                 self.create_directory(self.epoch);
@@ -144,9 +144,9 @@ impl MetricLogger for FileMetricLogger {
                 let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
-                self.loggers.insert(key.clone(), logger);
+                self.loggers.insert(key.to_string(), logger);
                 self.loggers
-                    .get_mut(key)
+                    .get_mut(key.as_ref())
                     .expect("Can get the previously saved logger.")
             }
         };
@@ -212,12 +212,12 @@ impl InMemoryMetricLogger {
 }
 impl MetricLogger for InMemoryMetricLogger {
     fn log(&mut self, item: &MetricEntry) {
-        if !self.values.contains_key(&item.name) {
+        if !self.values.contains_key(item.name.as_ref()) {
             self.values
-                .insert(item.name.clone(), vec![InMemoryLogger::default()]);
+                .insert(item.name.to_string(), vec![InMemoryLogger::default()]);
         }
 
-        let values = self.values.get_mut(&item.name).unwrap();
+        let values = self.values.get_mut(item.name.as_ref()).unwrap();
 
         values.last_mut().unwrap().log(item.serialize.clone());
     }

@@ -1,3 +1,5 @@
+use crate::metric::MetricName;
+
 use super::super::{
     Metric, MetricEntry, MetricMetadata, Numeric,
     state::{FormatOptions, NumericMetricState},
@@ -84,6 +86,7 @@ impl Default for DiceMetricConfig {
 /// - `D`: Number of dimensions. Should be more than, or equal to 3 (default 4).
 #[derive(Default)]
 pub struct DiceMetric<B: Backend, const D: usize = 4> {
+    name: MetricName,
     /// Internal state for numeric metric aggregation.
     state: NumericMetricState,
     /// Marker for backend type.
@@ -100,8 +103,10 @@ impl<B: Backend, const D: usize> DiceMetric<B, D> {
 
     /// Creates a new Dice metric with a custom config.
     pub fn with_config(config: DiceMetricConfig) -> Self {
+        let name = MetricName::new(format!("{D}D Dice Metric"));
         assert!(D >= 3, "DiceMetric requires at least 3 dimensions.");
         Self {
+            name,
             config,
             ..Default::default()
         }
@@ -111,8 +116,8 @@ impl<B: Backend, const D: usize> DiceMetric<B, D> {
 impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
     type Input = DiceInput<B, D>;
 
-    fn name(&self) -> String {
-        format!("{D}D Dice Metric")
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 
     fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {

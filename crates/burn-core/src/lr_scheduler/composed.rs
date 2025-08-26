@@ -127,6 +127,7 @@ impl LrScheduler for ComposedLrScheduler {
             SchedulerReduction::Prod => 1.0,
         };
         let num_scheduler = self.schedulers.len() as f64;
+
         for lr in self.schedulers.iter_mut().map(|s| match s {
             LrSchedulerItem::Linear(item) => item.step(),
             LrSchedulerItem::Cosine(item) => item.step(),
