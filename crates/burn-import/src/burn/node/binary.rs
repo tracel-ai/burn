@@ -142,17 +142,29 @@ impl BinaryNode {
             })
         } else if lhs_rank > rhs_rank {
             // Broadcast rhs to match lhs rank
-            let target_rank = lhs_rank;
+            let num_unsqueezes = lhs_rank - rhs_rank;
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                quote! { #lhs.#op(#rhs.unsqueeze::<#target_rank>()) }
+                // Generate unsqueeze calls with explicit dimension for intermediate steps
+                let mut rhs_broadcast = rhs;
+                for i in 0..num_unsqueezes {
+                    let current_rank = rhs_rank + i + 1;
+                    rhs_broadcast = quote! { #rhs_broadcast.unsqueeze::<#current_rank>() };
+                }
+                quote! { #lhs.#op(#rhs_broadcast) }
             })
         } else {
             // Broadcast lhs to match rhs rank
-            let target_rank = rhs_rank;
+            let num_unsqueezes = rhs_rank - lhs_rank;
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                quote! { #lhs.unsqueeze::<#target_rank>().#op(#rhs) }
+                // Generate unsqueeze calls with explicit dimension for intermediate steps
+                let mut lhs_broadcast = lhs;
+                for i in 0..num_unsqueezes {
+                    let current_rank = lhs_rank + i + 1;
+                    lhs_broadcast = quote! { #lhs_broadcast.unsqueeze::<#current_rank>() };
+                }
+                quote! { #lhs_broadcast.#op(#rhs) }
             })
         }
     }
@@ -443,7 +455,17 @@ impl BinaryNode {
 
     pub(crate) fn equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.equal(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Equal,
+                    Self::create_broadcast_function("equal", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs == #rhs },
             (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
                 quote! {
@@ -515,13 +537,37 @@ impl BinaryNode {
 
     pub(crate) fn greater(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.greater(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Greater,
+                    Self::create_broadcast_function("greater", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.greater_elem(#rhs) }
             }
             (Type::Scalar(_), Type::Tensor(_)) => {
                 // L > R == R < L
                 move |lhs, rhs| quote! { #rhs.lower_elem(#lhs) }
+            }
+            (Type::Shape(_), Type::Tensor(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.greater(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             (lhs, rhs) => panic!("greater is not supported for {lhs:?} > {rhs:?}"),
         };
@@ -530,8 +576,16 @@ impl BinaryNode {
 
     pub(crate) fn greater_equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => {
-                move |lhs, rhs| quote! { #lhs.greater_equal(#rhs) }
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::GreaterOrEqual,
+                    Self::create_broadcast_function("greater_equal", lhs_rank, rhs_rank),
+                );
             }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.greater_equal_elem(#rhs) }
@@ -539,6 +593,20 @@ impl BinaryNode {
             (Type::Scalar(_), Type::Tensor(_)) => {
                 // L >= R == R <= L
                 move |lhs, rhs| quote! { #rhs.lower_equal_elem(#lhs) }
+            }
+            (Type::Shape(_), Type::Tensor(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater_equal(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             (lhs, rhs) => panic!("greater_equal is not supported for {lhs:?} > {rhs:?}"),
         };
@@ -553,11 +621,35 @@ impl BinaryNode {
 
     pub(crate) fn lower(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Less,
+                    Self::create_broadcast_function("lower", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.lower_elem(#rhs) },
             (Type::Scalar(_), Type::Tensor(_)) => {
                 // L < R == R > L
                 move |lhs, rhs| quote! { #rhs.greater_elem(#lhs) }
+            }
+            (Type::Shape(_), Type::Tensor(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.lower(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             (lhs, rhs) => panic!("lower is not supported for {lhs:?} > {rhs:?}"),
         };
@@ -566,13 +658,37 @@ impl BinaryNode {
 
     pub(crate) fn lower_equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower_equal(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::LessOrEqual,
+                    Self::create_broadcast_function("lower_equal", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.lower_equal_elem(#rhs) }
             }
             (Type::Scalar(_), Type::Tensor(_)) => {
                 // L <= R == R >= L
                 move |lhs, rhs| quote! { #rhs.greater_equal_elem(#lhs) }
+            }
+            (Type::Shape(_), Type::Tensor(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower_equal(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.lower_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             (lhs, rhs) => panic!("lower_equal is not supported for {lhs:?} > {rhs:?}"),
         };
@@ -942,7 +1058,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 2>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.mul(tensor2.unsqueeze::<4usize>());
+                    let tensor3 = tensor1.mul(tensor2.unsqueeze::<3usize>().unsqueeze::<4usize>());
 
                     tensor3
                 }
@@ -963,7 +1079,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 1>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.unsqueeze::<4usize>().div(tensor2);
+                    let tensor3 = tensor1.unsqueeze::<2usize>().unsqueeze::<3usize>().unsqueeze::<4usize>().div(tensor2);
 
                     tensor3
                 }
@@ -1012,7 +1128,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.mul(tensor2.unsqueeze::<4usize>()) };
+        let expected = quote! { tensor1.mul(tensor2.unsqueeze::<3usize>().unsqueeze::<4usize>()) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 
@@ -1023,7 +1139,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.unsqueeze::<5usize>().sub(tensor2) };
+        let expected = quote! { tensor1.unsqueeze::<3usize>().unsqueeze::<4usize>().unsqueeze::<5usize>().sub(tensor2) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 
