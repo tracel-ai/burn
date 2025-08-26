@@ -325,15 +325,21 @@ where
 
     /// Swaps two dimensions of a tensor.
     ///
+    /// This is a no-op when `dim1 == dim`, assuming both are within bounds.
+    ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to swap the dimensions of.
-    /// * `dim1` - The first dimension to swap.
-    /// * `dim2` - The second dimension to swap.
+    /// * `dim1` - The first dimension to swap, supports negative indexing.
+    /// * `dim2` - The second dimension to swap, supports negative indexing.
     ///
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
+    ///
+    /// # Panics
+    ///
+    /// When dimensions are out of bounds.
     ///
     /// # Example
     ///
@@ -346,19 +352,31 @@ where
     ///     // Create a 2D tensor of shape [2, 3]
     ///     let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///
-    ///     // Swap the dimensions 0 and 1 (equivalent to `tensor.transpose()`):
+    ///     // Swap the dimensions 0 and -1 (equivalent to `tensor.transpose()`):
     ///     // [[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]]
     ///     // The resulting tensor will have dimensions [3, 2].
-    ///     let swapped = tensor.swap_dims(0, 1);
+    ///     let swapped = tensor.swap_dims(0, -1);
     ///     println!("{swapped}");
     /// }
     /// ```
-    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K> {
+    pub fn swap_dims<Dim1, Dim2>(self, dim1: Dim1, dim2: Dim2) -> Tensor<B, D, K>
+    where
+        Dim1: AsIndex,
+        Dim2: AsIndex,
+    {
+        let dim1 = canonicalize_dim(dim1, D, false);
+        let dim2 = canonicalize_dim(dim2, D, false);
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
+        if dim1 == dim2 {
+            self
+        } else {
+            Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
+        }
     }
 
     /// Permute the dimensions of the tensor.
+    ///
+    /// A `permute()` which resolves to the existing axes in-order is always a no-op.
     ///
     /// # Arguments
     ///
@@ -389,21 +407,24 @@ where
     ///     println!("{permuted}");
     /// }
     /// ```
-    pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
-        // Convert the axes to usize and handle negative values without using vector
-        let mut transformed_axes: [usize; D] = [0; D];
-        for (i, &x) in axes.iter().enumerate() {
-            transformed_axes[i] = if x < 0 {
-                (D as isize + x) as usize
-            } else {
-                x as usize
-            };
+    pub fn permute<Dim>(self, axes: [Dim; D]) -> Tensor<B, D, K>
+    where
+        Dim: AsIndex,
+    {
+        let mut no_op = true;
+        let mut fixed_axes = [0; D];
+        for (i, axis) in axes.into_iter().enumerate() {
+            let dim = canonicalize_dim(axis, D, false);
+            no_op &= dim == i;
+            fixed_axes[i] = dim;
         }
 
-        // Check if the axes are valid after the transformation
-        check!(TensorCheck::permute(transformed_axes));
-
-        Tensor::new(K::permute(self.primitive, &transformed_axes))
+        if no_op {
+            self
+        } else {
+            check!(TensorCheck::permute(fixed_axes));
+            Tensor::new(K::permute(self.primitive, &fixed_axes))
+        }
     }
 
     /// Moves the dimension(s) of input at the position(s) in source to the position(s) in destination.
