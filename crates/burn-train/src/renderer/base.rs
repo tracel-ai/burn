@@ -69,7 +69,7 @@ impl EvaluationName {
 
 /// Trait for rendering metrics.
 pub trait MetricsRendererEvaluation: Send + Sync {
-    /// Updates the training metric state.
+    /// Updates the testing metric state.
     ///
     /// # Arguments
     ///
