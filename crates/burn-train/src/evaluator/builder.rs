@@ -39,12 +39,10 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: impl AsRef<Path>) -> Self {
         let directory = directory.as_ref().to_path_buf();
-        let experiment_log_file = directory.join("evaluator.log");
+        let log_file = directory.join("evluation.log");
 
         Self {
-            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
-                experiment_log_file,
-            ))),
+            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(log_file))),
             event_store: LogEventStore::default(),
             summary_metrics: Default::default(),
             renderer: None,
@@ -57,13 +55,24 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     }
 
     /// Registers [numeric](crate::metric::Numeric) test [metrics](Metric).
-    pub fn metrics<M: MetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+    pub fn metrics<M: EvalMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
         metrics.register(self)
     }
 
     /// Registers text [metrics](Metric).
-    pub fn metrics_text<M: TextMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+    pub fn metrics_text<M: EvalTextMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
         metrics.register(self)
+    }
+
+    /// By default, Rust logs are captured and written into
+    /// `evaluation.log`. If disabled, standard Rust log handling
+    /// will apply.
+    pub fn with_application_logger(
+        mut self,
+        logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    ) -> Self {
+        self.tracing_logger = logger;
+        self
     }
 
     /// Register a [numeric](crate::metric::Numeric) test [metric](Metric).
@@ -135,20 +144,19 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
             self.metrics,
             renderer,
-            event_store.clone(),
+            event_store,
         ));
 
         Evaluator {
             model,
             interrupter: self.interrupter,
             event_processor,
-            event_store,
         }
     }
 }
 
 /// Trait to fake variadic generics.
-pub trait MetricRegistration<TI, TO: ItemLazy>: Sized {
+pub trait EvalMetricRegistration<TI, TO: ItemLazy>: Sized {
     /// Register the metrics.
     fn register<B: Backend>(
         self,
@@ -157,7 +165,7 @@ pub trait MetricRegistration<TI, TO: ItemLazy>: Sized {
 }
 
 /// Trait to fake variadic generics.
-pub trait TextMetricRegistration<TI, TO: ItemLazy>: Sized {
+pub trait EvalTextMetricRegistration<TI, TO: ItemLazy>: Sized {
     /// Register the metrics.
     fn register<B: Backend>(
         self,
@@ -167,7 +175,7 @@ pub trait TextMetricRegistration<TI, TO: ItemLazy>: Sized {
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> TextMetricRegistration<TI, TO> for ($($M,)*)
+        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> EvalTextMetricRegistration<TI, TO> for ($($M,)*)
         where
             $(TO::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -183,7 +191,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> MetricRegistration<TI, TO> for ($($M,)*)
+        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> EvalMetricRegistration<TI, TO> for ($($M,)*)
         where
             $(TO::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + $crate::metric::Numeric+ 'static,)*

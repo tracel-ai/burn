@@ -136,8 +136,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             CpuUse::new(),
             CpuMemory::new(),
             CpuTemperature::new(),
-            LearningRateMetric::new(),
         ))
+        .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::<B>::new(),

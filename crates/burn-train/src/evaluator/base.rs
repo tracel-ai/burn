@@ -1,10 +1,7 @@
 use crate::{
     TrainingInterrupter,
     evaluator::components::{EvaluatorComponentTypes, TestStep},
-    metric::{
-        processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
-        store::EventStoreClient,
-    },
+    metric::processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
     renderer::{EvaluationName, MetricsRenderer},
 };
 use burn_core::data::dataloader::DataLoader;
@@ -15,7 +12,6 @@ pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
     pub(crate) interrupter: TrainingInterrupter,
     pub(crate) event_processor: EC::EventProcessor,
-    pub(crate) event_store: Arc<EventStoreClient>,
 }
 
 pub(crate) type TestBackend<EC> = <EC as EvaluatorComponentTypes>::Backend;
@@ -24,7 +20,9 @@ pub(crate) type TestInput<EC> = <EC as EvaluatorComponentTypes>::TestInput;
 pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestBackend<EC>, TestInput<EC>>>;
 
 impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
-    /// TODO: Docs
+    /// Run the evaluation on the given dataset.
+    ///
+    /// The data will be stored and displayed under the provided name.
     pub fn eval<S: core::fmt::Display>(
         mut self,
         name: S,
