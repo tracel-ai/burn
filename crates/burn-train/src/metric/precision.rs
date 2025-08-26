@@ -24,8 +24,13 @@ pub struct PrecisionMetric<B: Backend> {
 
 impl<B: Backend> Default for PrecisionMetric<B> {
     fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+impl<B: Backend> PrecisionMetric<B> {
+    fn new(config: ClassificationMetricConfig) -> Self {
         let state = Default::default();
-        let config: ClassificationMetricConfig = Default::default();
         let name = Arc::new(format!(
             "Precision @ {:?} [{:?}]",
             config.decision_rule, config.class_reduction
@@ -38,9 +43,6 @@ impl<B: Backend> Default for PrecisionMetric<B> {
             _b: Default::default(),
         }
     }
-}
-
-impl<B: Backend> PrecisionMetric<B> {
     /// Precision metric for binary classification.
     ///
     /// # Arguments
@@ -48,14 +50,11 @@ impl<B: Backend> PrecisionMetric<B> {
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
     pub fn binary(threshold: f64) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
-                decision_rule: DecisionRule::Threshold(threshold),
-                // binary classification results are the same independently of class_reduction
-                ..Default::default()
-            },
+        Self::new(ClassificationMetricConfig {
+            decision_rule: DecisionRule::Threshold(threshold),
+            // binary classification results are the same independently of class_reduction
             ..Default::default()
-        }
+        })
     }
 
     /// Precision metric for multiclass classification.
@@ -66,15 +65,12 @@ impl<B: Backend> PrecisionMetric<B> {
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
-                decision_rule: DecisionRule::TopK(
-                    NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
-                ),
-                class_reduction,
-            },
-            ..Default::default()
-        }
+        Self::new(ClassificationMetricConfig {
+            decision_rule: DecisionRule::TopK(
+                NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
+            ),
+            class_reduction,
+        })
     }
 
     /// Precision metric for multi-label classification.

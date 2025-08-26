@@ -24,8 +24,13 @@ pub struct RecallMetric<B: Backend> {
 
 impl<B: Backend> Default for RecallMetric<B> {
     fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+impl<B: Backend> RecallMetric<B> {
+    fn new(config: ClassificationMetricConfig) -> Self {
         let state = Default::default();
-        let config: ClassificationMetricConfig = Default::default();
         let name = Arc::new(format!(
             "Recall @ {:?} [{:?}]",
             config.decision_rule, config.class_reduction
@@ -38,9 +43,6 @@ impl<B: Backend> Default for RecallMetric<B> {
             _b: Default::default(),
         }
     }
-}
-
-impl<B: Backend> RecallMetric<B> {
     /// Recall metric for binary classification.
     ///
     /// # Arguments
@@ -48,14 +50,11 @@ impl<B: Backend> RecallMetric<B> {
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
     pub fn binary(threshold: f64) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
-                decision_rule: DecisionRule::Threshold(threshold),
-                // binary classification results are the same independently of class_reduction
-                ..Default::default()
-            },
+        Self::new(ClassificationMetricConfig {
+            decision_rule: DecisionRule::Threshold(threshold),
+            // binary classification results are the same independently of class_reduction
             ..Default::default()
-        }
+        })
     }
 
     /// Recall metric for multiclass classification.
@@ -66,15 +65,12 @@ impl<B: Backend> RecallMetric<B> {
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
-                decision_rule: DecisionRule::TopK(
-                    NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
-                ),
-                class_reduction,
-            },
-            ..Default::default()
-        }
+        Self::new(ClassificationMetricConfig {
+            decision_rule: DecisionRule::TopK(
+                NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
+            ),
+            class_reduction,
+        })
     }
 
     /// Recall metric for multi-label classification.
@@ -85,13 +81,10 @@ impl<B: Backend> RecallMetric<B> {
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
-                decision_rule: DecisionRule::Threshold(threshold),
-                class_reduction,
-            },
-            ..Default::default()
-        }
+        Self::new(ClassificationMetricConfig {
+            decision_rule: DecisionRule::Threshold(threshold),
+            class_reduction,
+        })
     }
 
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {

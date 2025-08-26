@@ -28,23 +28,25 @@ pub struct FBetaScoreMetric<B: Backend> {
 
 impl<B: Backend> Default for FBetaScoreMetric<B> {
     fn default() -> Self {
-        let config: ClassificationMetricConfig = Default::default();
-        let beta = 0.0;
-
-        Self {
-            name: Arc::new(format!(
-                "FBetaScore ({}) @ {:?} [{:?}]",
-                beta, config.decision_rule, config.class_reduction
-            )),
-            config,
-            state: Default::default(),
-            beta,
-            _b: PhantomData,
-        }
+        Self::new(Default::default(), Default::default())
     }
 }
 
 impl<B: Backend> FBetaScoreMetric<B> {
+    #[allow(dead_code)]
+    fn new(config: ClassificationMetricConfig, beta: f64) -> Self {
+        let name = Arc::new(format!(
+            "FBetaScore ({}) @ {:?} [{:?}]",
+            beta, config.decision_rule, config.class_reduction
+        ));
+        Self {
+            name,
+            config,
+            beta,
+            ..Default::default()
+        }
+    }
+
     /// F-beta score metric for binary classification.
     ///
     /// # Arguments
@@ -53,15 +55,14 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
     pub fn binary(beta: f64, threshold: f64) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
+        Self::new(
+            ClassificationMetricConfig {
                 decision_rule: DecisionRule::Threshold(threshold),
                 // binary classification results are the same independently of class_reduction
                 ..Default::default()
             },
             beta,
-            ..Default::default()
-        }
+        )
     }
 
     /// F-beta score metric for multiclass classification.
@@ -73,16 +74,15 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(beta: f64, top_k: usize, class_reduction: ClassReduction) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
+        Self::new(
+            ClassificationMetricConfig {
                 decision_rule: DecisionRule::TopK(
                     NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
                 ),
                 class_reduction,
             },
             beta,
-            ..Default::default()
-        }
+        )
     }
 
     /// F-beta score metric for multi-label classification.
@@ -94,14 +94,13 @@ impl<B: Backend> FBetaScoreMetric<B> {
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multilabel(beta: f64, threshold: f64, class_reduction: ClassReduction) -> Self {
-        Self {
-            config: ClassificationMetricConfig {
+        Self::new(
+            ClassificationMetricConfig {
                 decision_rule: DecisionRule::Threshold(threshold),
                 class_reduction,
             },
             beta,
-            ..Default::default()
-        }
+        )
     }
 
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
