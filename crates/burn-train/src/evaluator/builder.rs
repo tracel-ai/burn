@@ -34,7 +34,7 @@ pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
 }
 
 impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
-    /// Creates a new learner builder.
+    /// Creates a new evaluator builder.
     ///
     /// # Arguments
     ///

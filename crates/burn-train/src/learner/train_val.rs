@@ -106,7 +106,7 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-/// The result of a training, containing the model along with the [renderer](MetricsRenderer)..
+/// The result of a training, containing the model along with the [renderer](MetricsRenderer).
 pub struct TrainingResult<M> {
     /// The model trained.
     pub model: M,

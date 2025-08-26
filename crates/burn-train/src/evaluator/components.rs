@@ -2,11 +2,11 @@ use crate::metric::{ItemLazy, processor::EventProcessorEvaluation};
 use burn_core::{module::Module, prelude::Backend};
 use std::marker::PhantomData;
 
-/// All components necessary to train a model grouped in one trait.
+/// All components necessary to evaluate a model grouped in one trait.
 pub trait EvaluatorComponentTypes {
-    /// The backend in used for the training.
+    /// The backend in used for the evaluation.
     type Backend: Backend;
-    /// The model to train.
+    /// The model to evaluate.
     type Model: Module<Self::Backend>
         + TestStep<Self::TestInput, Self::TestOutput>
         + core::fmt::Display

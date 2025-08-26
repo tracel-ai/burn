@@ -9,7 +9,7 @@ use burn_derive::Record;
 use burn_tensor::backend::Backend;
 
 #[derive(Config)]
-/// Compose multiple [learning rate schedulers](LrScheduler) togheter.
+/// Compose multiple [learning rate schedulers](LrScheduler) together.
 pub struct ComposedLrSchedulerConfig {
     #[config(default = "Vec::new()")]
     schedulers: Vec<LrSchedulerConfig>,
@@ -18,7 +18,7 @@ pub struct ComposedLrSchedulerConfig {
 }
 
 #[derive(Clone)]
-/// Compose multiple [learning rate schedulers](LrScheduler) togheter.
+/// Compose multiple [learning rate schedulers](LrScheduler) together.
 pub struct ComposedLrScheduler {
     schedulers: Vec<LrSchedulerItem>,
     reduction: SchedulerReduction,
@@ -64,12 +64,12 @@ impl ComposedLrSchedulerConfig {
     }
 
     /// Appends a [cosine scheduler](ComposedLrSchedulerConfig).
-    pub fn consine(mut self, config: CosineAnnealingLrSchedulerConfig) -> Self {
+    pub fn cosine(mut self, config: CosineAnnealingLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Cosine(config));
         self
     }
 
-    /// Appends a [exponential scheduler](ExponentialLrScheduler).
+    /// Appends an [exponential scheduler](ExponentialLrScheduler).
     pub fn exponential(mut self, config: ExponentialLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Exponential(config));
         self

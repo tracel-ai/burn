@@ -13,7 +13,7 @@ pub enum LearnerEvent<T> {
     End,
 }
 
-/// Event happening during the training/validation process.
+/// Event happening during the evaluation process.
 pub enum EvaluatorEvent<T> {
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, LearnerItem<T>),
@@ -47,12 +47,12 @@ pub trait EventProcessorTraining: Send {
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
 
-/// Process events happening during training and validation.
+/// Process events happening during evaluation.
 pub trait EventProcessorEvaluation: Send {
     /// The test item.
     type ItemTest: ItemLazy;
 
-    /// Collect a training event.
+    /// Collect a test event.
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>);
 
     /// Returns the renderer used for evaluation.
