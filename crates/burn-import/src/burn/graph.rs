@@ -8,7 +8,7 @@ use burn::record::{
     PrecisionSettings, PrettyJsonFileRecorder, Recorder,
 };
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use serde::{
     Serialize,
     ser::{SerializeMap, SerializeTuple},
@@ -63,6 +63,37 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         log::debug!("Registering node => '{}'", node.name());
         self.nodes.push(node);
     }
+    fn create_layer_files<Backend>(
+        &self,
+        recorder: &impl Recorder<Backend, RecordArgs = PathBuf>,
+        out_file: PathBuf,
+    ) -> Vec<(syn::Ident, PathBuf)>
+    where
+        PS: PrecisionSettings,
+        Backend: burn::tensor::backend::Backend,
+    {
+        let mut layer_files = Vec::new();
+
+        for node in &self.nodes {
+            let mut node_file = out_file.to_path_buf();
+            let node_type = match node.field_type() {
+                Some(node_type) => node_type.name().clone(),
+                None => continue,
+            };
+            node_file.set_file_name(node_type.to_string());
+
+            layer_files.push((node_type.clone(), node_file.clone()));
+
+            // Save individual node file
+            let _ = Recorder::<Backend>::save_item(
+                recorder,
+                BurnRecord::<_, Backend>::new::<PrettyJsonFileRecorder<PS>>(node),
+                node_file,
+            );
+        }
+
+        layer_files
+    }
 
     /// Save the state of each node in a record file.
     ///
@@ -102,6 +133,24 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 )
                 .unwrap();
 
+                let mut layer_files: Vec<(syn::Ident, PathBuf)> = Vec::new();
+
+                for node in &self.nodes {
+                    let mut out_file = out_file.clone();
+                    let node_type = match node.field_type() {
+                        Some(node_type) => node_type.name().clone(),
+                        None => continue,
+                    };
+                    out_file.set_file_name(node_type.to_string());
+
+                    layer_files.push((node_type, out_file.clone()));
+                    let _ = Recorder::<Backend>::save_item(
+                        &recorder,
+                        BurnRecord::<_, Backend>::new::<PrettyJsonFileRecorder<PS>>(node),
+                        out_file,
+                    );
+                }
+
                 assert!(
                     !embed_states,
                     "Embedding states is not supported for PrettyJsonFileRecorder."
@@ -110,6 +159,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 self.register_record_file(
                     out_file,
                     &format!("burn::record::PrettyJsonFileRecorder::<{precision_ty_str}>"),
+                    layer_files,
                 );
             }
             RecordType::NamedMpkGz => {
@@ -124,6 +174,24 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 )
                 .unwrap();
 
+                let mut layer_files: Vec<(syn::Ident, PathBuf)> = Vec::new();
+
+                for node in &self.nodes {
+                    let mut out_file = out_file.clone();
+                    let node_type = match node.field_type() {
+                        Some(node_type) => node_type.name().clone(),
+                        None => continue,
+                    };
+                    out_file.set_file_name(node_type.to_string());
+
+                    layer_files.push((node_type, out_file.clone()));
+                    let _ = Recorder::<Backend>::save_item(
+                        &recorder,
+                        BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(node),
+                        out_file,
+                    );
+                }
+
                 assert!(
                     !embed_states,
                     "Embedding states is not supported for NamedMpkGzFileRecorder."
@@ -131,6 +199,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 self.register_record_file(
                     out_file,
                     &format!("burn::record::NamedMpkGzFileRecorder::<{precision_ty_str}>"),
+                    layer_files,
                 );
             }
 
@@ -146,6 +215,24 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 )
                 .unwrap();
 
+                let mut layer_files: Vec<(syn::Ident, PathBuf)> = Vec::new();
+
+                for node in &self.nodes {
+                    let mut out_file = out_file.clone();
+                    let node_type = match node.field_type() {
+                        Some(node_type) => node_type.name().clone(),
+                        None => continue,
+                    };
+                    out_file.set_file_name(node_type.to_string());
+
+                    layer_files.push((node_type, out_file.clone()));
+                    let _ = Recorder::<Backend>::save_item(
+                        &recorder,
+                        BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(node),
+                        out_file,
+                    );
+                }
+
                 assert!(
                     !embed_states,
                     "Embedding states is not supported for NamedMpkFileRecorder."
@@ -154,27 +241,48 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 self.register_record_file(
                     out_file,
                     &format!("burn::record::NamedMpkFileRecorder::<{precision_ty_str}>"),
+                    layer_files,
                 );
             }
 
             RecordType::Bincode => {
                 let recorder = BinFileRecorder::<PS>::new();
 
+                let burn_graph_state = BurnGraphState::new(&self.nodes);
+                let struct_tuple = StructTuple(burn_graph_state);
+
                 Recorder::<Backend>::save_item(
                     &recorder,
-                    BurnRecord::<_, Backend>::new::<BinFileRecorder<PS>>(StructTuple(
-                        BurnGraphState::new(&self.nodes),
-                    )),
+                    BurnRecord::<_, Backend>::new::<BinFileRecorder<PS>>(struct_tuple),
                     out_file.clone(),
                 )
                 .unwrap();
 
+                let mut layer_files: Vec<(syn::Ident, PathBuf)> = Vec::new();
+
+                for node in &self.nodes {
+                    let mut out_file = out_file.clone();
+                    let node_type = match node.field_type() {
+                        Some(node_type) => node_type.name().clone(),
+                        None => continue,
+                    };
+                    out_file.set_file_name(node_type.to_string());
+
+                    layer_files.push((node_type, out_file.clone()));
+                    let _ = Recorder::<Backend>::save_item(
+                        &recorder,
+                        BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(node),
+                        out_file,
+                    );
+                }
+
                 if embed_states {
-                    self.register_record_embed(out_file);
+                    self.register_record_embed(out_file, layer_files);
                 } else {
                     self.register_record_file(
                         out_file,
                         &format!("burn::record::BinFileRecorder::<{precision_ty_str}>"),
+                        layer_files,
                     );
                 }
             }
@@ -205,10 +313,23 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         self.register_imports();
 
+        let forward_node_result: Vec<_> = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| node.forward(&mut self.scope, index))
+            .collect();
+
         let codegen_imports = self.imports.codegen();
+        let codegen_layer_loader_struct = self.codegen_layer_loader_struct();
+        let codegen_layer_loader_new = self.codegen_layer_loader_new();
+        let codegen_layer_loader_unloader = self.codegen_layer_loader_unloader();
+        let codegen_layer_loader_loader = self.codegen_layer_loader_loader();
+        let codegen_model_layer_forward =
+            self.codegen_model_layer_forward(forward_node_result.clone());
         let codegen_struct = self.codegen_struct();
         let codegen_new = self.codegen_new();
-        let codegen_forward = self.codegen_forward();
+        let codegen_forward = self.codegen_forward(forward_node_result);
 
         let maybe_blank = match self.blank_spaces {
             true => quote! {
@@ -236,6 +357,21 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             #codegen_imports
             #maybe_blank
             #maybe_blank
+
+            #codegen_layer_loader_struct
+            #maybe_blank
+
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #codegen_layer_loader_new
+                #maybe_blank
+
+                #codegen_layer_loader_unloader
+                #maybe_blank
+
+                #codegen_layer_loader_loader
+
+                #codegen_model_layer_forward
+            }
 
             #codegen_struct
             #maybe_blank
@@ -313,14 +449,37 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             });
     }
 
-    fn register_record_file(&mut self, file: PathBuf, recorder_str: &str) {
+    fn register_record_file(
+        &mut self,
+        file: PathBuf,
+        recorder_str: &str,
+        layer_files: Vec<(syn::Ident, PathBuf)>,
+    ) {
         self.imports.register("burn::record::Recorder");
 
         let recorder_ty = syn::parse_str::<syn::Type>(recorder_str).unwrap();
 
+        let mut layer_states = quote! {};
+        for (layer_file_name, layer_file_path) in layer_files {
+            let layer_state_ident =
+                format_ident!("{}_STATES", layer_file_name.to_string().to_uppercase());
+            let layer_file_path = layer_file_path.to_str().unwrap();
+            layer_states.extend(quote! {
+                static #layer_state_ident: &str = #layer_file_path;
+            });
+        }
+
         // Add default implementation
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
+            _blank_!();
+            #layer_states
+            _blank_!();
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                pub fn recorder() -> #recorder_ty {
+                    #recorder_ty::new()
+                }
+            }
             _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
@@ -339,7 +498,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         });
     }
 
-    fn register_record_embed(&mut self, file: PathBuf) {
+    fn register_record_embed(&mut self, file: PathBuf, layer_files: Vec<(syn::Ident, PathBuf)>) {
         self.imports.register("burn::record::Recorder");
 
         // NOTE: Bincode format is used for embedding states for now.
@@ -347,10 +506,30 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let precision_ty = syn::parse_str::<syn::Type>(&precision).unwrap();
         self.imports.register("burn::record::BinBytesRecorder");
 
+        let mut layer_states = quote! {};
+        for (layer_file_name, mut layer_file_path) in layer_files {
+            let layer_state_ident =
+                format_ident!("{}_STATES", layer_file_name.to_string().to_uppercase());
+            layer_file_path
+                .set_extension(<BinFileRecorder<PS> as FileRecorder<Backend>>::file_extension());
+            let layer_file_path = layer_file_path.to_str().unwrap();
+            layer_states.extend(quote! {
+                static #layer_state_ident: &[u8] = include_bytes!(#layer_file_path);
+            });
+        }
+
         let mut file = file;
         file.set_extension(<BinFileRecorder<PS> as FileRecorder<Backend>>::file_extension());
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
+            _blank_!();
+            #layer_states
+            _blank_!();
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                pub fn recorder() -> BinBytesRecorder<#precision_ty, &'static [u8]> {
+                    BinBytesRecorder::default()
+                }
+            }
             _blank_!();
             static EMBEDDED_STATES: &[u8] = include_bytes!(#file);
             _blank_!();
@@ -363,7 +542,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             impl<B: Backend> Model<B> {
                 pub fn from_embedded(device: &B::Device) -> Self {
                     let record = BinBytesRecorder::<#precision_ty, &'static [u8]>::default()
-                    .load(EMBEDDED_STATES, device)
+                    .load(EMBEDDED_STATES.into(), device)
                     .expect("Should decode state successfully");
 
                     Self::new(device).load_record(record)
@@ -371,6 +550,41 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             }
 
         });
+    }
+
+    fn codegen_layer_loader_struct(&self) -> TokenStream {
+        let mut body = quote! {};
+        self.nodes
+            .iter()
+            .filter_map(|node| node.field_type())
+            .map(|field| {
+                let name = field.name();
+                let ty = field.ty();
+
+                if matches!(&field, Type::Tensor(_)) {
+                    quote! {
+                        #name: Option<burn::module::Param<#ty>>,
+                    }
+                } else {
+                    quote! {
+                        #name: Option<#ty>,
+                    }
+                }
+            })
+            .for_each(|code| body.extend(code));
+
+        // Extend with phantom data to avoid unused generic type.
+        body.extend(quote! {
+            phantom: core::marker::PhantomData<B>,
+            device: burn::module::Ignored<B::Device>,
+        });
+
+        quote! {
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                #body
+            }
+        }
     }
 
     fn codegen_struct(&self) -> TokenStream {
@@ -408,6 +622,96 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
     }
 
+    fn codegen_layer_loader_loader(&self) -> TokenStream {
+        let fields = self
+            .nodes
+            .iter()
+            .filter_map(|node| {
+                let field_type = node.field_type()?;
+                let field_init = node.field_init()?;
+                Some((
+                    field_type.name().clone(),
+                    field_type.ty().clone(),
+                    field_init.clone(),
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        let mut body = quote! {};
+        for (field_name, field_ty, field_init) in fields {
+            let field_ty_parsed: syn::Path =
+                syn::parse2::<syn::Path>(field_ty).expect("Failed to parse field type");
+            let field_ty_parsed = &field_ty_parsed
+                .segments
+                .last()
+                .expect("Their should be some sort of segment to define the type");
+            let field_ty_ident = &field_ty_parsed.ident;
+
+            let function_name = format_ident!("load_{}", field_name);
+            let record_name = format_ident!("{}Record", quote! {#field_ty_ident}.to_string());
+            let state_name = format_ident!("{}_STATES", field_name.to_string().to_uppercase());
+
+            body.extend(quote! {
+                #[allow(unused)]
+                pub fn #function_name(&mut self, device: &B::Device) {
+                    let record: #record_name<B> = Self::recorder()
+                        .load(#state_name.into(), device)
+                        .expect("Should decode state successfully");
+
+                    #field_init
+                    self.#field_name = Some(burn::module::Module::<B>::load_record(#field_name, record));
+                }
+            });
+        }
+
+        body
+    }
+
+    fn codegen_layer_loader_unloader(&self) -> TokenStream {
+        let fields = self
+            .nodes
+            .iter()
+            .flat_map(|node| node.field_type())
+            .map(|field| field.name().clone())
+            .collect::<Vec<_>>();
+
+        let mut body = quote! {};
+        for field_name in fields {
+            let function_name = format_ident!("unload_{}", field_name);
+            body.extend(quote! {
+                #[allow(unused)]
+                pub fn #function_name(&mut self) {
+                    self.#field_name = None;
+                }
+            });
+        }
+
+        body
+    }
+
+    fn codegen_layer_loader_new(&self) -> TokenStream {
+        let fields = self
+            .nodes
+            .iter()
+            .flat_map(|node| node.field_type())
+            .map(|field| {
+                let name = field.name().clone();
+                quote! { #name: None }
+            })
+            .collect::<Vec<_>>();
+
+        quote! {
+            #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                Self {
+                    #(#fields,)*
+                    phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
+                }
+            }
+        }
+    }
+
     fn codegen_new(&self) -> TokenStream {
         let mut body = quote! {};
 
@@ -437,7 +741,93 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
     }
 
-    fn codegen_forward(&mut self) -> TokenStream {
+    fn codegen_model_layer_forward(&mut self, forward_functions: Vec<TokenStream>) -> TokenStream {
+        let mut input_def = quote! {};
+        let mut output_type_def = quote! {};
+        let mut output_return_def = quote! {};
+
+        self.graph_input_types.iter().for_each(|input| {
+            let name = input.name().clone();
+            let ty = input.ty();
+
+            input_def.extend(quote! {
+                #name: #ty,
+
+            })
+        });
+
+        input_def.extend(quote! {
+            device: &B::Device,
+        });
+
+        let multiple_output = self.graph_output_types.len() > 1;
+
+        self.graph_output_types.iter().for_each(|output| {
+            let name = output.name();
+            let ty = output.ty();
+
+            if multiple_output {
+                output_type_def.extend(quote! {
+                    #ty,
+                });
+                output_return_def.extend(quote! {
+                    #name,
+                });
+            } else {
+                output_type_def.extend(quote! {
+                    #ty
+                });
+                output_return_def.extend(quote! {
+                    #name
+                });
+            }
+        });
+
+        if multiple_output {
+            output_return_def = quote! {
+                (#output_return_def)
+            };
+            output_type_def = quote! {
+                (#output_type_def)
+            };
+        }
+
+        let mut body = quote! {};
+        self.nodes
+            .iter()
+            .zip(forward_functions.into_iter())
+            .for_each(|(node, code)| {
+                if let Some(field_type) = node.field_type() {
+                    let name = field_type.name();
+
+                    let code_str = code.to_string();
+                    let replaced = code_str.replace(
+                        &format!("self . {}", name),
+                        &format!("self . {} . take () ?", name),
+                    );
+                    let code: TokenStream = replaced.parse().unwrap();
+
+                    let load_function_name = format_ident!("load_{}", name);
+                    body.extend(quote! {self.#load_function_name(device);});
+                    body.extend(code);
+                } else {
+                    body.extend(code);
+                }
+            });
+
+        // TODO Return the result without a `let` binding from a block,
+        // otherwise let_and_return error will be triggered by clippy.
+        // For now, we just disable the warning.
+        quote! {
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn memory_efficient_forward(&mut self, #input_def) -> Option<#output_type_def> {
+                #body
+                Some(#output_return_def)
+            }
+        }
+    }
+
+    fn codegen_forward(&mut self, forward_functions: Vec<TokenStream>) -> TokenStream {
         let mut input_def = quote! {};
         let mut output_type_def = quote! {};
         let mut output_return_def = quote! {};
@@ -485,10 +875,8 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         }
 
         let mut body = quote! {};
-        self.nodes
-            .iter()
-            .enumerate()
-            .map(|(index, node)| node.forward(&mut self.scope, index))
+        forward_functions
+            .into_iter()
             .for_each(|code| body.extend(code));
 
         // TODO Return the result without a `let` binding from a block,
