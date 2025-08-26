@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 pub trait EvaluatorComponentTypes {
     /// The backend in used for the evaluation.
     type Backend: Backend;
-    /// The model to train.
+    /// The model to evaluate.
     type Model: Module<Self::Backend>
         + TestStep<Self::TestInput, Self::TestOutput>
         + core::fmt::Display
