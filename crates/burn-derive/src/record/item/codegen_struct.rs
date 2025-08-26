@@ -1,7 +1,10 @@
-use crate::shared::field::{FieldTypeAnalyzer, parse_fields};
+use crate::{
+    record::{codegen::strip_backend_from_generics, item::codegen::ReplaceBackend},
+    shared::field::{FieldTypeAnalyzer, parse_fields},
+};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Generics, Visibility, parse_quote};
+use syn::{Generics, Visibility, parse_quote, visit_mut::VisitMut};
 
 use super::codegen::RecordItemCodegen;
 
@@ -33,21 +36,33 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         let mut clone_delegate = quote! {};
         let vis = &self.vis;
 
+        let backend = parse_quote!(burn::tensor::backend::DummyBackend);
+
+        let mut replacer = ReplaceBackend {
+            replacement: &backend,
+        };
+
         for field in self.fields.iter() {
-            let ty = &field.field.ty;
+            let mut ty = field.field.ty.clone();
+
+            if has_backend {
+                replacer.visit_type_mut(&mut ty);
+            }
             let name = &field.field.ident;
+
+            let item_type = quote!(<#ty as burn::record::Record<#backend>>::Item<S>);
 
             fields.extend(quote! {
                 /// Field to be serialized.
-                pub #name: <#ty as burn::record::Record<B>>::Item<S>,
+                pub #name: #item_type,
             });
 
             serde_bounds.extend(quote! {
-                <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
+                #item_type: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
             });
 
             clone_bounds.push(parse_quote! {
-                <#ty as burn::record::Record<B>>::Item<S>: Clone
+                #item_type: Clone
             });
 
             clone_delegate.extend(quote! {
@@ -56,11 +71,18 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         }
         let serde_bound = serde_bounds.to_string();
 
-        let mut generics = generics.clone();
-        if !has_backend {
-            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
-            generics.params.push(syn::GenericParam::Type(param));
-        }
+        let generics = if has_backend {
+            strip_backend_from_generics(generics)
+        } else {
+            generics.clone()
+        };
+
+        // let mut generics = generics.clone();
+        // if !has_backend {
+        //     let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+        //     generics.params.push(syn::GenericParam::Type(param));
+        // }
+
         let (generics, type_generics, generics_where) = generics.split_for_impl();
 
         let clone_bounds = generics_where.cloned().map(|mut where_clause| {
