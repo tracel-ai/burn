@@ -258,7 +258,7 @@ where
     }
 
     /// Override the handle for stopping training with an externally provided handle
-    pub fn with_interrupter(mut self, interrupter: TrainingInterrupter) -> Self {
+    pub fn with_interrupter(mut self, interrupter: RendererInterrupter) -> Self {
         self.interrupter = interrupter;
         self
     }
