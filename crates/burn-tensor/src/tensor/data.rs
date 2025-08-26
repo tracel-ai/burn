@@ -60,11 +60,12 @@ impl TensorData {
         value: Vec<E>,
         shape: S,
         strategy: QuantizationStrategy,
+        scheme: QuantScheme,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, strategy);
+        let q_bytes = QuantizedBytes::new(value, strategy, scheme);
 
         Self {
             bytes: q_bytes.bytes,
@@ -255,7 +256,14 @@ impl TensorData {
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        value: QuantValue::Q8F | QuantValue::Q8S,
+                        value:
+                            QuantValue::Q8F
+                            | QuantValue::Q8S
+                            // Represent sub-byte values as i8
+                            | QuantValue::Q4F
+                            | QuantValue::Q4S
+                            | QuantValue::Q2F
+                            | QuantValue::Q2S,
                         ..
                     } => {
                         // Quantized int8 values
@@ -274,7 +282,6 @@ impl TensorData {
                                 .into_iter(),
                         )
                     }
-                    _ => todo!(),
                 },
             }
         }
@@ -464,21 +471,6 @@ impl TensorData {
     /// Returns the bytes representation of the data.
     pub fn into_bytes(self) -> Bytes {
         self.bytes
-    }
-
-    /// Applies the data quantization strategy.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the data type is not supported for quantization.
-    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Self {
-        assert_eq!(
-            self.dtype,
-            DType::F32,
-            "Only f32 data type can be quantized"
-        );
-        let values = quantization.quantize(self.as_slice().unwrap());
-        TensorData::quantized(values, self.shape, quantization)
     }
 
     /// Dequantizes the data according to its quantization scheme.
@@ -817,12 +809,18 @@ impl core::fmt::Display for TensorData {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    value: QuantValue::Q8F | QuantValue::Q8S,
+                    value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        // Display sub-byte values as i8
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
                 }
-                _ => todo!(),
             },
         };
         f.write_str(fmt.as_str())
@@ -1158,7 +1156,16 @@ mod tests {
         let data = TensorData::quantized(
             vec![-127i8, -77, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                0.1,
+                QuantValue::Q8S,
+            )),
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                value: QuantValue::Q8S,
+                mode: QuantMode::Symmetric,
+                ..Default::default()
+            },
         );
 
         let output = data.dequantize().unwrap();

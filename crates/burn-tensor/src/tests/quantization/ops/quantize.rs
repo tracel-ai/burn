@@ -40,9 +40,11 @@ mod tests {
         let expected = TensorData::quantized(
             vec![-127i8, -71, 0, 35],
             [4],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
                 0.014_173_228,
+                QuantValue::Q8S,
             )),
+            QuantScheme::default(),
         );
 
         // Values equality
@@ -77,7 +79,11 @@ mod tests {
         let expected = TensorData::quantized(
             vec![50i8, 0, 40, -127],
             [4],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                0.1,
+                QuantValue::Q8S,
+            )),
+            QuantScheme::default(),
         );
 
         x_q.into_data().assert_eq(&expected, false);
