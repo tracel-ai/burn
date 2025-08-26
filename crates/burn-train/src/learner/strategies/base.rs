@@ -5,7 +5,7 @@ use burn_collective::CollectiveConfig;
 use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Learner, LearnerCheckpointer, RendererInterrupter, TrainLoader,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
     TrainingResult, ValidLoader,
     components::LearnerComponentTypes,
     metric::{
@@ -158,7 +158,7 @@ pub(crate) struct LearnerComponents<LC: LearnerComponentTypes> {
     pub num_epochs: usize,
     pub grad_accumulation: Option<usize>,
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub interrupter: RendererInterrupter,
+    pub interrupter: Interrupter,
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     pub event_processor: LC::EventProcessor,
     pub event_store: Arc<EventStoreClient>,

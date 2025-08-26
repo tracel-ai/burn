@@ -1,6 +1,5 @@
 use crate::{
-    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, RendererInterrupter,
-    TestStep,
+    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, Interrupter, TestStep,
     evaluator::components::EvaluatorComponentTypesMarker,
     logger::FileMetricLogger,
     metric::{
@@ -18,13 +17,16 @@ use std::{
     sync::Arc,
 };
 
-/// TODO: Docs
+/// Struct to configure and create an [evaluator](Evaluator).
+///
+/// The generics components of the builder should probably not be set manually, as they are
+/// optimized for Rust type inference.
 pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    interrupter: RendererInterrupter,
+    interrupter: Interrupter,
     metrics: MetricsEvaluation<TO>,
     directory: PathBuf,
     summary: bool,
@@ -46,7 +48,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             event_store: LogEventStore::default(),
             summary_metrics: Default::default(),
             renderer: None,
-            interrupter: RendererInterrupter::new(),
+            interrupter: Interrupter::new(),
             summary: false,
             metrics: MetricsEvaluation::default(),
             directory,
@@ -117,6 +119,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     }
 
     /// Builds the evaluator.
+    #[allow(clippy::type_complexity)]
     pub fn build<M>(
         mut self,
         model: M,

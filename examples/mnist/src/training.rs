@@ -110,9 +110,25 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let result = learner.fit(dataloader_train, dataloader_valid);
 
+    let dataset_test_plain = Arc::new(MnistDataset::test());
+    let mut renderer = result.renderer;
+
+    let idents_tests = generate_idents(None);
+
+    for (ident, _) in idents_tests {
+        let name = ident.to_string();
+        renderer = evaluate::<B::InnerBackend>(
+            name.as_str(),
+            ident,
+            result.model.clone(),
+            renderer,
+            dataset_test_plain.clone(),
+            config.batch_size,
+        );
+    }
+
     result
         .model
-        .clone()
         .save_file(
             format!("{ARTIFACT_DIR}/model"),
             &NoStdTrainingRecorder::new(),
@@ -123,35 +139,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json").as_str())
         .unwrap();
 
-    let dataset_test_plain = Arc::new(MnistDataset::test());
-    let evaluate = |name: &str,
-                    ident: DatasetIdent,
-                    model: Model<B::InnerBackend>,
-                    renderer: Box<dyn MetricsRenderer>| {
-        let batcher = MnistBatcher::default();
-        let dataset_test = DatasetIdent::prepare(ident, dataset_test_plain.clone());
-        let dataloader_test = DataLoaderBuilder::new(batcher)
-            .batch_size(config.batch_size)
-            .num_workers(config.num_workers)
-            .build(dataset_test);
-
-        let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
-            .renderer(renderer)
-            .metrics((AccuracyMetric::new(), LossMetric::new()))
-            .build(model);
-
-        evaluator.eval(name, dataloader_test)
-    };
-
-    let mut renderer = result.renderer;
-
-    let idents_tests = generate_idents(None);
-
-    for (ident, _) in idents_tests {
-        let name = ident.to_string();
-        renderer = evaluate(name.as_str(), ident, result.model.clone(), renderer);
-    }
-
     renderer.manual_close();
     core::mem::drop(renderer);
 
@@ -161,6 +148,29 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         log::info!("{}", summary);
         println!("{}", summary);
     }
+}
+
+fn evaluate<B: Backend>(
+    name: &str,
+    ident: DatasetIdent,
+    model: Model<B>,
+    renderer: Box<dyn MetricsRenderer>,
+    dataset: impl Dataset<MnistItem> + 'static,
+    batch_size: usize,
+) -> Box<dyn MetricsRenderer> {
+    let batcher = MnistBatcher::default();
+    let dataset_test = DatasetIdent::prepare(ident, dataset);
+    let dataloader_test = DataLoaderBuilder::new(batcher)
+        .batch_size(batch_size)
+        .num_workers(2)
+        .build(dataset_test);
+
+    let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
+        .renderer(renderer)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .build(model);
+
+    evaluator.eval(name, dataloader_test)
 }
 
 enum DatasetIdent {

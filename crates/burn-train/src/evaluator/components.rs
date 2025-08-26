@@ -32,6 +32,7 @@ pub trait TestStep<TI, TO> {
     fn step(&self, item: TI) -> TO;
 }
 
+/// A marker type used to provide [evaluation components](EvaluatorComponentTypes).
 pub struct EvaluatorComponentTypesMarker<B, M, E, TI, TO> {
     _p: PhantomData<(B, M, E, TI, TO)>,
 }

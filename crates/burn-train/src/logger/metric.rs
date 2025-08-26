@@ -52,7 +52,7 @@ impl FileMetricLogger {
             epoch: Some(1),
         }
     }
-    ///
+
     /// Create a new file metric logger.
     ///
     /// # Arguments
