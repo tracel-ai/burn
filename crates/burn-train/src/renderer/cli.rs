@@ -33,9 +33,7 @@ impl MetricsRendererEvaluation for CliMetricsRenderer {
         println!("{item:?}");
     }
 
-    fn update_test(&mut self, _name: super::EvaluationName, _state: MetricState) {
-        //
-    }
+    fn update_test(&mut self, _name: super::EvaluationName, _state: MetricState) {}
 }
 
 impl MetricsRenderer for CliMetricsRenderer {

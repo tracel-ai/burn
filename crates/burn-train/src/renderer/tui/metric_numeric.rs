@@ -277,7 +277,7 @@ impl NumericMetricView<'_> {
             Self::BarPlots(titles, selected, chart) => {
                 let block = Block::default()
                     .borders(Borders::ALL)
-                    .title("Resume")
+                    .title("Summary")
                     .title_alignment(Alignment::Left);
                 let size_new = block.inner(size);
                 frame.render_widget(block, size);
@@ -306,7 +306,7 @@ impl NumericMetricView<'_> {
                         .add_modifier(Modifier::UNDERLINED)
                         .fg(Color::LightYellow),
                 );
-                let title = "Resume";
+                let title = "Summary";
 
                 let plot_type =
                     Paragraph::new(Line::from(title.bold())).alignment(Alignment::Center);
