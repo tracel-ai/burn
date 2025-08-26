@@ -555,20 +555,16 @@ impl BinaryNode {
                 // L > R == R < L
                 move |lhs, rhs| quote! { #rhs.lower_elem(#lhs) }
             }
-            (Type::Shape(_), Type::Tensor(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater(#rhs)
-                    }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater(#rhs)
                 }
-            }
-            (Type::Tensor(_), Type::Shape(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        #lhs.greater(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
-                    }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.greater(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
                 }
-            }
+            },
             (lhs, rhs) => panic!("greater is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(lhs, rhs, output, BinaryType::Greater, Arc::new(function))
@@ -594,20 +590,16 @@ impl BinaryNode {
                 // L >= R == R <= L
                 move |lhs, rhs| quote! { #rhs.lower_equal_elem(#lhs) }
             }
-            (Type::Shape(_), Type::Tensor(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater_equal(#rhs)
-                    }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater_equal(#rhs)
                 }
-            }
-            (Type::Tensor(_), Type::Shape(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        #lhs.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
-                    }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
                 }
-            }
+            },
             (lhs, rhs) => panic!("greater_equal is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(
@@ -637,20 +629,16 @@ impl BinaryNode {
                 // L < R == R > L
                 move |lhs, rhs| quote! { #rhs.greater_elem(#lhs) }
             }
-            (Type::Shape(_), Type::Tensor(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower(#rhs)
-                    }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower(#rhs)
                 }
-            }
-            (Type::Tensor(_), Type::Shape(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        #lhs.lower(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
-                    }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.lower(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
                 }
-            }
+            },
             (lhs, rhs) => panic!("lower is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(lhs, rhs, output, BinaryType::Less, Arc::new(function))
@@ -676,20 +664,16 @@ impl BinaryNode {
                 // L <= R == R >= L
                 move |lhs, rhs| quote! { #rhs.greater_equal_elem(#lhs) }
             }
-            (Type::Shape(_), Type::Tensor(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower_equal(#rhs)
-                    }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower_equal(#rhs)
                 }
-            }
-            (Type::Tensor(_), Type::Shape(_)) => {
-                move |lhs, rhs| {
-                    quote! {
-                        #lhs.lower_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
-                    }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.lower_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
                 }
-            }
+            },
             (lhs, rhs) => panic!("lower_equal is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(
