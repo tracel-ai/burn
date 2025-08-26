@@ -59,7 +59,7 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         self.test_numeric.push(Box::new(metric))
     }
 
-    /// Update the training information from the training item.
+    /// Update the testing information from the testing item.
     pub(crate) fn update_test(
         &mut self,
         item: &LearnerItem<T::ItemSync>,
