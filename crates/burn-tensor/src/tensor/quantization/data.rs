@@ -42,7 +42,7 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 }
 
 /// Unpack integer values into a sequence of signed 8-bit integers.
-pub(crate) fn unpack_q_to_i8s<Q: PrimInt + core::fmt::Display>(
+pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
     values: &[Q],
     numel: usize,
     value: &QuantValue,
@@ -105,5 +105,29 @@ mod tests {
         let unpacked = unpack_q_to_i8s(&[55u32], 1, &QuantValue::Q8S);
 
         assert_eq!(unpacked, vec![55]);
+    }
+
+    #[test]
+    fn should_unpack_u32s_to_i8s_arange() {
+        let unpacked = unpack_q_to_i8s(
+            &[
+                0u32, 286331136, 286331153, 572657937, 572662306, 857874978, 858993459, 858993459,
+                1145324612, 1145324612, 1431655748, 1431655765, 1717982549, 1717986918, 2003199590,
+                2004318071,
+            ],
+            128,
+            &QuantValue::Q4S,
+        );
+
+        assert_eq!(
+            unpacked,
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5,
+                5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+                6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+            ]
+        );
     }
 }
