@@ -316,7 +316,7 @@ fn apply_vectorization_block<R: Runtime>(
 fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
     match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::QInt8 => {
+            QuantValue::Q8F | QuantValue::Q8S => {
                 let line_sizes =
                     R::line_size_elem(&Elem::Int(cubecl::ir::IntKind::I8)).collect::<Vec<u8>>();
 
@@ -330,6 +330,9 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
                         *quants_line_sizes = Some(line_sizes);
                     }
                 }
+            }
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                unreachable!("Can't store native sub-byte values")
             }
         },
         QuantStore::U32 => {

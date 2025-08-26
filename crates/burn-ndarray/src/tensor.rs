@@ -333,7 +333,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
                 ..
             } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                 self.qparams[0].scales,
@@ -341,7 +341,7 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8F | QuantValue::Q8S,
                 ..
             } => QuantizationStrategy::PerBlockSymmetricInt8(
                 self.qparams
@@ -350,6 +350,10 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
                     .collect(),
                 block_size,
             ),
+            QuantScheme {
+                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                ..
+            } => unimplemented!(),
         }
     }
 }
@@ -379,7 +383,7 @@ mod tests {
     use burn_tensor::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
-        quantization::QuantizationParametersPrimitive,
+        quantization::{QuantStore, QuantizationParametersPrimitive},
     };
 
     #[test]
@@ -445,7 +449,9 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantScheme::default();
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::Native);
         let qparams = QuantizationParametersPrimitive {
             scales: B::float_from_data(TensorData::from([scale]), &device),
         };
