@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn should_squeeze_dims_with_empty_slice() {
         let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 3]), &Default::default());
-        let squeezed_tensor: Tensor<TestBackend, 1> = tensor.squeeze_dims(&[]);
+        let squeezed_tensor: Tensor<TestBackend, 1> = tensor.squeeze_dims(&[] as &[usize]);
         let expected_shape = Shape::new([3]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }

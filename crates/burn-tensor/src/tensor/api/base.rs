@@ -598,7 +598,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `dim`: The dimension to be squeezed.
+    /// - `dim`: The dimension to be squeezed, supports negative indexing.
     ///
     /// # Type Parameters
     ///
@@ -633,7 +633,8 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn squeeze<const D2: usize>(self, dim: impl AsIndex) -> Tensor<B, D2, K> {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
 
         let current_dims = self.shape().dims;
@@ -654,7 +655,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `dims`: The dimension(s) to be squeezed.
+    /// - `dims`: The dimension(s) to be squeezed; supports negative indexing.
     ///
     /// # Type Parameters
     ///
@@ -682,30 +683,24 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
+    pub fn squeeze_dims<const D2: usize, Dim>(self, dims: &[Dim]) -> Tensor<B, D2, K>
+    where
+        Dim: AsIndex,
+    {
         let current_dims = self.shape().dims;
-        let mut dim_indices: Vec<usize>;
 
-        // Check if dims is empty, if yes then assign dim_indices all single-dimensional entries
-        if dims.is_empty() {
-            dim_indices = current_dims
+        let mut dim_indices: Vec<usize> = if dims.is_empty() {
+            // If dims is empty, then assign dim_indices all single-dimensional entries.
+            current_dims
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &dim)| if dim == 1 { Some(index) } else { None })
-                .collect();
+                .collect()
         } else {
-            // If negative dims, count from the back
-            dim_indices = dims
-                .iter()
-                .map(|&d| {
-                    if d < 0 {
-                        (current_dims.len() as isize + d) as usize
-                    } else {
-                        d as usize
-                    }
-                })
-                .collect();
-        }
+            dims.iter()
+                .map(|d| canonicalize_dim(*d, D, false))
+                .collect()
+        };
 
         // Sort indices and remove duplicates
         dim_indices.sort_unstable();
