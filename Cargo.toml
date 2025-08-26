@@ -17,6 +17,7 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico", # will cause xtask issues otherwise
+    "crates/burn-import/model-checks/*", # exclude model checking crates from workspace
 ]
 
 [workspace.package]
@@ -66,7 +67,7 @@ quote = "1.0.40"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = "1.11.1"
+regex = "1.11.2"
 reqwest = { version = "0.12.23", default-features = false, features = [
     "rustls-tls",
 ] }
@@ -96,6 +97,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
 tracing-subscriber = "0.3.19"
 zip = "4.3.0"
+tar = "0.4.44"
 
 # Async handling
 async-channel = "2.5"
@@ -155,9 +157,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d1273b10a233e3c1bd40243bed66d206302d7989" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d1273b10a233e3c1bd40243bed66d206302d7989" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d1273b10a233e3c1bd40243bed66d206302d7989" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "22c9226d87550b32412d21579b041d806762f2df" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "22c9226d87550b32412d21579b041d806762f2df" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "22c9226d87550b32412d21579b041d806762f2df" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

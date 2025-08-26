@@ -31,20 +31,6 @@ pub struct ReduceOpCall<B: Backend> {
     result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
 }
 
-impl<B: Backend> ReduceOpCall<B> {
-    pub fn new(
-        caller: PeerId,
-        input: B::FloatTensorPrimitive,
-        result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
-    ) -> Self {
-        Self {
-            caller,
-            input,
-            result_sender,
-        }
-    }
-}
-
 /// Type sent to the collective client upon completion of a reduce aggregation
 pub(crate) type ReduceResult<T> = Result<Option<T>, CollectiveError>;
 
@@ -60,48 +46,55 @@ impl<B: Backend> ReduceOp<B> {
 
     /// Register a call to reduce in this operation.
     /// When the last caller registers a reduce, the operation is executed.
-    pub async fn register_call(
+    pub fn register_call(
         &mut self,
-        call: ReduceOpCall<B>,
+        caller: PeerId,
+        input: B::FloatTensorPrimitive,
+        result_sender: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
         op: ReduceOperation,
         root: PeerId,
-        peers: &[PeerId],
+        peer_count: usize,
+    ) -> Result<bool, CollectiveError> {
+        if self.shape != input.shape() {
+            return Err(CollectiveError::ReduceShapeMismatch);
+        }
+        if self.op != op {
+            return Err(CollectiveError::ReduceOperationMismatch);
+        }
+        if self.root != root {
+            return Err(CollectiveError::ReduceRootMismatch);
+        }
+
+        self.calls.push(ReduceOpCall {
+            caller,
+            input,
+            result_sender,
+        });
+
+        Ok(self.calls.len() == peer_count)
+    }
+
+    /// Runs the all-reduce if the operation is ready. Otherwise, do nothing
+    pub async fn execute(
+        mut self,
+        root: PeerId,
         config: &CollectiveConfig,
         global_client: &mut Option<Node<B, WebSocket>>,
     ) {
-        if self.shape != call.input.shape() {
-            self.send_err_to_all(CollectiveError::ReduceShapeMismatch);
-            return;
-        }
-        if self.op != op {
-            self.send_err_to_all(CollectiveError::ReduceOperationMismatch);
-            return;
-        }
-        if self.root != root {
-            self.send_err_to_all(CollectiveError::ReduceRootMismatch);
-            return;
-        }
-
-        self.calls.push(call);
-
-        let tensor_count = self.calls.len();
-        if tensor_count == peers.len() {
-            // Do reduce
-            match self.reduce(config, global_client).await {
-                Ok(mut result) => {
-                    // Return resulting tensor to root, None to others
-                    self.calls.drain(..).for_each(|op| {
-                        let msg = if op.caller == root {
-                            Ok(result.take())
-                        } else {
-                            Ok(None)
-                        };
-                        op.result_sender.send(msg).unwrap();
-                    });
-                }
-                Err(err) => {
-                    self.send_err_to_all(err);
-                }
+        match self.reduce(config, global_client).await {
+            Ok(mut result) => {
+                // Return resulting tensor to root, None to others
+                self.calls.drain(..).for_each(|op| {
+                    let msg = if op.caller == root {
+                        Ok(result.take())
+                    } else {
+                        Ok(None)
+                    };
+                    op.result_sender.send(msg).unwrap();
+                });
+            }
+            Err(err) => {
+                self.send_err_to_all(err);
             }
         }
     }
@@ -149,7 +142,7 @@ impl<B: Backend> ReduceOp<B> {
     }
 
     /// Send a collective error as result to operation caller
-    fn send_err_to_all(&mut self, err: CollectiveError) {
+    pub fn send_err_to_all(&mut self, err: CollectiveError) {
         self.calls.drain(..).for_each(|op| {
             op.result_sender.send(Err(err.clone())).unwrap();
         });
