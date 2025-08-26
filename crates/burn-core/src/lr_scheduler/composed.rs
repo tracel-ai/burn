@@ -9,7 +9,7 @@ use burn_derive::Record;
 use burn_tensor::backend::Backend;
 
 #[derive(Config)]
-/// Compose multiple [learning rate schedulers](LrScheduler) togheter.
+/// Compose multiple [learning rate schedulers](LrScheduler) together.
 pub struct ComposedLrSchedulerConfig {
     #[config(default = "Vec::new()")]
     schedulers: Vec<LrSchedulerConfig>,
