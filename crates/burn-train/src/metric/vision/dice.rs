@@ -84,7 +84,7 @@ impl Default for DiceMetricConfig {
 ///  # Type Parameters
 /// - `B`: Backend type.
 /// - `D`: Number of dimensions. Should be more than, or equal to 3 (default 4).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DiceMetric<B: Backend, const D: usize = 4> {
     name: MetricName,
     /// Internal state for numeric metric aggregation.

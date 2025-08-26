@@ -17,6 +17,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 ///
 /// The `beta` parameter represents the ratio of recall importance to precision importance.
 /// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
+#[derive(Clone)]
 pub struct FBetaScoreMetric<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

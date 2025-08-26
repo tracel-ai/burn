@@ -8,6 +8,7 @@ use crate::metric::MetricName;
 use crate::metric::{Metric, Numeric};
 
 /// The loss metric.
+#[derive(Clone)]
 pub struct IterationSpeedMetric {
     name: MetricName,
     state: NumericMetricState,

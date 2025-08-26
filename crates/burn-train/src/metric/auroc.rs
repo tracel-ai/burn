@@ -8,6 +8,7 @@ use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also referred to as [ROC AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)) for binary classification.
+#[derive(Clone)]
 pub struct AurocMetric<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

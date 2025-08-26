@@ -56,7 +56,17 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         }
     }
 
-    /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
+    /// Registers [numeric](crate::metric::Numeric) test [metrics](Metric).
+    pub fn metrics<M: MetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+        metrics.register(self)
+    }
+
+    /// Registers text [metrics](Metric).
+    pub fn metrics_text<M: TextMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register a [numeric](crate::metric::Numeric) test [metric](Metric).
     pub fn metric_numeric<Me: Metric + crate::metric::Numeric + 'static>(
         mut self,
         metric: Me,
@@ -66,6 +76,16 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric_numeric(metric);
+        self
+    }
+
+    /// Register a text test [metric](Metric).
+    pub fn metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    where
+        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+    {
+        self.summary_metrics.insert(metric.name().to_string());
+        self.metrics.register_test_metric(metric);
         self
     }
 
@@ -126,3 +146,64 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
         }
     }
 }
+
+/// Trait to fake variadic generics.
+pub trait MetricRegistration<TI, TO: ItemLazy>: Sized {
+    /// Register the metrics.
+    fn register<B: Backend>(
+        self,
+        builder: EvaluatorBuilder<B, TI, TO>,
+    ) -> EvaluatorBuilder<B, TI, TO>;
+}
+
+/// Trait to fake variadic generics.
+pub trait TextMetricRegistration<TI, TO: ItemLazy>: Sized {
+    /// Register the metrics.
+    fn register<B: Backend>(
+        self,
+        builder: EvaluatorBuilder<B, TI, TO>,
+    ) -> EvaluatorBuilder<B, TI, TO>;
+}
+
+macro_rules! gen_tuple {
+    ($($M:ident),*) => {
+        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> TextMetricRegistration<TI, TO> for ($($M,)*)
+        where
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register<B: Backend>(
+                self,
+                builder: EvaluatorBuilder<B, TI, TO>,
+            ) -> EvaluatorBuilder<B, TI, TO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric($M);)*
+                builder
+            }
+        }
+
+        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> MetricRegistration<TI, TO> for ($($M,)*)
+        where
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + $crate::metric::Numeric+ 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register<B: Backend>(
+                self,
+                builder: EvaluatorBuilder<B, TI, TO>,
+            ) -> EvaluatorBuilder<B, TI, TO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric_numeric($M);)*
+                builder
+            }
+        }
+    };
+}
+
+gen_tuple!(M1);
+gen_tuple!(M1, M2);
+gen_tuple!(M1, M2, M3);
+gen_tuple!(M1, M2, M3, M4);
+gen_tuple!(M1, M2, M3, M4, M5);
+gen_tuple!(M1, M2, M3, M4, M5, M6);

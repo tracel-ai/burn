@@ -14,6 +14,7 @@ use core::marker::PhantomData;
 use std::{num::NonZeroUsize, sync::Arc};
 
 ///The Recall Metric
+#[derive(Clone)]
 pub struct RecallMetric<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

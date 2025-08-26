@@ -7,6 +7,7 @@ use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The accuracy metric.
+#[derive(Clone)]
 pub struct AccuracyMetric<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

@@ -293,15 +293,19 @@ impl NumericMetricView<'_> {
                     ])
                     .split(size);
 
-                let tabs = Tabs::new(titles.iter().map(|i| Line::from(vec![i.to_string().yellow()])))
-                    .select(selected)
-                    .style(Style::default())
-                    .highlight_style(
-                        Style::default()
-                            .add_modifier(Modifier::BOLD)
-                            .add_modifier(Modifier::UNDERLINED)
-                            .fg(Color::LightYellow),
-                    );
+                let tabs = Tabs::new(
+                    titles
+                        .iter()
+                        .map(|i| Line::from(vec![i.to_string().yellow()])),
+                )
+                .select(selected)
+                .style(Style::default())
+                .highlight_style(
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .add_modifier(Modifier::UNDERLINED)
+                        .fg(Color::LightYellow),
+                );
                 let title = "Resume";
 
                 let plot_type =

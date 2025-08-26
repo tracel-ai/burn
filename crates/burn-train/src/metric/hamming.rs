@@ -7,6 +7,7 @@ use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid, backend::Backend};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
+#[derive(Clone)]
 pub struct HammingScore<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

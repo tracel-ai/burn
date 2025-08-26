@@ -8,6 +8,7 @@ use crate::metric::{MetricEntry, MetricName, Numeric, NumericEntry, format_float
 ///
 /// The numeric metric store values inside floats.
 /// Even if some metric are integers, their mean are floats.
+#[derive(Clone)]
 pub struct NumericMetricState {
     sum: f64,
     count: usize,

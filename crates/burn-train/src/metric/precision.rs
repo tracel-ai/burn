@@ -14,6 +14,7 @@ use core::marker::PhantomData;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The Precision Metric
+#[derive(Clone)]
 pub struct PrecisionMetric<B: Backend> {
     name: MetricName,
     state: NumericMetricState,

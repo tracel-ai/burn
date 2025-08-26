@@ -10,7 +10,7 @@ use burn_core::tensor::{ElementConversion, Int, Tensor};
 /// The Top-K accuracy metric.
 ///
 /// For K=1, this is equivalent to the [accuracy metric](`super::acc::AccuracyMetric`).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TopKAccuracyMetric<B: Backend> {
     name: Arc<String>,
     k: usize,

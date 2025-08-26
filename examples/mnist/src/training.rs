@@ -130,17 +130,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 5000));
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(CpuUse::new())
-        .metric_valid_numeric(CpuUse::new())
-        .metric_train_numeric(CpuMemory::new())
-        .metric_valid_numeric(CpuMemory::new())
-        .metric_train_numeric(CpuTemperature::new())
-        .metric_valid_numeric(CpuTemperature::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
+        .metrics((
+            AccuracyMetric::new(),
+            LossMetric::new(),
+            CpuUse::new(),
+            CpuMemory::new(),
+            CpuTemperature::new(),
+            LearningRateMetric::new(),
+        ))
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::<B>::new(),
@@ -183,8 +180,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
         let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
             .renderer(renderer)
-            .metric_numeric(AccuracyMetric::new())
-            .metric_numeric(LossMetric::new())
+            .metrics((AccuracyMetric::new(), LossMetric::new()))
             .build(model);
 
         evaluator.eval(name, dataloader_test)

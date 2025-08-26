@@ -7,6 +7,7 @@ use super::{
 use crate::metric::{Metric, MetricEntry, MetricName};
 
 /// Track the learning rate across iterations.
+#[derive(Clone)]
 pub struct LearningRateMetric {
     name: MetricName,
     state: NumericMetricState,

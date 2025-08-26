@@ -44,7 +44,7 @@ impl MetricMetadata {
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
-pub trait Metric: Send + Sync {
+pub trait Metric: Send + Sync + Clone {
     /// The input type of the metric.
     type Input;
 
@@ -62,6 +62,7 @@ pub trait Metric: Send + Sync {
     fn clear(&mut self);
 }
 
+/// Type used to store metric names efficiently.
 pub type MetricName = Arc<String>;
 
 /// Adaptor are used to transform types so that they can be used by metrics.
@@ -117,13 +118,17 @@ pub enum NumericEntry {
     Value(f64),
     /// Aggregated numeric (value, number of elements).
     Aggregated {
+        /// The sum of all entries.
         sum: f64,
+        /// The number of entries present in the sum.
         count: usize,
+        /// The current aggregated value.
         current: f64,
     },
 }
 
 impl NumericEntry {
+    /// Gets the current aggregated value of the metric.
     pub fn current(&self) -> f64 {
         match self {
             NumericEntry::Value(val) => *val,

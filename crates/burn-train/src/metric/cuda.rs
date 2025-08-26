@@ -5,9 +5,10 @@ use crate::metric::{Metric, MetricEntry, MetricName};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
+#[derive(Clone)]
 pub struct CudaMetric {
     name: MetricName,
-    nvml: Option<Nvml>,
+    nvml: Arc<Option<Nvml>>,
 }
 
 impl CudaMetric {
@@ -15,10 +16,10 @@ impl CudaMetric {
     pub fn new() -> Self {
         Self {
             name: Arc::new("Cuda".to_string()),
-            nvml: Nvml::init().map(Some).unwrap_or_else(|err| {
+            nvml: Arc::new(Nvml::init().map(Some).unwrap_or_else(|err| {
                 log::warn!("Unable to initialize CUDA Metric: {err}");
                 None
-            }),
+            })),
         }
     }
 }
@@ -92,7 +93,7 @@ impl Metric for CudaMetric {
             MetricEntry::new(self.name(), formatted, raw_running)
         };
 
-        match &self.nvml {
+        match self.nvml.as_ref() {
             Some(nvml) => available(nvml),
             None => not_available(),
         }

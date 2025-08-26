@@ -10,6 +10,7 @@ use burn_core::tensor::Tensor;
 use burn_core::tensor::backend::Backend;
 
 /// The loss metric.
+#[derive(Clone)]
 pub struct LossMetric<B: Backend> {
     name: Arc<String>,
     state: NumericMetricState,

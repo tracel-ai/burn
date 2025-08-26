@@ -40,7 +40,10 @@ sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }
 
 # Text UI
-ratatui = { workspace = true, optional = true, features = ["all-widgets", "crossterm"] }
+ratatui = { workspace = true, optional = true, features = [
+    "all-widgets",
+    "crossterm",
+] }
 
 # Utilities
 derive-new = { workspace = true }

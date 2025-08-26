@@ -17,6 +17,19 @@ pub struct CpuMemory {
     ram_bytes_used: u64,
 }
 
+impl Clone for CpuMemory {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            last_refresh: self.last_refresh.clone(),
+            refresh_frequency: self.refresh_frequency.clone(),
+            sys: System::new(),
+            ram_bytes_total: self.ram_bytes_total.clone(),
+            ram_bytes_used: self.ram_bytes_used.clone(),
+        }
+    }
+}
+
 impl CpuMemory {
     /// Creates a new memory metric
     pub fn new() -> Self {

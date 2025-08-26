@@ -164,6 +164,19 @@ where
         self
     }
 
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn metrics<Me: MetricRegistration<B, M, O, S, TI, VI, TO, VO>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn metrics_text<Me: TextMetricRegistration<B, M, O, S, TI, VI, TO, VO>>(
+        self,
+        metrics: Me,
+    ) -> Self {
+        metrics.register(self)
+    }
+
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
@@ -393,3 +406,108 @@ where
         learning_strategy
     }
 }
+
+/// Trait to fake variadic generics.
+pub trait MetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
+    O: Optimizer<M, B>,
+    S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
+{
+    /// Register the metrics.
+    fn register(
+        self,
+        builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+    ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>;
+}
+
+/// Trait to fake variadic generics.
+pub trait TextMetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
+    O: Optimizer<M, B>,
+    S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
+{
+    /// Register the metrics.
+    fn register(
+        self,
+        builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+    ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>;
+}
+
+macro_rules! gen_tuple {
+    ($($M:ident),*) => {
+        impl<$($M,)* B, M, O, S, TI, VI, TO, VO> TextMetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
+        where
+            B: AutodiffBackend,
+            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+            M::InnerModule: ValidStep<VI, VO>,
+            O: Optimizer<M, B>,
+            S: LrScheduler,
+            TI: Send + 'static,
+            VI: Send + 'static,
+            TO: ItemLazy + 'static,
+            VO: ItemLazy + 'static,
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(VO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+            ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric_train($M.clone());)*
+                $(let builder = builder.metric_valid($M);)*
+                builder
+            }
+        }
+
+        impl<$($M,)* B, M, O, S, TI, VI, TO, VO> MetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
+        where
+            B: AutodiffBackend,
+            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+            M::InnerModule: ValidStep<VI, VO>,
+            O: Optimizer<M, B>,
+            S: LrScheduler,
+            TI: Send + 'static,
+            VI: Send + 'static,
+            TO: ItemLazy + 'static,
+            VO: ItemLazy + 'static,
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(VO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + $crate::metric::Numeric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+            ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric_train_numeric($M.clone());)*
+                $(let builder = builder.metric_valid_numeric($M);)*
+                builder
+            }
+        }
+    };
+}
+
+gen_tuple!(M1);
+gen_tuple!(M1, M2);
+gen_tuple!(M1, M2, M3);
+gen_tuple!(M1, M2, M3, M4);
+gen_tuple!(M1, M2, M3, M4, M5);
+gen_tuple!(M1, M2, M3, M4, M5, M6);

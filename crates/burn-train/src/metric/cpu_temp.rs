@@ -6,10 +6,11 @@ use crate::metric::{Metric, MetricEntry, MetricName, NumericEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
+#[derive(Clone)]
 pub struct CpuTemperature {
     name: MetricName,
     temp_celsius: f32,
-    sys: System,
+    sys: Arc<System>,
 }
 
 impl CpuTemperature {
@@ -20,7 +21,7 @@ impl CpuTemperature {
         Self {
             name,
             temp_celsius: 0.,
-            sys: System::new(),
+            sys: Arc::new(System::new()),
         }
     }
 }
