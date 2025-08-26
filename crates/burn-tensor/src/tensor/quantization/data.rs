@@ -53,7 +53,7 @@ pub(crate) fn unpack_q_to_i8s<Q: PrimInt + core::fmt::Display>(
     let mask = Q::from((1 << size_quant) - 1).unwrap();
     let sign_shift = 8 - size_quant; // sign extension for sub-byte values
     values
-        .into_iter()
+        .iter()
         .enumerate()
         .flat_map(|(i, &packed)| {
             // A single u32 could contain less than four 8-bit values...
