@@ -47,7 +47,7 @@ pub trait EventProcessorTraining: Send {
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
 
-/// Process events happening during training and validation.
+/// Process events happening during evaluation.
 pub trait EventProcessorEvaluation: Send {
     /// The test item.
     type ItemTest: ItemLazy;
