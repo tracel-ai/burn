@@ -375,7 +375,11 @@ impl DType {
             DType::Bool => core::mem::size_of::<bool>(),
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
-                    QuantValue::QInt8 => core::mem::size_of::<i8>(),
+                    QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                        // Sub-byte values have fractional size
+                        0
+                    }
                 },
                 QuantStore::U32 => core::mem::size_of::<u32>(),
             },

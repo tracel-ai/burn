@@ -65,14 +65,14 @@ impl QuantizationStrategy {
             QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8S,
                 store: QuantStore::U32,
                 param: QuantParam::F32,
             },
             QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
                 level: QuantLevel::Block(*block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::QInt8,
+                value: QuantValue::Q8S,
                 store: QuantStore::U32,
                 param: QuantParam::F32,
             },
