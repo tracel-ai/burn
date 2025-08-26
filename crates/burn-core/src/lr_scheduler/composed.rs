@@ -69,7 +69,7 @@ impl ComposedLrSchedulerConfig {
         self
     }
 
-    /// Appends a [exponential scheduler](ExponentialLrScheduler).
+    /// Appends an [exponential scheduler](ExponentialLrScheduler).
     pub fn exponential(mut self, config: ExponentialLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Exponential(config));
         self
