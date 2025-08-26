@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_collective::CollectiveConfig;
-use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 
 use crate::{
-    EarlyStoppingStrategyRef, Learner, LearnerCheckpointer, TrainLoader, TrainingInterrupter,
-    ValidLoader,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerCheckpointer, TrainLoader,
+    TrainingResult, ValidLoader,
     components::LearnerComponentTypes,
     metric::{
-        processor::{Event, EventProcessor},
+        processor::{EventProcessorTraining, LearnerEvent},
         store::EventStoreClient,
     },
 };
@@ -68,7 +68,7 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
         mut learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::Model {
+    ) -> TrainingResult<LC::InnerModel> {
         let mut model = learner.model;
         let mut optim = learner.optim;
         let mut lr_scheduler = learner.lr_scheduler;
@@ -109,19 +109,23 @@ pub(crate) trait LearningMethod<LC: LearnerComponentTypes> {
             self.learn(model, dataloaders, starting_epoch, components);
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor.process_train(Event::End);
+        event_processor.process_train(LearnerEvent::End);
 
-        let summary = learner.summary;
-        if let Some(summary) = summary {
-            match summary.init() {
-                Ok(summary) => {
-                    println!("{}", summary.with_model(model.to_string()))
-                }
-                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
-            }
+        let summary = learner.summary.and_then(|summary| {
+            summary
+                .init()
+                .map(|summary| summary.with_model(model.to_string()))
+                .ok()
+        });
+
+        let model = model.valid();
+        let renderer = event_processor.renderer();
+
+        TrainingResult::<LC::InnerModel> {
+            model,
+            renderer,
+            summary,
         }
-
-        model
     }
 
     /// Prepare the dataloaders for this strategy.
@@ -154,7 +158,7 @@ pub(crate) struct LearnerComponents<LC: LearnerComponentTypes> {
     pub num_epochs: usize,
     pub grad_accumulation: Option<usize>,
     pub checkpointer: Option<LearnerCheckpointer<LC>>,
-    pub interrupter: TrainingInterrupter,
+    pub interrupter: Interrupter,
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     pub event_processor: LC::EventProcessor,
     pub event_store: Arc<EventStoreClient>,

@@ -1,17 +1,18 @@
 use super::PlotAxes;
+use crate::renderer::tui::TuiTag;
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
     widgets::{Dataset, GraphType},
 };
+use std::collections::BTreeMap;
 
 const FACTOR_BEFORE_RESIZE: usize = 2;
 
 /// A plot that shows the recent history at full resolution.
 pub(crate) struct RecentHistoryPlot {
     pub(crate) axes: PlotAxes,
-    train: RecentHistoryPoints,
-    valid: RecentHistoryPoints,
+    points: BTreeMap<TuiTag, RecentHistoryPoints>,
     max_samples: usize,
 }
 
@@ -30,63 +31,67 @@ impl RecentHistoryPlot {
     pub(crate) fn new(max_samples: usize) -> Self {
         Self {
             axes: PlotAxes::default(),
-            train: RecentHistoryPoints::new(max_samples),
-            valid: RecentHistoryPoints::new(max_samples),
+            points: BTreeMap::default(),
             max_samples,
         }
     }
 
-    pub(crate) fn push_train(&mut self, data: f64) {
-        let (x_min, x_current) = self.x();
+    pub(crate) fn push(&mut self, tag: TuiTag, data: f64) {
+        if !self.points.contains_key(&tag) {
+            self.points
+                .insert(tag.clone(), RecentHistoryPoints::new(self.max_samples));
+        }
 
-        self.train.push((x_current, data));
-        self.train.update_cursor(x_min);
-        self.valid.update_cursor(x_min);
+        let (x_min, x_current) = self.point_x();
 
-        self.update_bounds();
-    }
-
-    pub(crate) fn push_valid(&mut self, data: f64) {
-        let (x_min, x_current) = self.x();
-
-        self.valid.push((x_current, data));
-        self.valid.update_cursor(x_min);
-        self.train.update_cursor(x_min);
+        for (s, entry) in self.points.iter_mut() {
+            if s == &tag {
+                entry.push((x_current, data));
+            }
+            entry.update_cursor(x_min);
+        }
 
         self.update_bounds();
     }
 
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
-        let mut datasets = Vec::with_capacity(2);
+        let mut datasets = Vec::new();
 
-        if self.train.num_visible_points() > 0 {
-            datasets.push(self.train.dataset("Train", Color::LightRed));
-        }
-
-        if self.valid.num_visible_points() > 0 {
-            datasets.push(self.valid.dataset("Valid", Color::LightBlue));
+        for (tag, points) in self.points.iter() {
+            datasets.push(points.dataset(format!("{tag}"), tag.split.color()));
         }
 
         datasets
     }
 
-    fn x(&mut self) -> (f64, f64) {
-        let x_current = f64::max(self.train.max_x, self.valid.max_x) + 1.0;
-        let mut x_min = f64::min(self.train.min_x, self.valid.min_x);
+    fn point_x(&mut self) -> (f64, f64) {
+        let mut x_current = f64::MIN;
+        let mut x_min = f64::MAX;
+
+        for point in self.points.values() {
+            x_current = f64::max(x_current, point.max_x);
+            x_min = f64::min(x_min, point.min_x);
+        }
+
         if x_current - x_min >= self.max_samples as f64 {
             x_min += 1.0;
         }
 
-        (x_min, x_current)
+        (x_min, x_current + 1.0)
     }
 
     fn update_bounds(&mut self) {
-        self.axes.update_bounds(
-            (self.train.min_x, self.train.max_x),
-            (self.valid.min_x, self.valid.max_x),
-            (self.train.min_y, self.train.max_y),
-            (self.valid.min_y, self.valid.max_y),
-        );
+        let (mut x_min, mut x_max) = (f64::MAX, f64::MIN);
+        let (mut y_min, mut y_max) = (f64::MAX, f64::MIN);
+
+        for points in self.points.values() {
+            x_min = f64::min(x_min, points.min_x);
+            x_max = f64::max(x_max, points.max_x);
+            y_min = f64::min(y_min, points.min_y);
+            y_max = f64::max(y_max, points.max_y);
+        }
+
+        self.axes.update_bounds((x_min, x_max), (y_min, y_max));
     }
 }
 
@@ -104,10 +109,6 @@ impl RecentHistoryPoints {
             max_samples,
             factor_before_resize,
         }
-    }
-
-    fn num_visible_points(&self) -> usize {
-        self.points.len()
     }
 
     fn push(&mut self, (x, y): (f64, f64)) {
@@ -171,9 +172,7 @@ impl RecentHistoryPoints {
         let mut max_y = f64::MIN;
 
         for (_x, y) in self.slice() {
-            if *y > max_y {
-                max_y = *y;
-            }
+            max_y = f64::max(max_y, *y);
         }
 
         max_y
@@ -202,7 +201,7 @@ impl RecentHistoryPoints {
         self.cursor = 0;
     }
 
-    fn dataset<'a>(&'a self, name: &'a str, color: Color) -> Dataset<'a> {
+    fn dataset<'a>(&'a self, name: String, color: Color) -> Dataset<'a> {
         let data = &self.points[self.cursor..self.points.len()];
 
         Dataset::default()
@@ -216,29 +215,35 @@ impl RecentHistoryPoints {
 
 #[cfg(test)]
 mod tests {
+    use crate::renderer::tui::{TuiGroup, TuiSplit};
+
     use super::*;
 
     #[test]
     fn test_push_update_bounds_max_y() {
-        let mut chart = RecentHistoryPlot::new(3);
-        chart.push_train(15.0);
-        chart.push_train(10.0);
-        chart.push_train(14.0);
+        let mut chart = RecentHistoryPlot::new(2);
+        let tag = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+
+        chart.push(tag.clone(), 15.0);
+        chart.push(tag.clone(), 10.0);
+        chart.push(tag.clone(), 14.0);
 
         assert_eq!(chart.axes.bounds_y[1], 15.);
-        chart.push_train(10.0);
+        chart.push(tag, 10.0);
         assert_eq!(chart.axes.bounds_y[1], 14.);
     }
 
     #[test]
     fn test_push_update_bounds_min_y() {
-        let mut chart = RecentHistoryPlot::new(3);
-        chart.push_train(5.0);
-        chart.push_train(10.0);
-        chart.push_train(14.0);
+        let mut chart = RecentHistoryPlot::new(2);
+        let tag = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+
+        chart.push(tag.clone(), 5.0);
+        chart.push(tag.clone(), 10.0);
+        chart.push(tag.clone(), 14.0);
 
         assert_eq!(chart.axes.bounds_y[0], 5.);
-        chart.push_train(10.0);
+        chart.push(tag, 10.0);
         assert_eq!(chart.axes.bounds_y[0], 10.);
     }
 }

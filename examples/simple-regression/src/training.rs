@@ -82,6 +82,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .unwrap();
 
     model_trained
+        .model
         .save_file(
             format!("{artifact_dir}/model"),
             &NoStdTrainingRecorder::new(),
