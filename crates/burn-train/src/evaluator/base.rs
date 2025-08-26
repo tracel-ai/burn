@@ -1,5 +1,5 @@
 use crate::{
-    TrainingInterrupter,
+    RendererInterrupter,
     evaluator::components::{EvaluatorComponentTypes, TestStep},
     metric::processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
     renderer::{EvaluationName, MetricsRenderer},
@@ -10,7 +10,7 @@ use std::sync::Arc;
 /// Evaluates a model on a specific dataset.
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
-    pub(crate) interrupter: TrainingInterrupter,
+    pub(crate) interrupter: RendererInterrupter,
     pub(crate) event_processor: EC::EventProcessor,
 }
 

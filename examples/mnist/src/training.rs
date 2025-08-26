@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    data::{MnistBatcher, MnistMapper},
+    data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
     model::Model,
 };
 
@@ -9,6 +9,7 @@ use burn::{
     data::{
         dataloader::DataLoaderBuilder,
         dataset::{
+            Dataset,
             transform::{ComposedDataset, MapperDataset, PartialDataset, SamplerDataset},
             vision::{MnistDataset, MnistItem},
         },
@@ -24,7 +25,7 @@ use burn::{
     train::{
         EvaluatorBuilder, LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
-            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LearningRateMetric, LossMetric,
+            AccuracyMetric, LearningRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
         renderer::MetricsRenderer,
@@ -67,51 +68,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = Model::<B>::new(&device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
-    let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 50_000);
-    let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 50_000, 60_000);
+    let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
+    let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let data_augmentation = |dataset: PartialDataset<Arc<MnistDataset>, MnistItem>,
-                             num_hard: usize,
-                             num_medium: usize,
-                             num_easy: usize| {
-        // We create a dataset with a good distribution of samples of different difficulty.
-        ComposedDataset::new(vec![
-            // A dataset with all data augmentation activated.
-            //
-            // Will be hard for the model to learn.
-            SamplerDataset::with_replacement(
-                MapperDataset::new(
-                    dataset.clone(),
-                    MnistMapper::default()
-                        .translate()
-                        .shear()
-                        .scale()
-                        .rotation(),
-                ),
-                num_hard,
-            ),
-            // A dataset with some data augmentation activated.
-            //
-            // Will be somewhat hard for the model to learn.
-            SamplerDataset::with_replacement(
-                MapperDataset::new(
-                    dataset.clone(),
-                    MnistMapper::default().translate().rotation(),
-                ),
-                num_medium,
-            ),
-            // A dataset with no data augmentation activated.
-            //
-            // Will be easy for the model to learn.
-            SamplerDataset::with_replacement(
-                MapperDataset::new(dataset.clone(), MnistMapper::default()),
-                num_easy,
-            ),
-        ])
-    };
-
-    let dataset_train = data_augmentation(dataset_train_plain, 25_000, 25_000, 10_000);
-    let dataset_valid = data_augmentation(dataset_valid_plain, 2000, 2000, 1000);
+    let ident_trains = generate_idents(Some(5000));
+    let ident_valid = generate_idents(Some(500));
+    let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
+    let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);
 
     let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
         .batch_size(config.batch_size)
@@ -124,19 +87,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_workers(config.num_workers)
         .build(dataset_valid);
     let lr_scheduler = ComposedLrSchedulerConfig::new()
-        .consine(CosineAnnealingLrSchedulerConfig::new(1.0, 1000))
+        .consine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
         // Warmup
-        .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 1000))
-        .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 5000));
+        .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
+        .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
-        .metrics((
-            AccuracyMetric::new(),
-            LossMetric::new(),
-            CpuUse::new(),
-            CpuMemory::new(),
-            CpuTemperature::new(),
-        ))
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new(
@@ -144,7 +101,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 20 },
+            StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .num_epochs(config.num_epochs)
         .summary()
@@ -168,11 +125,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let dataset_test_plain = Arc::new(MnistDataset::test());
     let evaluate = |name: &str,
-                    mapper: MnistMapper,
+                    ident: DatasetIdent,
                     model: Model<B::InnerBackend>,
                     renderer: Box<dyn MetricsRenderer>| {
         let batcher = MnistBatcher::default();
-        let dataset_test = MapperDataset::new(dataset_test_plain.clone(), mapper);
+        let dataset_test = DatasetIdent::prepare(ident, dataset_test_plain.clone());
         let dataloader_test = DataLoaderBuilder::new(batcher)
             .batch_size(config.batch_size)
             .num_workers(config.num_workers)
@@ -186,30 +143,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         evaluator.eval(name, dataloader_test)
     };
 
-    let renderer = result.renderer;
-    let renderer = evaluate(
-        "Plain",
-        MnistMapper::default(),
-        result.model.clone(),
-        renderer,
-    );
-    let renderer = evaluate(
-        "Medium",
-        MnistMapper::default().translate().rotation(),
-        result.model.clone(),
-        renderer,
-    );
+    let mut renderer = result.renderer;
 
-    let mut renderer = evaluate(
-        "Hard",
-        MnistMapper::default()
-            .translate()
-            .rotation()
-            .shear()
-            .scale(),
-        result.model.clone(),
-        renderer,
-    );
+    let idents_tests = generate_idents(None);
+
+    for (ident, _) in idents_tests {
+        let name = ident.to_string();
+        renderer = evaluate(name.as_str(), ident, result.model.clone(), renderer);
+    }
 
     renderer.manual_close();
     core::mem::drop(renderer);
@@ -220,4 +161,112 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         log::info!("{}", summary);
         println!("{}", summary);
     }
+}
+
+enum DatasetIdent {
+    Plain,
+    Transformed(Vec<Transform>),
+    All,
+}
+
+impl core::fmt::Display for DatasetIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DatasetIdent::Plain => f.write_str("Plain")?,
+            DatasetIdent::Transformed(items) => {
+                for i in items {
+                    f.write_fmt(format_args!("{i}"))?;
+                    f.write_str(" ")?;
+                }
+            }
+            DatasetIdent::All => f.write_str("All")?,
+        };
+
+        Ok(())
+    }
+}
+
+impl DatasetIdent {
+    pub fn many(transforms: Vec<Transform>) -> Self {
+        Self::Transformed(transforms)
+    }
+
+    pub fn prepare(self, dataset: impl Dataset<MnistItem>) -> impl Dataset<MnistItemPrepared> {
+        let items = match self {
+            DatasetIdent::Plain => Vec::new(),
+            DatasetIdent::All => {
+                vec![
+                    Transform::Translate,
+                    Transform::Shear,
+                    Transform::Scale,
+                    Transform::Rotation,
+                ]
+            }
+            DatasetIdent::Transformed(items) => items.clone(),
+        };
+        MapperDataset::new(dataset, MnistMapper::default().transform(&items))
+    }
+
+    pub fn compose(
+        idents: Vec<(Self, Option<usize>)>,
+        dataset: PartialDataset<Arc<MnistDataset>, MnistItem>,
+    ) -> impl Dataset<MnistItemPrepared> {
+        let datasets = idents
+            .into_iter()
+            .map(|(ident, size)| match size {
+                Some(size) => {
+                    SamplerDataset::without_replacement(ident.prepare(dataset.clone()), size)
+                }
+                None => {
+                    let dataset = ident.prepare(dataset.clone());
+                    let size = dataset.len();
+                    SamplerDataset::without_replacement(dataset, size)
+                }
+            })
+            .collect();
+        ComposedDataset::new(datasets)
+    }
+}
+
+fn generate_idents(num_samples_base: Option<usize>) -> Vec<(DatasetIdent, Option<usize>)> {
+    let mut current = Vec::new();
+    let mut idents = Vec::new();
+
+    for shear in [None, Some(Transform::Shear)] {
+        for scale in [None, Some(Transform::Scale)] {
+            for rotation in [None, Some(Transform::Rotation)] {
+                for translate in [None, Some(Transform::Translate)] {
+                    if let Some(tr) = shear {
+                        current.push(tr);
+                    }
+                    if let Some(tr) = scale {
+                        current.push(tr);
+                    }
+                    if let Some(tr) = rotation {
+                        current.push(tr);
+                    }
+                    if let Some(tr) = translate {
+                        current.push(tr);
+                    }
+
+                    let num_samples = match num_samples_base {
+                        Some(val) => Some(val * current.len()),
+                        None => None,
+                    };
+
+                    if current.len() == 4 {
+                        idents.push((DatasetIdent::All, num_samples));
+                    } else if current.is_empty() {
+                        idents.push((DatasetIdent::Plain, num_samples));
+                    } else {
+                        idents.push((DatasetIdent::many(current.clone()), num_samples));
+                    }
+
+                    current.clear();
+                }
+            }
+        }
+    }
+
+    idents
 }

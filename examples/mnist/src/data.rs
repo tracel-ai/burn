@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_4;
+use std::{f32::consts::FRAC_PI_4, fmt::Display};
 
 use burn::{
     backend::NdArray,
@@ -44,11 +44,23 @@ impl<B: Backend> Batcher<B, MnistItemPrepared, MnistBatch<B>> for MnistBatcher {
     }
 }
 
-enum Transform {
+#[derive(Clone, Debug, Copy)]
+pub enum Transform {
     Translate,
     Shear,
     Scale,
     Rotation,
+}
+
+impl Display for Transform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Transform::Translate => f.write_str("Tr"),
+            Transform::Shear => f.write_str("Sr"),
+            Transform::Scale => f.write_str("Sc"),
+            Transform::Rotation => f.write_str("Rot"),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -57,6 +69,12 @@ pub struct MnistMapper {
 }
 
 impl MnistMapper {
+    pub fn transform(mut self, transforms: &[Transform]) -> Self {
+        for t in transforms {
+            self.transforms.push(*t);
+        }
+        self
+    }
     pub fn translate(mut self) -> Self {
         self.transforms.push(Transform::Translate);
         self

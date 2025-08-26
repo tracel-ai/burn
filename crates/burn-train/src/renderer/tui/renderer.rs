@@ -1,4 +1,4 @@
-use crate::TrainingInterrupter;
+use crate::RendererInterrupter;
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{
     EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
@@ -44,7 +44,7 @@ pub struct TuiMetricsRenderer {
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     status: StatusState,
-    interuptor: TrainingInterrupter,
+    interuptor: RendererInterrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
     persistent: bool,
@@ -123,7 +123,7 @@ impl TuiMetricsRenderer {
     }
 
     /// Create a new terminal UI renderer.
-    pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
+    pub fn new(interuptor: RendererInterrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -312,7 +312,7 @@ impl TuiMetricsRenderer {
     }
 }
 
-struct QuitPopupAccept(TrainingInterrupter);
+struct QuitPopupAccept(RendererInterrupter);
 struct KillPopupAccept;
 struct PopupCancel;
 

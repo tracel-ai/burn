@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::components::OutputTrain;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{TrainStep, ValidLoader, ValidStep};
-use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
+use crate::{components::LearnerComponentTypes, learner::base::RendererInterrupter};
 
 /// A validation epoch.
 #[derive(new)]
@@ -36,7 +36,7 @@ impl<LC: LearnerComponentTypes> SingleDeviceValidEpoch<LC> {
         &self,
         model: &LC::Model,
         processor: &mut LC::EventProcessor,
-        interrupter: &TrainingInterrupter,
+        interrupter: &RendererInterrupter,
     ) {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -88,7 +88,7 @@ impl<B: AutodiffBackend, TI> SingleDeviceTrainEpoch<B, TI> {
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
         processor: &mut LC::EventProcessor,
-        interrupter: &TrainingInterrupter,
+        interrupter: &RendererInterrupter,
     ) -> (LC::Model, LC::Optimizer)
     where
         LC::Model: TrainStep<TI, OutputTrain<LC>>,

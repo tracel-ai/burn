@@ -1,6 +1,6 @@
 use crate::{
-    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, TestStep,
-    TrainingInterrupter,
+    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, RendererInterrupter,
+    TestStep,
     evaluator::components::EvaluatorComponentTypesMarker,
     logger::FileMetricLogger,
     metric::{
@@ -24,7 +24,7 @@ pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    interrupter: TrainingInterrupter,
+    interrupter: RendererInterrupter,
     metrics: MetricsEvaluation<TO>,
     directory: PathBuf,
     summary: bool,
@@ -46,7 +46,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             event_store: LogEventStore::default(),
             summary_metrics: Default::default(),
             renderer: None,
-            interrupter: TrainingInterrupter::new(),
+            interrupter: RendererInterrupter::new(),
             summary: false,
             metrics: MetricsEvaluation::default(),
             directory,

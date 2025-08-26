@@ -1,6 +1,6 @@
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
-use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
+use crate::{components::LearnerComponentTypes, learner::base::RendererInterrupter};
 use burn_core::{lr_scheduler::LrScheduler, optim::GradientsAccumulator, tensor::backend::Backend};
 
 /// A training epoch.
@@ -33,7 +33,7 @@ impl<LC: LearnerComponentTypes> MultiDeviceTrainEpoch<LC> {
         lr_scheduler: &mut LC::LrScheduler,
         processor: &mut LC::EventProcessor,
         devices: Vec<<LC::Backend as Backend>::Device>,
-        interrupter: &TrainingInterrupter,
+        interrupter: &RendererInterrupter,
     ) -> (LC::Model, LC::Optimizer) {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",

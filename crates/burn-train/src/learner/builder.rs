@@ -10,7 +10,7 @@ use crate::checkpoint::{
 };
 use crate::components::{LearnerComponentsMarker, LearningDataMarker};
 use crate::learner::EarlyStoppingStrategy;
-use crate::learner::base::TrainingInterrupter;
+use crate::learner::base::RendererInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
@@ -61,7 +61,7 @@ where
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TO, VO>,
     event_store: LogEventStore,
-    interrupter: TrainingInterrupter,
+    interrupter: RendererInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
@@ -102,7 +102,7 @@ where
             metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
-            interrupter: TrainingInterrupter::new(),
+            interrupter: RendererInterrupter::new(),
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 experiment_log_file,
             ))),
@@ -253,7 +253,7 @@ where
     }
 
     /// Provides a handle that can be used to interrupt training.
-    pub fn interrupter(&self) -> TrainingInterrupter {
+    pub fn interrupter(&self) -> RendererInterrupter {
         self.interrupter.clone()
     }
 

@@ -21,7 +21,7 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
-    pub(crate) interrupter: TrainingInterrupter,
+    pub(crate) interrupter: RendererInterrupter,
     pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
@@ -110,11 +110,11 @@ impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
 
 #[derive(Clone, Default)]
 /// A handle that allows aborting the training process early.
-pub struct TrainingInterrupter {
+pub struct RendererInterrupter {
     state: Arc<AtomicBool>,
 }
 
-impl TrainingInterrupter {
+impl RendererInterrupter {
     /// Create a new instance.
     pub fn new() -> Self {
         Self::default()
