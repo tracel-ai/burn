@@ -75,7 +75,7 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     ///
     /// * `state` - The metric state.
     fn update_test(&mut self, name: EvaluationName, state: MetricState);
-    /// Renders the training progress.
+    /// Renders the testing progress.
     ///
     /// # Arguments
     ///
