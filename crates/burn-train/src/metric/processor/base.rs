@@ -52,7 +52,7 @@ pub trait EventProcessorEvaluation: Send {
     /// The test item.
     type ItemTest: ItemLazy;
 
-    /// Collect a training event.
+    /// Collect a test event.
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>);
 
     /// Returns the renderer used for evaluation.
