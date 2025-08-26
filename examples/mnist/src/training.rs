@@ -36,13 +36,13 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config)]
 pub struct MnistTrainingConfig {
-    #[config(default = 50)]
+    #[config(default = 20)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
     pub batch_size: usize,
 
-    #[config(default = 4)]
+    #[config(default = 8)]
     pub num_workers: usize,
 
     #[config(default = 42)]
@@ -71,8 +71,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
     let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let ident_trains = generate_idents(Some(5000));
-    let ident_valid = generate_idents(Some(500));
+    let ident_trains = generate_idents(Some(10000));
+    let ident_valid = generate_idents(None);
     let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
     let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);
 
@@ -215,7 +215,7 @@ impl DatasetIdent {
             .into_iter()
             .map(|(ident, size)| match size {
                 Some(size) => {
-                    SamplerDataset::without_replacement(ident.prepare(dataset.clone()), size)
+                    SamplerDataset::with_replacement(ident.prepare(dataset.clone()), size)
                 }
                 None => {
                     let dataset = ident.prepare(dataset.clone());
