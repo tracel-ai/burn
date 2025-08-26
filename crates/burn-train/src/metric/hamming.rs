@@ -29,15 +29,21 @@ impl<B: Backend> HammingScore<B> {
         Self::default()
     }
 
+    fn update_name(&mut self) {
+        self.name = Arc::new(format!("Hamming Score @ Threshold({})", self.threshold));
+    }
+
     /// Sets the threshold.
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
+        self.update_name();
         self
     }
 
     /// Sets the sigmoid activation function usage.
     pub fn with_sigmoid(mut self, sigmoid: bool) -> Self {
         self.sigmoid = sigmoid;
+        self.update_name();
         self
     }
 }

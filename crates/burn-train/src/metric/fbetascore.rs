@@ -43,7 +43,8 @@ impl<B: Backend> FBetaScoreMetric<B> {
             name,
             config,
             beta,
-            ..Default::default()
+            state: Default::default(),
+            _b: PhantomData,
         }
     }
 
