@@ -119,6 +119,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
 
     model_trained
+        .model
         .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }
