@@ -233,10 +233,8 @@ impl FullHistoryPoints {
             return None;
         }
 
-        let padding = 2;
-        let mut width = 5 + padding; // Min with float value format.
         let label = format!("{tag}");
-        width = usize::max(label.len() + padding, width);
+        let width = usize::max(label.len(), 7); // 7 min width
 
         let factor = max as f64;
 
