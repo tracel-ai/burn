@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 /// All components necessary to evaluate a model grouped in one trait.
 pub trait EvaluatorComponentTypes {
-    /// The backend in used for the training.
+    /// The backend in used for the evaluation.
     type Backend: Backend;
     /// The model to train.
     type Model: Module<Self::Backend>
