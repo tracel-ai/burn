@@ -87,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_workers(config.num_workers)
         .build(dataset_valid);
     let lr_scheduler = ComposedLrSchedulerConfig::new()
-        .consine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
+        .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
         // Warmup
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
