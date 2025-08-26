@@ -83,6 +83,37 @@ impl<B: Backend> ModuleComposed<B> {
     }
 }
 
+#[allow(dead_code)]
+mod compiletime_clone_impl_check {
+    use burn_core::{
+        module::{Module, ModuleDisplay},
+        prelude::Backend,
+        record::{PrecisionSettings, Record},
+    };
+
+    use super::*;
+
+    type RecordItem<M, B, S> = <<M as Module<B>>::Record as Record<B>>::Item<S>;
+
+    fn implements_clone<T: Clone>() {}
+
+    fn basic_implements_clone<B: Backend, S: PrecisionSettings>() {
+        implements_clone::<RecordItem<ModuleBasic<B>, B, S>>();
+        implements_clone::<RecordItem<ModuleComposed<B>, B, S>>();
+    }
+
+    fn generic_implements_clone<B, S, M>()
+    where
+        B: Backend,
+        S: PrecisionSettings,
+        M: Module<B> + ModuleDisplay,
+        RecordItem<M, B, S>: Clone,
+    {
+        implements_clone::<RecordItem<ModuleWithGenericModule<B, M>, B, S>>();
+        implements_clone::<RecordItem<ModuleEnumWithGenericModule<B, M>, B, S>>();
+    }
+}
+
 mod state {
     use super::*;
 

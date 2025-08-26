@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Generics, parse_quote};
+use syn::{GenericParam, Generics, PredicateType, Type, WherePredicate, parse_quote};
 
 use crate::record::item::codegen::RecordItemCodegen;
 
@@ -86,15 +86,15 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
     /// Get the generics attached to the record item type.
     fn record_item_generics(&self) -> Generics {
         let param: syn::Generics = parse_quote! { <S: burn::record::PrecisionSettings >};
-        let mut generics = self.ty.generics.clone();
+        let mut generics = strip_backend_from_generics(&self.ty.generics);
         for param in param.params.into_iter() {
             generics.params.push(param);
         }
 
-        if !self.ty.has_backend {
-            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
-            generics.params.push(syn::GenericParam::Type(param));
-        }
+        // if !self.ty.has_backend {
+        //     let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+        //     generics.params.push(syn::GenericParam::Type(param));
+        // }
 
         generics
     }
@@ -137,4 +137,38 @@ impl RecordType {
             has_backend,
         }
     }
+}
+
+pub fn strip_backend_from_generics(orig: &Generics) -> Generics {
+    let mut g = orig.clone();
+
+    g.params = g
+        .params
+        .into_iter()
+        .filter(|p| !matches!(p, GenericParam::Type(tp) if tp.ident == "B"))
+        .collect();
+
+    if let Some(wc) = &mut g.where_clause {
+        wc.predicates = wc
+            .predicates
+            .clone()
+            .into_iter()
+            .filter(|pred| {
+                // Drop predicates where the LHS is exactly `B`
+                match pred {
+                    WherePredicate::Type(PredicateType { bounded_ty, .. }) => {
+                        if let Type::Path(tp) = bounded_ty {
+                            return !(tp.qself.is_none()
+                                && tp.path.segments.len() == 1
+                                && tp.path.segments[0].ident == "B");
+                        }
+                        true
+                    }
+                    _ => true,
+                }
+            })
+            .collect();
+    }
+
+    g
 }
