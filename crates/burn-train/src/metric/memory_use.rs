@@ -21,11 +21,11 @@ impl Clone for CpuMemory {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
-            last_refresh: self.last_refresh.clone(),
-            refresh_frequency: self.refresh_frequency.clone(),
+            last_refresh: self.last_refresh,
+            refresh_frequency: self.refresh_frequency,
             sys: System::new(),
-            ram_bytes_total: self.ram_bytes_total.clone(),
-            ram_bytes_used: self.ram_bytes_used.clone(),
+            ram_bytes_total: self.ram_bytes_total,
+            ram_bytes_used: self.ram_bytes_used,
         }
     }
 }

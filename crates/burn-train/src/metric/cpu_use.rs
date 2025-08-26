@@ -19,10 +19,10 @@ impl Clone for CpuUse {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
-            last_refresh: self.last_refresh.clone(),
-            refresh_frequency: self.refresh_frequency.clone(),
+            last_refresh: self.last_refresh,
+            refresh_frequency: self.refresh_frequency,
             sys: System::new(),
-            current: self.current.clone(),
+            current: self.current,
         }
     }
 }
@@ -38,7 +38,7 @@ impl CpuUse {
             name: Arc::new(name),
             last_refresh: Instant::now(),
             refresh_frequency: Duration::from_millis(200),
-            sys: sys,
+            sys,
             current,
         }
     }

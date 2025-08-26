@@ -24,7 +24,7 @@ struct MetricGroup {
 impl MetricGroup {
     fn new(group: TuiGroup, metric: MetricSplits) -> Self {
         Self {
-            groups: BTreeMap::from_iter(Some((group, metric)).into_iter()),
+            groups: BTreeMap::from_iter(Some((group, metric))),
         }
     }
     fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
@@ -46,7 +46,7 @@ struct MetricSplits {
 impl MetricSplits {
     fn new(split: TuiSplit, metric: MetricEntry) -> Self {
         Self {
-            splits: BTreeMap::from_iter(Some((split, metric)).into_iter()),
+            splits: BTreeMap::from_iter(Some((split, metric))),
         }
     }
 
@@ -65,7 +65,7 @@ impl TextMetricsState {
 
             self.names.push(key.clone());
             self.data
-                .insert(key.to_string(), MetricGroup::new(group.into(), value));
+                .insert(key.to_string(), MetricGroup::new(group, value));
         }
     }
     pub(crate) fn view(&self) -> TextMetricView {

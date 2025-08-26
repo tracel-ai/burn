@@ -22,6 +22,12 @@ pub struct AurocInput<B: Backend> {
     targets: Tensor<B, 1, Int>,
 }
 
+impl<B: Backend> Default for AurocMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> AurocMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {

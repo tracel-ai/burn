@@ -249,10 +249,7 @@ fn generate_idents(num_samples_base: Option<usize>) -> Vec<(DatasetIdent, Option
                         current.push(tr);
                     }
 
-                    let num_samples = match num_samples_base {
-                        Some(val) => Some(val * current.len()),
-                        None => None,
-                    };
+                    let num_samples = num_samples_base.map(|val| val * current.len());
 
                     if current.len() == 4 {
                         idents.push((DatasetIdent::All, num_samples));

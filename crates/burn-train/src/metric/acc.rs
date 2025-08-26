@@ -22,6 +22,12 @@ pub struct AccuracyInput<B: Backend> {
     targets: Tensor<B, 1, Int>,
 }
 
+impl<B: Backend> Default for AccuracyMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> AccuracyMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {

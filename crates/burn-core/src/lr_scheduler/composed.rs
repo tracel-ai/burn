@@ -169,7 +169,7 @@ impl LrScheduler for ComposedLrScheduler {
         self.schedulers = self
             .schedulers
             .into_iter()
-            .zip(record.schedulers.into_iter())
+            .zip(record.schedulers)
             .map(|scheduler| match scheduler {
                 (LrSchedulerItem::Linear(item), LrSchedulerRecord::Linear(record)) => {
                     LrSchedulerItem::Linear(item.load_record::<B>(record))

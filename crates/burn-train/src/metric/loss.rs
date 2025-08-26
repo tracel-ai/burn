@@ -23,6 +23,12 @@ pub struct LossInput<B: Backend> {
     tensor: Tensor<B, 1>,
 }
 
+impl<B: Backend> Default for LossMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> LossMetric<B> {
     /// Create the metric.
     pub fn new() -> Self {

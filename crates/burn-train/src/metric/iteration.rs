@@ -15,6 +15,12 @@ pub struct IterationSpeedMetric {
     instant: Option<std::time::Instant>,
 }
 
+impl Default for IterationSpeedMetric {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IterationSpeedMetric {
     /// Create the metric.
     pub fn new() -> Self {

@@ -48,7 +48,7 @@ impl FullHistoryPlot {
     /// This is necessary if we want the validation line to have the same point density as the
     /// training line.
     pub(crate) fn update_max_sample(&mut self, split: TuiSplit, ratio: f64) {
-        self.max_samples_ratio.insert(split.clone(), ratio);
+        self.max_samples_ratio.insert(split, ratio);
 
         self.points
             .iter_mut()
@@ -94,7 +94,7 @@ impl FullHistoryPlot {
         let mut bars = Vec::new();
 
         for (tag, points) in self.points.iter() {
-            if let Some((bar, width)) = points.bar(&tag, max) {
+            if let Some((bar, width)) = points.bar(tag, max) {
                 *bar_width = usize::max(*bar_width, width);
                 bars.push(bar);
             }
