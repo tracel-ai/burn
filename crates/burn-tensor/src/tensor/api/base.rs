@@ -325,7 +325,7 @@ where
 
     /// Swaps two dimensions of a tensor.
     ///
-    /// This is a no-op when `dim1 == dim`, assuming both are within bounds.
+    /// This is a no-op when `dim1 == dim2`, assuming both are within bounds.
     ///
     /// # Arguments
     ///
@@ -376,7 +376,7 @@ where
 
     /// Permute the dimensions of the tensor.
     ///
-    /// A `permute()` which resolves to the existing axes in-order is always a no-op.
+    /// This is a no-op when the resolved `axes` match the current order.
     ///
     /// # Arguments
     ///
