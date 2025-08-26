@@ -64,7 +64,7 @@ impl ComposedLrSchedulerConfig {
     }
 
     /// Appends a [cosine scheduler](ComposedLrSchedulerConfig).
-    pub fn consine(mut self, config: CosineAnnealingLrSchedulerConfig) -> Self {
+    pub fn cosine(mut self, config: CosineAnnealingLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Cosine(config));
         self
     }
