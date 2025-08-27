@@ -20,13 +20,13 @@ use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: Conv2d<B>,
-    norm: BatchNorm<B, 2>,
+    norm: BatchNorm<B>,
 }
 
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {
     conv_blocks: Vec<ConvBlock<B>>,
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
     fc1: Linear<B>,
     fc2: Linear<B>,
 }
