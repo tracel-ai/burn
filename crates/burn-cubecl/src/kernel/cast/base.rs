@@ -4,14 +4,14 @@ use crate::{
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
-use cubecl::std::tensor::{layout::linear::LinearTensorView, r#virtual::ReadWrite};
+use cubecl::std::tensor::{layout::linear::LinearView, r#virtual::ReadWrite};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::any::TypeId;
 
 #[cube(launch)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
-    input: &LinearTensorView<I>,
-    output: &mut LinearTensorView<O, ReadWrite>,
+    input: &LinearView<I>,
+    output: &mut LinearView<O, ReadWrite>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();

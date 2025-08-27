@@ -139,13 +139,13 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
 ) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let line_size_lhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &lhs.shape.dims,
         &lhs.strides,
         ndims - 1,
     );
     let line_size_rhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &rhs.shape.dims,
         &rhs.strides,
         ndims - 1,
@@ -233,7 +233,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
     // Vectorization is only enabled when the last dimension is contiguous.
     let ndims = tensor.shape.num_dims();
     let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &tensor.shape.dims,
         &tensor.strides,
         ndims - 1,

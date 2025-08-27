@@ -11,9 +11,7 @@ use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::tensor::{
-        index_offset_with_layout, layout::linear::LinearTensorView, r#virtual::ReadWrite,
-    },
+    std::tensor::{index_offset_with_layout, layout::linear::LinearView, r#virtual::ReadWrite},
     tensor_line_size_parallel,
 };
 
@@ -139,9 +137,9 @@ impl<N: Numeric> BinaryOp<N> for OrOp {
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
-    input: &LinearTensorView<C>,
+    input: &LinearView<C>,
     scalar: C,
-    output: &mut LinearTensorView<C, ReadWrite>,
+    output: &mut LinearView<C, ReadWrite>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
@@ -198,13 +196,13 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
 ) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let line_size_lhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &lhs.shape.dims,
         &lhs.strides,
         ndims - 1,
     );
     let line_size_rhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &rhs.shape.dims,
         &rhs.strides,
         ndims - 1,

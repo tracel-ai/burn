@@ -4,7 +4,7 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::tensor::{TensorView, layout::linear::LinearLayout},
+    std::tensor::{View, layout::linear::LinearLayout},
 };
 use serde::{Deserialize, Serialize};
 
@@ -216,10 +216,10 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
 pub fn input_as_linear_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
     #[comptime] pos: u32,
-) -> TensorView<C, u32> {
+) -> View<C, u32> {
     let slice = input_as_slice::<Line<C>>(inputs, pos);
     let layout = LinearLayout::new_Plain(slice.len());
-    TensorView::new::<Slice<Line<C>>>(slice, layout.virt())
+    View::new::<Slice<Line<C>>>(slice, layout.virt())
 }
 
 #[cube]
@@ -347,7 +347,7 @@ pub fn write<C: CubePrimitive>(
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
-            set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_elem()]);
+            set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_type()]);
 
             tensor.tensor[offset] = Line::cast_from(value);
         }
@@ -659,7 +659,7 @@ pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(
 fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
     intrinsic!(|scope| {
         let constant: ExpandElement = value.into();
-        let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
+        let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
         ExpandElement::Plain(Variable::constant(constant_c)).into()
     })
 }

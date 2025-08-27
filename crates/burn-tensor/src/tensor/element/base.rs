@@ -318,10 +318,10 @@ pub enum DType {
 }
 
 #[cfg(feature = "cubecl")]
-impl From<cubecl::ir::Elem> for DType {
-    fn from(value: cubecl::ir::Elem) -> Self {
+impl From<cubecl::ir::ElemType> for DType {
+    fn from(value: cubecl::ir::ElemType) -> Self {
         match value {
-            cubecl::ir::Elem::Float(float_kind) => match float_kind {
+            cubecl::ir::ElemType::Float(float_kind) => match float_kind {
                 cubecl::ir::FloatKind::F16 => DType::F16,
                 cubecl::ir::FloatKind::BF16 => DType::BF16,
                 cubecl::ir::FloatKind::Flex32 => DType::Flex32,
@@ -329,7 +329,6 @@ impl From<cubecl::ir::Elem> for DType {
                 cubecl::ir::FloatKind::F64 => DType::F64,
                 cubecl::ir::FloatKind::TF32 => panic!("Not a valid DType for tensors."),
                 cubecl::ir::FloatKind::E2M1
-                | cubecl::ir::FloatKind::E2M1x2
                 | cubecl::ir::FloatKind::E2M3
                 | cubecl::ir::FloatKind::E3M2
                 | cubecl::ir::FloatKind::E4M3
@@ -338,13 +337,13 @@ impl From<cubecl::ir::Elem> for DType {
                     unimplemented!("Not yet supported, will be used for quantization")
                 }
             },
-            cubecl::ir::Elem::Int(int_kind) => match int_kind {
+            cubecl::ir::ElemType::Int(int_kind) => match int_kind {
                 cubecl::ir::IntKind::I8 => DType::I8,
                 cubecl::ir::IntKind::I16 => DType::I16,
                 cubecl::ir::IntKind::I32 => DType::I32,
                 cubecl::ir::IntKind::I64 => DType::I64,
             },
-            cubecl::ir::Elem::UInt(uint_kind) => match uint_kind {
+            cubecl::ir::ElemType::UInt(uint_kind) => match uint_kind {
                 cubecl::ir::UIntKind::U8 => DType::U8,
                 cubecl::ir::UIntKind::U16 => DType::U16,
                 cubecl::ir::UIntKind::U32 => DType::U32,

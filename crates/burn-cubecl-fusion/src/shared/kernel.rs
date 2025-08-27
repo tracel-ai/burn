@@ -6,7 +6,7 @@ use crate::shared::Q_STORE_DYN_ELEM_ID;
 use burn_tensor::quantization::QuantScheme;
 use burn_tensor::quantization::QuantStore;
 use burn_tensor::quantization::QuantValue;
-use cubecl::ir::{Elem, FloatKind, UIntKind};
+use cubecl::ir::{ElemType, FloatKind, StorageType, UIntKind};
 use cubecl::prelude::*;
 use cubecl_quant::dequantize::dequantize_symmetric_packed_value_at;
 use cubecl_quant::scheme::QuantMode;
@@ -212,7 +212,7 @@ fn fuse(
     #[unroll]
     for index in 0..config.ops.len() {
         let op = comptime! { config.ops.index(index).clone() };
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_elem()]);
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_type()]);
 
         match op {
             FuseOp::Add(op) => {
@@ -772,16 +772,19 @@ fn dequantize<C: Float>(
 
     set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::Q8F | QuantValue::Q8S => Elem::UInt(UIntKind::U8),
+            QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
             QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
                 unreachable!("Can't store native sub-byte values"),
         },
-        QuantStore::U32 => Elem::UInt(UIntKind::U32),
+        QuantStore::U32 => ElemType::UInt(UIntKind::U32).into(),
     }]);
     set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
-        cubecl_quant::scheme::QuantParam::F32 => Elem::Float(FloatKind::F32),
-        cubecl_quant::scheme::QuantParam::F16 => Elem::Float(FloatKind::F16),
-        cubecl_quant::scheme::QuantParam::BF16 => Elem::Float(FloatKind::BF16),
+        cubecl_quant::scheme::QuantParam::F32 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::F32)),
+        cubecl_quant::scheme::QuantParam::F16 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::F16)),
+        cubecl_quant::scheme::QuantParam::BF16 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
     }]);
 
     let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(

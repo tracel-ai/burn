@@ -2,7 +2,7 @@ use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::tensor::{layout::linear::LinearTensorView, r#virtual::ReadWrite},
+    std::tensor::{layout::linear::LinearView, r#virtual::ReadWrite},
     tensor_line_size_parallel,
 };
 use cubecl::{
@@ -34,7 +34,7 @@ fn direct_conv2d_kernel<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
     bias: CubeOption<Tensor<Line<E>>>,
-    output: &mut LinearTensorView<E, ReadWrite>,
+    output: &mut LinearView<E, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod>,
     shape_out_c: FastDivmod,

@@ -1,6 +1,6 @@
 use burn_tensor::DType;
 use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
-use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
+use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
 use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
@@ -141,7 +141,7 @@ pub struct QuantSchemeFuse {
 
 impl FuseOp {
     /// Element type used for the computation.
-    pub(crate) fn cmp_elem(&self) -> Elem {
+    pub(crate) fn cmp_elem(&self) -> ElemType {
         match self {
             FuseOp::Add(op) => op.lhs.precision().into_elem(),
             FuseOp::Sub(op) => op.lhs.precision().into_elem(),
@@ -172,10 +172,15 @@ impl FuseOp {
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
         }
     }
+
+    /// Element type used for the computation.
+    pub(crate) fn cmp_type(&self) -> StorageType {
+        self.cmp_elem().into()
+    }
 }
 
 #[derive(CubeType, CubeLaunch, Default)]
-/// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
+/// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<GlobalScalar>,
@@ -383,51 +388,61 @@ pub enum FusePrecision {
     Bool,
 }
 
-impl From<Elem> for FusePrecision {
-    fn from(value: Elem) -> Self {
+impl From<ElemType> for FusePrecision {
+    fn from(value: ElemType) -> Self {
         match value {
-            Elem::Float(kind) => match kind {
+            ElemType::Float(kind) => match kind {
                 FloatKind::F16 => Self::F16,
                 FloatKind::BF16 => Self::BF16,
                 FloatKind::F32 => Self::F32,
                 FloatKind::Flex32 => Self::Flex32,
                 _ => panic!("Unsupported precision for fusion: {value}"),
             },
-            Elem::Int(kind) => match kind {
+            ElemType::Int(kind) => match kind {
                 IntKind::I64 => Self::I64,
                 IntKind::I32 => Self::I32,
                 IntKind::I16 => Self::I16,
                 IntKind::I8 => Self::I8,
             },
-            Elem::UInt(kind) => match kind {
+            ElemType::UInt(kind) => match kind {
                 UIntKind::U64 => Self::U64,
                 UIntKind::U32 => Self::U32,
                 UIntKind::U16 => Self::U16,
                 UIntKind::U8 => Self::U8,
             },
-            Elem::Bool => Self::Bool,
-            _ => panic!("Unsupported precision for fusion: {value}"),
+            ElemType::Bool => Self::Bool,
         }
     }
 }
+
+impl From<StorageType> for FusePrecision {
+    fn from(value: StorageType) -> Self {
+        value.elem_type().into()
+    }
+}
+
 impl FusePrecision {
-    pub fn into_elem(self) -> Elem {
+    pub fn into_elem(self) -> ElemType {
         match self {
-            FusePrecision::F32 => Elem::Float(FloatKind::F32),
-            FusePrecision::Flex32 => Elem::Float(FloatKind::Flex32),
-            FusePrecision::F16 => Elem::Float(FloatKind::F16),
-            FusePrecision::BF16 => Elem::Float(FloatKind::BF16),
-            FusePrecision::I64 => Elem::Int(IntKind::I64),
-            FusePrecision::I32 => Elem::Int(IntKind::I32),
-            FusePrecision::I16 => Elem::Int(IntKind::I16),
-            FusePrecision::I8 => Elem::Int(IntKind::I8),
-            FusePrecision::U64 => Elem::UInt(UIntKind::U64),
-            FusePrecision::U32 => Elem::UInt(UIntKind::U32),
-            FusePrecision::U16 => Elem::UInt(UIntKind::U16),
-            FusePrecision::U8 => Elem::UInt(UIntKind::U8),
-            FusePrecision::Bool => Elem::Bool,
-            FusePrecision::F64 => Elem::Float(FloatKind::F64),
+            FusePrecision::F32 => ElemType::Float(FloatKind::F32),
+            FusePrecision::Flex32 => ElemType::Float(FloatKind::Flex32),
+            FusePrecision::F16 => ElemType::Float(FloatKind::F16),
+            FusePrecision::BF16 => ElemType::Float(FloatKind::BF16),
+            FusePrecision::I64 => ElemType::Int(IntKind::I64),
+            FusePrecision::I32 => ElemType::Int(IntKind::I32),
+            FusePrecision::I16 => ElemType::Int(IntKind::I16),
+            FusePrecision::I8 => ElemType::Int(IntKind::I8),
+            FusePrecision::U64 => ElemType::UInt(UIntKind::U64),
+            FusePrecision::U32 => ElemType::UInt(UIntKind::U32),
+            FusePrecision::U16 => ElemType::UInt(UIntKind::U16),
+            FusePrecision::U8 => ElemType::UInt(UIntKind::U8),
+            FusePrecision::Bool => ElemType::Bool,
+            FusePrecision::F64 => ElemType::Float(FloatKind::F64),
         }
+    }
+
+    pub fn into_type(self) -> StorageType {
+        self.into_elem().into()
     }
 }
 

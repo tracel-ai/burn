@@ -3,7 +3,7 @@ use cubecl::{
     prelude::ArrayArg,
     std::{
         FastDivmod, FastDivmodArgs,
-        tensor::layout::linear::{LinearLayoutArgs, LinearTensorViewLaunch},
+        tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
     },
 };
 
@@ -32,23 +32,23 @@ pub fn linear_layout<'a, R: CubeRuntime>(
 pub fn linear_tensor<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     line_size: &'a u8,
-) -> LinearTensorViewLaunch<'a, R> {
+) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.dims.iter().product::<usize>();
     let layout = linear_layout(tensor, line_size);
     let buffer = unsafe {
         ArrayArg::from_raw_parts_and_size(&tensor.handle, len, *line_size, tensor.elem_size())
     };
-    LinearTensorViewLaunch::new(buffer, layout)
+    LinearViewLaunch::new(buffer, layout)
 }
 
 pub fn linear_tensor_alias<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     line_size: &'a u8,
     pos: usize,
-) -> LinearTensorViewLaunch<'a, R> {
+) -> LinearViewLaunch<'a, R> {
     let layout = linear_layout(tensor, line_size);
     let buffer = ArrayArg::Alias { input_pos: pos };
-    LinearTensorViewLaunch::new(buffer, layout)
+    LinearViewLaunch::new(buffer, layout)
 }
 
 pub fn split_dim<R: CubeRuntime>(

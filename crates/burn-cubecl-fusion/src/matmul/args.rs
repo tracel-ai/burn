@@ -129,14 +129,14 @@ impl MatmulArgs for FusedMatmulArgs {
         start: u32,
         end: u32,
     ) -> Slice<Line<Lhs>> {
-        let (pos, elem) = comptime! {
+        let (pos, ty) = comptime! {
             match state.a {
-                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
                 _ => panic!("Lhs isn't an input"),
             }
         };
 
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
         read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
     }
 
@@ -148,7 +148,7 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> Slice<Line<Rhs>> {
         let (pos, elem) = comptime! {
             match state.b {
-                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
                 _ => panic!("Rhs isn't an input"),
             }
         };
@@ -165,7 +165,7 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> Slice<Line<EO>> {
         let (pos, elem) = comptime! {
             match state.c.clone().unwrap() {
-                Arg::Input(pos, precision,..) => (pos, precision.into_elem()),
+                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
                 _ => panic!("Rhs isn't an input"),
             }
         };

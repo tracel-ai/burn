@@ -802,6 +802,7 @@ dependencies = [
  "globwalk",
  "hound",
  "image",
+ "planus",
  "polars",
  "r2d2",
  "r2d2_sqlite",
@@ -4647,6 +4648,7 @@ name = "modern-lstm"
 version = "0.3.0"
 dependencies = [
  "burn",
+ "planus",
  "polars",
  "rand 0.9.2",
  "rand_distr 0.5.1",
@@ -5399,9 +5401,9 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "planus"
-version = "1.2.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4089d373413156aa4d05851e1a9b302fa5648c4007de7a85214532cdd9d12e2"
+checksum = "3daf8e3d4b712abe1d690838f6e29fb76b76ea19589c4afa39ec30e12f62af71"
 dependencies = [
  "array-init-cursor",
  "hashbrown 0.15.5",
