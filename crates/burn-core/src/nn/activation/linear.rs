@@ -7,7 +7,7 @@ use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::{Tensor, backend::Backend};
 
-use super::Initializer;
+use crate::nn::Initializer;
 
 /// Configuration to create a [Linear](Linear) layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]

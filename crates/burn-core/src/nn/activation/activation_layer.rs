@@ -14,7 +14,7 @@ use burn_tensor::backend::Backend;
 #[non_exhaustive]
 pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
-    GeLu,
+    Gelu,
 
     /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
@@ -77,7 +77,7 @@ impl ActivationConfig {
         match self {
             ActivationConfig::Relu => Activation::Relu(Relu),
             ActivationConfig::LeakyRelu(conf) => Activation::LeakyRelu(conf.init()),
-            ActivationConfig::GeLu => Activation::Gelu(Gelu),
+            ActivationConfig::Gelu => Activation::Gelu(Gelu),
             ActivationConfig::PRelu(conf) => Activation::PRelu(conf.init(device)),
             ActivationConfig::SwiGlu(conf) => Activation::SwiGlu(conf.init(device)),
             ActivationConfig::HardSigmoid(conf) => Activation::HardSigmoid(conf.init()),
@@ -241,7 +241,7 @@ mod tests {
 
         let expected = Gelu.forward(input.clone());
 
-        check_stateless_config_output(ActivationConfig::GeLu, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::Gelu, input, expected, &device)
     }
 
     #[test]
