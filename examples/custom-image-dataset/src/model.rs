@@ -1,6 +1,7 @@
 use burn::{
     nn::{
-        Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
+        Dropout, DropoutConfig, PaddingConfig2d,
+        activation::{Linear, LinearConfig, Relu},
         conv::{Conv2d, Conv2dConfig},
         pool::{MaxPool2d, MaxPool2dConfig},
     },

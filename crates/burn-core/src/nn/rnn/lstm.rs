@@ -356,7 +356,7 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
-    use crate::{TestBackend, module::Param, nn::LinearRecord};
+    use crate::{TestBackend, module::Param, nn::activation::LinearRecord};
     use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -537,14 +537,14 @@ mod tests {
             .unwrap();
 
         // Asserts that the gradients exist and are non-zero
-        assert!(
+        assert_ne!(
             some_gradient
                 .any()
                 .into_data()
                 .iter::<f32>()
                 .next()
-                .unwrap()
-                != 0.0
+                .unwrap(),
+            0.0
         );
     }
 

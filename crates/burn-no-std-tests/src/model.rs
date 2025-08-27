@@ -8,7 +8,7 @@ use crate::{
 use burn::{
     config::Config,
     module::Module,
-    nn,
+    nn::activation::{Linear, LinearConfig},
     tensor::{Tensor, backend::Backend},
 };
 
@@ -30,16 +30,16 @@ pub struct MnistConfig {
 pub struct Model<B: Backend> {
     mlp: Mlp<B>,
     conv: ConvBlock<B>,
-    input: nn::Linear<B>,
-    output: nn::Linear<B>,
+    input: Linear<B>,
+    output: Linear<B>,
     num_classes: usize,
 }
 
 impl<B: Backend> Model<B> {
     pub fn new(config: &MnistConfig, device: &B::Device) -> Self {
         let mlp = Mlp::new(&config.mlp, device);
-        let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init(device);
-        let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init(device);
+        let input = LinearConfig::new(config.input_size, config.mlp.d_model).init(device);
+        let output = LinearConfig::new(config.mlp.d_model, config.output_size).init(device);
         let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]), device);
 
         Self {

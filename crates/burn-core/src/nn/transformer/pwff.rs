@@ -4,7 +4,8 @@ use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::nn::Initializer;
 use crate::{
     config::Config,
-    nn::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig},
+    nn::activation::{Gelu, Linear, LinearConfig},
+    nn::{Dropout, DropoutConfig},
     tensor::{Tensor, backend::Backend},
 };
 

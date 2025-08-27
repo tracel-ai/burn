@@ -1,7 +1,7 @@
 use crate as burn;
 use burn_derive::{Config, Module};
 
-use crate::nn::{
+use crate::nn::activation::{
     Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, Linear, LinearConfig, PRelu,
     PReluConfig, Relu, Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };

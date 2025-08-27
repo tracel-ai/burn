@@ -11,7 +11,7 @@ use burn::{
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     pool: nn::pool::MaxPool2d,
-    activation: nn::Gelu,
+    activation: nn::activation::Gelu,
 }
 
 #[derive(Config)]
@@ -30,7 +30,7 @@ impl<B: Backend> ConvBlock<B> {
             .with_strides([1, 1])
             .with_padding(nn::PaddingConfig2d::Same)
             .init();
-        let activation = nn::Gelu::new();
+        let activation = nn::activation::Gelu::new();
 
         Self {
             conv,

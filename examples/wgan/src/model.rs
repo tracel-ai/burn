@@ -1,5 +1,7 @@
+use burn::nn::activation::LeakyReluConfig;
 use burn::{
     module::{Module, ModuleMapper, ParamId},
+    nn::activation::{LeakyRelu, Linear, LinearConfig, Tanh},
     prelude::*,
     tensor::backend::AutodiffBackend,
 };
@@ -7,20 +9,22 @@ use burn::{
 /// Layer block of generator model
 #[derive(Module, Debug)]
 pub struct LayerBlock<B: Backend> {
-    fc: nn::Linear<B>,
+    fc: Linear<B>,
     bn: nn::BatchNorm<B>,
-    leakyrelu: nn::LeakyRelu,
+    leakyrelu: LeakyRelu,
 }
 
 impl<B: Backend> LayerBlock<B> {
     pub fn new(input: usize, output: usize, device: &B::Device) -> Self {
-        let fc = nn::LinearConfig::new(input, output)
+        let fc = LinearConfig::new(input, output)
             .with_bias(true)
             .init(device);
         let bn: nn::BatchNorm<B> = nn::BatchNormConfig::new(output)
             .with_epsilon(0.8)
             .init(device);
-        let leakyrelu = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
+        let leakyrelu = nn::activation::LeakyReluConfig::new()
+            .with_negative_slope(0.2)
+            .init();
 
         Self { fc, bn, leakyrelu }
     }
@@ -40,8 +44,8 @@ pub struct Generator<B: Backend> {
     layer2: LayerBlock<B>,
     layer3: LayerBlock<B>,
     layer4: LayerBlock<B>,
-    fc: nn::Linear<B>,
-    tanh: nn::Tanh,
+    fc: Linear<B>,
+    tanh: Tanh,
 }
 
 impl<B: Backend> Generator<B> {
@@ -60,11 +64,11 @@ impl<B: Backend> Generator<B> {
 /// Discriminator model
 #[derive(Module, Debug)]
 pub struct Discriminator<B: Backend> {
-    fc1: nn::Linear<B>,
-    leakyrelu1: nn::LeakyRelu,
-    fc2: nn::Linear<B>,
-    leakyrelu2: nn::LeakyRelu,
-    fc3: nn::Linear<B>,
+    fc1: Linear<B>,
+    leakyrelu1: LeakyRelu,
+    fc2: Linear<B>,
+    leakyrelu2: LeakyRelu,
+    fc3: Linear<B>,
 }
 
 impl<B: Backend> Discriminator<B> {
@@ -102,7 +106,7 @@ impl ModelConfig {
         let layer2 = LayerBlock::new(128, 256, device);
         let layer3 = LayerBlock::new(256, 512, device);
         let layer4 = LayerBlock::new(512, 1024, device);
-        let fc = nn::LinearConfig::new(1024, self.channels * self.image_size * self.image_size)
+        let fc = LinearConfig::new(1024, self.channels * self.image_size * self.image_size)
             .with_bias(true)
             .init(device);
 
@@ -112,16 +116,16 @@ impl ModelConfig {
             layer3,
             layer4,
             fc,
-            tanh: nn::Tanh::new(),
+            tanh: Tanh::new(),
         };
 
         // Construct the initialized discriminator
-        let fc1 = nn::LinearConfig::new(self.channels * self.image_size * self.image_size, 512)
-            .init(device);
-        let leakyrelu1 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
-        let fc2 = nn::LinearConfig::new(512, 256).init(device);
-        let leakyrelu2 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
-        let fc3 = nn::LinearConfig::new(256, 1).init(device);
+        let fc1 =
+            LinearConfig::new(self.channels * self.image_size * self.image_size, 512).init(device);
+        let leakyrelu1 = LeakyReluConfig::new().with_negative_slope(0.2).init();
+        let fc2 = LinearConfig::new(512, 256).init(device);
+        let leakyrelu2 = LeakyReluConfig::new().with_negative_slope(0.2).init();
+        let fc3 = LinearConfig::new(256, 1).init(device);
 
         let discriminator = Discriminator {
             fc1,

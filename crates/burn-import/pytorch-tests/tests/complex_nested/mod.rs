@@ -5,7 +5,8 @@ use burn::tensor::ops::FloatElem;
 use burn::{
     module::Module,
     nn::{
-        BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        BatchNorm, BatchNormConfig,
+        activation::{Linear, LinearConfig},
         conv::{Conv2d, Conv2dConfig},
     },
     tensor::{

@@ -5,7 +5,7 @@ use std::{
 };
 
 use burn::{
-    nn::PReluConfig,
+    nn::activation::PReluConfig,
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
     tensor::{Element, TensorData},
 };

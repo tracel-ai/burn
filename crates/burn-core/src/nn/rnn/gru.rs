@@ -1,15 +1,13 @@
 use crate as burn;
 
+use super::gate_controller::GateController;
 use crate::config::Config;
 use crate::module::Module;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::nn::Initializer;
-use crate::nn::rnn::gate_controller;
 use crate::tensor::Tensor;
 use crate::tensor::activation;
 use crate::tensor::backend::Backend;
-
-use super::gate_controller::GateController;
 
 /// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
 #[derive(Config)]
@@ -85,21 +83,21 @@ impl GruConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> Gru<B> {
         let d_output = self.d_hidden;
 
-        let update_gate = gate_controller::GateController::new(
+        let update_gate = GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
             device,
         );
-        let reset_gate = gate_controller::GateController::new(
+        let reset_gate = GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
             device,
         );
-        let new_gate = gate_controller::GateController::new(
+        let new_gate = GateController::new(
             self.d_input,
             d_output,
             self.bias,
@@ -245,8 +243,9 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Distribution, TensorData};
-    use crate::{TestBackend, module::Param, nn::LinearRecord};
+    use crate::{TestBackend, module::Param, nn::activation::LinearRecord};
     use burn_tensor::{Tolerance, ops::FloatElem};
+
     type FT = FloatElem<TestBackend>;
 
     fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
@@ -267,7 +266,7 @@ mod tests {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
-            gate_controller::GateController::create_with_weights(
+            GateController::create_with_weights(
                 d_input,
                 d_output,
                 bias,

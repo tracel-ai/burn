@@ -171,11 +171,13 @@ impl AdaptiveMomentumW {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
+    use crate::nn::activation::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{TestAutodiffBackend, nn};
     use burn_tensor::{Tolerance, ops::FloatElem};
+
     type FT = FloatElem<TestAutodiffBackend>;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -183,7 +185,7 @@ mod tests {
     #[test]
     fn test_adamw_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let linear = LinearConfig::new(6, 6).init(&device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
@@ -339,20 +341,17 @@ mod tests {
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = nn::LinearRecord {
+        let record = LinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        nn::LinearConfig::new(6, 6)
-            .init(&device)
-            .load_record(record)
+        LinearConfig::new(6, 6).init(&device).load_record(record)
     }
 
-    fn create_adamw()
-    -> OptimizerAdaptor<AdamW, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_adamw() -> OptimizerAdaptor<AdamW, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {

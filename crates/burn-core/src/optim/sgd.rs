@@ -1,14 +1,13 @@
-use crate::grad_clipping::GradientClippingConfig;
-use crate::module::AutodiffModule;
-use crate::{self as burn, LearningRate};
-
 use super::SimpleOptimizer;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::config::Config;
+use crate::grad_clipping::GradientClippingConfig;
+use crate::module::AutodiffModule;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
+use crate::{self as burn, LearningRate};
 use burn_tensor::backend::{AutodiffBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
@@ -98,10 +97,10 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nn::activation::{Linear, LinearConfig};
     use crate::{
         TestAutodiffBackend, TestBackend,
         grad_clipping::GradientClipping,
-        nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
     };

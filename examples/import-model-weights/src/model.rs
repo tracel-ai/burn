@@ -1,6 +1,7 @@
 use burn::{
     nn::{
-        BatchNorm, BatchNormConfig, Linear, LinearConfig,
+        BatchNorm, BatchNormConfig,
+        activation::{Linear, LinearConfig},
         conv::{Conv2d, Conv2dConfig},
     },
     prelude::*,
