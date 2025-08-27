@@ -213,6 +213,8 @@ pub(crate) struct OnnxGraphBuilder {
     /// Node types that should be lifted to constants
     constants_types: HashSet<NodeType>,
     node_name_counter: HashMap<NodeType, usize>,
+    /// Track how many times each constant is used
+    constant_usage_count: HashMap<usize, usize>,
 }
 
 impl OnnxGraphBuilder {
@@ -224,6 +226,9 @@ impl OnnxGraphBuilder {
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
+
+        // First pass: count constant usage
+        self.count_constant_usage(&model_proto.graph.node);
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
@@ -306,7 +311,7 @@ impl OnnxGraphBuilder {
         let mut constants_to_convert = HashMap::new();
 
         for node in nodes {
-            let shape_inputs = self.get_shape_compatible_inputs(node);
+            let shape_inputs = self.get_shape_compatible_inputs(node, nodes);
 
             for (input_name, expected_rank) in shape_inputs {
                 constants_to_convert.insert(input_name, expected_rank);
@@ -317,7 +322,7 @@ impl OnnxGraphBuilder {
     }
 
     /// Get inputs that should be converted to Shape type for a given node
-    fn get_shape_compatible_inputs(&self, node: &Node) -> Vec<(String, usize)> {
+    fn get_shape_compatible_inputs(&self, node: &Node, all_nodes: &[Node]) -> Vec<(String, usize)> {
         let mut shape_inputs = Vec::new();
 
         match node.node_type {
@@ -337,10 +342,18 @@ impl OnnxGraphBuilder {
                 });
 
                 if let Some(shape_rank) = shape_rank {
-                    // Mark rank-1 tensors for conversion
+                    // Mark rank-1 tensors for conversion ONLY if they are constants
+                    // Do not convert outputs from operations like Range
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
-                            shape_inputs.push((input.name.clone(), shape_rank));
+                            // Only consider constants for conversion
+                            // Check if this input comes from a Constant node
+                            if all_nodes.iter().any(|n| {
+                                n.node_type == NodeType::Constant
+                                    && n.outputs.iter().any(|o| o.name == input.name)
+                            }) {
+                                shape_inputs.push((input.name.clone(), shape_rank));
+                            }
                         }
                     }
                 }
@@ -355,8 +368,14 @@ impl OnnxGraphBuilder {
                 if has_shape {
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
-                            // Actual rank will be determined from tensor data
-                            shape_inputs.push((input.name.clone(), 0));
+                            // Only consider constants for conversion
+                            if all_nodes.iter().any(|n| {
+                                n.node_type == NodeType::Constant
+                                    && n.outputs.iter().any(|o| o.name == input.name)
+                            }) {
+                                // Actual rank will be determined from tensor data
+                                shape_inputs.push((input.name.clone(), 0));
+                            }
                         }
                     }
                 }
@@ -524,8 +543,8 @@ impl OnnxGraphBuilder {
 
             // Process each node that uses the changed outputs
             for (idx, node) in nodes.iter_mut().enumerate() {
-                // Skip already processed nodes and Constants
-                if processed_nodes.contains(&idx) || node.node_type == NodeType::Constant {
+                // Skip Constants
+                if node.node_type == NodeType::Constant {
                     continue;
                 }
 
@@ -541,9 +560,12 @@ impl OnnxGraphBuilder {
                     // Re-run rank inference and check for changes
                     if self.reinfer_and_track_changes(node, &mut outputs_to_update) {
                         log::debug!("Node {} output changed, will propagate further", node.name);
+                        // Remove from processed set so it can be reprocessed if more inputs change
+                        processed_nodes.remove(&idx);
+                    } else {
+                        // Only mark as processed if output didn't change
+                        processed_nodes.insert(idx);
                     }
-
-                    processed_nodes.insert(idx);
                 }
             }
         }
@@ -583,6 +605,34 @@ impl OnnxGraphBuilder {
         }
     }
 
+    /// Count how many times each constant output is used by other nodes
+    fn count_constant_usage(&mut self, nodes: &[NodeProto]) {
+        // First, build a map of constant outputs to their indices
+        let mut constant_outputs = HashMap::new();
+        for (idx, node) in nodes.iter().enumerate() {
+            if node.op_type == "Constant" {
+                for output in &node.output {
+                    constant_outputs.insert(output.clone(), idx);
+                }
+            }
+        }
+
+        // Now count how many times each constant is used as an input
+        for node in nodes {
+            if node.op_type == "Constant" {
+                continue; // Skip constant nodes themselves
+            }
+
+            for input in &node.input {
+                if let Some(&const_idx) = constant_outputs.get(input) {
+                    *self.constant_usage_count.entry(const_idx).or_insert(0) += 1;
+                }
+            }
+        }
+
+        log::debug!("Constant usage counts: {:?}", self.constant_usage_count);
+    }
+
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant {
             self.constants_map.insert(
@@ -610,12 +660,23 @@ impl OnnxGraphBuilder {
                         input.value = arg.value;
                         input.ty = arg.ty;
                     }
-                    // The constant values are now embedded in the input, so we can remove the constant node
-                    self.nodes_to_remove.insert(*const_idx);
-                    log::debug!(
-                        "Lifted and removed constant node {} for ConstantOfShape",
-                        constant.name
-                    );
+
+                    // Check usage count to determine if we should remove this constant
+                    let usage_count = self.constant_usage_count.get(const_idx).unwrap_or(&0);
+                    if *usage_count <= 1 {
+                        // This is the only usage, we can remove the constant
+                        self.nodes_to_remove.insert(*const_idx);
+                        log::debug!(
+                            "Lifted and removed constant node {} for ConstantOfShape (single use)",
+                            constant.name
+                        );
+                    } else {
+                        log::debug!(
+                            "Lifted constant node {} for ConstantOfShape (keeping, used {} times)",
+                            constant.name,
+                            usage_count
+                        );
+                    }
                 }
             }
         } else if self.constants_types.contains(&node.node_type) {
@@ -638,7 +699,25 @@ impl OnnxGraphBuilder {
                         input.value = arg.value;
                         input.ty = arg.ty;
                     }
-                    self.nodes_to_remove.insert(*const_idx);
+
+                    // Check usage count to determine if we should remove this constant
+                    let usage_count = self.constant_usage_count.get(const_idx).unwrap_or(&0);
+                    if *usage_count <= 1 {
+                        // This is the only usage, we can remove the constant
+                        self.nodes_to_remove.insert(*const_idx);
+                        log::debug!(
+                            "Lifted and removed constant node {} for {} (single use)",
+                            constant.name,
+                            node.name
+                        );
+                    } else {
+                        log::debug!(
+                            "Lifted constant node {} for {} (keeping, used {} times)",
+                            constant.name,
+                            node.name,
+                            usage_count
+                        );
+                    }
                 }
             }
         }

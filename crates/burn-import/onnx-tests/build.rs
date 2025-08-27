@@ -82,6 +82,7 @@ fn main() {
         .input("tests/constant_of_shape/constant_of_shape_shape_optimization.onnx")
         .input("tests/constant_of_shape/constant_of_shape_with_constant_input.onnx")
         .input("tests/constant_lifting_multiple/constant_lifting_multiple.onnx")
+        .input("tests/constant_lifting_multiple/constant_reused.onnx")
         .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/conv3d/conv3d.onnx")
