@@ -722,9 +722,27 @@ impl ParsedOnnxGraph {
     }
 
     fn mul_conversion(node: Node) -> BinaryNode {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let lhs_arg = node.inputs.first().unwrap();
+        let rhs_arg = node.inputs.get(1).unwrap();
+        let output_arg = node.outputs.first().unwrap();
+
+        log::debug!(
+            "mul_conversion for {}: lhs={:?}, rhs={:?}",
+            node.name,
+            lhs_arg,
+            rhs_arg
+        );
+
+        let lhs = Type::from(lhs_arg);
+        let rhs = Type::from(rhs_arg);
+        let output = Type::from(output_arg);
+
+        log::debug!(
+            "mul_conversion types: lhs={:?}, rhs={:?}, output={:?}",
+            lhs,
+            rhs,
+            output
+        );
 
         BinaryNode::mul(lhs, rhs, output)
     }
