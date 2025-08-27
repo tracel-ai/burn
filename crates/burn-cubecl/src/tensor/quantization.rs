@@ -1,5 +1,6 @@
 use burn_tensor::{DType, Shape, quantization::QParamTensor};
 use cubecl::{client::ComputeClient, server::Handle};
+use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::CubeRuntime;
 
@@ -39,8 +40,8 @@ impl<R: CubeRuntime> CubeTensor<R> {
             _ => return None,
         };
         let values = match scheme.store {
-            cubecl_quant::scheme::QuantStore::Native => match scheme.value {
-                cubecl_quant::scheme::QuantValue::QInt8 => CubeTensor {
+            QuantStore::Native => match scheme.value {
+                QuantValue::Q8F | QuantValue::Q8S => CubeTensor {
                     client: self.client.clone(),
                     handle: self.handle.clone(),
                     shape: self.shape.clone(),
@@ -49,8 +50,11 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     dtype: DType::I8,
                     qparams: None,
                 },
+                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                    panic!("Can't store native sub-byte values")
+                }
             },
-            cubecl_quant::scheme::QuantStore::U32 => {
+            QuantStore::U32 => {
                 let rank = self.shape.num_dims();
                 let mut shape = self.shape.clone();
                 shape.dims[rank - 1] /= scheme.num_quants();

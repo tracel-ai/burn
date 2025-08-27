@@ -199,7 +199,8 @@ macro_rules! dispatch_binary_simd {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_binary_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
-                    QuantValue::QInt8 => try_binary_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                    QuantValue::Q8F | QuantValue::Q8S => try_binary_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                    _ => Err(($lhs, $rhs)),
                 },
                 _ => Err(($lhs, $rhs)),
             };
@@ -236,7 +237,8 @@ macro_rules! dispatch_binary_scalar_simd {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_binary_scalar_simd::<$elem, $elem, $ty, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
-                    QuantValue::QInt8 => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                    QuantValue::Q8F | QuantValue::Q8S => try_binary_scalar_simd::<$elem, $elem, i8, i8, $op>($lhs, $rhs),
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err($lhs)
                 },
                 _ => Err($lhs),
             };
@@ -261,7 +263,8 @@ macro_rules! dispatch_cmp_simd {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_cmp_simd::<$elem, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
-                    QuantValue::QInt8 => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
+                    QuantValue::Q8F | QuantValue::Q8S => try_cmp_simd::<$elem, i8, $op>($lhs, $rhs),
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err(($lhs, $rhs))
                 },
                 _ => Err(($lhs, $rhs)),
             };
@@ -285,7 +288,8 @@ macro_rules! dispatch_cmp_scalar_simd {
             let simd = match $elem::dtype() {
                 $(DType::[<$ty:upper>] => try_cmp_scalar_simd::<$elem, $ty, $op>($lhs, $rhs),)*
                 DType::QFloat(strategy) => match strategy.value {
-                    QuantValue::QInt8 => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
+                    QuantValue::Q8F | QuantValue::Q8S => try_cmp_scalar_simd::<$elem, i8, $op>($lhs, $rhs),
+                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => Err($lhs)
                 },
                 _ => Err($lhs),
             };
@@ -834,7 +838,7 @@ where
 
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .map_collect(|&lhs_val, &rhs_val| lhs_val == rhs_val)
             .into_shared();
         NdArrayTensor::new(output)
     }
@@ -1157,7 +1161,7 @@ impl NdArrayBoolOps {
 
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .map_collect(|&lhs_val, &rhs_val| lhs_val == rhs_val)
             .into_shared();
         NdArrayTensor::new(output)
     }
@@ -1171,7 +1175,7 @@ impl NdArrayBoolOps {
 
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val && rhs_val))
+            .map_collect(|&lhs_val, &rhs_val| lhs_val && rhs_val)
             .into_shared();
         NdArrayTensor::new(output)
     }
@@ -1185,7 +1189,7 @@ impl NdArrayBoolOps {
 
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val || rhs_val))
+            .map_collect(|&lhs_val, &rhs_val| lhs_val || rhs_val)
             .into_shared();
         NdArrayTensor::new(output)
     }

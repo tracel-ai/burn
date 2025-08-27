@@ -1,3 +1,5 @@
+use crate::metric::MetricName;
+
 use super::super::{
     Metric, MetricEntry, MetricMetadata, Numeric,
     state::{FormatOptions, NumericMetricState},
@@ -82,8 +84,9 @@ impl Default for DiceMetricConfig {
 ///  # Type Parameters
 /// - `B`: Backend type.
 /// - `D`: Number of dimensions. Should be more than, or equal to 3 (default 4).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DiceMetric<B: Backend, const D: usize = 4> {
+    name: MetricName,
     /// Internal state for numeric metric aggregation.
     state: NumericMetricState,
     /// Marker for backend type.
@@ -100,8 +103,10 @@ impl<B: Backend, const D: usize> DiceMetric<B, D> {
 
     /// Creates a new Dice metric with a custom config.
     pub fn with_config(config: DiceMetricConfig) -> Self {
+        let name = MetricName::new(format!("{D}D Dice Metric"));
         assert!(D >= 3, "DiceMetric requires at least 3 dimensions.");
         Self {
+            name,
             config,
             ..Default::default()
         }
@@ -111,8 +116,8 @@ impl<B: Backend, const D: usize> DiceMetric<B, D> {
 impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
     type Input = DiceInput<B, D>;
 
-    fn name(&self) -> String {
-        format!("{D}D Dice Metric")
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 
     fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -170,7 +175,7 @@ impl<B: Backend, const D: usize> Metric for DiceMetric<B, D> {
 
 impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
     /// Returns the current value of the metric.
-    fn value(&self) -> f64 {
+    fn value(&self) -> crate::metric::NumericEntry {
         self.state.value()
     }
 }
@@ -190,7 +195,7 @@ mod tests {
             Tensor::from_data([[[[1, 0], [1, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -202,7 +207,7 @@ mod tests {
             Tensor::from_data([[[[0, 1], [0, 1]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!(metric.value() < 1e-6);
+        assert!(metric.value().current() < 1e-6);
     }
 
     #[test]
@@ -215,7 +220,7 @@ mod tests {
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         // intersection = 1, sum = 2+2=4, dice = 2*1/4 = 0.5
-        assert!((metric.value() - 0.5).abs() < 1e-6);
+        assert!((metric.value().current() - 0.5).abs() < 1e-6);
     }
 
     #[test]
@@ -227,7 +232,7 @@ mod tests {
             Tensor::from_data([[[[0, 0], [0, 0]]]], &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -239,7 +244,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 1, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -255,7 +260,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -271,7 +276,7 @@ mod tests {
             Tensor::ones(Shape::new([1, 2, 2, 2]), &device),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!((metric.value() - 1.0).abs() < 1e-6);
+        assert!((metric.value().current() - 1.0).abs() < 1e-6);
     }
 
     #[test]

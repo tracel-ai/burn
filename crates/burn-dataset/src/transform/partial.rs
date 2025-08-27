@@ -2,7 +2,7 @@ use crate::Dataset;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Only use a fraction of an existing dataset lazily.
-#[derive(new)]
+#[derive(new, Clone)]
 pub struct PartialDataset<D, I> {
     dataset: D,
     start_index: usize,

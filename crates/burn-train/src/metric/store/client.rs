@@ -39,6 +39,13 @@ impl EventStoreClient {
             .expect("Can send event to event store thread.");
     }
 
+    /// Add a testing event to the [event store](EventStore).
+    pub(crate) fn add_event_test(&self, event: Event) {
+        self.sender
+            .send(Message::OnEventTest(event))
+            .expect("Can send event to event store thread.");
+    }
+
     /// Find the epoch following the given criteria from the collected data.
     pub fn find_epoch(
         &self,
@@ -120,12 +127,14 @@ where
                 }
                 Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
                 Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
+                Message::OnEventTest(event) => self.store.add_event(event, Split::Test),
             }
         }
     }
 }
 
 enum Message {
+    OnEventTest(Event),
     OnEventTrain(Event),
     OnEventValid(Event),
     End,

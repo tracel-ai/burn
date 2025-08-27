@@ -8,7 +8,8 @@ use burn_tensor::quantization::QuantStore;
 use burn_tensor::quantization::QuantValue;
 use cubecl::ir::{Elem, FloatKind, UIntKind};
 use cubecl::prelude::*;
-use cubecl_quant::dequantize::dequantize_packed_value_at;
+use cubecl_quant::dequantize::dequantize_symmetric_packed_value_at;
+use cubecl_quant::scheme::QuantMode;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -763,9 +764,17 @@ fn dequantize<C: Float>(
     #[comptime] scheme: QuantScheme,
     #[comptime] config: &FuseBlockConfig,
 ) {
+    comptime!(assert_eq!(
+        scheme.mode,
+        QuantMode::Symmetric,
+        "Only symmetric quantization mode is supported."
+    ));
+
     set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::QInt8 => Elem::UInt(UIntKind::U8),
+            QuantValue::Q8F | QuantValue::Q8S => Elem::UInt(UIntKind::U8),
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
+                unreachable!("Can't store native sub-byte values"),
         },
         QuantStore::U32 => Elem::UInt(UIntKind::U32),
     }]);
@@ -784,7 +793,7 @@ fn dequantize<C: Float>(
     });
     // Assume scales have plain layout for now
     let scales = input_as_linear_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
-    let result = dequantize_packed_value_at::<
+    let result = dequantize_symmetric_packed_value_at::<
         C,
         ElemExpand<Q_PARAM_DYN_ELEM_ID>,
         ElemExpand<Q_STORE_DYN_ELEM_ID>,

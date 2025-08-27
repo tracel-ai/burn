@@ -1,7 +1,7 @@
 use crate::{
     TrainStep, ValidStep,
     checkpoint::{Checkpointer, CheckpointingStrategy},
-    metric::{ItemLazy, processor::EventProcessor},
+    metric::{ItemLazy, processor::EventProcessorTraining},
 };
 use burn_core::{
     lr_scheduler::LrScheduler,
@@ -40,7 +40,7 @@ pub trait LearnerComponentTypes {
         > + Send;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record<Self::Backend>, Self::Backend>;
-    type EventProcessor: EventProcessor<
+    type EventProcessor: EventProcessorTraining<
             ItemTrain = <Self::LearningData as LearningData>::TrainOutput,
             ItemValid = <Self::LearningData as LearningData>::ValidOutput,
         > + 'static;
@@ -78,7 +78,7 @@ where
     CM: Checkpointer<M::Record, B>,
     CO: Checkpointer<O::Record, B>,
     CS: Checkpointer<LR::Record<B>, B>,
-    EP: EventProcessor<ItemTrain = LD::TrainOutput, ItemValid = LD::ValidOutput> + 'static,
+    EP: EventProcessorTraining<ItemTrain = LD::TrainOutput, ItemValid = LD::ValidOutput> + 'static,
     S: CheckpointingStrategy,
     LD: LearningData,
 {
