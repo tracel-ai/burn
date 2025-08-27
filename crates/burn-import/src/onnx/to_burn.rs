@@ -1025,6 +1025,13 @@ impl ParsedOnnxGraph {
         let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
         let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
 
+        log::debug!(
+            "Range node inputs: start={:?}, end={:?}, step={:?}",
+            node.inputs.first().unwrap().name,
+            node.inputs.get(1).unwrap().name,
+            node.inputs.get(2).unwrap().name
+        );
+
         RangeNode::new(start, end, step, output)
     }
 
