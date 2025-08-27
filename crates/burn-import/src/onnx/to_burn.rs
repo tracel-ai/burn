@@ -129,6 +129,7 @@ use onnx_ir::{
         max_pool2d::max_pool2d_config,
         one_hot::one_hot_config,
         pad::pad_config,
+        range::range_config,
         reduce::reduce_config,
         reshape::reshape_config,
         resize::resize_config,
@@ -1006,33 +1007,35 @@ impl ParsedOnnxGraph {
     }
 
     fn range_conversion(node: Node) -> RangeNode {
-        fn convert_arg_to_scalar(arg: &OnnxArgument) -> ScalarType {
-            match &arg.ty {
-                ArgType::Scalar(scalar) => {
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
-                }
-                ArgType::Tensor(tensor) => {
-                    if tensor.rank != 0 {
-                        panic!("Range node requires scalar inputs");
-                    }
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
-                }
-                _ => panic!("Range node requires scalar inputs"),
-            }
-        }
+        use crate::burn::node::range::RangeParam;
+        use onnx_ir::node::range::RangeInput;
+
+        let config = range_config(&node);
         let output = TensorType::from(node.outputs.first().unwrap());
-        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
-        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
-        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+
+        let start = match config.start {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let limit = match config.limit {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let delta = match config.delta {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
 
         log::debug!(
-            "Range node inputs: start={:?}, end={:?}, step={:?}",
-            node.inputs.first().unwrap().name,
-            node.inputs.get(1).unwrap().name,
-            node.inputs.get(2).unwrap().name
+            "Range node conversion: start={:?}, limit={:?}, delta={:?}",
+            start,
+            limit,
+            delta
         );
 
-        RangeNode::new(start, end, step, output)
+        RangeNode::new(start, limit, delta, output)
     }
 
     fn reduce_max_conversion(node: Node) -> ReduceNode {
@@ -1625,7 +1628,6 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
-
         ExpandNode::new(input, output, shape)
     }
 
