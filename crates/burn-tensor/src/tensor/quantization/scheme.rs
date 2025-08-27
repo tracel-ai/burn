@@ -11,6 +11,15 @@ use super::{
     Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
 };
 
+#[cfg(feature = "export_tests")]
+/// Define the default quantization scheme, which can be backend specific.
+pub trait QuantSchemeDefault {
+    /// Returns the default quantization scheme.
+    fn quant_scheme() -> QuantScheme {
+        QuantScheme::default()
+    }
+}
+
 #[derive(
     Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
 )]

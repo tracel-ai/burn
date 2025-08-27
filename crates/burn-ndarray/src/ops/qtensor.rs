@@ -51,12 +51,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
-                        store: QuantStore::Native,
+                        store: QuantStore::Native | QuantStore::U32,
                         ..
                     } => {
-                        // We should probably check that `Q` matches i8.. but it's the only valid type now
+                        // We can load QuantStore::U32 w/ QuantizedBytes impl
                         let (values, qparams) = q_bytes.into_vec_i8();
                         let data = TensorData::new(values, shape);
+                        // Overwrite storage
+                        let scheme = scheme.with_store(QuantStore::Native);
 
                         let qparams = qparams
                             .scales
@@ -72,11 +74,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                     }
                     QuantScheme {
                         value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                        store: QuantStore::Native,
-                        ..
-                    }
-                    | QuantScheme {
-                        store: QuantStore::U32,
                         ..
                     } => unimplemented!("from_data not supported for scheme {scheme:?}"),
                 }
