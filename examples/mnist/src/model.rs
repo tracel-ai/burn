@@ -91,7 +91,7 @@ impl<B: Backend> Model<B> {
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
-    norm: BatchNorm<B, 2>,
+    norm: BatchNorm<B>,
     pool: Option<MaxPool2d>,
     activation: nn::Relu,
 }
