@@ -107,7 +107,12 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 for node in &self.nodes {
                     let mut out_file = out_file.clone();
                     let node_type = match node.field_type() {
-                        Some(node_type) => node_type.name().clone(),
+                        Some(node_type) => {
+                            if get_generics_from_type(node_type.ty().clone()).is_none() {
+                                continue;
+                            }
+                            node_type.name().clone()
+                        }
                         None => continue,
                     };
                     out_file.set_file_name(node_type.to_string());
@@ -148,7 +153,12 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 for node in &self.nodes {
                     let mut out_file = out_file.clone();
                     let node_type = match node.field_type() {
-                        Some(node_type) => node_type.name().clone(),
+                        Some(node_type) => {
+                            if get_generics_from_type(node_type.ty().clone()).is_none() {
+                                continue;
+                            }
+                            node_type.name().clone()
+                        }
                         None => continue,
                     };
                     out_file.set_file_name(node_type.to_string());
@@ -189,7 +199,12 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 for node in &self.nodes {
                     let mut out_file = out_file.clone();
                     let node_type = match node.field_type() {
-                        Some(node_type) => node_type.name().clone(),
+                        Some(node_type) => {
+                            if get_generics_from_type(node_type.ty().clone()).is_none() {
+                                continue;
+                            }
+                            node_type.name().clone()
+                        }
                         None => continue,
                     };
                     out_file.set_file_name(node_type.to_string());
@@ -232,9 +247,15 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 for node in &self.nodes {
                     let mut out_file = out_file.clone();
                     let node_type = match node.field_type() {
-                        Some(node_type) => node_type.name().clone(),
+                        Some(node_type) => {
+                            if get_generics_from_type(node_type.ty().clone()).is_none() {
+                                continue;
+                            }
+                            node_type.name().clone()
+                        }
                         None => continue,
                     };
+
                     out_file.set_file_name(node_type.to_string());
 
                     layer_files.push((node_type, out_file.clone()));
@@ -510,9 +531,10 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Model<B> {
                 pub fn from_embedded(device: &B::Device) -> Self {
+                    #[allow(clippy::useless_conversion)]
                     let record = BinBytesRecorder::<#precision_ty, &'static [u8]>::default()
-                    .load(EMBEDDED_STATES.into(), device)
-                    .expect("Should decode state successfully");
+                        .load(EMBEDDED_STATES.into(), device)
+                        .expect("Should decode state successfully");
 
                     Self::new(device).load_record(record)
                 }
@@ -611,18 +633,30 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             let function_name = format_ident!("load_{}", field_name);
             let record_name = quote! { <#field_ty as burn::module::Module<B>>::Record };
             let state_name = format_ident!("{}_STATES", field_name.to_string().to_uppercase());
+            let should_load = get_generics_from_type(field_ty).is_some();
 
-            body.extend(quote! {
-                #[allow(unused)]
-                pub fn #function_name(&mut self, device: &B::Device) {
-                    let record: #record_name = Self::recorder()
-                        .load(#state_name.into(), device)
-                        .expect("Should decode state successfully");
+            if should_load {
+                body.extend(quote! {
+                    #[allow(unused)]
+                    pub fn #function_name(&mut self, device: &B::Device) {
+                        #[allow(clippy::useless_conversion)]
+                        let record: #record_name = Self::recorder()
+                            .load(#state_name.into(), device)
+                            .expect("Should decode state successfully");
 
-                    #field_init
-                    self.#field_name = Some(burn::module::Module::<B>::load_record(#field_name, record));
-                }
-            });
+                        #field_init
+                        self.#field_name = Some(burn::module::Module::<B>::load_record(#field_name, record));
+                    }
+                });
+            } else {
+                body.extend(quote! {
+                    #[allow(unused)]
+                    pub fn #function_name(&mut self, device: &B::Device) {
+                        #field_init
+                        self.#field_name = Some(#field_name);
+                    }
+                });
+            }
         }
 
         body
@@ -985,4 +1019,22 @@ fn extract_type_name_by_type<T: ?Sized>() -> String {
         .next()
         .unwrap_or(full_type_name)
         .to_string()
+}
+
+fn get_generics_from_type(ty: proc_macro2::TokenStream) -> Option<Vec<syn::Type>> {
+    let ty = syn::parse2::<syn::Type>(ty).unwrap();
+    if let syn::Type::Path(type_path) = &ty
+        && let Some(last_segment) = type_path.path.segments.last()
+        && let syn::PathArguments::AngleBracketed(generic_args) = &last_segment.arguments
+    {
+        let mut generics = Vec::new();
+        for arg in &generic_args.args {
+            if let syn::GenericArgument::Type(generic) = arg {
+                generics.push(generic.clone());
+            }
+        }
+        return Some(generics);
+    }
+
+    None
 }
