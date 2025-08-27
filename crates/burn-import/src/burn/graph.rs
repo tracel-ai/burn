@@ -608,22 +608,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         let mut body = quote! {};
         for (field_name, field_ty, field_init) in fields {
-            let field_ty_parsed: syn::Path =
-                syn::parse2::<syn::Path>(field_ty).expect("Failed to parse field type");
-            let field_ty_parsed = &field_ty_parsed
-                .segments
-                .last()
-                .expect("Their should be some sort of segment to define the type");
-            let field_ty_ident = &field_ty_parsed.ident;
-
             let function_name = format_ident!("load_{}", field_name);
-            let record_name = format_ident!("{}Record", quote! {#field_ty_ident}.to_string());
+            let record_name = quote! { <#field_ty as burn::module::Module<B>>::Record };
             let state_name = format_ident!("{}_STATES", field_name.to_string().to_uppercase());
 
             body.extend(quote! {
                 #[allow(unused)]
                 pub fn #function_name(&mut self, device: &B::Device) {
-                    let record: #record_name<B> = Self::recorder()
+                    let record: #record_name = Self::recorder()
                         .load(#state_name.into(), device)
                         .expect("Should decode state successfully");
 

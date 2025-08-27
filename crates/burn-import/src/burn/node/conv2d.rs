@@ -120,6 +120,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
         imports.register("burn::nn::PaddingConfig2d");
         imports.register("burn::nn::conv::Conv2d");
         imports.register("burn::nn::conv::Conv2dConfig");
+        imports.register("burn::nn::conv::Conv2dRecord");
     }
 
     fn into_node(self) -> Node<PS> {
