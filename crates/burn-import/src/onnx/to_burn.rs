@@ -6,7 +6,9 @@ use std::{
 
 use burn::{
     nn::PReluConfig,
-    record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
+    record::{
+        DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
+    },
     tensor::{Element, TensorData},
 };
 use log::warn;
@@ -158,6 +160,7 @@ pub struct ModelGen {
     inputs: Vec<PathBuf>,
     development: bool,
     half_precision: bool,
+    double_precision: bool,
     record_type: RecordType,
     embed_states: bool,
 }
@@ -211,6 +214,15 @@ impl ModelGen {
     /// * `half_precision` - If true, half precision is saved. Otherwise, full precision is saved.
     pub fn half_precision(&mut self, half_precision: bool) -> &mut Self {
         self.half_precision = half_precision;
+        self
+    }
+
+    /// Set the precision to double floating point precision.
+    ///
+    /// This uses f64 for floats and i64 for integers, which is necessary for models
+    /// with large integer constants that don't fit in i32.
+    pub fn double_precision(&mut self, double_precision: bool) -> &mut Self {
+        self.double_precision = double_precision;
         self
     }
 
@@ -298,7 +310,14 @@ impl ModelGen {
         let blank_space = true;
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
-        let code = if self.half_precision {
+        let code = if self.double_precision {
+            graph
+                .into_burn::<DoublePrecisionSettings>()
+                .with_record(out_file.clone(), self.record_type, self.embed_states)
+                .with_blank_space(blank_space)
+                .with_top_comment(top_comment)
+                .codegen()
+        } else if self.half_precision {
             graph
                 .into_burn::<HalfPrecisionSettings>()
                 .with_record(out_file.clone(), self.record_type, self.embed_states)
