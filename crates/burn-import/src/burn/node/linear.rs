@@ -107,7 +107,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::Linear");
         imports.register("burn::nn::LinearConfig");
-        imports.register("burn::nn::LinearRecord");
     }
 
     fn into_node(self) -> Node<PS> {

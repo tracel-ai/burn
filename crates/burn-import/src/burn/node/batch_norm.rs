@@ -146,7 +146,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::nn::BatchNorm");
         imports.register("burn::nn::BatchNormConfig");
-        imports.register("burn::nn::BatchNormRecord");
     }
 
     fn into_node(self) -> Node<PS> {
