@@ -27,6 +27,36 @@ pub enum NormLayerConfig {
     Rms(RmsNormConfig),
 }
 
+impl From<BatchNormConfig> for NormLayerConfig {
+    fn from(config: BatchNormConfig) -> Self {
+        Self::Batch(config)
+    }
+}
+
+impl From<GroupNormConfig> for NormLayerConfig {
+    fn from(config: GroupNormConfig) -> Self {
+        Self::Group(config)
+    }
+}
+
+impl From<InstanceNormConfig> for NormLayerConfig {
+    fn from(config: InstanceNormConfig) -> Self {
+        Self::Instance(config)
+    }
+}
+
+impl From<LayerNormConfig> for NormLayerConfig {
+    fn from(config: LayerNormConfig) -> Self {
+        Self::Layer(config)
+    }
+}
+
+impl From<RmsNormConfig> for NormLayerConfig {
+    fn from(config: RmsNormConfig) -> Self {
+        Self::Rms(config)
+    }
+}
+
 impl NormLayerConfig {
     /// Initialize a ['Norm'] layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> NormLayer<B> {
@@ -92,7 +122,7 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config = NormLayerConfig::Batch(BatchNormConfig::new(12));
+        let config: NormLayerConfig = BatchNormConfig::new(12).into();
 
         let layer: NormLayer<B> = config.init(&device);
 
@@ -114,7 +144,7 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config = NormLayerConfig::Group(GroupNormConfig::new(3, num_features));
+        let config: NormLayerConfig = GroupNormConfig::new(3, num_features).into();
 
         let layer: NormLayer<B> = config.init(&device);
 
@@ -136,7 +166,7 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config = NormLayerConfig::Instance(InstanceNormConfig::new(num_features));
+        let config: NormLayerConfig = InstanceNormConfig::new(num_features).into();
 
         let layer: NormLayer<B> = config.init(&device);
 
@@ -158,7 +188,7 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
 
-        let config = NormLayerConfig::Layer(LayerNormConfig::new(num_features));
+        let config: NormLayerConfig = LayerNormConfig::new(num_features).into();
 
         let layer: NormLayer<B> = config.init(&device);
 
@@ -180,7 +210,7 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
 
-        let config = NormLayerConfig::Rms(RmsNormConfig::new(num_features));
+        let config: NormLayerConfig = RmsNormConfig::new(num_features).into();
 
         let layer: NormLayer<B> = config.init(&device);
 
