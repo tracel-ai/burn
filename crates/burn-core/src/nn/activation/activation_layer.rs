@@ -8,11 +8,11 @@ use crate::nn::{
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-/// [`ActivationLayer`] Configuration.
-// TODO: GLU's dim-select interaction with DimSelectActivationLayer needs thought.
+/// [`Activation`] Configuration.
+// TODO: GLU's dim-select interaction with DimSelectActivation needs thought.
 #[derive(Config, Debug)]
 #[non_exhaustive]
-pub enum ActivationLayerConfig {
+pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
     GeLu,
 
@@ -41,19 +41,19 @@ pub enum ActivationLayerConfig {
     Linear(LinearConfig),
 }
 
-impl ActivationLayerConfig {
+impl ActivationConfig {
     /// Initialize a wrapped activation layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> ActivationLayer<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
         match self {
-            ActivationLayerConfig::Relu => ActivationLayer::Relu(Relu),
-            ActivationLayerConfig::LeakyRelu(conf) => ActivationLayer::LeakyRelu(conf.init()),
-            ActivationLayerConfig::GeLu => ActivationLayer::Gelu(Gelu),
-            ActivationLayerConfig::PRelu(conf) => ActivationLayer::PRelu(conf.init(device)),
-            ActivationLayerConfig::SwiGlu(conf) => ActivationLayer::SwiGlu(conf.init(device)),
-            ActivationLayerConfig::HardSigmoid(conf) => ActivationLayer::HardSigmoid(conf.init()),
-            ActivationLayerConfig::Sigmoid => ActivationLayer::Sigmoid(Sigmoid),
-            ActivationLayerConfig::Tanh => ActivationLayer::Tanh(Tanh),
-            ActivationLayerConfig::Linear(conf) => ActivationLayer::Linear(conf.init(device)),
+            ActivationConfig::Relu => Activation::Relu(Relu),
+            ActivationConfig::LeakyRelu(conf) => Activation::LeakyRelu(conf.init()),
+            ActivationConfig::GeLu => Activation::Gelu(Gelu),
+            ActivationConfig::PRelu(conf) => Activation::PRelu(conf.init(device)),
+            ActivationConfig::SwiGlu(conf) => Activation::SwiGlu(conf.init(device)),
+            ActivationConfig::HardSigmoid(conf) => Activation::HardSigmoid(conf.init()),
+            ActivationConfig::Sigmoid => Activation::Sigmoid(Sigmoid),
+            ActivationConfig::Tanh => Activation::Tanh(Tanh),
+            ActivationConfig::Linear(conf) => Activation::Linear(conf.init(device)),
         }
     }
 }
@@ -63,7 +63,7 @@ impl ActivationLayerConfig {
 /// Provides support for many in-built `burn::nn` activations.
 #[derive(Module, Debug)]
 #[non_exhaustive]
-pub enum ActivationLayer<B: Backend> {
+pub enum Activation<B: Backend> {
     /// [`Gelu`] activation layer.
     Gelu(Gelu),
 
@@ -92,28 +92,28 @@ pub enum ActivationLayer<B: Backend> {
     Linear(Linear<B>),
 }
 
-impl<B: Backend> ActivationLayer<B> {
+impl<B: Backend> Activation<B> {
     /// Forward pass.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         match self {
-            ActivationLayer::Relu(layer) => layer.forward(input),
-            ActivationLayer::LeakyRelu(layer) => layer.forward(input),
-            ActivationLayer::Gelu(layer) => layer.forward(input),
-            ActivationLayer::PRelu(layer) => layer.forward(input),
-            ActivationLayer::SwiGlu(layer) => layer.forward(input),
-            ActivationLayer::HardSigmoid(layer) => layer.forward(input),
-            ActivationLayer::Sigmoid(layer) => layer.forward(input),
-            ActivationLayer::Tanh(layer) => layer.forward(input),
-            ActivationLayer::Linear(layer) => layer.forward(input),
+            Activation::Relu(layer) => layer.forward(input),
+            Activation::LeakyRelu(layer) => layer.forward(input),
+            Activation::Gelu(layer) => layer.forward(input),
+            Activation::PRelu(layer) => layer.forward(input),
+            Activation::SwiGlu(layer) => layer.forward(input),
+            Activation::HardSigmoid(layer) => layer.forward(input),
+            Activation::Sigmoid(layer) => layer.forward(input),
+            Activation::Tanh(layer) => layer.forward(input),
+            Activation::Linear(layer) => layer.forward(input),
         }
     }
 }
 
-/// [`DimSelectActivationLayer`] Config.
+/// [`DimSelectActivation`] Config.
 #[derive(Config, Debug)]
-pub struct DimSelectActivationLayerConfig {
+pub struct DimSelectActivationConfig {
     /// Configuration of the inner layer.
-    pub layer: ActivationLayerConfig,
+    pub layer: ActivationConfig,
 
     /// The activation dimension of the input.
     /// Supports negative indexing.
@@ -121,30 +121,30 @@ pub struct DimSelectActivationLayerConfig {
     pub dim: isize,
 }
 
-impl DimSelectActivationLayerConfig {
-    /// Initialize a [`DimSelectActivationLayer`].
-    pub fn init<B: Backend>(&self, device: &B::Device) -> DimSelectActivationLayer<B> {
-        DimSelectActivationLayer {
+impl DimSelectActivationConfig {
+    /// Initialize a [`DimSelectActivation`].
+    pub fn init<B: Backend>(&self, device: &B::Device) -> DimSelectActivation<B> {
+        DimSelectActivation {
             layer: self.layer.init(device),
             dim: self.dim,
         }
     }
 }
 
-/// [`ActivationLayer`] wrapper with `dim`-select support.
+/// [`Activation`] wrapper with `dim`-select support.
 ///
 /// Swaps the specified `dim` to the last dimension, applies the activation, then swaps back.
 #[derive(Module, Debug)]
-pub struct DimSelectActivationLayer<B: Backend> {
+pub struct DimSelectActivation<B: Backend> {
     /// Configuration of the inner layer.
-    pub layer: ActivationLayer<B>,
+    pub layer: Activation<B>,
 
     /// The activation dimension of the input.
     /// Supports negative indexing.
     pub dim: isize,
 }
 
-impl<B: Backend> DimSelectActivationLayer<B> {
+impl<B: Backend> DimSelectActivation<B> {
     /// Canonicalize the activation dim to the given rank.
     #[inline(always)]
     pub fn canonicalize_dim(&self, rank: usize) -> usize {
@@ -188,7 +188,7 @@ mod tests {
     }
 
     fn check_stateless_config_output<B: Backend, const D: usize>(
-        config: ActivationLayerConfig,
+        config: ActivationConfig,
         input: Tensor<B, D>,
         expected: Tensor<B, D>,
         device: &B::Device,
@@ -205,7 +205,7 @@ mod tests {
 
         let expected = Gelu::default().forward(input.clone());
 
-        check_stateless_config_output(ActivationLayerConfig::GeLu, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::GeLu, input, expected, &device)
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod tests {
         let expected = inner_config.init(&device).forward(input.clone());
 
         check_stateless_config_output(
-            ActivationLayerConfig::PRelu(inner_config),
+            ActivationConfig::PRelu(inner_config),
             input,
             expected,
             &device,
@@ -231,7 +231,7 @@ mod tests {
 
         let expected = Relu::default().forward(input.clone());
 
-        check_stateless_config_output(ActivationLayerConfig::Relu, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::Relu, input, expected, &device)
     }
 
     #[test]
@@ -243,7 +243,7 @@ mod tests {
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(
-            ActivationLayerConfig::LeakyRelu(inner_config),
+            ActivationConfig::LeakyRelu(inner_config),
             input,
             expected,
             &device,
@@ -261,11 +261,11 @@ mod tests {
         let inner_config = SwiGluConfig::new(d_input, d_output);
         let mut reference: SwiGlu<TestBackend> = inner_config.init(&device);
 
-        let config = ActivationLayerConfig::SwiGlu(inner_config);
+        let config = ActivationConfig::SwiGlu(inner_config);
         let layer = config.init(&device);
 
         match &layer {
-            ActivationLayer::SwiGlu(inner) => {
+            Activation::SwiGlu(inner) => {
                 // Clone the initialized weights.
                 let state = inner.clone().into_record();
                 reference = reference.load_record(state);
@@ -286,7 +286,7 @@ mod tests {
 
         let expected = Sigmoid::default().forward(input.clone());
 
-        check_stateless_config_output(ActivationLayerConfig::Sigmoid, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::Sigmoid, input, expected, &device)
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
 
         let expected = Tanh::default().forward(input.clone());
 
-        check_stateless_config_output(ActivationLayerConfig::Tanh, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::Tanh, input, expected, &device)
     }
 
     #[test]
@@ -308,7 +308,7 @@ mod tests {
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(
-            ActivationLayerConfig::HardSigmoid(inner_config),
+            ActivationConfig::HardSigmoid(inner_config),
             input,
             expected,
             &device,
@@ -326,11 +326,11 @@ mod tests {
         let inner_config = LinearConfig::new(d_input, d_output);
         let mut reference: Linear<TestBackend> = inner_config.init(&device);
 
-        let config = ActivationLayerConfig::Linear(inner_config);
+        let config = ActivationConfig::Linear(inner_config);
         let layer = config.init(&device);
 
         match &layer {
-            ActivationLayer::Linear(inner) => {
+            Activation::Linear(inner) => {
                 // Clone the initialized weights.
                 let state = inner.clone().into_record();
                 reference = reference.load_record(state);
@@ -353,7 +353,7 @@ mod tests {
 
         let expected = Relu::default().forward(input.clone());
 
-        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::Relu);
+        let config = DimSelectActivationConfig::new(ActivationConfig::Relu);
         let act = config.init(&device);
         let output = act.forward(input);
         expect_tensor(output, expected);
@@ -371,7 +371,7 @@ mod tests {
             .forward(input.clone().swap_dims(1, 2))
             .swap_dims(1, 2);
 
-        let config = DimSelectActivationLayerConfig::new(ActivationLayerConfig::Relu).with_dim(1);
+        let config = DimSelectActivationConfig::new(ActivationConfig::Relu).with_dim(1);
         let act = config.init(&device);
         assert_eq!(act.canonicalize_dim(3), 1);
 
