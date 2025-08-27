@@ -9,7 +9,6 @@ use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
 /// [`Activation`] Configuration.
-// TODO: GLU's dim-select interaction with DimSelectActivation needs thought.
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationConfig {
