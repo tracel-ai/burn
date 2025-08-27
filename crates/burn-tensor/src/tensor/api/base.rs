@@ -567,8 +567,10 @@ where
     ///
     /// # Arguments
     ///
-    /// - `start_dim`: The starting dimension of the range to be flattened.
-    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive).
+    /// - `start_dim`: The starting dimension of the range to be flattened,
+    ///   supports negative indexing.
+    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive),
+    ///   supports negative indexing.
     ///
     /// # Type Parameters
     ///
@@ -596,7 +598,13 @@ where
     ///     println!("{flattened}");
     /// }
     /// ```
-    pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
+    pub fn flatten<const D2: usize>(
+        self,
+        start_dim: impl AsIndex,
+        end_dim: impl AsIndex,
+    ) -> Tensor<B, D2, K> {
+        let start_dim = canonicalize_dim(start_dim, D, false);
+        let end_dim = canonicalize_dim(end_dim, D, false);
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
 
         let current_dims = self.shape().dims;
