@@ -89,7 +89,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     DefaultRecorder::new()
         .record(
-            model_trained.into_record(),
+            model_trained.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();

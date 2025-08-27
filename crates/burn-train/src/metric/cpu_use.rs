@@ -1,14 +1,30 @@
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
-use std::time::{Duration, Instant};
+use crate::metric::{Metric, MetricEntry, MetricName, NumericEntry};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 
 /// General CPU Usage metric
 pub struct CpuUse {
+    name: MetricName,
     last_refresh: Instant,
     refresh_frequency: Duration,
     sys: System,
     current: f64,
+}
+
+impl Clone for CpuUse {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            last_refresh: self.last_refresh,
+            refresh_frequency: self.refresh_frequency,
+            sys: System::new(),
+            current: self.current,
+        }
+    }
 }
 
 impl CpuUse {
@@ -16,8 +32,10 @@ impl CpuUse {
     pub fn new() -> Self {
         let mut sys = System::new();
         let current = Self::refresh(&mut sys);
+        let name = "CPU Usage".to_string();
 
         Self {
+            name: Arc::new(name),
             last_refresh: Instant::now(),
             refresh_frequency: Duration::from_millis(200),
             sys,
@@ -61,13 +79,13 @@ impl Metric for CpuUse {
 
     fn clear(&mut self) {}
 
-    fn name(&self) -> String {
-        "CPU Usage".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl Numeric for CpuUse {
-    fn value(&self) -> f64 {
-        self.current
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.current)
     }
 }

@@ -95,8 +95,8 @@ impl LearnerSummary {
 
         let mut event_store = LogEventStore::default();
 
-        let train_logger = FileMetricLogger::new(train_dir.to_str().unwrap());
-        let valid_logger = FileMetricLogger::new(valid_dir.to_str().unwrap());
+        let train_logger = FileMetricLogger::new_train(train_dir.to_str().unwrap());
+        let valid_logger = FileMetricLogger::new_train(valid_dir.to_str().unwrap());
 
         // Number of recorded epochs
         let epochs = train_logger.epochs();

@@ -258,6 +258,7 @@ primitive!(i8);
 /// deserializing arrays of variable size,
 /// see [serde/issues/1937](https://github.com/serde-rs/serde/issues/1937)
 /// for backward compatibility reasons. Serde APIs were created before const generics.
+#[derive(Clone)]
 pub struct Array<const N: usize, T>([T; N]);
 
 impl<T: Serialize, const N: usize> Serialize for Array<N, T> {

@@ -1,17 +1,33 @@
 use super::{ItemLazy, LearnerItem};
 use crate::{
-    metric::{Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, store::MetricsUpdate},
-    renderer::TrainingProgress,
+    metric::{
+        Adaptor, Metric, MetricEntry, MetricMetadata, Numeric, NumericEntry, store::MetricsUpdate,
+    },
+    renderer::{EvaluationProgress, TrainingProgress},
 };
 
-pub(crate) struct Metrics<T: ItemLazy, V: ItemLazy> {
+pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     train: Vec<Box<dyn MetricUpdater<T::ItemSync>>>,
     valid: Vec<Box<dyn MetricUpdater<V::ItemSync>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::ItemSync>>>,
 }
 
-impl<T: ItemLazy, V: ItemLazy> Default for Metrics<T, V> {
+pub(crate) struct MetricsEvaluation<T: ItemLazy> {
+    test: Vec<Box<dyn MetricUpdater<T::ItemSync>>>,
+    test_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
+}
+
+impl<T: ItemLazy> Default for MetricsEvaluation<T> {
+    fn default() -> Self {
+        Self {
+            test: Default::default(),
+            test_numeric: Default::default(),
+        }
+    }
+}
+
+impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
     fn default() -> Self {
         Self {
             train: Vec::default(),
@@ -22,7 +38,51 @@ impl<T: ItemLazy, V: ItemLazy> Default for Metrics<T, V> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
+impl<T: ItemLazy> MetricsEvaluation<T> {
+    /// Register a testing metric.
+    pub(crate) fn register_test_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    where
+        T::ItemSync: Adaptor<Me::Input> + 'static,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.test.push(Box::new(metric))
+    }
+
+    /// Register a numeric testing metric.
+    pub(crate) fn register_test_metric_numeric<Me: Metric + Numeric + 'static>(
+        &mut self,
+        metric: Me,
+    ) where
+        T::ItemSync: Adaptor<Me::Input> + 'static,
+    {
+        let metric = MetricWrapper::new(metric);
+        self.test_numeric.push(Box::new(metric))
+    }
+
+    /// Update the testing information from the testing item.
+    pub(crate) fn update_test(
+        &mut self,
+        item: &LearnerItem<T::ItemSync>,
+        metadata: &MetricMetadata,
+    ) -> MetricsUpdate {
+        let mut entries = Vec::with_capacity(self.test.len());
+        let mut entries_numeric = Vec::with_capacity(self.test_numeric.len());
+
+        for metric in self.test.iter_mut() {
+            let state = metric.update(item, metadata);
+            entries.push(state);
+        }
+
+        for metric in self.test_numeric.iter_mut() {
+            let (state, value) = metric.update(item, metadata);
+            entries_numeric.push((state, value));
+        }
+
+        MetricsUpdate::new(entries, entries_numeric)
+    }
+}
+
+impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Register a training metric.
     pub(crate) fn register_train_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
@@ -139,6 +199,15 @@ impl<T> From<&LearnerItem<T>> for TrainingProgress {
     }
 }
 
+impl<T> From<&LearnerItem<T>> for EvaluationProgress {
+    fn from(item: &LearnerItem<T>) -> Self {
+        Self {
+            progress: item.progress.clone(),
+            iteration: item.iteration,
+        }
+    }
+}
+
 impl<T> From<&LearnerItem<T>> for MetricMetadata {
     fn from(item: &LearnerItem<T>) -> Self {
         Self {
@@ -152,7 +221,11 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
 }
 
 trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64);
+    fn update(
+        &mut self,
+        item: &LearnerItem<T>,
+        metadata: &MetricMetadata,
+    ) -> (MetricEntry, NumericEntry);
     fn clear(&mut self);
 }
 
@@ -172,7 +245,11 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> (MetricEntry, f64) {
+    fn update(
+        &mut self,
+        item: &LearnerItem<T>,
+        metadata: &MetricMetadata,
+    ) -> (MetricEntry, NumericEntry) {
         let update = self.metric.update(&item.item.adapt(), metadata);
         let numeric = self.metric.value();
 
