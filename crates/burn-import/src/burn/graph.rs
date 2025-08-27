@@ -63,37 +63,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         log::debug!("Registering node => '{}'", node.name());
         self.nodes.push(node);
     }
-    fn create_layer_files<Backend>(
-        &self,
-        recorder: &impl Recorder<Backend, RecordArgs = PathBuf>,
-        out_file: PathBuf,
-    ) -> Vec<(syn::Ident, PathBuf)>
-    where
-        PS: PrecisionSettings,
-        Backend: burn::tensor::backend::Backend,
-    {
-        let mut layer_files = Vec::new();
-
-        for node in &self.nodes {
-            let mut node_file = out_file.to_path_buf();
-            let node_type = match node.field_type() {
-                Some(node_type) => node_type.name().clone(),
-                None => continue,
-            };
-            node_file.set_file_name(node_type.to_string());
-
-            layer_files.push((node_type.clone(), node_file.clone()));
-
-            // Save individual node file
-            let _ = Recorder::<Backend>::save_item(
-                recorder,
-                BurnRecord::<_, Backend>::new::<PrettyJsonFileRecorder<PS>>(node),
-                node_file,
-            );
-        }
-
-        layer_files
-    }
 
     /// Save the state of each node in a record file.
     ///
@@ -795,7 +764,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         let mut body = quote! {};
         self.nodes
             .iter()
-            .zip(forward_functions.into_iter())
+            .zip(forward_functions)
             .for_each(|(node, code)| {
                 if let Some(field_type) = node.field_type() {
                     let name = field_type.name();
