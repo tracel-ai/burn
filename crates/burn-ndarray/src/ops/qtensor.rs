@@ -95,7 +95,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value:
+                #[cfg(not(feature = "export_tests"))]
+                    value: QuantValue::Q8F | QuantValue::Q8S,
+                // For tests, "native" sub-byte quant serves as a reference for value equality.
+                // Values are stored as i8 regardless.
+                #[cfg(feature = "export_tests")]
+                    value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
                     | QuantValue::Q4F
@@ -117,7 +122,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value:
+                #[cfg(not(feature = "export_tests"))]
+                    value: QuantValue::Q8F | QuantValue::Q8S,
+                #[cfg(feature = "export_tests")]
+                    value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
                     | QuantValue::Q4F
@@ -143,6 +151,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             }
             QuantScheme {
                 store: QuantStore::U32,
+                ..
+            } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
+            #[cfg(not(feature = "export_tests"))]
+            QuantScheme {
+                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
+                store: QuantStore::Native,
                 ..
             } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };

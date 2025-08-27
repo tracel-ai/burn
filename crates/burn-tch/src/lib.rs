@@ -25,11 +25,5 @@ mod tests {
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();
 
-    impl burn_tensor::quantization::QuantSchemeDefault for crate::LibTorch {
-        fn quant_scheme() -> burn_tensor::quantization::QuantScheme {
-            burn_tensor::quantization::QuantScheme::default()
-                .with_store(burn_tensor::quantization::QuantStore::Native)
-        }
-    }
     burn_tensor::testgen_quantization!();
 }

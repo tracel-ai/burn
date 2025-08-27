@@ -3,9 +3,9 @@ mod tests {
     use super::*;
     use alloc::{vec, vec::Vec};
     use burn_tensor::quantization::{
-        QuantLevel, QuantSchemeDefault, QuantValue, QuantizationStrategy, SymmetricQuantization,
+        QTensorPrimitive, QuantLevel, QuantValue, QuantizationStrategy, SymmetricQuantization,
     };
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{Tensor, TensorData, ops::QuantizedTensor};
 
     #[test]
     fn should_support_per_tensor_symmetric_int8() {
@@ -16,7 +16,7 @@ mod tests {
                 0.014_173_228,
                 QuantValue::Q8S,
             )),
-            TestBackend::quant_scheme().with_value(QuantValue::Q8S),
+            QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S),
         );
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
@@ -42,7 +42,7 @@ mod tests {
                 ],
                 8,
             ),
-            TestBackend::quant_scheme()
+            QuantizedTensor::<TestBackend>::default_scheme()
                 .with_value(QuantValue::Q8S)
                 .with_level(QuantLevel::Block(8)),
         );

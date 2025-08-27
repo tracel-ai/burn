@@ -43,12 +43,6 @@ mod tests {
     burn_autodiff::testgen_all!();
 
     // Quantization
-    impl burn_tensor::quantization::QuantSchemeDefault for crate::NdArray {
-        fn quant_scheme() -> burn_tensor::quantization::QuantScheme {
-            burn_tensor::quantization::QuantScheme::default()
-                .with_store(burn_tensor::quantization::QuantStore::Native)
-        }
-    }
     burn_tensor::testgen_calibration!();
     burn_tensor::testgen_scheme!();
     burn_tensor::testgen_quantize!();

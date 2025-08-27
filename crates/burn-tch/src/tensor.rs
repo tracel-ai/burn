@@ -379,6 +379,11 @@ impl QTensorPrimitive for TchQTensor {
     fn scheme(&self) -> &QuantScheme {
         &self.scheme
     }
+
+    #[cfg(test)]
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
+    }
 }
 
 #[cfg(test)]

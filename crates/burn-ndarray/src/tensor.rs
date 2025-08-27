@@ -371,6 +371,11 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
     fn scheme(&self) -> &QuantScheme {
         &self.scheme
     }
+
+    #[cfg(test)]
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
+    }
 }
 
 impl<Q: QuantElement> TensorMetadata for NdArrayQTensor<Q> {
