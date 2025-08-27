@@ -1,6 +1,5 @@
 use burn::{
     module::{Module, ModuleMapper, ParamId},
-    nn::BatchNorm,
     prelude::*,
     tensor::backend::AutodiffBackend,
 };
@@ -9,7 +8,7 @@ use burn::{
 #[derive(Module, Debug)]
 pub struct LayerBlock<B: Backend> {
     fc: nn::Linear<B>,
-    bn: nn::BatchNorm<B, 0>,
+    bn: nn::BatchNorm<B>,
     leakyrelu: nn::LeakyRelu,
 }
 
@@ -18,7 +17,7 @@ impl<B: Backend> LayerBlock<B> {
         let fc = nn::LinearConfig::new(input, output)
             .with_bias(true)
             .init(device);
-        let bn: BatchNorm<B, 0> = nn::BatchNormConfig::new(output)
+        let bn: nn::BatchNorm<B> = nn::BatchNormConfig::new(output)
             .with_epsilon(0.8)
             .init(device);
         let leakyrelu = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
