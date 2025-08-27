@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
-use crate::TensorPrimitive;
 use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
@@ -12,6 +11,7 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
+use crate::{Dyn, TensorPrimitive, dyn_broadcast, normalize_dyn};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -43,8 +43,10 @@ where
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
-    pub fn add(self, other: Self) -> Self {
-        check!(TensorCheck::binary_ops_ew("Add", &self, &other));
+    pub fn add(mut self, mut other: Self) -> Self {
+        dyn_broadcast!(self, other | s1, s2);
+        // check!(TensorCheck::binary_ops_ew("Add", &self, &other));
+
         Self::new(K::add(self.primitive, other.primitive))
     }
 

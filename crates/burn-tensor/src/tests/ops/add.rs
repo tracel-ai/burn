@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(add)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData, backend::Backend};
+    use burn_tensor::{Dyn, Tensor, TensorData, backend::Backend};
 
     #[test]
     fn test_add_d2() {
@@ -12,6 +12,19 @@ mod tests {
 
         output.into_data().assert_eq(
             &TensorData::from([[6.0, 8.0, 10.0], [12.0, 14.0, 16.0]]),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_add_dyn_broadcast() {
+        let tensor_1 = TestTensor::<Dyn>::from([0.0, 1.0, 2.0]);
+        let tensor_2 = TestTensor::<Dyn>::from([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]);
+
+        let output = tensor_1 + tensor_2;
+
+        output.into_data().assert_eq(
+            &TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]),
             false,
         );
     }

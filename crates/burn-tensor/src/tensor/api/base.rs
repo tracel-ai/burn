@@ -23,6 +23,39 @@ use crate::{
 use crate::{DType, Element, TensorPrimitive};
 use crate::{cast::ToElement, check::TensorCheck};
 
+/// Marker type for dynamic rank [tensor](Tensor).
+#[allow(non_upper_case_globals)]
+pub static Dyn: usize = 10;
+
+pub(crate) fn normalize_dyn<const N: usize>(shapes: &mut [Shape; N]) {
+    let mut max_rank = usize::MIN;
+
+    for shape in shapes.iter() {
+        max_rank = usize::max(max_rank, shape.dims.len());
+    }
+
+    for shape in shapes.iter_mut() {
+        let mut shape_updated = vec![1; max_rank];
+        let num_added = max_rank - shape.dims.len();
+        shape_updated[num_added..max_rank].copy_from_slice(&shape.dims);
+        *shape = Shape::from(shape_updated);
+    }
+}
+
+macro_rules! dyn_broadcast {
+    ($($T:ident),* | $($t:ident),*) => {
+        if D == Dyn {
+            let mut shapes = [$($T.shape(),)*];
+            normalize_dyn(&mut shapes);
+            let [$($t,)*] = shapes;
+            $(
+                $T = $T.reshape($t);
+            )*
+        }
+    };
+}
+pub(crate) use dyn_broadcast;
+
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
@@ -70,7 +103,7 @@ use crate::{cast::ToElement, check::TensorCheck};
 /// }
 /// ```
 #[derive(new, Clone, Debug)]
-pub struct Tensor<B, const D: usize, K = Float>
+pub struct Tensor<B, const D: usize = Dyn, K = Float>
 where
     B: Backend,
     K: TensorKind<B>,
@@ -111,6 +144,13 @@ where
 
         let mut tensor_new = func(tensor_owned);
         core::mem::swap(&mut tensor_new, self);
+    }
+
+    /// Convert the current tensor to dynamic rank.
+    pub fn into_dyn(self) -> Tensor<B, Dyn, K> {
+        Tensor {
+            primitive: self.primitive,
+        }
     }
 
     /// Converts the tensor into a primitive tensor.
@@ -765,6 +805,13 @@ where
     /// }
     /// ```
     pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+        if D2 == Dyn {
+            // Same as calling `tensor.dyn()`
+            return Tensor {
+                primitive: self.primitive,
+            };
+        }
+
         check!(TensorCheck::unsqueeze::<D, D2>());
 
         let mut dims = [1; D2];
@@ -1149,10 +1196,16 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        if D2 == Dyn {
+            let ranges = ranges.into_ranges_dyn(self.shape());
+            // check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+            Self::new(K::slice(self.primitive, &ranges))
+        } else {
+            let ranges = ranges.into_ranges(self.shape());
 
-        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
-        Self::new(K::slice(self.primitive, &ranges))
+            check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+            Self::new(K::slice(self.primitive, &ranges))
+        }
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
@@ -1313,10 +1366,12 @@ where
         T: Into<TensorData>,
     {
         let data = data.into();
-        check!(TensorCheck::creation_ops::<D>(
-            "From Data",
-            data.shape.as_slice()
-        ));
+        if D != Dyn {
+            check!(TensorCheck::creation_ops::<D>(
+                "From Data",
+                data.shape.as_slice()
+            ));
+        }
         Self::new(K::from_data(data, device))
     }
 
@@ -2113,8 +2168,11 @@ where
                 acc.push_str(", ");
             }
             multi_index[depth] = i;
-            let range: [Range<usize>; D] =
-                core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
+            let shape = self.shape();
+            let rank = shape.dims.len();
+            let range: Vec<Range<usize>> = (0..rank)
+                .map(|i| multi_index[i]..multi_index[i] + 1)
+                .collect();
 
             let data =
                 burn_common::reader::try_read_sync(self.clone().slice(range).into_data_async());
@@ -2175,14 +2233,16 @@ where
         summarize: bool,
     ) {
         let edge_items = print_options.edge_items;
+        let shape = self.shape();
+        let rank = shape.dims.len();
 
         if depth == 0 {
             acc.push('[');
         }
 
-        if depth == self.dims().len() - 1 {
+        if depth == rank - 1 {
             // if we are at the innermost dimension, just push its elements into the accumulator
-            if summarize && self.dims()[depth] > 2 * edge_items {
+            if summarize && shape.dims[depth] > 2 * edge_items {
                 // print the starting `edge_items` elements
                 self.fmt_inner_tensor(
                     acc,
@@ -2197,7 +2257,7 @@ where
                     acc,
                     depth,
                     multi_index,
-                    (self.dims()[depth] - edge_items, self.dims()[depth]),
+                    (shape.dims[depth] - edge_items, shape.dims[depth]),
                     print_options.precision,
                 );
             } else {
@@ -2206,13 +2266,13 @@ where
                     acc,
                     depth,
                     multi_index,
-                    (0, self.dims()[depth]),
+                    (0, shape.dims[depth]),
                     print_options.precision,
                 );
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
-            if summarize && self.dims()[depth] > 2 * edge_items {
+            if summarize && shape.dims[depth] > 2 * edge_items {
                 self.fmt_outer_tensor(
                     acc,
                     depth,
@@ -2233,7 +2293,7 @@ where
                     multi_index,
                     print_options,
                     summarize,
-                    (self.dims()[depth] - edge_items, self.dims()[depth]),
+                    (shape.dims[depth] - edge_items, shape.dims[depth]),
                 );
             } else {
                 self.fmt_outer_tensor(
@@ -2242,7 +2302,7 @@ where
                     multi_index,
                     print_options,
                     summarize,
-                    (0, self.dims()[depth]),
+                    (0, shape.dims[depth]),
                 );
             }
         }
@@ -2312,9 +2372,11 @@ where
                 po.precision = Some(precision);
             }
 
+            let shape = self.shape();
+            let rank = shape.dims.len();
             let mut acc = String::new();
-            let mut multi_index = vec![0; D];
-            let summarize = self.shape().num_elements() > po.threshold;
+            let mut multi_index = vec![0; rank];
+            let summarize = shape.num_elements() > po.threshold;
 
             self.display_recursive(&mut acc, 0, &mut multi_index, &po, summarize);
 
@@ -2323,7 +2385,7 @@ where
             writeln!(f, ",")?;
         }
 
-        writeln!(f, "  shape:  {:?},", self.dims())?;
+        writeln!(f, "  shape:  {:?},", self.shape().dims)?;
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name(&self.device()))?;
         writeln!(f, "  kind:  {:?},", K::name())?;
@@ -3339,26 +3401,41 @@ impl<T: Into<Slice>> RangeArg for T {
 }
 
 /// Trait used for slice arguments
-pub trait RangesArg<const D2: usize> {
+pub trait RangesArg<const D2: usize>: Sized {
     /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
-    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2];
+    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2] {
+        self.into_ranges_dyn(shape).try_into().unwrap()
+    }
+    /// Converts into a set of ranges to `Vec<Range<usize>>` for the `tensor.slice()` function
+    fn into_ranges_dyn(self, shape: Shape) -> Vec<Range<usize>>;
 }
 
 impl<const D2: usize, T: Into<Slice>> RangesArg<D2> for [T; D2] {
-    fn into_ranges(self, shape: Shape) -> [Range<usize>; D2] {
+    fn into_ranges_dyn(self, shape: Shape) -> Vec<Range<usize>> {
         // clamp the ranges to the shape dimensions
-        let ranges = self
-            .into_iter()
+        self.into_iter()
             .enumerate()
             .map(|(i, range)| range.into().into_range(shape.dims[i]))
-            .collect::<Vec<_>>();
-        ranges.try_into().unwrap()
+            .collect::<Vec<_>>()
+    }
+}
+
+impl RangesArg<Dyn> for Vec<Range<usize>> {
+    fn into_ranges_dyn(self, shape: Shape) -> Vec<Range<usize>> {
+        // clamp the ranges to the shape dimensions
+        self.into_iter()
+            .enumerate()
+            .map(|(i, range)| range.into_range(shape.dims[i]))
+            .collect::<Vec<_>>()
     }
 }
 
 impl<T: Into<Slice>> RangesArg<1> for T {
     fn into_ranges(self, shape: Shape) -> [Range<usize>; 1] {
         [self.into().into_range(shape.dims[0])]
+    }
+    fn into_ranges_dyn(self, shape: Shape) -> Vec<Range<usize>> {
+        vec![self.into().into_range(shape.dims[0])]
     }
 }
 
