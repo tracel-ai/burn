@@ -1,9 +1,9 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::activation::{Gelu, Linear, LinearConfig};
+use crate::nn::activation::Gelu;
 use crate::nn::cache::TensorCache;
-use crate::nn::{Dropout, DropoutConfig, Initializer};
+use crate::nn::{Dropout, DropoutConfig, Initializer, Linear, LinearConfig};
 use crate::{
     config::Config,
     tensor::{Bool, Tensor, backend::Backend},

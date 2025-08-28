@@ -321,7 +321,7 @@ mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
-    use crate::nn::activation::{Linear, LinearConfig, LinearRecord};
+    use crate::nn::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
 

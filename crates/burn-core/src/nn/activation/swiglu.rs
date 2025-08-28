@@ -6,7 +6,7 @@ use crate::tensor::activation::silu;
 use crate::tensor::{Tensor, backend::Backend};
 
 use crate::nn::Initializer;
-use crate::nn::activation::{Linear, LinearConfig, LinearLayout};
+use crate::nn::{Linear, LinearConfig, LinearLayout};
 
 /// Configuration to create a [SwiGlu](SwiGlu) activation layer using the [init function](SwiGluConfig::init).
 #[derive(Config, Debug)]

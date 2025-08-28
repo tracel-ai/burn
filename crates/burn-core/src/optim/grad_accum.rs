@@ -75,7 +75,7 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
 mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
-    use crate::nn::activation::{Linear, LinearConfig};
+    use crate::nn::{Linear, LinearConfig};
     use burn_tensor::{Distribution, backend::Backend};
 
     #[test]

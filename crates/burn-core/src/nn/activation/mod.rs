@@ -11,7 +11,6 @@
 //! * [`Sigmoid`]
 //! * [`HardSigmoid`]
 //! * [`Tanh`]
-//! * [`Linear`]
 //!
 //! The activation layer [`GLU`] has shape-changing behaviors
 //! not compatible with the common API, and is not included
@@ -22,7 +21,6 @@ mod gelu;
 mod glu;
 mod hard_sigmoid;
 mod leaky_relu;
-mod linear;
 mod prelu;
 mod relu;
 mod sigmoid;
@@ -34,7 +32,6 @@ pub use gelu::*;
 pub use glu::*;
 pub use hard_sigmoid::*;
 pub use leaky_relu::*;
-pub use linear::*;
 pub use prelu::*;
 pub use relu::*;
 pub use sigmoid::*;

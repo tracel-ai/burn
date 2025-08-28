@@ -26,7 +26,7 @@ pub struct MlpConfig {
 /// Multilayer Perceptron module.
 #[derive(Module, Debug)]
 pub struct Mlp<B: Backend> {
-    linears: Vec<nn::activation::Linear<B>>,
+    linears: Vec<nn::Linear<B>>,
     dropout: nn::Dropout,
     activation: nn::activation::Relu,
 }
@@ -37,9 +37,7 @@ impl<B: Backend> Mlp<B> {
         let mut linears = Vec::with_capacity(config.num_layers);
 
         for _ in 0..config.num_layers {
-            linears.push(
-                nn::activation::LinearConfig::new(config.d_model, config.d_model).init(device),
-            );
+            linears.push(nn::LinearConfig::new(config.d_model, config.d_model).init(device));
         }
 
         Self {

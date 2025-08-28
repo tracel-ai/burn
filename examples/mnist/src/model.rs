@@ -1,8 +1,8 @@
 use crate::data::MnistBatch;
 use burn::{
     nn::{
-        BatchNorm, PaddingConfig2d,
-        activation::{Gelu, Linear, LinearConfig},
+        BatchNorm, Linear, LinearConfig, PaddingConfig2d,
+        activation::Gelu,
         loss::CrossEntropyLossConfig,
         pool::{MaxPool2d, MaxPool2dConfig},
     },

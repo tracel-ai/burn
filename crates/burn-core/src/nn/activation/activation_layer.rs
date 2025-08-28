@@ -2,8 +2,8 @@ use crate as burn;
 use burn_derive::{Config, Module};
 
 use crate::nn::activation::{
-    Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, Linear, LinearConfig, PRelu,
-    PReluConfig, Relu, Sigmoid, SwiGlu, SwiGluConfig, Tanh,
+    Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu,
+    Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -35,9 +35,6 @@ pub enum ActivationConfig {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoidConfig),
-
-    /// [`Linear`] activation layer.
-    Linear(LinearConfig),
 }
 
 impl From<PReluConfig> for ActivationConfig {
@@ -64,12 +61,6 @@ impl From<HardSigmoidConfig> for ActivationConfig {
     }
 }
 
-impl From<LinearConfig> for ActivationConfig {
-    fn from(config: LinearConfig) -> Self {
-        Self::Linear(config)
-    }
-}
-
 impl ActivationConfig {
     /// Initialize a wrapped activation layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
@@ -82,7 +73,6 @@ impl ActivationConfig {
             ActivationConfig::HardSigmoid(conf) => Activation::HardSigmoid(conf.init()),
             ActivationConfig::Sigmoid => Activation::Sigmoid(Sigmoid),
             ActivationConfig::Tanh => Activation::Tanh(Tanh),
-            ActivationConfig::Linear(conf) => Activation::Linear(conf.init(device)),
         }
     }
 }
@@ -116,9 +106,6 @@ pub enum Activation<B: Backend> {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoid),
-
-    /// [`Linear`] activation layer.
-    Linear(Linear<B>),
 }
 
 impl<B: Backend> Activation<B> {
@@ -133,7 +120,6 @@ impl<B: Backend> Activation<B> {
             Activation::HardSigmoid(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
-            Activation::Linear(layer) => layer.forward(input),
         }
     }
 }
@@ -333,35 +319,6 @@ mod tests {
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(inner_config.into(), input, expected, &device)
-    }
-
-    #[test]
-    fn test_linear() {
-        let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
-
-        let d_input = input.shape().dims[1];
-        let d_output = 2 * d_input;
-
-        let inner_config = LinearConfig::new(d_input, d_output);
-        let mut reference: Linear<TestBackend> = inner_config.init(&device);
-
-        let config: ActivationConfig = inner_config.into();
-        let layer = config.init(&device);
-
-        match &layer {
-            Activation::Linear(inner) => {
-                // Clone the initialized weights.
-                let state = inner.clone().into_record();
-                reference = reference.load_record(state);
-            }
-            _ => unreachable!(),
-        };
-
-        expect_tensor(
-            layer.forward(input.clone()),
-            reference.forward(input.clone()),
-        )
     }
 
     #[test]

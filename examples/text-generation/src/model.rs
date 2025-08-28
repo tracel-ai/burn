@@ -1,8 +1,7 @@
 use crate::data::TrainingTextGenerationBatch;
 use burn::{
     nn::{
-        Embedding, EmbeddingConfig,
-        activation::{Linear, LinearConfig},
+        Embedding, EmbeddingConfig, Linear, LinearConfig,
         attention::generate_autoregressive_mask,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},

@@ -1,8 +1,8 @@
 use burn::{
     module::Module,
     nn::{
-        BatchNorm, BatchNormConfig, PaddingConfig2d,
-        activation::{Linear, LinearConfig, Relu},
+        BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d,
+        activation::Relu,
         conv::{Conv2d, Conv2dConfig},
     },
     tensor::{Tensor, backend::Backend},

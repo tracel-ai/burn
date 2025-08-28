@@ -1,8 +1,8 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
+use burn::nn::LinearRecord;
 use burn::{
     module::{Param, ParamId},
-    nn::activation::LinearRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
@@ -105,8 +105,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::activation::Linear");
-        imports.register("burn::nn::activation::LinearConfig");
+        imports.register("burn::nn::Linear");
+        imports.register("burn::nn::LinearConfig");
     }
 
     fn into_node(self) -> Node<PS> {
@@ -137,8 +137,8 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
-            use burn::nn::activation::Linear;
-            use burn::nn::activation::LinearConfig;
+            use burn::nn::Linear;
+            use burn::nn::LinearConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {

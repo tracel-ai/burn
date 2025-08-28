@@ -1,11 +1,10 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::Initializer;
+use crate::nn::{Dropout, DropoutConfig, Initializer, Linear, LinearConfig};
 use crate::{
     config::Config,
-    nn::activation::{Gelu, Linear, LinearConfig},
-    nn::{Dropout, DropoutConfig},
+    nn::activation::Gelu,
     tensor::{Tensor, backend::Backend},
 };
 

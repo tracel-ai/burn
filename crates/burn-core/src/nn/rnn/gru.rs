@@ -243,7 +243,7 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Distribution, TensorData};
-    use crate::{TestBackend, module::Param, nn::activation::LinearRecord};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
     use burn_tensor::{Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestBackend>;

@@ -1,12 +1,10 @@
 use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
-
 use burn::tensor::Tolerance;
 use burn::tensor::ops::FloatElem;
 use burn::{
     module::Module,
     nn::{
-        BatchNorm, BatchNormConfig,
-        activation::{Linear, LinearConfig},
+        BatchNorm, BatchNormConfig, Linear, LinearConfig,
         conv::{Conv2d, Conv2dConfig},
     },
     tensor::{

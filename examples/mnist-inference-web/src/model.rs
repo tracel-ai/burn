@@ -1,7 +1,7 @@
 use burn::{
     nn::{
-        BatchNorm, BatchNormConfig, Dropout, DropoutConfig, PaddingConfig2d,
-        activation::{Gelu, Linear, LinearConfig, Relu},
+        BatchNorm, BatchNormConfig, Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d,
+        activation::{Gelu, Relu},
         conv::{Conv2d, Conv2dConfig},
         pool::{MaxPool2d, MaxPool2dConfig},
     },

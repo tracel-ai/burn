@@ -8,7 +8,7 @@ use crate::{
 use burn::{
     config::Config,
     module::Module,
-    nn::activation::{Linear, LinearConfig},
+    nn::{Linear, LinearConfig},
     tensor::{Tensor, backend::Backend},
 };
 

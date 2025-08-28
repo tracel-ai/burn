@@ -155,7 +155,7 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::activation::{Linear, LinearConfig};
+    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestAutodiffBackend,
         module::{Module, list_param_ids},

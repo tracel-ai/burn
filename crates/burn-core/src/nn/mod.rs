@@ -23,6 +23,7 @@ pub mod activation;
 mod dropout;
 mod embedding;
 mod initializer;
+mod linear;
 mod norm;
 mod padding;
 mod pos_encoding;
@@ -30,12 +31,12 @@ mod rnn;
 mod rope_encoding;
 mod unfold;
 
-#[deprecated(since = "0.19.0", note = "Use `nn.activation` module instead.")]
 pub use activation::*;
 
 pub use dropout::*;
 pub use embedding::*;
 pub use initializer::*;
+pub use linear::*;
 pub use norm::*;
 pub use padding::*;
 pub use pos_encoding::*;

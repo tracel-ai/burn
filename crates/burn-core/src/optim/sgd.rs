@@ -97,7 +97,7 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::activation::{Linear, LinearConfig};
+    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestAutodiffBackend, TestBackend,
         grad_clipping::GradientClipping,

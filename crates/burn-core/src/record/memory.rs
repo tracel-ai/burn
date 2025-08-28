@@ -102,7 +102,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::activation::{Linear, LinearConfig};
+    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestBackend, module::Module, record::FullPrecisionSettings, tensor::backend::Backend,
     };

@@ -356,7 +356,7 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::tensor::{Device, Distribution, TensorData};
-    use crate::{TestBackend, module::Param, nn::activation::LinearRecord};
+    use crate::{TestBackend, module::Param, nn::LinearRecord};
     use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 

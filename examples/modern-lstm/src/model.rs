@@ -1,7 +1,8 @@
 use burn::{
     nn::{
-        Dropout, DropoutConfig, Initializer, LayerNorm, LayerNormConfig, LstmState,
-        activation::{Linear, LinearConfig, Sigmoid, Tanh},
+        Dropout, DropoutConfig, Initializer, LayerNorm, LayerNormConfig, Linear, LinearConfig,
+        LstmState,
+        activation::{Sigmoid, Tanh},
     },
     prelude::*,
 };

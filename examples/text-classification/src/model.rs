@@ -6,8 +6,7 @@
 use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBatch};
 use burn::{
     nn::{
-        Embedding, EmbeddingConfig,
-        activation::{Linear, LinearConfig},
+        Embedding, EmbeddingConfig, Linear, LinearConfig,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     },

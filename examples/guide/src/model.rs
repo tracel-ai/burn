@@ -1,7 +1,7 @@
 use burn::{
     nn::{
-        Dropout, DropoutConfig,
-        activation::{Linear, LinearConfig, Relu},
+        Dropout, DropoutConfig, Linear, LinearConfig,
+        activation::Relu,
         conv::{Conv2d, Conv2dConfig},
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
     },

@@ -1,7 +1,9 @@
-use burn::nn::activation::LeakyReluConfig;
 use burn::{
     module::{Module, ModuleMapper, ParamId},
-    nn::activation::{LeakyRelu, Linear, LinearConfig, Tanh},
+    nn::{
+        Linear, LinearConfig,
+        activation::{LeakyRelu, LeakyReluConfig, Tanh},
+    },
     prelude::*,
     tensor::backend::AutodiffBackend,
 };
