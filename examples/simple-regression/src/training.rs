@@ -40,7 +40,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
     let optimizer = AdamConfig::new();
     let config = ExpConfig::new(optimizer);
     let model = RegressionModelConfig::new().init(&device);
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Define train/valid datasets and dataloaders
     let train_dataset = HousingDataset::train();

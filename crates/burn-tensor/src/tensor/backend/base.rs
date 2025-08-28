@@ -113,7 +113,12 @@ pub trait Backend:
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;
 
-    /// Seed the backend.
+    /// Seeds the backend on the specified device.
+    ///
+    /// There is no guarantee that only the specified device will be seeded, but it is guaranteed
+    /// that at least the specified device will be seeded.
+    ///
+    /// In all cases, this should ensure deterministic execution for a single-threaded program.
     fn seed(device: &Self::Device, seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
