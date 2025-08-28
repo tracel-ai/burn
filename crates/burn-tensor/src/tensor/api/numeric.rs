@@ -4121,25 +4121,26 @@ impl<B: Backend> Numeric<B> for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
-                // represents the weights.
-                //
-                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-                // more sense to re-quantize the input back. Better usability.
-                //
-                // This might change in the future (dequantize on read in fusion?).
-                B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
-            }
-        }
+        q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
+        // match (lhs, rhs) {
+        //     (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
+        //     (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+        //         TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
+        //     }
+        //     (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+        //         // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
+        //         // represents the weights.
+        //         //
+        //         // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
+        //         // more sense to re-quantize the input back. Better usability.
+        //         //
+        //         // This might change in the future (dequantize on read in fusion?).
+        //         B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
+        //     }
+        //     (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+        //         TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+        //     }
+        // }
     }
 }
 
