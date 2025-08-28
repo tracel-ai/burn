@@ -235,7 +235,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
 }
 
 pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
-    mut tensor: CubeTensor<R>,
+    tensor: CubeTensor<R>,
     scalar: E,
 ) -> CubeTensor<R> {
     // Vectorization is only enabled when the last dimension is contiguous.
