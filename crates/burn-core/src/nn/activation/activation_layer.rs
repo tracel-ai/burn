@@ -41,6 +41,36 @@ pub enum ActivationConfig {
     Linear(LinearConfig),
 }
 
+impl From<PReluConfig> for ActivationConfig {
+    fn from(config: PReluConfig) -> Self {
+        Self::PRelu(config)
+    }
+}
+
+impl From<LeakyReluConfig> for ActivationConfig {
+    fn from(config: LeakyReluConfig) -> Self {
+        Self::LeakyRelu(config)
+    }
+}
+
+impl From<SwiGluConfig> for ActivationConfig {
+    fn from(config: SwiGluConfig) -> Self {
+        Self::SwiGlu(config)
+    }
+}
+
+impl From<HardSigmoidConfig> for ActivationConfig {
+    fn from(config: HardSigmoidConfig) -> Self {
+        Self::HardSigmoid(config)
+    }
+}
+
+impl From<LinearConfig> for ActivationConfig {
+    fn from(config: LinearConfig) -> Self {
+        Self::Linear(config)
+    }
+}
+
 impl ActivationConfig {
     /// Initialize a wrapped activation layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
@@ -119,6 +149,12 @@ pub struct DimSelectActivationConfig {
     /// Supports negative indexing.
     #[config(default = "-1")]
     pub dim: isize,
+}
+
+impl From<ActivationConfig> for DimSelectActivationConfig {
+    fn from(config: ActivationConfig) -> Self {
+        Self::new(config)
+    }
 }
 
 impl DimSelectActivationConfig {
@@ -216,12 +252,7 @@ mod tests {
         let inner_config = PReluConfig::new();
         let expected = inner_config.init(&device).forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::PRelu(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
@@ -242,12 +273,7 @@ mod tests {
         let inner_config = LeakyReluConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::LeakyRelu(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
@@ -261,7 +287,7 @@ mod tests {
         let inner_config = SwiGluConfig::new(d_input, d_output);
         let mut reference: SwiGlu<TestBackend> = inner_config.init(&device);
 
-        let config = ActivationConfig::SwiGlu(inner_config);
+        let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
 
         match &layer {
@@ -307,12 +333,7 @@ mod tests {
         let inner_config = HardSigmoidConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::HardSigmoid(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
@@ -326,7 +347,7 @@ mod tests {
         let inner_config = LinearConfig::new(d_input, d_output);
         let mut reference: Linear<TestBackend> = inner_config.init(&device);
 
-        let config = ActivationConfig::Linear(inner_config);
+        let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
 
         match &layer {
@@ -353,7 +374,7 @@ mod tests {
 
         let expected = Relu::default().forward(input.clone());
 
-        let config = DimSelectActivationConfig::new(ActivationConfig::Relu);
+        let config: DimSelectActivationConfig = ActivationConfig::Relu.into();
         let act = config.init(&device);
         let output = act.forward(input);
         expect_tensor(output, expected);
@@ -371,7 +392,7 @@ mod tests {
             .forward(input.clone().swap_dims(1, 2))
             .swap_dims(1, 2);
 
-        let config = DimSelectActivationConfig::new(ActivationConfig::Relu).with_dim(1);
+        let config = DimSelectActivationConfig::from(ActivationConfig::Relu).with_dim(1);
         let act = config.init(&device);
         assert_eq!(act.canonicalize_dim(3), 1);
 
