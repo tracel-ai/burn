@@ -10,7 +10,7 @@ use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::ops::grid_sample::grid_sample_2d;
 use crate::{NdArray, tensor::NdArrayTensor};
-use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_float_dtype};
+use crate::{NdArrayDevice, NdArrayTensorFloat, SEED, execute_with_dtype};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
@@ -89,47 +89,47 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::add)
+        execute_with_dtype!((lhs, rhs), NdArrayMathOps::add)
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::add_scalar(lhs, rhs.elem()))
+        execute_with_dtype!(lhs, |lhs| NdArrayMathOps::add_scalar(lhs, rhs.elem()))
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::sub)
+        execute_with_dtype!((lhs, rhs), NdArrayMathOps::sub)
     }
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::sub_scalar(lhs, rhs.elem()))
+        execute_with_dtype!(lhs, |lhs| NdArrayMathOps::sub_scalar(lhs, rhs.elem()))
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::mul)
+        execute_with_dtype!((lhs, rhs), NdArrayMathOps::mul)
     }
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::mul_scalar(lhs, rhs.elem()))
+        execute_with_dtype!(lhs, |lhs| NdArrayMathOps::mul_scalar(lhs, rhs.elem()))
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::div)
+        execute_with_dtype!((lhs, rhs), NdArrayMathOps::div)
     }
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::div_scalar(lhs, rhs.elem()))
+        execute_with_dtype!(lhs, |lhs| NdArrayMathOps::div_scalar(lhs, rhs.elem()))
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::remainder)
+        execute_with_dtype!((lhs, rhs), NdArrayMathOps::remainder)
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::remainder_scalar(lhs, rhs.elem()))
+        execute_with_dtype!(lhs, |lhs| NdArrayMathOps::remainder_scalar(lhs, rhs.elem()))
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), matmul)
+        execute_with_dtype!((lhs, rhs), matmul)
     }
 
     fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -137,15 +137,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::recip)
+        execute_with_dtype!(tensor, NdArrayMathOps::recip)
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::swap_dims(tensor, dim1, dim2))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::swap_dims(tensor, dim1, dim2))
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
     }
 
     fn float_gather(
@@ -153,7 +153,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         tensor: FloatTensor<Self>,
         indices: NdArrayTensor<I>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::gather(
             dim, tensor, indices
         ))
     }
@@ -164,7 +164,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         indices: NdArrayTensor<I>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
+        execute_with_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
             dim, tensor, indices, value
         ))
     }
@@ -174,7 +174,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         dim: usize,
         indices: NdArrayTensor<I>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::select(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::select(
             tensor, dim, indices
         ))
     }
@@ -185,13 +185,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         indices: NdArrayTensor<I>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!((tensor, value), |tensor, value| {
+        execute_with_dtype!((tensor, value), |tensor, value| {
             NdArrayMathOps::select_assign(tensor, dim, indices, value)
         })
     }
 
     fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
     }
 
     fn float_slice_assign(
@@ -199,7 +199,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         ranges: &[Range<usize>],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!((tensor, value), |tensor, value| {
+        execute_with_dtype!((tensor, value), |tensor, value| {
             NdArrayOps::slice_assign(tensor, ranges, value)
         })
     }
@@ -209,7 +209,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         mask: NdArrayTensor<bool>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!((tensor, value), |tensor, value| {
+        execute_with_dtype!((tensor, value), |tensor, value| {
             NdArrayMathOps::mask_where(tensor, mask, value)
         })
     }
@@ -219,7 +219,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         mask: NdArrayTensor<bool>,
         value: E,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
             tensor,
             mask,
             value.elem()
@@ -227,61 +227,61 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+        execute_with_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
             NdArrayMathOps::equal(lhs, rhs)
         })
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
             NdArrayMathOps::equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+        execute_with_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
             NdArrayMathOps::greater(lhs, rhs)
         })
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
             NdArrayMathOps::greater_elem(tensor, rhs.elem())
         })
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+        execute_with_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
             NdArrayMathOps::greater_equal(lhs, rhs)
         })
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
             NdArrayMathOps::greater_equal_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+        execute_with_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
             NdArrayMathOps::lower(lhs, rhs)
         })
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
             NdArrayMathOps::lower_elem(tensor, rhs.elem())
         })
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
+        execute_with_dtype!((lhs, rhs) => |lhs: NdArrayTensor<_>, rhs: NdArrayTensor<_>| {
             NdArrayMathOps::lower_equal(lhs, rhs)
         })
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor<bool> {
-        execute_with_float_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(lhs, E => |tensor: NdArrayTensor<E>| {
             NdArrayMathOps::lower_equal_elem(tensor, rhs.elem())
         })
     }
@@ -291,31 +291,31 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::mean)
+        execute_with_dtype!(tensor, NdArrayMathOps::mean)
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::sum)
+        execute_with_dtype!(tensor, NdArrayMathOps::sum)
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor<I> {
-        execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmax(tensor, dim))
+        execute_with_dtype!(tensor => |tensor| NdArrayMathOps::argmax(tensor, dim))
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor<I> {
-        execute_with_float_dtype!(tensor => |tensor| NdArrayMathOps::argmin(tensor, dim))
+        execute_with_dtype!(tensor => |tensor| NdArrayMathOps::argmin(tensor, dim))
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -323,7 +323,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv_into(|a| a.log_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -331,15 +331,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::prod)
+        execute_with_dtype!(tensor, NdArrayMathOps::prod)
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::prod_dim(tensor, dim))
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::prod_dim(tensor, dim))
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -347,7 +347,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = if value == 2.0 {
                 // Happens often and is faster.
                 tensor.array.mapv_into(|a| a * a).into_shared()
@@ -367,7 +367,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv_into(|a| a.sqrt_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -375,7 +375,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
 
             NdArrayTensor::new(array)
@@ -383,7 +383,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| (a.to_f64()).cos().elem())
@@ -394,7 +394,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| (a.to_f64()).sin().elem())
@@ -405,7 +405,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| (a.to_f64()).tanh().elem())
@@ -416,7 +416,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| round_ties_even_wrapper(a.to_f64()).elem())
@@ -427,7 +427,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| (a.to_f64()).floor().elem())
@@ -438,7 +438,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| (a.to_f64()).ceil().elem())
@@ -449,7 +449,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E, |tensor: NdArrayTensor<E>| {
             let array = tensor
                 .array
                 .mapv_into(|a| erf(a.to_f64()).elem())
@@ -491,21 +491,21 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_clamp_min(tensor: FloatTensor<Self>, min: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(
             tensor,
             min.elem()
         ))
     }
 
     fn float_clamp_max(tensor: FloatTensor<Self>, max: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp_max(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::clamp_max(
             tensor,
             max.elem()
         ))
     }
 
     fn float_clamp(tensor: FloatTensor<Self>, min: E, max: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp(
+        execute_with_dtype!(tensor, |tensor| NdArrayMathOps::clamp(
             tensor,
             min.elem(),
             max.elem()
@@ -513,14 +513,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> NdArrayTensor<I> {
-        execute_with_float_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
+        execute_with_dtype!(tensor, E => |tensor: NdArrayTensor<E>| {
             let array = tensor.array.mapv(|a| a.elem()).into_shared();
             NdArrayTensor { array }
         })
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
+        execute_with_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
             lhs,
             rhs,
             |a: &E, b: &E| a.powf(*b)
@@ -528,19 +528,19 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::permute(tensor, axes))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::permute(tensor, axes))
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::flip(tensor, axes))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::flip(tensor, axes))
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::sign_op)
+        execute_with_dtype!(tensor, NdArrayMathOps::sign_op)
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::expand(tensor, shape))
+        execute_with_dtype!(tensor, |tensor| NdArrayOps::expand(tensor, shape))
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {

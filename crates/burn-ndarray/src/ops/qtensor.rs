@@ -12,28 +12,18 @@ use burn_tensor::{
 };
 
 use crate::{
-    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat,
-    element::{IntNdArrayElement, NdArrayElement, QuantElement},
-    new_tensor_float,
+    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray,
+    element::{IntNdArrayElement, QuantElement},
+    execute_with_dtype, execute_with_int_dtype, execute_with_numeric_dtype,
 };
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-fn into_data<E: NdArrayElement>(tensor: NdArrayTensor<E>) -> TensorData {
-    let shape = tensor.shape();
-    let values = tensor.array.into_iter().collect();
-    TensorData::new(values, shape)
-}
-
-fn into_data_f(tensor: NdArrayTensorFloat) -> TensorData {
-    match tensor {
-        NdArrayTensorFloat::F32(tensor) => into_data(tensor),
-        NdArrayTensorFloat::F64(tensor) => into_data(tensor),
-    }
-}
-
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<Self>
     for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
 {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
         match data.dtype {
@@ -65,7 +55,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                             .collect();
 
                         NdArrayQTensor {
-                            qtensor: NdArrayTensor::<Q>::from_data(data),
+                            qtensor: NdArrayTensor::from_data(data),
                             scheme,
                             qparams,
                         }
@@ -102,7 +92,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 store: QuantStore::Native,
                 ..
             } => {
-                let scales = into_data_f(qparams.scales).iter().next().unwrap();
+                let scales = qparams.scales.into_data().iter().next().unwrap();
                 (
                     QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                         scales,
@@ -117,7 +107,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 store: QuantStore::Native,
                 ..
             } => {
-                let (strategy, qparams) = into_data_f(qparams.scales)
+                let (strategy, qparams) = qparams
+                    .scales
+                    .into_data()
                     .iter()
                     .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
                     .unzip();
@@ -138,7 +130,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         };
 
         let shape = tensor.shape();
-        let data = into_data_f(tensor).with_quantization(strategy);
+        let data = tensor.into_data().with_quantization(strategy);
         let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
             bytes: data.into_bytes(),
@@ -149,7 +141,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let data = TensorData::new(values, shape).convert::<Q>();
 
         NdArrayQTensor {
-            qtensor: NdArrayTensor::<Q>::from_data(data),
+            qtensor: NdArrayTensor::from_data(data),
             scheme: *scheme,
             qparams,
         }
@@ -158,9 +150,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         let shape = tensor.qtensor.shape();
         let strategy = tensor.strategy();
-        let values = tensor.qtensor.array.into_iter().collect();
-        let data = TensorData::quantized(values, shape, strategy);
-        new_tensor_float!(NdArrayTensor::from_data(data.dequantize().unwrap()))
+        let data: TensorData =
+            execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
+                let values = qtensor.into_iter().collect();
+                TensorData::quantized(values, shape, strategy)
+            });
+        NdArrayTensor::from_data(data.dequantize().unwrap())
     }
 
     fn q_device(_tensor: &QuantizedTensor<Self>) -> NdArrayDevice {
@@ -176,7 +171,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::reshape(tensor.qtensor, shape),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::reshape(
+                qtensor, shape
+            )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -185,8 +182,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         let strategy = tensor.strategy();
         let shape = tensor.qtensor.shape();
-        let values = tensor.qtensor.array.into_iter().collect();
-        TensorData::quantized(values, shape, strategy)
+        execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
+            let values = qtensor.into_iter().collect();
+            TensorData::quantized(values, shape, strategy)
+        })
     }
 
     fn q_swap_dims(
@@ -195,7 +194,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         dim2: usize,
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::swap_dims(tensor.qtensor, dim1, dim2),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::swap_dims(
+                qtensor, dim1, dim2
+            )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -203,7 +204,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::permute(tensor.qtensor, axes),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::permute(
+                qtensor, axes
+            )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -211,7 +214,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::flip(tensor.qtensor, axes),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::flip(qtensor, axes)),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -222,8 +225,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         tensor: QuantizedTensor<Self>,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
+        let qtensor = execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
+            execute_with_numeric_dtype!(tensor.qtensor, |qtensor| {
+                NdArrayMathOps::gather(dim, qtensor, indices)
+            })
+        });
         NdArrayQTensor {
-            qtensor: NdArrayMathOps::gather(dim, tensor.qtensor, indices),
+            qtensor,
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -234,8 +242,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         dim: usize,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
+        let qtensor = execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
+            execute_with_numeric_dtype!(tensor.qtensor, |qtensor| {
+                NdArrayMathOps::select(qtensor, dim, indices)
+            })
+        });
         NdArrayQTensor {
-            qtensor: NdArrayMathOps::select(tensor.qtensor, dim, indices),
+            qtensor,
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
@@ -243,23 +256,31 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
 
     fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::slice(tensor.qtensor, ranges),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(
+                qtensor, ranges
+            )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
     }
 
     fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        NdArrayMathOps::argmax(tensor.qtensor, dim)
+        execute_with_numeric_dtype!(tensor.qtensor, |qtensor| NdArrayMathOps::argmax::<I>(
+            qtensor, dim
+        ))
     }
 
     fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        NdArrayMathOps::argmin(tensor.qtensor, dim)
+        execute_with_numeric_dtype!(tensor.qtensor, |qtensor| NdArrayMathOps::argmin::<I>(
+            qtensor, dim
+        ))
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: NdArrayOps::expand(tensor.qtensor, shape),
+            qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::expand(
+                qtensor, shape
+            )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }
