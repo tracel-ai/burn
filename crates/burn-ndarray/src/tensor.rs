@@ -333,27 +333,36 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 ..
-            } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+            } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
                 self.qparams[0].scales,
+                self.scheme.value,
             )),
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 ..
-            } => QuantizationStrategy::PerBlockSymmetricInt8(
+            } => QuantizationStrategy::PerBlockSymmetric(
                 self.qparams
                     .iter()
-                    .map(|q| SymmetricQuantization::init(q.scales))
+                    .map(|q| SymmetricQuantization::init(q.scales, self.scheme.value))
                     .collect(),
                 block_size,
             ),
-            QuantScheme {
-                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                ..
-            } => unimplemented!(),
         }
     }
 }
@@ -361,6 +370,11 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
 impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
     fn scheme(&self) -> &QuantScheme {
         &self.scheme
+    }
+
+    #[cfg(test)]
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
     }
 }
 
@@ -460,7 +474,10 @@ mod tests {
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale))
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                scale,
+                QuantValue::Q8S
+            ))
         );
     }
 }
