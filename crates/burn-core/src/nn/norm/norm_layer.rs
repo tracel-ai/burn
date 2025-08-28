@@ -109,6 +109,7 @@ impl<B: Backend> NormLayer<B> {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;
