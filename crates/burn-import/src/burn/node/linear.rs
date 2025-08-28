@@ -1,8 +1,8 @@
 use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
-use burn::nn::LinearRecord;
 use burn::{
     module::{Param, ParamId},
+    nn::LinearRecord,
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
