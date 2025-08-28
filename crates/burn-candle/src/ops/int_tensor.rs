@@ -131,7 +131,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        let (lhs_broadcast, rhs_broadcast) = 
+        let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
     }
@@ -145,7 +145,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        let (lhs_broadcast, rhs_broadcast) = 
+        let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
     }
@@ -159,7 +159,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        let (lhs_broadcast, rhs_broadcast) = 
+        let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
@@ -173,7 +173,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        let (lhs_broadcast, rhs_broadcast) = 
+        let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
@@ -187,7 +187,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        let (lhs_broadcast, rhs_broadcast) = 
+        let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
