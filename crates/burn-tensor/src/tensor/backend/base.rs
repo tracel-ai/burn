@@ -114,7 +114,7 @@ pub trait Backend:
     fn name(device: &Self::Device) -> String;
 
     /// Seed the backend.
-    fn seed(seed: u64);
+    fn seed(device: &Self::Device, seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) {}

@@ -48,8 +48,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         format!("fusion<{}>", B::name(device))
     }
 
-    fn seed(seed: u64) {
-        B::seed(seed);
+    fn seed(device: &B::Device, seed: u64) {
+        let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
+        client.drain();
+        B::seed(device, seed);
     }
 
     fn sync(device: &Self::Device) {

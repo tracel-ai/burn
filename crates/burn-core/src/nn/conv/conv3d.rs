@@ -182,7 +182,8 @@ mod tests {
 
     #[test]
     fn initializer_default() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]);
         let k = (config.channels[0]
@@ -190,7 +191,6 @@ mod tests {
             * config.kernel_size[1]
             * config.kernel_size[2]) as f64;
         let k = (config.groups as f64 / k).sqrt().elem::<FT>();
-        let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -198,7 +198,8 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = Conv3dConfig::new([5, 2], [5, 5, 5]).with_initializer(Initializer::Zeros);
         let device = Default::default();
@@ -213,13 +214,13 @@ mod tests {
 
     #[test]
     fn initializer_fan_out() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true, // test that fan_out is passed to `init_with()`
         };
-        let device = Default::default();
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]).with_initializer(init.clone());
         let _ = config.init::<TestBackend>(&device);
 
@@ -228,13 +229,14 @@ mod tests {
 
     #[test]
     fn initializer_fan_with_groups_is_valid() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true,
         };
-        let device = Default::default();
+
         let config = Conv3dConfig::new([4, 4], [1, 1, 1])
             .with_initializer(init.clone())
             .with_groups(4);
