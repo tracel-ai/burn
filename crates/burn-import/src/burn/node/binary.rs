@@ -141,30 +141,24 @@ impl BinaryNode {
                 quote! { #lhs.#op(#rhs) }
             })
         } else if lhs_rank > rhs_rank {
-            // Broadcast rhs to match lhs rank
-            let num_unsqueezes = lhs_rank - rhs_rank;
+            // Broadcast rhs to match lhs rank by adding leading dimensions
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                // Generate unsqueeze calls with explicit dimension for intermediate steps
-                let mut rhs_broadcast = rhs;
-                for i in 0..num_unsqueezes {
-                    let current_rank = rhs_rank + i + 1;
-                    rhs_broadcast = quote! { #rhs_broadcast.unsqueeze::<#current_rank>() };
-                }
-                quote! { #lhs.#op(#rhs_broadcast) }
+                // Need to add (lhs_rank - rhs_rank) dimensions at the beginning
+                let num_dims = lhs_rank - rhs_rank;
+                let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                let dims_tokens = quote! { &[#(#dims),*] };
+                quote! { #lhs.#op(#rhs.unsqueeze_dims(#dims_tokens)) }
             })
         } else {
-            // Broadcast lhs to match rhs rank
-            let num_unsqueezes = rhs_rank - lhs_rank;
+            // Broadcast lhs to match rhs rank by adding leading dimensions
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                // Generate unsqueeze calls with explicit dimension for intermediate steps
-                let mut lhs_broadcast = lhs;
-                for i in 0..num_unsqueezes {
-                    let current_rank = lhs_rank + i + 1;
-                    lhs_broadcast = quote! { #lhs_broadcast.unsqueeze::<#current_rank>() };
-                }
-                quote! { #lhs_broadcast.#op(#rhs) }
+                // Need to add (rhs_rank - lhs_rank) dimensions at the beginning
+                let num_dims = rhs_rank - lhs_rank;
+                let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                let dims_tokens = quote! { &[#(#dims),*] };
+                quote! { #lhs.unsqueeze_dims(#dims_tokens).#op(#rhs) }
             })
         }
     }
@@ -1000,7 +994,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 2>) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.add(tensor2.unsqueeze::<3usize>());
+                    let tensor3 = tensor1.add(tensor2.unsqueeze_dims(&[0isize]));
 
                     tensor3
                 }
@@ -1021,7 +1015,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 3>) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze::<3usize>().sub(tensor2);
+                    let tensor3 = tensor1.unsqueeze_dims(&[0isize]).sub(tensor2);
 
                     tensor3
                 }
@@ -1042,7 +1036,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 2>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.mul(tensor2.unsqueeze::<3usize>().unsqueeze::<4usize>());
+                    let tensor3 = tensor1.mul(tensor2.unsqueeze_dims(&[0isize, 1isize]));
 
                     tensor3
                 }
@@ -1063,7 +1057,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 1>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.unsqueeze::<2usize>().unsqueeze::<3usize>().unsqueeze::<4usize>().div(tensor2);
+                    let tensor3 = tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).div(tensor2);
 
                     tensor3
                 }
@@ -1112,7 +1106,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.mul(tensor2.unsqueeze::<3usize>().unsqueeze::<4usize>()) };
+        let expected = quote! { tensor1.mul(tensor2.unsqueeze_dims(&[0isize, 1isize])) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 
@@ -1123,7 +1117,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.unsqueeze::<3usize>().unsqueeze::<4usize>().unsqueeze::<5usize>().sub(tensor2) };
+        let expected = quote! { tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).sub(tensor2) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 
