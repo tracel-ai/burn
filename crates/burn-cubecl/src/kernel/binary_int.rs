@@ -5,8 +5,6 @@ use cubecl::{
     tensor_line_size_parallel,
 };
 
-use super::into_contiguous;
-
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int>: BinaryOpInt<C>;
 }
