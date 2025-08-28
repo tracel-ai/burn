@@ -24,5 +24,6 @@ mod tests {
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();
+
     burn_tensor::testgen_quantization!();
 }

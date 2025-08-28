@@ -41,4 +41,10 @@ mod tests {
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();
+
+    // Quantization
+    burn_tensor::testgen_calibration!();
+    burn_tensor::testgen_scheme!();
+    burn_tensor::testgen_quantize!();
+    burn_tensor::testgen_q_data!();
 }

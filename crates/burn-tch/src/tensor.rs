@@ -328,7 +328,6 @@ pub struct TchQTensor {
 }
 
 impl TchQTensor {
-    // TODO: remove QuantizationStrategy
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
@@ -340,8 +339,9 @@ impl TchQTensor {
                 ..
             } => {
                 let scale = self.qtensor.tensor.q_scale();
-                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
                     scale as f32,
+                    self.scheme.value,
                 ))
             }
             QuantScheme {
@@ -378,6 +378,11 @@ impl TensorMetadata for TchQTensor {
 impl QTensorPrimitive for TchQTensor {
     fn scheme(&self) -> &QuantScheme {
         &self.scheme
+    }
+
+    #[cfg(test)]
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
     }
 }
 
@@ -466,8 +471,9 @@ mod tests {
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                0.009_019_608
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                0.009_019_608,
+                QuantValue::Q8S
             ))
         );
     }
