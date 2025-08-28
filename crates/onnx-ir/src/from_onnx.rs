@@ -19,7 +19,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 29] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -38,6 +38,7 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
     NodeType::OneHot,
     NodeType::PRelu,
     NodeType::Pad,
+    NodeType::Range,
     NodeType::ReduceSum,
     NodeType::Reshape,
     NodeType::Resize,
@@ -214,7 +215,7 @@ pub(crate) struct OnnxGraphBuilder {
     constants_types: HashSet<NodeType>,
     node_name_counter: HashMap<NodeType, usize>,
     /// Track how many times each constant is used
-    constant_usage_count: HashMap<usize, usize>,
+    constant_usage_count: HashMap<String, usize>,
 }
 
 impl OnnxGraphBuilder {
@@ -607,12 +608,12 @@ impl OnnxGraphBuilder {
 
     /// Count how many times each constant output is used by other nodes
     fn count_constant_usage(&mut self, nodes: &[NodeProto]) {
-        // First, build a map of constant outputs to their indices
-        let mut constant_outputs = HashMap::new();
-        for (idx, node) in nodes.iter().enumerate() {
+        // First, identify all constant output names
+        let mut constant_outputs = HashSet::new();
+        for node in nodes {
             if node.op_type == "Constant" {
                 for output in &node.output {
-                    constant_outputs.insert(output.clone(), idx);
+                    constant_outputs.insert(output.clone());
                 }
             }
         }
@@ -624,8 +625,8 @@ impl OnnxGraphBuilder {
             }
 
             for input in &node.input {
-                if let Some(&const_idx) = constant_outputs.get(input) {
-                    *self.constant_usage_count.entry(const_idx).or_insert(0) += 1;
+                if constant_outputs.contains(input) {
+                    *self.constant_usage_count.entry(input.clone()).or_insert(0) += 1;
                 }
             }
         }
@@ -662,7 +663,7 @@ impl OnnxGraphBuilder {
                     }
 
                     // Check usage count to determine if we should remove this constant
-                    let usage_count = self.constant_usage_count.get(const_idx).unwrap_or(&0);
+                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
                     if *usage_count <= 1 {
                         // This is the only usage, we can remove the constant
                         self.nodes_to_remove.insert(*const_idx);
@@ -701,7 +702,7 @@ impl OnnxGraphBuilder {
                     }
 
                     // Check usage count to determine if we should remove this constant
-                    let usage_count = self.constant_usage_count.get(const_idx).unwrap_or(&0);
+                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
                     if *usage_count <= 1 {
                         // This is the only usage, we can remove the constant
                         self.nodes_to_remove.insert(*const_idx);
