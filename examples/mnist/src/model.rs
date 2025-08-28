@@ -1,4 +1,6 @@
 use crate::data::MnistBatch;
+use burn::nn::conv::{Conv2d, Conv2dConfig};
+use burn::nn::{BatchNormConfig, Dropout, DropoutConfig, Relu};
 use burn::{
     nn::{
         BatchNorm, Linear, LinearConfig, PaddingConfig2d,
@@ -15,7 +17,7 @@ use burn::{
 pub struct Model<B: Backend> {
     conv1: ConvBlock<B>,
     conv2: ConvBlock<B>,
-    dropout: nn::Dropout,
+    dropout: Dropout,
     fc1: Linear<B>,
     fc2: Linear<B>,
     fc3: Linear<B>,
@@ -40,7 +42,7 @@ impl<B: Backend> Model<B> {
         let fc2 = LinearConfig::new(128, 128).init(device);
         let fc3 = LinearConfig::new(128, NUM_CLASSES).init(device);
 
-        let dropout = nn::DropoutConfig::new(0.25).init();
+        let dropout = DropoutConfig::new(0.25).init();
 
         Self {
             conv1,
@@ -91,10 +93,10 @@ impl<B: Backend> Model<B> {
 
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
-    conv: nn::conv::Conv2d<B>,
+    conv: Conv2d<B>,
     norm: BatchNorm<B>,
     pool: Option<MaxPool2d>,
-    activation: nn::activation::Relu,
+    activation: Relu,
 }
 
 impl<B: Backend> ConvBlock<B> {
@@ -104,10 +106,10 @@ impl<B: Backend> ConvBlock<B> {
         device: &B::Device,
         pool: bool,
     ) -> Self {
-        let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
+        let conv = Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
-        let norm = nn::BatchNormConfig::new(channels[1]).init(device);
+        let norm = BatchNormConfig::new(channels[1]).init(device);
         let pool = if pool {
             Some(MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init())
         } else {
@@ -118,7 +120,7 @@ impl<B: Backend> ConvBlock<B> {
             conv,
             norm,
             pool,
-            activation: nn::activation::Relu::new(),
+            activation: Relu::new(),
         }
     }
 

@@ -69,7 +69,7 @@ macro_rules! module {
 ///
 /// use burn::{
 ///     module::Module,
-///     nn::activation::Linear,
+///     nn::Linear,
 ///     tensor::Tensor,
 ///     tensor::backend::Backend,
 /// };
