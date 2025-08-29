@@ -577,6 +577,7 @@ dependencies = [
  "burn-candle",
  "burn-collective",
  "burn-core",
+ "burn-cpu",
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
@@ -727,6 +728,21 @@ dependencies = [
  "spin",
  "thiserror 2.0.16",
  "uuid",
+]
+
+[[package]]
+name = "burn-cpu"
+version = "0.19.0"
+dependencies = [
+ "burn-cubecl",
+ "burn-fusion",
+ "burn-tensor",
+ "bytemuck",
+ "cubecl",
+ "derive-new",
+ "half",
+ "log",
+ "paste",
 ]
 
 [[package]]
