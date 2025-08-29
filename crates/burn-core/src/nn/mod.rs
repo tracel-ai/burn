@@ -20,6 +20,11 @@ pub mod transformer;
 pub mod interpolate;
 
 pub mod activation;
+pub use activation::{
+    gelu::*, glu::*, hard_sigmoid::*, leaky_relu::*, prelu::*, relu::*, sigmoid::*, swiglu::*,
+    tanh::*,
+};
+
 mod dropout;
 mod embedding;
 mod initializer;
@@ -30,8 +35,6 @@ mod pos_encoding;
 mod rnn;
 mod rope_encoding;
 mod unfold;
-
-pub use activation::*;
 
 pub use dropout::*;
 pub use embedding::*;

@@ -16,18 +16,21 @@
 //! not compatible with the common API, and is not included
 //! in the abstraction wrappers.
 
-mod activation_layer;
-mod gelu;
-mod glu;
-mod hard_sigmoid;
-mod leaky_relu;
-mod prelu;
-mod relu;
-mod sigmoid;
-mod swiglu;
-mod tanh;
+mod activation_wrapper;
 
-pub use activation_layer::*;
+// These are pub(crate) for dual-export in `nn` without re-exporting
+// all of `nn.activation`, or manually listing each symbol.
+pub(crate) mod gelu;
+pub(crate) mod glu;
+pub(crate) mod hard_sigmoid;
+pub(crate) mod leaky_relu;
+pub(crate) mod prelu;
+pub(crate) mod relu;
+pub(crate) mod sigmoid;
+pub(crate) mod swiglu;
+pub(crate) mod tanh;
+
+pub use activation_wrapper::*;
 pub use gelu::*;
 pub use glu::*;
 pub use hard_sigmoid::*;

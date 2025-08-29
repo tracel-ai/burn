@@ -5,8 +5,8 @@ use crate::nn::activation::{
     Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu,
     Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };
-use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
+use burn_tensor::{AsIndex, Tensor};
 
 /// [`Activation`] Configuration.
 #[derive(Config, Debug)]
@@ -166,30 +166,53 @@ pub struct DimSelectActivation<B: Backend> {
 }
 
 impl<B: Backend> DimSelectActivation<B> {
-    /// Canonicalize the activation dim to the given rank.
-    #[inline(always)]
-    pub fn canonicalize_dim(&self, rank: usize) -> usize {
-        burn_tensor::indexing::canonicalize_dim(self.dim, rank, false)
-    }
-
     /// Forward pass.
+    ///
+    /// Swaps the input dims for the selected activation dim,
+    /// applies the inner activation wrapper,
+    /// then swaps the result dims back.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let dim = self.canonicalize_dim(D);
-        let last = D - 1;
+        apply_swapped(input, self.dim, |input| self.layer.forward(input))
+    }
+}
 
-        let input = if dim == last {
-            input
-        } else {
-            input.swap_dims(dim, last)
-        };
+/// Swap the specified `dim` to the last dimension, apply the activation, then swap back.
+///
+/// # Arguments
+///
+/// - `input`: the tensor to operate on.
+/// - `dim`: the dim to make the "last" dim.
+/// - `f`: the function to apply.
+///
+/// # Returns
+///
+/// The result tensor.
+fn apply_swapped<B: Backend, const D: usize, Dim, F>(
+    input: Tensor<B, D>,
+    dim: Dim,
+    f: F,
+) -> Tensor<B, D>
+where
+    Dim: AsIndex,
+    F: FnOnce(Tensor<B, D>) -> Tensor<B, D>,
+{
+    let dim = burn_tensor::indexing::canonicalize_dim(dim, D, false);
+    let last = D - 1;
 
-        let output = self.layer.forward(input);
+    // TODO: enforce that `.swap_dims()` is a guaranteed cheap no-op when ``dim == last``;
+    // and replace this with ``f(input.swap_dims(dim, last)).swap_dims(dim, last)``
+    let x = if dim == last {
+        input
+    } else {
+        input.swap_dims(dim, last)
+    };
 
-        if dim == last {
-            output
-        } else {
-            output.swap_dims(dim, last)
-        }
+    let x = f(x);
+
+    if dim == last {
+        x
+    } else {
+        x.swap_dims(dim, last)
     }
 }
 
@@ -198,7 +221,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::prelude::Module;
-    use burn_tensor::Distribution;
+    use burn_tensor::{Distribution, TensorData};
 
     fn make_input<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
         Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], device)
@@ -322,6 +345,43 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_swapped() {
+        let device = Default::default();
+        let input: Tensor<TestBackend, 2> =
+            Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], &device);
+
+        let output = apply_swapped(input.clone(), 1, |t| {
+            t + Tensor::from_data([[2.0, 4.0, 6.0]], &device)
+        });
+        output.clone().to_data().assert_eq(
+            &TensorData::from([
+                [2.0 - 1.0, 4.0 - 0.5, 6.0 - 0.0],
+                [2.0 + 1.0, 4.0 + 0.5, 6.0 + 0.0],
+            ]),
+            false,
+        );
+        // Test negative dim.
+        output.clone().to_data().assert_eq(
+            &apply_swapped(input.clone(), -1, |t| {
+                t + Tensor::from_data([[2.0, 4.0, 6.0]], &device)
+            })
+            .to_data(),
+            true,
+        );
+
+        let output = apply_swapped(input.clone(), 0, |t| {
+            t + Tensor::from_data([[2.0, 4.0]], &device)
+        });
+        output.to_data().assert_eq(
+            &TensorData::from([
+                [2.0 - 1.0, 2.0 - 0.5, 2.0 - 0.0],
+                [4.0 + 1.0, 4.0 + 0.5, 4.0 + 0.0],
+            ]),
+            false,
+        );
+    }
+
+    #[test]
     fn test_dim_select_activation_layer_default() {
         let device = Default::default();
 
@@ -348,7 +408,6 @@ mod tests {
 
         let config = DimSelectActivationConfig::from(ActivationConfig::Relu).with_dim(1);
         let act = config.init(&device);
-        assert_eq!(act.canonicalize_dim(3), 1);
 
         let result = act.forward(input);
         expect_tensor(result, expected);
