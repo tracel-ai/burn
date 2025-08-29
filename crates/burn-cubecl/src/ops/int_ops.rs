@@ -19,8 +19,8 @@ use crate::{
         launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
     },
 };
-use burn_tensor::DType;
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use burn_tensor::{DType, IntDType};
 use burn_tensor::{Distribution, ElementConversion, Shape, TensorData, ops::IntTensorOps};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
@@ -422,5 +422,26 @@ where
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         launch_scalar_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        if tensor.dtype == dtype.into() {
+            return tensor;
+        }
+
+        execute_with_dtype!(
+            tensor.dtype,
+            I,
+            match dtype {
+                IntDType::I64 => kernel::cast::<R, I, i64>(tensor),
+                IntDType::I32 => kernel::cast::<R, I, i32>(tensor),
+                IntDType::I16 => kernel::cast::<R, I, i16>(tensor),
+                IntDType::I8 => kernel::cast::<R, I, i8>(tensor),
+                IntDType::U64 => kernel::cast::<R, I, u64>(tensor),
+                IntDType::U32 => kernel::cast::<R, I, u32>(tensor),
+                IntDType::U16 => kernel::cast::<R, I, u16>(tensor),
+                IntDType::U8 => kernel::cast::<R, I, u8>(tensor),
+            }
+        )
     }
 }

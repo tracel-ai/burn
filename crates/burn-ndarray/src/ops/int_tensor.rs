@@ -1,15 +1,15 @@
 // Language
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Distribution, ops::IntTensor};
+use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
-use crate::{NdArray, execute_with_dtype, tensor::NdArrayTensor};
+use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED};
 use crate::{SharedArray, element::QuantElement};
 use crate::{cat_with_dtype, execute_with_float_dtype};
@@ -451,5 +451,9 @@ where
                 (a.elem::<i64>() >> rhs.elem::<u32>()).elem()
             })
         })
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        execute_with_int_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
     }
 }

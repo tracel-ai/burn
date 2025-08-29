@@ -1,6 +1,6 @@
 use burn_common::future::DynFut;
 use burn_tensor::{
-    Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
     ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
 };
 
@@ -421,5 +421,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
         let out = Self::float_matmul(lhs, rhs);
         Self::float_into_int(out)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = match dtype {
+            IntDType::I64 => candle_core::DType::I64,
+            IntDType::U32 => candle_core::DType::U32,
+            IntDType::U8 => candle_core::DType::U8,
+            other => panic!("Unsupported dtype {other:?}"),
+        };
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
     }
 }
