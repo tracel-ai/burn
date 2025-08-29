@@ -279,10 +279,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
         match self.resolve_arg(arg) {
-            TensorArg::Handle {
-                vectorization_factor,
-                ..
-            } => *vectorization_factor,
+            TensorArg::Handle { line_size, .. } => *line_size,
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
