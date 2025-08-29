@@ -7,10 +7,12 @@ use burn_derive::{Config, Module};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-/// ['Norm'] Configuration.
+/// ['Normalization'] Configuration.
+///
+/// The enum is non-exhaustive to prepare for future additions.
 #[derive(Config, Debug)]
 #[non_exhaustive]
-pub enum NormLayerConfig {
+pub enum NormalizationConfig {
     /// ['BatchNorm'] Configuration.
     Batch(BatchNormConfig),
 
@@ -27,55 +29,62 @@ pub enum NormLayerConfig {
     Rms(RmsNormConfig),
 }
 
-impl From<BatchNormConfig> for NormLayerConfig {
+impl From<BatchNormConfig> for NormalizationConfig {
     fn from(config: BatchNormConfig) -> Self {
         Self::Batch(config)
     }
 }
 
-impl From<GroupNormConfig> for NormLayerConfig {
+impl From<GroupNormConfig> for NormalizationConfig {
     fn from(config: GroupNormConfig) -> Self {
         Self::Group(config)
     }
 }
 
-impl From<InstanceNormConfig> for NormLayerConfig {
+impl From<InstanceNormConfig> for NormalizationConfig {
     fn from(config: InstanceNormConfig) -> Self {
         Self::Instance(config)
     }
 }
 
-impl From<LayerNormConfig> for NormLayerConfig {
+impl From<LayerNormConfig> for NormalizationConfig {
     fn from(config: LayerNormConfig) -> Self {
         Self::Layer(config)
     }
 }
 
-impl From<RmsNormConfig> for NormLayerConfig {
+impl From<RmsNormConfig> for NormalizationConfig {
     fn from(config: RmsNormConfig) -> Self {
         Self::Rms(config)
     }
 }
 
-impl NormLayerConfig {
+impl NormalizationConfig {
     /// Initialize a ['Norm'] layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> NormLayer<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Normalization<B> {
         match self {
-            NormLayerConfig::Batch(config) => NormLayer::Batch(config.init(device)),
-            NormLayerConfig::Group(config) => NormLayer::Group(config.init(device)),
-            NormLayerConfig::Instance(config) => NormLayer::Instance(config.init(device)),
-            NormLayerConfig::Layer(config) => NormLayer::Layer(config.init(device)),
-            NormLayerConfig::Rms(config) => NormLayer::Rms(config.init(device)),
+            NormalizationConfig::Batch(config) => Normalization::Batch(config.init(device)),
+            NormalizationConfig::Group(config) => Normalization::Group(config.init(device)),
+            NormalizationConfig::Instance(config) => Normalization::Instance(config.init(device)),
+            NormalizationConfig::Layer(config) => Normalization::Layer(config.init(device)),
+            NormalizationConfig::Rms(config) => Normalization::Rms(config.init(device)),
         }
     }
 }
 
-/// Norm Layer Wrapper
+/// Normalization Layer Wrapper
 ///
-/// Provides support for many built-in ``burn::nn::norm`` norm layers.
+/// Provides support for built-in ``burn::nn::norm`` norm layers:
+/// * [`Batch`] - [`BatchNorm`]
+/// * [`Group`] - [`GroupNorm`]
+/// * [`Instance`] - [`InstanceNorm`]
+/// * [`Layer`] - [`LayerNorm`]
+/// * [`Rms`] - [`RmsNorm`]
+///
+/// The enum is non-exhaustive, to prepare for future additions.
 #[derive(Module, Debug)]
 #[non_exhaustive]
-pub enum NormLayer<B: Backend> {
+pub enum Normalization<B: Backend> {
     /// [`BatchNorm`] layer.
     Batch(BatchNorm<B>),
 
@@ -92,7 +101,7 @@ pub enum NormLayer<B: Backend> {
     Rms(RmsNorm<B>),
 }
 
-impl<B: Backend> NormLayer<B> {
+impl<B: Backend> Normalization<B> {
     /// Applies normalization to a tensor.
     ///
     /// The normalization contract depends upon the wrapped norm layer;
@@ -100,11 +109,11 @@ impl<B: Backend> NormLayer<B> {
     /// and produce an output of the same rank and shape.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         match self {
-            NormLayer::Batch(batch_norm) => batch_norm.forward(input),
-            NormLayer::Group(group_norm) => group_norm.forward(input),
-            NormLayer::Instance(instance_norm) => instance_norm.forward(input),
-            NormLayer::Layer(layer_norm) => layer_norm.forward(input),
-            NormLayer::Rms(rms_norm) => rms_norm.forward(input),
+            Normalization::Batch(batch_norm) => batch_norm.forward(input),
+            Normalization::Group(group_norm) => group_norm.forward(input),
+            Normalization::Instance(instance_norm) => instance_norm.forward(input),
+            Normalization::Layer(layer_norm) => layer_norm.forward(input),
+            Normalization::Rms(rms_norm) => rms_norm.forward(input),
         }
     }
 }
@@ -123,12 +132,12 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config: NormLayerConfig = BatchNormConfig::new(12).into();
+        let config: NormalizationConfig = BatchNormConfig::new(12).into();
 
-        let layer: NormLayer<B> = config.init(&device);
+        let layer: Normalization<B> = config.init(&device);
 
         let expected = match &layer {
-            NormLayer::Batch(inner) => inner.forward(input.clone()),
+            Normalization::Batch(inner) => inner.forward(input.clone()),
             _ => panic!("Unexpected layer type"),
         };
 
@@ -145,12 +154,12 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config: NormLayerConfig = GroupNormConfig::new(3, num_features).into();
+        let config: NormalizationConfig = GroupNormConfig::new(3, num_features).into();
 
-        let layer: NormLayer<B> = config.init(&device);
+        let layer: Normalization<B> = config.init(&device);
 
         let expected = match &layer {
-            NormLayer::Group(inner) => inner.forward(input.clone()),
+            Normalization::Group(inner) => inner.forward(input.clone()),
             _ => panic!("Unexpected layer type"),
         };
 
@@ -167,12 +176,12 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
 
-        let config: NormLayerConfig = InstanceNormConfig::new(num_features).into();
+        let config: NormalizationConfig = InstanceNormConfig::new(num_features).into();
 
-        let layer: NormLayer<B> = config.init(&device);
+        let layer: Normalization<B> = config.init(&device);
 
         let expected = match &layer {
-            NormLayer::Instance(inner) => inner.forward(input.clone()),
+            Normalization::Instance(inner) => inner.forward(input.clone()),
             _ => panic!("Unexpected layer type"),
         };
 
@@ -189,12 +198,12 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
 
-        let config: NormLayerConfig = LayerNormConfig::new(num_features).into();
+        let config: NormalizationConfig = LayerNormConfig::new(num_features).into();
 
-        let layer: NormLayer<B> = config.init(&device);
+        let layer: Normalization<B> = config.init(&device);
 
         let expected = match &layer {
-            NormLayer::Layer(inner) => inner.forward(input.clone()),
+            Normalization::Layer(inner) => inner.forward(input.clone()),
             _ => panic!("Unexpected layer type"),
         };
 
@@ -211,12 +220,12 @@ mod tests {
         let num_features = 12;
         let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
 
-        let config: NormLayerConfig = RmsNormConfig::new(num_features).into();
+        let config: NormalizationConfig = RmsNormConfig::new(num_features).into();
 
-        let layer: NormLayer<B> = config.init(&device);
+        let layer: Normalization<B> = config.init(&device);
 
         let expected = match &layer {
-            NormLayer::Rms(inner) => inner.forward(input.clone()),
+            Normalization::Rms(inner) => inner.forward(input.clone()),
             _ => panic!("Unexpected layer type"),
         };
 
