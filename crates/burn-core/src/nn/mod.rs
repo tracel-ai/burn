@@ -40,12 +40,7 @@ mod tanh;
 mod unfold;
 
 pub mod norm;
-pub use norm::{
-    BatchNorm, BatchNormConfig, BatchNormRecord, BatchNormRecordItem, GroupNorm, GroupNormConfig,
-    GroupNormRecord, GroupNormRecordItem, InstanceNorm, InstanceNormConfig, InstanceNormRecord,
-    InstanceNormRecordItem, LayerNorm, LayerNormConfig, LayerNormRecord, LayerNormRecordItem,
-    RmsNorm, RmsNormConfig, RmsNormRecord, RmsNormRecordItem,
-};
+pub use norm::{batch::*, group::*, instance::*, layer::*, rms::*};
 
 pub use dropout::*;
 pub use embedding::*;

@@ -7,12 +7,13 @@
 /// * [`Instance`] - [`InstanceNorm`]
 /// * [`Layer`] - [`LayerNorm`]
 /// * [`Rms`] - [`RmsNorm`]
-mod batch;
-mod group;
-mod instance;
-mod layer;
+pub(crate) mod batch;
+pub(crate) mod group;
+pub(crate) mod instance;
+pub(crate) mod layer;
+pub(crate) mod rms;
+
 mod normalization_wrapper;
-mod rms;
 
 pub use batch::*;
 pub use group::*;
