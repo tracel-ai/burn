@@ -123,7 +123,7 @@ pub(crate) fn batches_per_run(
     }
     Ok((0..=max_simultaneous)
         .rev()
-        .find(|per_run| batch_size % per_run == 0)
+        .find(|per_run| batch_size.is_multiple_of(per_run))
         .expect("Logically not possible"))
 }
 
@@ -160,7 +160,7 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
         empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_col);
 
     let num_elems = columns.shape.num_elements() / line_size as usize;
-    while num_elems % elems_per_thread != 0 && elems_per_thread > 1 {
+    while !num_elems.is_multiple_of(elems_per_thread) && elems_per_thread > 1 {
         elems_per_thread /= 2;
     }
 

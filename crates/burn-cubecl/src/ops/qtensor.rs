@@ -120,7 +120,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
 
     let data_size = match scheme.store {
         QuantStore::U32 => {
-            if shape_last % num_quants != 0 {
+            if !shape_last.is_multiple_of(num_quants) {
                 panic!("Can't store in u32, padding not yet implemented for quantization.");
             }
             shape_value.dims[rank - 1] = shape_last / num_quants;

@@ -23,8 +23,8 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
 
     let memory_offset_alignment = tensor.client.properties().memory.alignment;
 
-    if offset_start % memory_offset_alignment == 0u64
-        && offset_end % memory_offset_alignment == 0u64
+    if offset_start.is_multiple_of(memory_offset_alignment)
+        && offset_end.is_multiple_of(memory_offset_alignment)
     {
         CubeTensor::new(
             tensor.client,

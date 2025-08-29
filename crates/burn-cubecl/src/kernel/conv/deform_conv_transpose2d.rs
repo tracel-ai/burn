@@ -314,7 +314,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
 
     let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
-    let is_y_direction = offset_c % 2 == 0;
+    let is_y_direction = offset_c.is_multiple_of(2);
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 
