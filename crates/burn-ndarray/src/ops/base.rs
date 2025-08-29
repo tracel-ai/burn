@@ -488,7 +488,7 @@ where
         }
         let (shape_tensor, shape_indices) = (tensor.shape(), indices.shape().into_shape());
         let (size_tensor, size_index) = (shape_tensor[ndims - 1], shape_indices.dims[ndims - 1]);
-        let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices.dims);
+        let batch_size = Self::gather_batch_size(shape_tensor, &shape_indices.dims);
 
         let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index]));
         let tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor]));
@@ -530,7 +530,7 @@ where
             shape_indices[ndims - 1],
             shape_value[ndims - 1],
         );
-        let batch_size = Self::gather_batch_size(&shape_tensor.dims, &shape_indices);
+        let batch_size = Self::gather_batch_size(&shape_tensor.dims, shape_indices);
 
         if shape_value != shape_indices {
             panic!(

@@ -65,3 +65,8 @@ pub use burn_ir as ir;
 
 #[cfg(feature = "collective")]
 pub use burn_collective as collective;
+#[cfg(feature = "cpu")]
+pub use burn_cpu as cpu;
+
+#[cfg(feature = "cpu")]
+pub use burn_cpu::Cpu;

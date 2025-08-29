@@ -9,10 +9,10 @@ use burn_tensor::ElementConversion;
 use core::ops::Range;
 
 // Current crate
-use crate::execute_with_float_dtype;
-use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArray, execute_with_dtype, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED};
 use crate::{SharedArray, element::QuantElement};
+use crate::{cat_with_dtype, execute_with_float_dtype};
 use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
@@ -59,7 +59,7 @@ where
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        execute_with_int_dtype!((lhs, rhs), |lhs, rhs| matmul(lhs, rhs))
+        execute_with_int_dtype!((lhs, rhs), matmul)
     }
 
     fn int_mask_where(
@@ -91,7 +91,7 @@ where
     }
 
     fn int_cat(tensors: Vec<NdArrayTensor>, dim: usize) -> NdArrayTensor {
-        NdArrayOps::cat(tensors, dim)
+        cat_with_dtype!(tensors, dim, [I64, I32, I16, I8, U64, U32, U16, U8])
     }
 
     fn int_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -293,7 +293,16 @@ where
     }
 
     fn int_abs(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::abs)
+        match tensor.dtype() {
+            DType::I64 | DType::I32 | DType::I16 | DType::I8 => {
+                execute_with_dtype!(tensor, I, NdArrayMathOps::abs, [
+                    I64 => i64, I32 => i32, I16 => i16, I8 => i8
+                ])
+            }
+            // Already unsigned
+            DType::U64 | DType::U32 | DType::U16 | DType::U8 => tensor,
+            other => panic!("Unsupported dtype: {other:?}"),
+        }
     }
 
     fn int_into_float(tensor: NdArrayTensor) -> FloatTensor<Self> {
@@ -367,7 +376,17 @@ where
     }
 
     fn int_sign(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, NdArrayMathOps::sign_op)
+        match tensor.dtype() {
+            DType::I64 | DType::I32 | DType::I16 | DType::I8 => {
+                execute_with_dtype!(tensor, I, NdArrayMathOps::sign_op, [
+                    I64 => i64, I32 => i32, I16 => i16, I8 => i8
+                ])
+            }
+            DType::U64 | DType::U32 | DType::U16 | DType::U8 => {
+                Self::int_greater_elem(tensor, 0.elem())
+            }
+            other => panic!("Unsupported dtype: {other:?}"),
+        }
     }
 
     fn int_expand(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {

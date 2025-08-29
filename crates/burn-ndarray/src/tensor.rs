@@ -11,10 +11,12 @@ use burn_tensor::{
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
+/// Concrete storage type for ndarray
 pub type SharedArray<E> = ArcArray<E, IxDyn>;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 #[derive(Debug, Clone)]
+#[allow(missing_docs)]
 pub enum NdArrayTensor {
     F64(SharedArray<f64>),
     F32(SharedArray<f32>),
@@ -35,6 +37,35 @@ impl NdArrayTensor {
             NdArrayTensor::Bool(arr) => arr,
             _ => unimplemented!("Expected bool tensor, got {:?}", self.dtype()),
         }
+    }
+}
+
+pub(crate) fn cast_to_dtype<E1: Element>(array: SharedArray<E1>, dtype: DType) -> NdArrayTensor
+where
+    NdArrayTensor: From<SharedArray<E1>>,
+{
+    fn cast<E1: Element, E2: Element>(array: SharedArray<E1>) -> SharedArray<E2> {
+        array.mapv(|a| a.elem()).into_shared()
+    }
+
+    if E1::dtype() == dtype {
+        return array.into();
+    }
+
+    match dtype {
+        DType::F64 => cast::<E1, f64>(array).into(),
+        DType::F32 => cast::<E1, f32>(array).into(),
+        DType::Flex32 => cast::<E1, f32>(array).into(),
+        DType::I64 => cast::<E1, i64>(array).into(),
+        DType::I32 => cast::<E1, i32>(array).into(),
+        DType::I16 => cast::<E1, i16>(array).into(),
+        DType::I8 => cast::<E1, i8>(array).into(),
+        DType::U64 => cast::<E1, u64>(array).into(),
+        DType::U32 => cast::<E1, u32>(array).into(),
+        DType::U16 => cast::<E1, u16>(array).into(),
+        DType::U8 => cast::<E1, u8>(array).into(),
+        DType::Bool => cast::<E1, bool>(array).into(),
+        dtype => panic!("Unsupported dtype: {dtype:?}"),
     }
 }
 
@@ -68,6 +99,7 @@ macro_rules! execute_with_dtype {
         match ($lhs, $rhs) {
             $(
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
+                    #[allow(unused)]
                     type $element = $ty;
                     $op(lhs, rhs).into()
                 }
@@ -97,6 +129,7 @@ macro_rules! execute_with_dtype {
         match $tensor {
             $(
                 $crate::NdArrayTensor::$dtype(lhs) => {
+                    #[allow(unused)]
                     type $element = $ty;
                     $op(lhs).into()
                 }
@@ -121,6 +154,12 @@ macro_rules! execute_with_dtype {
     }};
 }
 
+/// Macro to execute an operation a given element type.
+/// Only handles float types.
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_float_dtype {
     // Binary op: type automatically inferred by the compiler
@@ -148,6 +187,12 @@ macro_rules! execute_with_float_dtype {
     }};
 }
 
+/// Macro to execute an operation a given element type.
+/// Only handles int types.
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_int_dtype {
     // Binary op: type automatically inferred by the compiler
@@ -177,6 +222,12 @@ macro_rules! execute_with_int_dtype {
     }};
 }
 
+/// Macro to execute an operation a given element type.
+/// Only handles numeric types
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_numeric_dtype {
     // Binary op: type automatically inferred by the compiler
@@ -206,6 +257,33 @@ macro_rules! execute_with_numeric_dtype {
             U64 => u64, U32 => u32, U16 => u16, U8 => u8
         ])
     }};
+}
+
+/// Macro to execute an cat operation on a given set of element types.
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
+#[macro_export]
+macro_rules! cat_with_dtype {
+    ($tensors: expr, $dim: expr, [$($dtype: ident),*]) => {
+        match &$tensors[0] {
+            $(NdArrayTensor::$dtype(_) => {
+                let tensors = $tensors
+                    .iter()
+                    .map(|t| {
+                        if let NdArrayTensor::$dtype(tensor) = t {
+                            tensor.view()
+                        } else {
+                            panic!("Concatenate data type mismatch (expected f32, got f64)")
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                NdArrayOps::concatenate(&tensors, $dim).into()
+            })*
+            _ => panic!("Unsupported dtype: {:?}", $tensors[0].dtype())
+        }
+    };
 }
 
 impl TensorMetadata for NdArrayTensor {
@@ -245,7 +323,7 @@ impl ShapeOps for &[usize] {
     }
 
     fn num_elements(self) -> usize {
-        self.into_iter().product()
+        self.iter().product()
     }
 
     fn dims<const N: usize>(self) -> [usize; N] {
@@ -422,27 +500,36 @@ impl NdArrayQTensor {
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 ..
-            } => QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+            } => QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
                 self.qparams[0].scales,
+                self.scheme.value,
             )),
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 ..
-            } => QuantizationStrategy::PerBlockSymmetricInt8(
+            } => QuantizationStrategy::PerBlockSymmetric(
                 self.qparams
                     .iter()
-                    .map(|q| SymmetricQuantization::init(q.scales))
+                    .map(|q| SymmetricQuantization::init(q.scales, self.scheme.value))
                     .collect(),
                 block_size,
             ),
-            QuantScheme {
-                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                ..
-            } => unimplemented!(),
         }
     }
 }
@@ -450,6 +537,11 @@ impl NdArrayQTensor {
 impl QTensorPrimitive for NdArrayQTensor {
     fn scheme(&self) -> &QuantScheme {
         &self.scheme
+    }
+
+    #[cfg(test)]
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
     }
 }
 
@@ -549,7 +641,10 @@ mod tests {
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale))
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                scale,
+                QuantValue::Q8S
+            ))
         );
     }
 }

@@ -39,7 +39,11 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32, I = i64, Q = i8> {
+pub struct NdArray<E = f32, I = i64, Q = i8>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
     _e: PhantomData<E>,
     _i: PhantomData<I>,
     _q: PhantomData<Q>,

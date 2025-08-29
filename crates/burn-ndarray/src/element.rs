@@ -79,6 +79,7 @@ macro_rules! make_elem {
     ) => {
         impl NdArrayElement for $ty {}
 
+        #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {

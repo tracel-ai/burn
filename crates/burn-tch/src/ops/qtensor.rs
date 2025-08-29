@@ -230,7 +230,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         // To get the integer values we have to call `int_repr()`
         let values: Result<Vec<i8>, tch::TchError> = tensor.qtensor.tensor.int_repr().try_into();
 
-        TensorData::quantized(values.unwrap(), shape, strategy)
+        TensorData::quantized(values.unwrap(), shape, strategy, tensor.scheme)
     }
 
     fn q_swap_dims(

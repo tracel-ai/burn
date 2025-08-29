@@ -18,7 +18,7 @@ pub(crate) fn matmul<E: NdArrayElement>(
     let k = shape_rhs[ndims - 2]; // # of left cols and right rows
     let n = shape_rhs[ndims - 1]; // # of right cols
 
-    let (out_shape, strides_lhs, strides_rhs, strides_out) = output_shape(&shape_lhs, &shape_rhs);
+    let (out_shape, strides_lhs, strides_rhs, strides_out) = output_shape(shape_lhs, shape_rhs);
     let l_mat_size = m * k; // size of matrix component of left array
     let r_mat_size = k * n; // size of matrix component of right array
     let out_mat_size = m * n; // size of matrix component of output array

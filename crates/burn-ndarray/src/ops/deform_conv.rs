@@ -172,8 +172,8 @@ where
         .unwrap();
     let columns = columns.to_shape((groups, col_size_0, col_size_1)).unwrap();
     let out = matmul(
-        weight.to_owned().into_dyn().into_shared().into(),
-        columns.to_owned().into_dyn().into_shared().into(),
+        weight.to_owned().into_dyn().into_shared(),
+        columns.to_owned().into_dyn().into_shared(),
     );
 
     let mut out = out

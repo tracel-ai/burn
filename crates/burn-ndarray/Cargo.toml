@@ -46,6 +46,9 @@ std = [
     "macerator/std",
 ]
 
+# Serves as a ref impl for some burn-cubecl kernels
+export_tests = []
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

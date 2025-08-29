@@ -41,12 +41,14 @@ where
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
-                        store: QuantStore::Native,
+                        store: QuantStore::Native | QuantStore::U32,
                         ..
                     } => {
-                        // We should probably check that `Q` matches i8.. but it's the only valid type now
+                        // We can load QuantStore::U32 w/ QuantizedBytes impl
                         let (values, qparams) = q_bytes.into_vec_i8();
                         let data = TensorData::new(values, shape);
+                        // Overwrite storage
+                        let scheme = scheme.with_store(QuantStore::Native);
 
                         let qparams = qparams
                             .scales
@@ -62,13 +64,8 @@ where
                     }
                     QuantScheme {
                         value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                        store: QuantStore::Native,
                         ..
-                    }
-                    | QuantScheme {
-                        store: QuantStore::U32,
-                        ..
-                    } => unimplemented!(),
+                    } => unimplemented!("from_data not supported for scheme {scheme:?}"),
                 }
             }
             _ => panic!(
@@ -88,14 +85,26 @@ where
             QuantScheme {
                 level: QuantLevel::Tensor,
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                #[cfg(not(feature = "export_tests"))]
+                    value: QuantValue::Q8F | QuantValue::Q8S,
+                // For tests, "native" sub-byte quant serves as a reference for value equality.
+                // Values are stored as i8 regardless.
+                #[cfg(feature = "export_tests")]
+                    value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 store: QuantStore::Native,
                 ..
             } => {
                 let scales = qparams.scales.into_data().iter().next().unwrap();
                 (
-                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
                         scales,
+                        scheme.value,
                     )),
                     vec![QParams { scales }],
                 )
@@ -103,7 +112,16 @@ where
             QuantScheme {
                 level: QuantLevel::Block(block_size),
                 mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
+                #[cfg(not(feature = "export_tests"))]
+                    value: QuantValue::Q8F | QuantValue::Q8S,
+                #[cfg(feature = "export_tests")]
+                    value:
+                    QuantValue::Q8F
+                    | QuantValue::Q8S
+                    | QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S,
                 store: QuantStore::Native,
                 ..
             } => {
@@ -111,26 +129,34 @@ where
                     .scales
                     .into_data()
                     .iter()
-                    .map(|s| (SymmetricQuantization::init(s), QParams { scales: s }))
+                    .map(|s| {
+                        (
+                            SymmetricQuantization::init(s, scheme.value),
+                            QParams { scales: s },
+                        )
+                    })
                     .unzip();
                 (
-                    QuantizationStrategy::PerBlockSymmetricInt8(strategy, *block_size),
+                    QuantizationStrategy::PerBlockSymmetric(strategy, *block_size),
                     qparams,
                 )
             }
             QuantScheme {
+                store: QuantStore::U32,
+                ..
+            } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
+            #[cfg(not(feature = "export_tests"))]
+            QuantScheme {
                 value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
                 store: QuantStore::Native,
                 ..
-            }
-            | QuantScheme {
-                store: QuantStore::U32,
-                ..
-            } => unimplemented!(),
+            } => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
         let shape = tensor.shape();
-        let data = tensor.into_data().with_quantization(strategy);
+        let data_f = tensor.into_data();
+        let values = strategy.quantize(data_f.as_slice().unwrap());
+        let data = TensorData::quantized(values, shape.clone(), strategy, *scheme);
         let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
             bytes: data.into_bytes(),
@@ -150,11 +176,11 @@ where
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         let shape = tensor.qtensor.shape();
         let strategy = tensor.strategy();
-        let data: TensorData =
-            execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
-                let values = qtensor.into_iter().collect();
-                TensorData::quantized(values, shape, strategy)
-            });
+        let data: TensorData = execute_with_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
+            let values = qtensor.into_iter().collect();
+            TensorData::quantized(values, shape, strategy, tensor.scheme)
+        });
+
         NdArrayTensor::from_data(data.dequantize().unwrap())
     }
 
@@ -184,7 +210,7 @@ where
         let shape = tensor.qtensor.shape();
         execute_with_numeric_dtype!(tensor.qtensor, E, |qtensor: SharedArray<E>| {
             let values = qtensor.into_iter().collect();
-            TensorData::quantized(values, shape, strategy)
+            TensorData::quantized(values, shape, strategy, tensor.scheme)
         })
     }
 

@@ -3,14 +3,15 @@ mod tests {
     use super::*;
     use burn_tensor::{
         Tensor, TensorData,
-        quantization::{Calibration, QuantLevel, QuantScheme, QuantValue, compute_range},
+        ops::QuantizedTensor,
+        quantization::{Calibration, QTensorPrimitive, QuantLevel, QuantValue, compute_range},
     };
 
     // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
     #[test]
     fn min_max_calibration_range_per_tensor() {
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
-        let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+        let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
 
         let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
@@ -35,7 +36,7 @@ mod tests {
             ],
             &Default::default(),
         );
-        let scheme = QuantScheme::default()
+        let scheme = QuantizedTensor::<TestBackend>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(4));
 

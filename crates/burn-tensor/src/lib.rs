@@ -100,6 +100,18 @@ mod cube_cuda {
     }
 }
 
+#[cfg(all(feature = "cubecl-cpu", target_os = "linux"))]
+mod cube_cpu {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::cpu::CpuDevice;
+
+    impl DeviceOps for CpuDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, 0)
+        }
+    }
+}
+
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
     use crate::backend::{DeviceId, DeviceOps};

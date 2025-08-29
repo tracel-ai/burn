@@ -213,13 +213,11 @@ where
             );
     });
 
-    let output = output
+    output
         .to_shape([batch_size, out_channels, out_height, out_width])
         .unwrap()
         .into_dyn()
-        .into_shared();
-
-    output
+        .into_shared()
 }
 
 pub(crate) fn conv_transpose2d<E: NdArrayElement>(
