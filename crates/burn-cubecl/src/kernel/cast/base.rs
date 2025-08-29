@@ -1,6 +1,6 @@
 use crate::{
     CubeElement, CubeRuntime,
-    kernel::utils::linear_tensor,
+    kernel::utils::linear_view,
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
@@ -50,8 +50,8 @@ pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(
         &client,
         cube_count,
         cube_dim,
-        linear_tensor(&input, &line_size),
-        linear_tensor(&output, &line_size),
+        linear_view(&input, &line_size),
+        linear_view(&output, &line_size),
     );
 
     output

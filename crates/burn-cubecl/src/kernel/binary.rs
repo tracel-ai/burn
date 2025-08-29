@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     CubeRuntime,
     element::CubeElement,
-    kernel::utils::{linear_tensor, linear_tensor_alias},
+    kernel::utils::{linear_view, linear_view_alias},
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
@@ -292,14 +292,14 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
-        if tensor.can_mut() {
+        if tensor.can_mut() && tensor.is_contiguous_buffer() {
             kernel_scalar_binop::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                linear_tensor(&tensor, &line_size),
+                linear_view(&tensor, &line_size),
                 ScalarArg::new(scalar),
-                linear_tensor_alias(&tensor, &line_size, 0),
+                linear_view_alias(&tensor, &line_size, 0),
             );
 
             tensor
@@ -314,9 +314,9 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFam
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_tensor(&tensor, &line_size),
+                linear_view(&tensor, &line_size),
                 ScalarArg::new(scalar),
-                linear_tensor(&output, &line_size),
+                linear_view(&output, &line_size),
             );
 
             output

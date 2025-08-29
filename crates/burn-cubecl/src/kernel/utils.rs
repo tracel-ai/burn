@@ -29,7 +29,7 @@ pub fn linear_layout<'a, R: CubeRuntime>(
     )
 }
 
-pub fn linear_tensor<'a, R: CubeRuntime>(
+pub fn linear_view<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     line_size: &'a u8,
 ) -> LinearViewLaunch<'a, R> {
@@ -41,7 +41,7 @@ pub fn linear_tensor<'a, R: CubeRuntime>(
     LinearViewLaunch::new(buffer, layout)
 }
 
-pub fn linear_tensor_alias<'a, R: CubeRuntime>(
+pub fn linear_view_alias<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     line_size: &'a u8,
     pos: usize,

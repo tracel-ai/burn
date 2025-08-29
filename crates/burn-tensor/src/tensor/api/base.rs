@@ -1706,7 +1706,7 @@ where
 
         let mut tensors = Vec::with_capacity(chunks);
         let mut sum_chunk_size = 0;
-        if size % chunks == 0 {
+        if size.is_multiple_of(chunks) {
             let chunk_size = size / chunks;
             for _ in 0..chunks {
                 tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, chunk_size));

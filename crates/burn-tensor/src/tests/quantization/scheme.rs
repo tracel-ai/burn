@@ -3,9 +3,10 @@ mod tests {
     use super::*;
     use burn_tensor::{
         DType, Element, Tensor, TensorData,
+        ops::QuantizedTensor,
         quantization::{
-            CalibrationRange, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme,
-            QuantStore, QuantValue, compute_q_params,
+            CalibrationRange, QTensorPrimitive, QuantLevel, QuantMode, QuantParam,
+            QuantPropagation, QuantStore, QuantValue, compute_q_params,
         },
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
@@ -14,7 +15,7 @@ mod tests {
     #[test]
     fn per_tensor_symmetric_int8() {
         let device = Default::default();
-        let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+        let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
         let range = CalibrationRange {
             min: TestTensor::<1>::from_floats([0.5], &device),
             max: TestTensor::<1>::from_floats([1.8], &device),
@@ -31,7 +32,7 @@ mod tests {
     #[test]
     fn per_block_symmetric_int8() {
         let device = Default::default();
-        let scheme = QuantScheme::default()
+        let scheme = QuantizedTensor::<TestBackend>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(4));
         let range = CalibrationRange {
@@ -50,7 +51,7 @@ mod tests {
     #[test]
     fn quant_scheme_should_inhibit_by_default() {
         let device = Default::default();
-        let scheme = QuantScheme::default().with_value(QuantValue::Q8S);
+        let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
 
         let tensor_1 = TestTensor::<2>::from_floats(
             [[1.0, 6.35, 0., 0.], [2.0, 3.0, 0., 0.], [1.0, 3.0, 0., 0.]],
