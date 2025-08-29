@@ -27,6 +27,7 @@ struct ConvArgs {
 }
 
 #[cube(launch)]
+#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
 #[expect(
     clippy::manual_is_multiple_of,
     reason = "cubecl cannot expand is_multiple_of"
