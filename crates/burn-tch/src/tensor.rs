@@ -460,7 +460,7 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_store(QuantStore::Native);
-        let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
+        let qparams = QuantizationParametersPrimitive::<LibTorch<f32>> {
             scales: TchTensor::from_data::<f32>(
                 TensorData::from([0.009_019_608]),
                 tch::Device::Cpu,

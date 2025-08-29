@@ -1,4 +1,4 @@
-use crate::{QuantElement, TchQTensor};
+use crate::TchQTensor;
 
 use super::TchTensor;
 use super::element::TchElement;
@@ -93,12 +93,11 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32, Q = i8> {
+pub struct LibTorch<E = f32> {
     _e: E,
-    _q: Q,
 }
 
-impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
+impl<E: TchElement> Backend for LibTorch<E> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
@@ -111,7 +110,6 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = TchQTensor;
-    type QuantizedEncoding = Q;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);

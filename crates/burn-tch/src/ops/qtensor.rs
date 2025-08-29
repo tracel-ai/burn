@@ -9,7 +9,7 @@ use burn_tensor::{
     },
 };
 
-use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
+use crate::{LibTorch, LibTorchDevice, TchElement, TchQTensor, TchShape, TchTensor};
 
 use super::TchOps;
 
@@ -49,7 +49,7 @@ fn quantize<E: TchElement>(
     }
 }
 
-impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
+impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn q_from_data(data: TensorData, device: &LibTorchDevice) -> QuantizedTensor<Self> {
         let shape_tch = TchShape::from(data.shape.as_slice());
         let device = (*device).into();
