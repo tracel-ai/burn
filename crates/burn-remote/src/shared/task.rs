@@ -65,12 +65,6 @@ pub enum ComputeTask {
     SyncBackend,
 }
 
-/// Used by a server to request a tensor from another server
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RemoteTensorReq {
-    pub id: TensorId,
-}
-
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskResponse {
