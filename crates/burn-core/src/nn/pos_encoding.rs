@@ -143,7 +143,7 @@ pub fn generate_sinusoids<B: Backend>(
     max_timescale: usize,
     device: &B::Device,
 ) -> Tensor<B, 2> {
-    assert!(d_model % 2 == 0, "d_model must be even");
+    assert!(d_model.is_multiple_of(2), "d_model must be even");
     assert!(
         max_timescale >= length,
         "max_timescale must be greater than length"

@@ -1,6 +1,6 @@
 pub(crate) fn checks_channels_div_groups(channels_in: usize, channels_out: usize, groups: usize) {
-    let channels_in_div_by_group = channels_in % groups == 0;
-    let channels_out_div_by_group = channels_out % groups == 0;
+    let channels_in_div_by_group = channels_in.is_multiple_of(groups);
+    let channels_out_div_by_group = channels_out.is_multiple_of(groups);
 
     if !channels_in_div_by_group || !channels_out_div_by_group {
         panic!(
