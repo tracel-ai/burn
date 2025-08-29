@@ -1,5 +1,3 @@
-use crate::TchQTensor;
-
 use super::TchTensor;
 use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
@@ -109,7 +107,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 
-    type QuantizedTensorPrimitive = TchQTensor;
+    type QuantizedTensorPrimitive = TchTensor;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);

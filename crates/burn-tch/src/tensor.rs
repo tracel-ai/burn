@@ -1,11 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{
-    DType, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue,
-        QuantizationStrategy, SymmetricQuantization,
-    },
-};
+use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -91,6 +85,12 @@ impl TensorMetadata for TchTensor {
 
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
+    }
+}
+
+impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+        unimplemented!("Quantization is not supported")
     }
 }
 
@@ -318,81 +318,11 @@ impl TchTensor {
     }
 }
 
-/// A quantized tensor for the tch backend.
-#[derive(Clone, Debug)]
-pub struct TchQTensor {
-    /// The quantized tensor.
-    pub qtensor: TchTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
-}
-
-impl TchQTensor {
-    /// Returns the quantization strategy, including quantization parameters, for the given tensor.
-    pub fn strategy(&self) -> QuantizationStrategy {
-        match &self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value: QuantValue::Q8S | QuantValue::Q8F,
-                store: QuantStore::Native,
-                ..
-            } => {
-                let scale = self.qtensor.tensor.q_scale();
-                QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                    scale as f32,
-                    self.scheme.value,
-                ))
-            }
-            QuantScheme {
-                level: QuantLevel::Block(_),
-                value: QuantValue::Q8S | QuantValue::Q8F,
-                ..
-            }
-            | QuantScheme {
-                value: QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            }
-            | QuantScheme {
-                store: QuantStore::U32,
-                ..
-            } => unimplemented!(
-                "LibTorch backend does not support quantization scheme {:?}",
-                self.scheme
-            ),
-        }
-    }
-}
-
-impl TensorMetadata for TchQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
-    }
-}
-
-impl QTensorPrimitive for TchQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
-    }
-
-    #[cfg(test)]
-    fn default_scheme() -> QuantScheme {
-        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::LibTorch;
 
     use super::*;
-    use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::QuantizationParametersPrimitive;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::SeedableRng;
     use rand::prelude::StdRng;
@@ -450,31 +380,6 @@ mod tests {
         assert_ne!(
             tensor_3.to_data().as_slice::<f32>().unwrap(),
             tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
-
-    #[test]
-    fn should_support_qtensor_strategy() {
-        let tensor =
-            TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let qparams = QuantizationParametersPrimitive::<LibTorch<f32>> {
-            scales: TchTensor::from_data::<f32>(
-                TensorData::from([0.009_019_608]),
-                tch::Device::Cpu,
-            ),
-        };
-        let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
-
-        assert_eq!(qtensor.scheme(), &scheme);
-        assert_eq!(
-            qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
-                0.009_019_608,
-                QuantValue::Q8S
-            ))
         );
     }
 }
