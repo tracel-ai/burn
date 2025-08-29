@@ -661,9 +661,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     matmul: &FusedMatmul,
     trace: &FuseTrace,
 ) -> LineSizeOverrides {
-    let elem_lhs = matmul.lhs.precision().into_elem();
-    let elem_rhs = matmul.rhs.precision().into_elem();
-    let elem_out = matmul.out.precision().into_elem();
+    let elem_lhs = matmul.lhs.precision().into_type();
+    let elem_rhs = matmul.rhs.precision().into_type();
+    let elem_out = matmul.out.precision().into_type();
 
     let lhs_id = match &matmul.lhs {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
@@ -675,9 +675,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     };
 
     let available_line_sizes = AvailableLineSizes {
-        lhs: R::line_size_elem(&elem_lhs).collect(),
-        rhs: R::line_size_elem(&elem_rhs).collect(),
-        out: R::line_size_elem(&elem_out).collect(),
+        lhs: R::line_size_type(&elem_lhs).collect(),
+        rhs: R::line_size_type(&elem_rhs).collect(),
+        out: R::line_size_type(&elem_out).collect(),
     };
     let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 
