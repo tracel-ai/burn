@@ -71,7 +71,12 @@ def get_input_info(model):
             if dim.HasField('dim_value'):
                 shape.append(dim.dim_value)
             else:
-                shape.append(1)  # Default to 1 for dynamic dimensions
+                # Use proper defaults for CLIP model
+                if 'input_ids' in input_info.name or 'attention_mask' in input_info.name:
+                    # CLIP uses sequence length of 77
+                    shape.append(1 if len(shape) == 0 else 77)
+                else:
+                    shape.append(1)  # Default to 1 for other dynamic dimensions
         inputs.append({
             'name': input_info.name,
             'shape': shape,
@@ -112,18 +117,29 @@ def generate_test_data(model_path, output_dir):
     session = ort.InferenceSession(model_path)
     outputs = session.run(None, test_inputs)
 
-    # Save as PyTorch tensors
+    # Save in a format that's easier to load in Rust
+    # For CLIP, we expect:
+    # - Inputs: input_ids, attention_mask
+    # - Outputs: text_embeds (2D), last_hidden_state (3D)
+    
+    # Create a more structured format for Rust
     test_data = {
-        'inputs': {name: torch.from_numpy(arr) for name, arr in test_inputs.items()},
-        'outputs': [torch.from_numpy(out) for out in outputs]
+        'input_ids': torch.from_numpy(test_inputs.get('input_ids', test_inputs.get('inputs.0', list(test_inputs.values())[0]))),
+        'attention_mask': torch.from_numpy(test_inputs.get('attention_mask', test_inputs.get('inputs.1', list(test_inputs.values())[1]))),
+        'text_embeds': torch.from_numpy(outputs[0]),
+        'last_hidden_state': torch.from_numpy(outputs[1]) if len(outputs) > 1 else torch.zeros(1, 77, 512)
     }
 
     test_data_path = Path(output_dir) / "test_data.pt"
     torch.save(test_data, test_data_path)
 
     print(f"  ✓ Test data saved to: {test_data_path}")
-    for i, out in enumerate(outputs):
-        print(f"    Output {i} shape: {out.shape}")
+    print(f"    Input shapes:")
+    print(f"      input_ids: {test_data['input_ids'].shape}")
+    print(f"      attention_mask: {test_data['attention_mask'].shape}")
+    print(f"    Output shapes:")
+    print(f"      text_embeds: {test_data['text_embeds'].shape}")
+    print(f"      last_hidden_state: {test_data['last_hidden_state'].shape}")
 
 
 def save_model_info(model_path, output_dir):
