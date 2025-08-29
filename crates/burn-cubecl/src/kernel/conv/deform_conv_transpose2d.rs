@@ -259,8 +259,12 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     kernel_width: u32,
 }
 
-#[allow(clippy::collapsible_if)]
+#[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "cubecl cannot expand is_multiple_of"
+)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
@@ -314,7 +318,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
 
     let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
-    let is_y_direction = offset_c.is_multiple_of(2);
+    let is_y_direction = offset_c % 2 == 0;
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 

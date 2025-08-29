@@ -24,6 +24,10 @@ struct ConvArgs {
 }
 
 #[cube(launch)]
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "cubecl cannot expand is_multiple_of"
+)]
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
@@ -82,7 +86,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
             let numerator_tmp = in_y * args.conv_stride_0;
             let numerator_h = numerator_h_base - numerator_tmp;
 
-            if numerator_h_base >= numerator_tmp && numerator_h.is_multiple_of(args.dilation_0) {
+            if numerator_h_base >= numerator_tmp && numerator_h % args.dilation_0 == 0 {
                 let kernel_y = numerator_h / args.dilation_0;
                 let idx_input_y = in_y * input.stride(2);
                 let idx_weight_ky = kernel_y * weight.stride(2);
@@ -91,9 +95,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
                     let numerator_tmp = in_x * args.conv_stride_1;
                     let numerator_w = numerator_w_base - numerator_tmp;
 
-                    if numerator_w_base >= numerator_tmp
-                        && numerator_w.is_multiple_of(args.dilation_1)
-                    {
+                    if numerator_w_base >= numerator_tmp && numerator_w % args.dilation_1 == 0 {
                         let kernel_x = numerator_w / args.dilation_1;
                         let idx_input_x = in_x * input.stride(3);
                         let idx_weight_kx = kernel_x * weight.stride(3);

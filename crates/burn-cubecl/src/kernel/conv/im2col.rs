@@ -123,7 +123,7 @@ pub(crate) fn batches_per_run(
     }
     Ok((0..=max_simultaneous)
         .rev()
-        .find(|per_run| batch_size.is_multiple_of(per_run))
+        .find(|per_run| batch_size.is_multiple_of(*per_run))
         .expect("Logically not possible"))
 }
 
