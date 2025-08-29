@@ -537,14 +537,14 @@ mod tests {
             .unwrap();
 
         // Asserts that the gradients exist and are non-zero
-        assert!(
+        assert_ne!(
             some_gradient
                 .any()
                 .into_data()
                 .iter::<f32>()
                 .next()
-                .unwrap()
-                != 0.0
+                .unwrap(),
+            0.0
         );
     }
 

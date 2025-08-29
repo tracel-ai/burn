@@ -155,10 +155,10 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestAutodiffBackend,
         module::{Module, list_param_ids},
-        nn::{Linear, LinearConfig},
     };
     use burn_tensor::{Distribution, backend::Backend};
 

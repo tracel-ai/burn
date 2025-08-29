@@ -1,5 +1,4 @@
 use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
-
 use burn::tensor::Tolerance;
 use burn::tensor::ops::FloatElem;
 use burn::{

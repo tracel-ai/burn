@@ -2,7 +2,7 @@ use super::{Node, NodeCodegen, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
-    nn::{PReluConfig, PReluRecord},
+    nn::activation::{PReluConfig, PReluRecord},
     record::{PrecisionSettings, Record},
     tensor::{Tensor, TensorData},
 };
@@ -87,8 +87,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
         }
     }
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::nn::PRelu");
-        imports.register("burn::nn::PReluConfig");
+        imports.register("burn::nn::activation::PRelu");
+        imports.register("burn::nn::activation::PReluConfig");
     }
 
     fn into_node(self) -> Node<PS> {
@@ -118,8 +118,8 @@ mod tests {
 
         let expected = quote! {
         use burn::prelude::*;
-        use burn::nn::PRelu;
-        use burn::nn::PReluConfig;
+        use burn::nn::activation::PRelu;
+        use burn::nn::activation::PReluConfig;
         #[derive(Module, Debug)]
         pub struct Model<B: Backend> {
             prelu: PRelu<B>,

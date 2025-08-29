@@ -7,9 +7,9 @@ use crate::module::Param;
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::{Tensor, backend::Backend};
 
-use super::Initializer;
+use crate::nn::Initializer;
 
-/// Configuration to create a [Linear](Linear) layer using the [init function](LinearConfig::init).
+/// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
 pub struct LinearConfig {
     /// The size of the input features.
@@ -57,7 +57,7 @@ pub struct Linear<B: Backend> {
 }
 
 impl LinearConfig {
-    /// Initialize a new [linear](Linear) module.
+    /// Initialize a new [`Linear`] module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
         let weight = match self.layout {
             LinearLayout::Row => {
