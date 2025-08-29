@@ -198,22 +198,8 @@ where
 {
     let dim = burn_tensor::indexing::canonicalize_dim(dim, D, false);
     let last = D - 1;
-
-    // TODO: enforce that `.swap_dims()` is a guaranteed cheap no-op when ``dim == last``;
-    // and replace this with ``f(input.swap_dims(dim, last)).swap_dims(dim, last)``
-    let x = if dim == last {
-        input
-    } else {
-        input.swap_dims(dim, last)
-    };
-
-    let x = f(x);
-
-    if dim == last {
-        x
-    } else {
-        x.swap_dims(dim, last)
-    }
+    // swap_dims(x, x) is a guaranteed no-op.
+    f(input.swap_dims(dim, last)).swap_dims(dim, last)
 }
 
 #[cfg(test)]
