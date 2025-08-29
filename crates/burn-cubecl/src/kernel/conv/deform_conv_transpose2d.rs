@@ -259,8 +259,13 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     kernel_width: u32,
 }
 
-#[allow(clippy::collapsible_if)]
+#[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
+#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "cubecl cannot expand is_multiple_of"
+)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
