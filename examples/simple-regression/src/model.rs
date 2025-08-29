@@ -1,8 +1,7 @@
 use crate::dataset::{HousingBatch, NUM_FEATURES};
 use burn::{
     nn::{
-        Linear, LinearConfig,
-        activation::Relu,
+        Linear, LinearConfig, Relu,
         loss::{MseLoss, Reduction::Mean},
     },
     prelude::*,
