@@ -24,6 +24,7 @@ pub mod ops;
 pub(crate) mod graph;
 // Exported for backend extension
 pub use graph::NodeID;
+pub(crate) mod context;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 
