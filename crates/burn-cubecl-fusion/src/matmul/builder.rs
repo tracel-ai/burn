@@ -83,8 +83,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
 
             match can_register {
                 true => {
-                    self.builder.can_register(operation);
-                    self.builder_fallback.can_register(operation);
+                    self.builder.register(operation);
+                    self.builder_fallback.register(operation);
                 }
                 false => {
                     self.builder.close();
