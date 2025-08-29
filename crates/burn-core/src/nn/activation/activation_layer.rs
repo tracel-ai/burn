@@ -239,7 +239,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Gelu::default().forward(input.clone());
+        let expected = Gelu.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::GeLu, input, expected, &device)
     }
@@ -260,7 +260,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Relu::default().forward(input.clone());
+        let expected = Relu.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Relu, input, expected, &device)
     }
@@ -310,7 +310,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Sigmoid::default().forward(input.clone());
+        let expected = Sigmoid.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Sigmoid, input, expected, &device)
     }
@@ -320,7 +320,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Tanh::default().forward(input.clone());
+        let expected = Tanh.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Tanh, input, expected, &device)
     }
@@ -372,7 +372,7 @@ mod tests {
         let input: Tensor<TestBackend, 3> =
             Tensor::random([2, 4, 3], Distribution::Normal(0.0, 1.0), &device);
 
-        let expected = Relu::default().forward(input.clone());
+        let expected = Relu.forward(input.clone());
 
         let config: DimSelectActivationConfig = ActivationConfig::Relu.into();
         let act = config.init(&device);
@@ -388,9 +388,7 @@ mod tests {
         let input: Tensor<TestBackend, 3> =
             Tensor::random([2, 5, 4], Distribution::Normal(0.0, 1.0), &device);
 
-        let expected = Relu::default()
-            .forward(input.clone().swap_dims(1, 2))
-            .swap_dims(1, 2);
+        let expected = Relu.forward(input.clone().swap_dims(1, 2)).swap_dims(1, 2);
 
         let config = DimSelectActivationConfig::from(ActivationConfig::Relu).with_dim(1);
         let act = config.init(&device);
