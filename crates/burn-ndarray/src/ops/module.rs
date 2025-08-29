@@ -10,30 +10,33 @@ use super::{
 use crate::ops::simd::{
     avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
-use crate::{NdArray, NdArrayTensorFloat, element::FloatNdArrayElement, tensor::NdArrayTensor};
+use crate::{
+    NdArray, SharedArray, element::FloatNdArrayElement, execute_with_int_dtype,
+    tensor::NdArrayTensor,
+};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_tensor::ops::*;
+use burn_tensor::{TensorMetadata, ops::*};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
     (inp($($x:tt),+), opt($($opt:tt),*), $element:ident, $op:expr) => {{
         #[allow(unused_parens, unreachable_patterns)]
         match ($($x),+) {
-            ($(NdArrayTensorFloat::F32($x)),+) => {
+            ($(NdArrayTensor::F32($x)),+) => {
                 type $element = f32;
                 $op(
                     $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensorFloat::F32(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $(, $opt.map(|o| match o { NdArrayTensor::F32(val) => val, _ => panic!("Optional argument type mismatch") }))*
                 )
             }
-            ($(NdArrayTensorFloat::F64($x)),+) => {
+            ($(NdArrayTensor::F64($x)),+) => {
                 type $element = f64;
                 $op(
                     $($x),+
-                    $(, $opt.map(|o| match o { NdArrayTensorFloat::F64(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                    $(, $opt.map(|o| match o { NdArrayTensor::F64(val) => val, _ => panic!("Optional argument type mismatch") }))*
                 )
             }
             _ => panic!("Data type mismatch"),
@@ -43,13 +46,16 @@ macro_rules! module_op {
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Self>
     for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
 {
     fn conv2d(
-        x: NdArrayTensorFloat,
-        weight: NdArrayTensorFloat,
-        bias: Option<NdArrayTensorFloat>,
+        x: NdArrayTensor,
+        weight: NdArrayTensor,
+        bias: Option<NdArrayTensor>,
         options: ConvOptions<2>,
-    ) -> NdArrayTensorFloat {
+    ) -> NdArrayTensor {
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
             #[cfg(feature = "simd")]
             let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {
@@ -187,7 +193,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         module_op!(inp(x), opt(), E, |x| {
             let (output, indices) =
                 max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
-            MaxPool2dWithIndices::new(output.into(), indices)
+            MaxPool2dWithIndices::new(output.into(), indices.into())
         })
     }
 
@@ -198,19 +204,21 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         dilation: [usize; 2],
         output_grad: FloatTensor<Self>,
-        indices: NdArrayTensor<I>,
+        indices: NdArrayTensor,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
-        module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
-            let output = max_pool2d_backward::<E, I>(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                output_grad,
-                indices,
-            );
-            MaxPool2dBackward::new(output.into())
+        execute_with_int_dtype!(indices, I, |indices| {
+            module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
+                let output = max_pool2d_backward::<E, I>(
+                    x,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    output_grad,
+                    indices,
+                );
+                MaxPool2dBackward::new(output.into())
+            })
         })
     }
 

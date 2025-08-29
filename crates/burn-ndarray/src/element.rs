@@ -18,7 +18,7 @@ where
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement + Signed {}
+pub trait IntNdArrayElement: NdArrayElement {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
@@ -64,6 +64,13 @@ impl FloatNdArrayElement for f32 {}
 
 impl IntNdArrayElement for i64 {}
 impl IntNdArrayElement for i32 {}
+impl IntNdArrayElement for i16 {}
+impl IntNdArrayElement for i8 {}
+
+impl IntNdArrayElement for u64 {}
+impl IntNdArrayElement for u32 {}
+impl IntNdArrayElement for u16 {}
+impl IntNdArrayElement for u8 {}
 
 macro_rules! make_elem {
     (
@@ -72,6 +79,7 @@ macro_rules! make_elem {
     ) => {
         impl NdArrayElement for $ty {}
 
+        #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
@@ -178,12 +186,12 @@ macro_rules! make_elem {
 
 make_elem!(double f64);
 make_elem!(double i64);
+make_elem!(double u64);
 
 make_elem!(single f32);
 make_elem!(single i32);
 make_elem!(single i16);
 make_elem!(single i8);
-make_elem!(single u64);
 make_elem!(single u32);
 make_elem!(single u16);
 make_elem!(single u8);

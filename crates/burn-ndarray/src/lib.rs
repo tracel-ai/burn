@@ -4,9 +4,6 @@
 
 //! Burn ndarray backend.
 
-#[macro_use]
-extern crate derive_new;
-
 #[cfg(any(
     feature = "blas-netlib",
     feature = "blas-openblas",

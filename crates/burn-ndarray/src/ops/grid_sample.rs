@@ -4,22 +4,22 @@ use burn_tensor::ops::InterpolateMode;
 
 use ndarray::Array4;
 
-use crate::ops::interpolate::bilinear_interpolate_single;
-use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, UnsafeSharedRef};
+use crate::{SharedArray, ops::interpolate::bilinear_interpolate_single};
 
 /// Sample a tensor
 pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
-    tensor: NdArrayTensor<E>,
-    grid: NdArrayTensor<E>,
+    tensor: SharedArray<E>,
+    grid: SharedArray<E>,
     method: InterpolateMode,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     match method {
         InterpolateMode::Bilinear => (),
         _ => todo!("Unimplemented"),
     }
 
-    let tensor = tensor.array.into_dimensionality::<ndarray::Ix4>().unwrap();
-    let grid = grid.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let tensor = tensor.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let grid = grid.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, height_in, width_in) = tensor.dim();
     let (b, height_out, width_out, d) = grid.dim();
@@ -69,5 +69,5 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }

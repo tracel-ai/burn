@@ -2,7 +2,7 @@ use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::Autodiff
 use alloc::vec::Vec;
 
 use burn_tensor::{
-    Device, Distribution, Shape, TensorData,
+    Device, Distribution, IntDType, Shape, TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
 };
@@ -363,5 +363,9 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
         B::bitwise_right_shift_scalar(lhs, rhs)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        B::int_cast(tensor, dtype)
     }
 }

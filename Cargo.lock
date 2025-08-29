@@ -1878,7 +1878,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-cpp",
  "cubecl-runtime",
- "cudarc 0.17.2",
+ "cudarc 0.17.3",
  "derive-new",
  "half",
  "log",
@@ -2123,9 +2123,9 @@ dependencies = [
 
 [[package]]
 name = "cudarc"
-version = "0.17.2"
+version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8147ca46109d41cc513fd629b52bbea9bd09b972034c2f32954ce84a92895a91"
+checksum = "72ba848ae5c6f3cb36e71eab5f268763e3fabcabe3f7bc683e16f7fa3d46281e"
 dependencies = [
  "libloading",
 ]

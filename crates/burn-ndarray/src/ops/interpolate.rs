@@ -1,17 +1,17 @@
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{ElementConversion, TensorMetadata};
+use burn_tensor::ElementConversion;
 use ndarray::{Array4, ArrayBase, DataOwned};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, ShapeOps, SharedArray, UnsafeSharedRef};
 
 pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+) -> SharedArray<E> {
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -48,14 +48,14 @@ pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    grad: NdArrayTensor<E>,
+    x: SharedArray<E>,
+    grad: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [batch_size, channels, input_height, input_width] = x.shape().dims();
     let [output_height, output_width] = output_size;
 
@@ -75,13 +75,13 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
                     let ih = start_index(oh, output_height, input_height);
                     let iw = start_index(ow, output_width, input_width);
 
-                    output_grad[[b, c, ih, iw]] += grad.array[[b, c, oh, ow]]
+                    output_grad[[b, c, ih, iw]] += grad[[b, c, oh, ow]]
                 }
             }
         })
     });
 
-    NdArrayTensor::new(output_grad.into_dyn().into_shared())
+    output_grad.into_dyn().into_shared()
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
@@ -94,10 +94,10 @@ pub(crate) fn ceil_clamp(frac: f64, max: usize) -> f64 {
 }
 
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+) -> SharedArray<E> {
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -137,13 +137,13 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     fn cubic_interp1d(x0: f64, x1: f64, x2: f64, x3: f64, t: f64) -> f64 {
         fn cubic_convolution1(x: f64, a: f64) -> f64 {
             ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0
@@ -163,7 +163,7 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
         x0 * coeffs[0] + x1 * coeffs[1] + x2 * coeffs[2] + x3 * coeffs[3]
     }
 
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -242,7 +242,7 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 /// Sample an element of the source array with bilinear interpolation
