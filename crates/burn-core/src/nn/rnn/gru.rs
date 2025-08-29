@@ -319,8 +319,9 @@ mod tests {
     /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
     #[test]
     fn tests_forward_single_input_single_feature() {
-        TestBackend::seed(0);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let mut gru = init_gru::<TestBackend>(false, &device);
 
         let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
@@ -353,8 +354,8 @@ mod tests {
 
     #[test]
     fn tests_forward_seq_len_3() {
-        TestBackend::seed(0);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
         let mut gru = init_gru::<TestBackend>(true, &device);
 
         let input =

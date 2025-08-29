@@ -86,8 +86,8 @@ impl RunnerClient for RemoteClient {
         };
     }
 
-    fn seed(&self, _seed: u64) {
-        // TODO
+    fn seed(&self, seed: u64) {
+        self.sender.send(ComputeTask::Seed(seed));
     }
 }
 

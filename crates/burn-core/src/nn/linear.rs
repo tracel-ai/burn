@@ -164,11 +164,11 @@ mod tests {
 
     #[test]
     fn initializer_default() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = LinearConfig::new(5, 5);
         let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
-        let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(
@@ -183,10 +183,10 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = LinearConfig::new(5, 5).with_initializer(Initializer::Zeros);
-        let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
@@ -198,13 +198,13 @@ mod tests {
 
     #[test]
     fn test_linear_forward_no_bias() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let value = 2.;
         let config = LinearConfig::new(2, 3)
             .with_initializer(Initializer::Constant { value })
             .with_bias(false);
-        let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 
         let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
@@ -216,7 +216,8 @@ mod tests {
 
     #[test]
     fn test_linear_forward_with_bias() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let device = Default::default();
 
@@ -233,7 +234,8 @@ mod tests {
 
     #[test]
     fn test_linear_1d() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let device = Default::default();
 

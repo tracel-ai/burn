@@ -17,9 +17,10 @@ mod tests {
     #[test]
     #[serial]
     fn number_of_1_proportional_to_prob() {
-        TestBackend::seed(0);
-        let shape: Shape = [40, 40].into();
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
+        let shape: Shape = [40, 40].into();
         let prob = 0.7;
 
         let tensor =
@@ -36,7 +37,9 @@ mod tests {
     #[test]
     #[serial]
     fn wald_wolfowitz_runs_test() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let shape = Shape::new([512, 512]);
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Bernoulli(0.5), &device);
