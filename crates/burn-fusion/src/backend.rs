@@ -7,7 +7,7 @@ use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     Device, Element,
     backend::{Backend, DeviceOps},
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::{BoolTensor, ComplexTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
@@ -39,6 +39,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type BoolElem = B::BoolElem;
+
+    // type ComplexTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    // type ComplexElem = B::ComplexElem;
 
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
@@ -216,6 +220,10 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
         handle.handle
     }
 
+    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+    //     handle.handle
+    // }
+
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
         tensor
     }
@@ -231,4 +239,8 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
     }
+
+    // fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+    //     tensor
+    // }
 }
