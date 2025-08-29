@@ -28,7 +28,6 @@ mod hard_sigmoid;
 mod initializer;
 mod leaky_relu;
 mod linear;
-mod norm;
 mod padding;
 mod pos_encoding;
 mod prelu;
@@ -40,6 +39,9 @@ mod swiglu;
 mod tanh;
 mod unfold;
 
+pub mod norm;
+pub use norm::{batch::*, group::*, instance::*, layer::*, rms::*};
+
 pub use dropout::*;
 pub use embedding::*;
 pub use gelu::*;
@@ -48,7 +50,6 @@ pub use hard_sigmoid::*;
 pub use initializer::*;
 pub use leaky_relu::*;
 pub use linear::*;
-pub use norm::*;
 pub use padding::*;
 pub use pos_encoding::*;
 pub use prelu::*;
