@@ -82,32 +82,80 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
-        let config = &configs[0];
-        let shape = match &config.ref_layout {
-            RefLayout::Concrete(arg) => match arg {
-                Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
-                Arg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
-                _ => panic!("Invalid concreate ref layout"),
-            },
-            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
-        };
-        let total_elem = shape.iter().product::<usize>() / config.width as usize;
-        let cube_dim = CubeDim::default();
-        let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
-
-        unsafe {
-            elemwise_fuse::launch_unchecked(
-                client,
-                cube_count,
-                cube_dim,
-                inputs,
-                outputs,
-                config.clone(),
-            );
-        };
+        let properties = client.properties();
+        if properties.hardware.plane_size_max > 1 {
+            run_gpu(client, inputs, outputs, configs);
+        } else {
+            run_cpu(client, inputs, outputs, configs);
+        }
 
         Ok(())
     }
+}
+
+fn run_gpu<'a, R: Runtime>(
+    client: &'a ComputeClient<R::Server, R::Channel>,
+    inputs: GlobalArgsLaunch<'a, R>,
+    outputs: GlobalArgsLaunch<'a, R>,
+    configs: &[FuseBlockConfig],
+) {
+    let config = &configs[0];
+    let shape = match &config.ref_layout {
+        RefLayout::Concrete(arg) => match arg {
+            Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+            Arg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
+            _ => panic!("Invalid concreate ref layout"),
+        },
+        RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+    };
+    let total_elem = shape.iter().product::<usize>() / config.width as usize;
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+    println!("{cube_dim:?} => {cube_count:?}");
+
+    unsafe {
+        elemwise_fuse::launch_unchecked(
+            client,
+            cube_count,
+            cube_dim,
+            inputs,
+            outputs,
+            config.clone(),
+        );
+    };
+}
+
+fn run_cpu<'a, R: Runtime>(
+    client: &'a ComputeClient<R::Server, R::Channel>,
+    inputs: GlobalArgsLaunch<'a, R>,
+    outputs: GlobalArgsLaunch<'a, R>,
+    configs: &[FuseBlockConfig],
+) {
+    let config = &configs[0];
+    let shape = match &config.ref_layout {
+        RefLayout::Concrete(arg) => match arg {
+            Arg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+            Arg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
+            _ => panic!("Invalid concreate ref layout"),
+        },
+        RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+    };
+
+    let num_threads = 64;
+    let total_lines = shape.iter().product::<usize>() / config.width as usize;
+    let cube_dim = CubeDim::new_1d(num_threads as u32);
+    let cube_count = CubeCount::new_1d(total_lines as u32 / num_threads as u32);
+
+    unsafe {
+        elemwise_fuse_cpu::launch_unchecked(
+            client,
+            cube_count,
+            cube_dim,
+            inputs,
+            outputs,
+            config.clone(),
+        );
+    };
 }
 
 #[cube(launch_unchecked)]
@@ -125,6 +173,27 @@ fn elemwise_fuse(
     let length = ref_len(inputs, outputs, &locals, config);
 
     if pos < length {
+        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
+    }
+}
+
+// cube_dim(1, num_threads, 1)
+// num_compute = array.len() / num_threads
+#[cube(launch_unchecked)]
+fn elemwise_fuse_cpu(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let mut locals = init_locals(inputs, outputs, config);
+    let length = ref_len(inputs, outputs, &locals, config);
+
+    let pos = UNIT_POS * CUBE_DIM + CUBE_POS;
+
+    if pos < length {
+        // We write no values for this fusion.
+        let values = Registry::<Arg, Line<f32>>::new();
+        let args = comptime![Sequence::<Arg>::new()];
         fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
     }
 }
