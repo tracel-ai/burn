@@ -141,7 +141,7 @@ fn run_cpu<'a, R: Runtime>(
         RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
     };
 
-    let num_threads = 64;
+    let num_threads = 16;
     let total_lines = shape.iter().product::<usize>() / config.width as usize;
     let cube_dim = CubeDim::new_1d(num_threads as u32);
     let cube_count = CubeCount::new_1d(total_lines as u32 / num_threads as u32);
@@ -188,7 +188,7 @@ fn elemwise_fuse_cpu(
     let mut locals = init_locals(inputs, outputs, config);
     let length = ref_len(inputs, outputs, &locals, config);
 
-    let pos = UNIT_POS * CUBE_DIM + CUBE_POS;
+    let pos = UNIT_POS_X * CUBE_DIM_X + CUBE_POS_X;
 
     if pos < length {
         // We write no values for this fusion.
