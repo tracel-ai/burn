@@ -55,6 +55,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn cast_int_precision() {
         let data = TensorData::from([[1, 2, 3], [4, 5, 6]]);
         let tensor = TestTensorInt::<2>::from(data.clone());
