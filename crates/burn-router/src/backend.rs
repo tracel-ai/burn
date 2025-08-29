@@ -2,6 +2,7 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_tensor::{
+    DType,
     backend::Backend,
     quantization::{QTensorPrimitive, QuantScheme},
 };
@@ -31,10 +32,14 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
     }
 }
 
-// TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
     fn scheme(&self) -> &QuantScheme {
-        todo!()
+        if let DType::QFloat(scheme) = &self.dtype {
+            scheme
+        } else {
+            // TODO: maybe `tensor.scheme()` should return an option
+            panic!("Expected quantized float dtype, got {:?}", self.dtype)
+        }
     }
 }
 
@@ -54,8 +59,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type BoolElem = R::BoolElem;
 
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
-
-    type QuantizedEncoding = u32;
 
     fn name(device: &Self::Device) -> String {
         format!("router<{}>", R::name(device))

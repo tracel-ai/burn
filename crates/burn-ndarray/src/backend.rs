@@ -55,7 +55,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
-    type QuantizedEncoding = Q;
 
     fn ad_enabled() -> bool {
         false

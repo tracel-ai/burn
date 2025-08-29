@@ -6,11 +6,11 @@ use burn_tensor::{
     ops::{FloatTensorOps, IntTensor, IntTensorOps},
 };
 
-use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
+use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 
-impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
+impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_tensor::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),

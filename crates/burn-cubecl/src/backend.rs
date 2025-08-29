@@ -39,7 +39,6 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type QuantizedEncoding = u32;
 
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);

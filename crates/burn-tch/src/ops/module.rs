@@ -1,4 +1,4 @@
-use crate::{LibTorch, QuantElement, TchTensor, element::TchElement};
+use crate::{LibTorch, TchTensor, element::TchElement};
 use burn_tensor::{
     TensorMetadata,
     ops::{
@@ -8,7 +8,7 @@ use burn_tensor::{
     },
 };
 
-impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
+impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     fn embedding(weights: TchTensor, indices: TchTensor) -> TchTensor {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indices.tensor, -1, false, false);
 
@@ -254,7 +254,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<LibTorch<E, Q>> {
+    ) -> MaxPool1dWithIndices<LibTorch<E>> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
@@ -292,7 +292,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<LibTorch<E, Q>> {
+    ) -> MaxPool2dWithIndices<LibTorch<E>> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
@@ -313,7 +313,7 @@ impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {
         dilation: [usize; 2],
         output_grad: TchTensor,
         indices: TchTensor,
-    ) -> MaxPool2dBackward<LibTorch<E, Q>> {
+    ) -> MaxPool2dBackward<LibTorch<E>> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,

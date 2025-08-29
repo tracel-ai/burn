@@ -8,7 +8,7 @@ use burn_tensor::{
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    CandleQTensor, CandleTensor,
+    CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -170,8 +170,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type BoolTensorPrimitive = CandleTensor;
     type BoolElem = u8;
 
-    type QuantizedTensorPrimitive = CandleQTensor;
-    type QuantizedEncoding = u8;
+    type QuantizedTensorPrimitive = CandleTensor;
 
     fn ad_enabled() -> bool {
         false

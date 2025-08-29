@@ -34,7 +34,6 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
-    type QuantizedEncoding = B::QuantizedEncoding;
 
     fn ad_enabled() -> bool {
         true

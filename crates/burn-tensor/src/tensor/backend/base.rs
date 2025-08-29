@@ -88,8 +88,6 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
-    /// Quantized tensor encoding type.
-    type QuantizedEncoding: Element;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {

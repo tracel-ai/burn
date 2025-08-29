@@ -29,6 +29,12 @@ impl TensorMetadata for CandleTensor {
     }
 }
 
+impl QTensorPrimitive for CandleTensor {
+    fn scheme(&self) -> &QuantScheme {
+        unimplemented!("Quantization is not supported")
+    }
+}
+
 impl CandleTensor {
     /// Create a new tensor.
     pub fn new(tensor: candle_core::Tensor) -> Self {
@@ -53,31 +59,5 @@ impl CandleTensor {
             &device.into(),
         );
         Self::new(tensor.unwrap())
-    }
-}
-
-/// A quantized tensor for the candle backend.
-#[derive(Clone, Debug)]
-pub struct CandleQTensor {
-    /// The quantized tensor.
-    // NOTE: candle  does not implement `WithDType` for i8
-    pub qtensor: CandleTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
-}
-
-impl QTensorPrimitive for CandleQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
-    }
-}
-
-impl TensorMetadata for CandleQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
     }
 }

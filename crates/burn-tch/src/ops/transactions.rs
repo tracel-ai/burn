@@ -1,5 +1,5 @@
 use burn_tensor::ops::TransactionOps;
 
-use crate::{LibTorch, QuantElement, TchElement};
+use crate::{LibTorch, TchElement};
 
-impl<E: TchElement, Q: QuantElement> TransactionOps<Self> for LibTorch<E, Q> {}
+impl<E: TchElement> TransactionOps<Self> for LibTorch<E> {}
