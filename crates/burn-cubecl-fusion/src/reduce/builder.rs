@@ -21,7 +21,6 @@ pub struct ReduceBuilder<R: Runtime> {
     builder_write_fallback: FuseOptimizationBuilder,
     device: R::Device,
     reduce: Option<FusedReduce>,
-    status: OptimizationStatus,
 }
 
 impl<R: Runtime> Clone for ReduceBuilder<R> {
@@ -32,7 +31,6 @@ impl<R: Runtime> Clone for ReduceBuilder<R> {
             builder_write_fallback: self.builder_write_fallback.clone(),
             device: self.device.clone(),
             reduce: self.reduce.clone(),
-            status: self.status,
         }
     }
 }
@@ -71,7 +69,6 @@ impl<R: Runtime> ReduceBuilder<R> {
             ),
             device,
             reduce: None,
-            status: OptimizationStatus::Open,
         }
     }
 
@@ -79,7 +76,6 @@ impl<R: Runtime> ReduceBuilder<R> {
         if self.builder.current_output_shape != op.input.shape {
             self.builder.close();
             self.builder_read_fallback.close();
-            self.status = OptimizationStatus::Closed;
             return;
         }
 
@@ -89,7 +85,6 @@ impl<R: Runtime> ReduceBuilder<R> {
         else {
             self.builder.close();
             self.builder_read_fallback.close();
-            self.status = OptimizationStatus::Closed;
             return;
         };
 
@@ -102,10 +97,8 @@ impl<R: Runtime> ReduceBuilder<R> {
         // We could still fuse some output operations, but it would probably lead to worse performance.
         let fuse_on_write_activated = axis != op.input.shape.len() - 1;
 
-        if fuse_on_write_activated {
-            self.status = OptimizationStatus::Open;
-        } else {
-            self.status = OptimizationStatus::Closed;
+        if !fuse_on_write_activated {
+            self.builder.close();
         }
 
         let acc = match inst {
@@ -141,16 +134,14 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         match can_register {
             true => {
-                self.builder.can_register(operation);
-                self.builder_read_fallback.can_register(operation);
+                self.builder.register(operation);
+                self.builder_read_fallback.register(operation);
             }
             false => {
                 self.builder.close();
                 self.builder_read_fallback.close();
             }
         };
-
-        self.status = self.builder.status();
     }
 
     fn on_elemwise_write(&mut self, operation: &OperationIr) {
@@ -159,22 +150,20 @@ impl<R: Runtime> ReduceBuilder<R> {
 
         match can_register {
             true => {
-                self.builder.can_register(operation);
-                self.builder_write_fallback.can_register(operation);
+                self.builder.register(operation);
+                self.builder_write_fallback.register(operation);
             }
             false => {
                 self.builder.close();
                 self.builder_write_fallback.close();
             }
         };
-
-        self.status = self.builder.status();
     }
 }
 
 impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
     fn register(&mut self, operation: &OperationIr) {
-        if let OptimizationStatus::Closed = self.status {
+        if let OptimizationStatus::Closed = self.builder.status() {
             return;
         }
 
@@ -273,11 +262,10 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         self.builder_read_fallback.reset();
         self.builder_write_fallback.reset();
         self.reduce = None;
-        self.status = OptimizationStatus::Open;
     }
 
     fn status(&self) -> burn_fusion::OptimizationStatus {
-        self.status
+        self.builder.status()
     }
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {
