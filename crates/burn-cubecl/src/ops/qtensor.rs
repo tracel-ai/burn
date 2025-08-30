@@ -41,16 +41,19 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         QuantParam::F16 => DType::F16,
         QuantParam::BF16 => DType::BF16,
     };
+    let dim = shape.dims.len() - 1;
+    let mut shape_values = shape.dims.clone();
+    shape_values[dim] = shape.dims[dim] / scheme.num_quants();
 
     let descriptors = match scheme {
         // Just to ensure we get and error if more modes are added and unhandled
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            value: QuantValue::Q8F | QuantValue::Q8S,
+            value,
             ..
         } => {
-            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, value.size_bits());
             let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
 
             scales_shape = Shape::new([1]);
@@ -62,18 +65,30 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         QuantScheme {
             level: QuantLevel::Block(block_size),
             mode: QuantMode::Symmetric,
-            value: QuantValue::Q8F | QuantValue::Q8S,
+            value,
+            store,
             ..
         } => {
             let numel = shape.num_elements();
             let num_blocks = numel / block_size;
+            let length_bits = (numel / 8) * value.size_bits();
+
             scales_shape = Shape::new([num_blocks]);
-            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_of::<i8>());
+            let data_desc = AllocationDescriptor::optimized(
+                &shape_values,
+                match store {
+                    QuantStore::Native => panic!(),
+                    QuantStore::U32 => core::mem::size_of::<u32>(),
+                },
+            );
             let scales_desc =
                 AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
-            vec![(data_desc, &data[..numel]), (scales_desc, &data[numel..])]
+            vec![
+                (data_desc, &data[..length_bits]),
+                (scales_desc, &data[length_bits..]),
+            ]
         }
-        _ => todo!(),
+        _ => todo!("Unsupported {scheme:?}"),
     };
 
     let mut tensors = client.create_tensors(descriptors);
