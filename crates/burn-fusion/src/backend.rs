@@ -7,7 +7,7 @@ use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     Device, Element,
     backend::{Backend, DeviceOps},
-    ops::{BoolTensor, ComplexTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;

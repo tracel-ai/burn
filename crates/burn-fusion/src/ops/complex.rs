@@ -1,5 +1,5 @@
 use crate::{Fusion, FusionBackend, FusionTensor};
-use burn_tensor::{Device, Distribution, Shape, TensorData, ops::ComplexTensorOps};
+use burn_tensor::{Device, Distribution, Shape, TensorData};
 
 // impl<B: FusionBackend> ComplexTensorOps<Self> for Fusion<B> {
 //     fn complex_from_data(

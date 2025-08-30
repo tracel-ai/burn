@@ -1,5 +1,5 @@
 use crate::{LibTorch, QuantElement, TchTensor, element::TchElement};
-use burn_tensor::{Device, Distribution, Shape, TensorData, ops::ComplexTensorOps};
+use burn_tensor::{Device, Distribution, Shape, TensorData};
 
 // impl<E: TchElement, Q: QuantElement> ComplexTensorOps<Self> for LibTorch<E, Q> {
 //     fn complex_from_data(_data: TensorData, _device: &Device<Self>) -> TchTensor {

@@ -1,12 +1,438 @@
-use crate::{
-    BasicOps, Complex, DType, Element, ElementConversion, Numeric, Shape, Tensor, TensorData,
-    backend::{Backend, ComplexTensorBackend},
-    ops::Device,
+/*
+The base implementation for complex tensors, contains everything that would be in burn-tensor.
+May get split into separate files at some point, but for now it's easier to keep all the base
+definitions in one spot.
+*/
+use burn_tensor::{
+    BasicOps, DType, Device, Distribution, Element, ElementConversion, Int, Numeric, Shape, Tensor,
+    TensorData, TensorKind, TensorMetadata, Transaction, backend::Backend, ops::FloatTensor,
 };
-use alloc::vec::Vec;
 use core::ops::Range;
+/// The layout of the complex tensor. Used to define shared behavior only meant
+/// to be used for a specific layout (such as butterfly operations).
+pub trait ComplexLayout {}
 
-use super::Transaction;
+/// Complex element type used by backend.
+pub type ComplexElem<B> = <B as ComplexTensorBackend>::ComplexElem;
+/// Complex tensor primitive type used by the backend.
+pub type ComplexTensor<B> = <B as ComplexTensorBackend>::ComplexTensorPrimitive;
+pub trait ComplexTensorBackend: Backend + ComplexTensorOps<Self> {
+    /// The inner backend type.
+    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem>;
+
+    /// Tensor primitive to be used for all complex operations.
+    type ComplexTensorPrimitive: TensorMetadata + 'static;
+    /// Complex element type.
+    type ComplexElem: Element;
+    /// The underlaying layout for the complex elements
+    type Layout: ComplexLayout;
+
+    /// Returns the real part of a complex tensor.
+    fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
+    /// Returns the imaginary part of a complex tensor.
+    fn imag(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
+
+    fn to_complex(tensor: FloatTensor<Self::InnerBackend>) -> ComplexTensor<Self>;
+    // can reuse float random
+}
+
+/// Indicates that the underlying implementation has separate real and imaginary tensors.
+pub struct DualTensorLayout;
+
+/// Indicates that the underlying implementation uses a complex primitive type [float,float] like that found in the
+/// num_complex trait.
+pub struct ComplexElementLayout;
+
+/// Indicates that the underlying implementation uses an interleaved layout for complex numbers.
+pub struct InterleavedLayout;
+
+impl ComplexLayout for DualTensorLayout {}
+impl ComplexLayout for ComplexElementLayout {}
+impl ComplexLayout for InterleavedLayout {}
+
+/// Operations on complex tensors.
+pub trait ComplexTensorOps<B: ComplexTensorBackend> {
+    /// Creates a new complex tensor from the data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data structure.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given data.
+    fn complex_from_data(data: TensorData, device: &Device<B>) -> ComplexTensor<B>;
+
+    /// Creates a new complex tensor with random values.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `distribution` - The distribution to sample from.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and random values.
+    fn complex_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+    ) -> ComplexTensor<B>;
+
+    /// Creates a new complex tensor with zeros.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and zeros.
+    fn complex_zeros(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+        Self::complex_from_data(TensorData::zeros::<ComplexElem<B>, _>(shape), device)
+    }
+
+    /// Creates a new complex tensor with ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and ones.
+    fn complex_ones(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+        Self::complex_from_data(TensorData::ones::<ComplexElem<B>, _>(shape), device)
+    }
+
+    /// Creates a new complex tensor with the given shape and a single value.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `value` - The value to fill the tensor with.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and value.
+    fn complex_full(
+        shape: Shape,
+        fill_value: ComplexElem<B>,
+        device: &Device<B>,
+    ) -> ComplexTensor<B> {
+        Self::complex_from_data(TensorData::full(shape, fill_value), device)
+    }
+
+    /// Gets the shape of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The shape of the tensor.
+    fn complex_shape(tensor: &ComplexTensor<B>) -> Shape;
+
+    /// Converts the tensor to a data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data structure with the tensor's data.
+    fn complex_to_data(tensor: &ComplexTensor<B>) -> TensorData;
+
+    /// Gets the device of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The device of the tensor.
+    fn complex_device(tensor: &ComplexTensor<B>) -> Device<B>;
+
+    /// Moves the tensor to the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `device` - The device to move the tensor to.
+    ///
+    /// # Returns
+    ///
+    /// The tensor on the given device.
+    fn complex_to_device(tensor: ComplexTensor<B>, device: &Device<B>) -> ComplexTensor<B>;
+
+    /// Converts the tensor to a different element type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the new element type.
+    fn complex_into_data(tensor: ComplexTensor<B>) -> TensorData;
+
+    /// Reshapes the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `shape` - The new shape.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the new shape.
+    fn complex_reshape(tensor: ComplexTensor<B>, shape: Shape) -> ComplexTensor<B>;
+
+    /// Transposes the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The transposed tensor.
+    fn complex_transpose(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Adds two tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the two tensors together.
+    fn complex_add(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Subtracts the second tensor from the first tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the second tensor from the first tensor.
+    fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Multiplies two complex tensors together using complex multiplication.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together.
+    fn complex_mul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Divides the first tensor by the second tensor using complex division.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the first tensor by the second tensor.
+    fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Negates the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The negated tensor.
+    fn complex_neg(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Returns the complex conjugate of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The complex conjugate of the tensor.
+    fn complex_conj(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Returns the real part of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor containing the real parts.
+    fn complex_real(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+
+    /// Returns the imaginary part of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor containing the imaginary parts.
+    fn complex_imag(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+
+    /// Returns the magnitude (absolute value) of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor containing the magnitudes.
+    fn complex_abs(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+
+    /// Returns the phase (argument) of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor containing the phases in radians.
+    fn complex_arg(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+
+    /// Creates a complex tensor from real and imaginary parts.
+    ///
+    /// # Arguments
+    ///
+    /// * `real` - The real part tensor.
+    /// * `imag` - The imaginary part tensor.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor constructed from the real and imaginary parts.
+    fn complex_from_parts(
+        real: B::FloatTensorPrimitive,
+        imag: B::FloatTensorPrimitive,
+    ) -> ComplexTensor<B>;
+
+    /// Creates a complex tensor from magnitude and phase.
+    ///
+    /// # Arguments
+    ///
+    /// * `magnitude` - The magnitude tensor.
+    /// * `phase` - The phase tensor (in radians).
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor constructed from polar coordinates.
+    fn complex_from_polar(
+        magnitude: B::FloatTensorPrimitive,
+        phase: B::FloatTensorPrimitive,
+    ) -> ComplexTensor<B>;
+
+    /// Complex exponential function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The exponential of the tensor.
+    fn complex_exp(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex natural logarithm.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The natural logarithm of the tensor.
+    fn complex_log(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex power function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The base tensor.
+    /// * `exponent` - The exponent tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of raising the base to the exponent.
+    fn complex_powc(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex square root.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The square root of the tensor.
+    fn complex_sqrt(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex sine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The sine of the tensor.
+    fn complex_sin(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex cosine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The cosine of the tensor.
+    fn complex_cos(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex tangent function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tangent of the tensor.
+    fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+}
+
+/// A type-level representation of the kind of a complex tensor.
+#[derive(Clone, Debug)]
+pub struct Complex;
 
 #[allow(unused_variables)]
 impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
@@ -130,6 +556,14 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         // TODO: Implement complex_flip in ComplexTensorOps
         todo!("complex_flip not yet implemented")
     }
+
+    fn full<E: burn_tensor::ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive {
+        todo!()
+    }
 }
 
 #[allow(unused_variables)]
@@ -206,15 +640,6 @@ where
 
     fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::complex_ones(shape, device)
-    }
-
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive {
-        let complex_value: B::ComplexElem = fill_value.elem();
-        B::complex_full(shape, complex_value, device)
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
@@ -320,11 +745,7 @@ where
         todo!("complex_mask_fill not yet implemented")
     }
 
-    fn select(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: crate::Tensor<B, 1, crate::Int>,
-    ) -> Self::Primitive {
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
         // TODO: Implement complex_select in ComplexTensorOps
         todo!("complex_select not yet implemented")
     }
@@ -332,7 +753,7 @@ where
     fn select_assign(
         tensor: Self::Primitive,
         dim: usize,
-        indices: crate::Tensor<B, 1, crate::Int>,
+        indices: Tensor<B, 1, Int>,
         value: Self::Primitive,
     ) -> Self::Primitive {
         // TODO: Implement complex_select_assign in ComplexTensorOps
@@ -463,11 +884,7 @@ where
         todo!("complex_powi_scalar not yet implemented")
     }
 
-    fn random(
-        shape: Shape,
-        distribution: crate::Distribution,
-        device: &crate::Device<B>,
-    ) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         B::complex_random(shape, distribution, device)
     }
 
@@ -496,94 +913,93 @@ where
     }
 }
 
-// Complex-specific methods for Tensor<B, D, Complex>
-impl<B, const D: usize> Tensor<B, D, Complex>
-where
-    B: ComplexTensorBackend,
-{
-    /// Returns the complex conjugate of the tensor.
-    ///
-    /// For a complex number z = a + bi, the conjugate is z* = a - bi.
-    pub fn conj(self) -> Self {
-        Self::new(B::complex_conj(self.primitive))
-    }
+// // Complex-specific methods for Tensor<B, D, Complex>
+// impl<B, const D: usize> Tensor<B, D, Complex>
+// where
+//     B: ComplexTensorBackend,
+// {
+//     /// Returns the complex conjugate of the tensor.
+//     ///
+//     /// For a complex number z = a + bi, the conjugate is z* = a - bi.
+//     pub fn conj(self) -> Self {
+//         Self::new(B::complex_conj(self.primitive))
+//     }
 
-    /// Returns the real part of the complex tensor as a float tensor.
-    pub fn real(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_real(
-            self.primitive,
-        )))
-    }
+//     /// Returns the real part of the complex tensor as a float tensor.
+//     pub fn real(self) -> Tensor<B, D> {
+//         Tensor::new(TensorPrimitive::Float(B::complex_real(self.primitive)))
+//     }
 
-    /// Returns the imaginary part of the complex tensor as a float tensor.
-    pub fn imag(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_imag(
-            self.primitive,
-        )))
-    }
+//     /// Returns the imaginary part of the complex tensor as a float tensor.
+//     pub fn imag(self) -> Tensor<B, D> {
+//         Tensor::new(TensorPrimitive::Float(B::complex_imag(self.primitive)))
+//     }
 
-    /// Returns the magnitude (absolute value) of the complex tensor as a float tensor.
-    pub fn magnitude(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_abs(
-            self.primitive,
-        )))
-    }
+//     /// Returns the magnitude (absolute value) of the complex tensor as a float tensor.
+//     pub fn magnitude(self) -> Tensor<B, D> {
+//         Tensor::new(TensorPrimitive::Float(B::complex_abs(self.primitive)))
+//     }
 
-    /// Returns the phase (argument) of the complex tensor as a float tensor.
-    pub fn phase(self) -> Tensor<B, D> {
-        Tensor::new(crate::TensorPrimitive::Float(B::complex_arg(
-            self.primitive,
-        )))
-    }
+//     /// Returns the phase (argument) of the complex tensor as a float tensor.
+//     pub fn phase(self) -> Tensor<B, D> {
+//         Tensor::new(TensorPrimitive::Float(B::complex_arg(self.primitive)))
+//     }
 
-    /// Creates a complex tensor from real and imaginary parts.
-    pub fn from_parts(real: Tensor<B, D>, imag: Tensor<B, D>) -> Self {
-        Self::new(B::complex_from_parts(
-            real.primitive.tensor(),
-            imag.primitive.tensor(),
-        ))
-    }
+//     /// Creates a complex tensor from real and imaginary parts.
+//     pub fn from_parts(real: Tensor<B, D>, imag: Tensor<B, D>) -> Self {
+//         Self::new(B::complex_from_parts(
+//             real.primitive.tensor(),
+//             imag.primitive.tensor(),
+//         ))
+//     }
 
-    /// Creates a complex tensor from magnitude and phase (polar coordinates).
-    pub fn from_polar(magnitude: Tensor<B, D>, phase: Tensor<B, D>) -> Self {
-        Self::new(B::complex_from_polar(
-            magnitude.primitive.tensor(),
-            phase.primitive.tensor(),
-        ))
-    }
+//     /// Creates a complex tensor from magnitude and phase (polar coordinates).
+//     pub fn from_polar(magnitude: Tensor<B, D>, phase: Tensor<B, D>) -> Self {
+//         Self::new(B::complex_from_polar(
+//             magnitude.primitive.tensor(),
+//             phase.primitive.tensor(),
+//         ))
+//     }
 
-    /// Complex exponential function.
-    pub fn exp(self) -> Self {
-        Self::new(B::complex_exp(self.primitive))
-    }
+//     /// Complex exponential function.
+//     pub fn exp(self) -> Self {
+//         Self::new(B::complex_exp(self.primitive))
+//     }
 
-    /// Complex natural logarithm.
-    pub fn log(self) -> Self {
-        Self::new(B::complex_log(self.primitive))
-    }
+//     /// Complex natural logarithm.
+//     pub fn log(self) -> Self {
+//         Self::new(B::complex_log(self.primitive))
+//     }
 
-    /// Complex power function.
-    pub fn powc(self, rhs: Self) -> Self {
-        Self::new(B::complex_powc(self.primitive, rhs.primitive))
-    }
+//     /// Complex power function.
+//     pub fn powc(self, rhs: Self) -> Self {
+//         Self::new(B::complex_powc(self.primitive, rhs.primitive))
+//     }
 
-    /// Complex square root.
-    pub fn sqrt(self) -> Self {
-        Self::new(B::complex_sqrt(self.primitive))
-    }
+//     /// Complex square root.
+//     pub fn sqrt(self) -> Self {
+//         Self::new(B::complex_sqrt(self.primitive))
+//     }
 
-    /// Complex sine function.
-    pub fn sin(self) -> Self {
-        Self::new(B::complex_sin(self.primitive))
-    }
+//     /// Complex sine function.
+//     pub fn sin(self) -> Self {
+//         Self::new(B::complex_sin(self.primitive))
+//     }
 
-    /// Complex cosine function.
-    pub fn cos(self) -> Self {
-        Self::new(B::complex_cos(self.primitive))
-    }
+//     /// Complex cosine function.
+//     pub fn cos(self) -> Self {
+//         Self::new(B::complex_cos(self.primitive))
+//     }
 
-    /// Complex tangent function.
-    pub fn tan(self) -> Self {
-        Self::new(B::complex_tan(self.primitive))
+//     /// Complex tangent function.
+//     pub fn tan(self) -> Self {
+//         Self::new(B::complex_tan(self.primitive))
+//     }
+// }
+
+impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
+    type Primitive = B::ComplexTensorPrimitive;
+    fn name() -> &'static str {
+        "Complex"
     }
 }
