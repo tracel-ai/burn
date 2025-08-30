@@ -11,7 +11,7 @@ use burn_tensor::{
 use cubecl::{
     Feature, Runtime,
     client::ComputeClient,
-    ir::{Elem, IntKind},
+    ir::{ElemType, IntKind},
     server::{Allocation, AllocationDescriptor},
 };
 use cubecl_quant::scheme::QuantStore;
@@ -120,7 +120,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
 
     let data_size = match scheme.store {
         QuantStore::U32 => {
-            if shape_last % num_quants != 0 {
+            if !shape_last.is_multiple_of(num_quants) {
                 panic!("Can't store in u32, padding not yet implemented for quantization.");
             }
             shape_value.dims[rank - 1] = shape_last / num_quants;
@@ -391,7 +391,7 @@ fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
 fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
     client
         .properties()
-        .feature_enabled(Feature::Type(Elem::Int(IntKind::I8)))
+        .feature_enabled(Feature::Type(ElemType::Int(IntKind::I8).into()))
         && client
             .properties()
             .feature_enabled(Feature::DynamicLineSize)

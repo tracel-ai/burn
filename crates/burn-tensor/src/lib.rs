@@ -32,27 +32,27 @@ pub use cubecl::flex32;
 
 #[cfg(feature = "cubecl")]
 mod cube {
-    use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
+    use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
     use crate::quantization::{QuantStore, QuantValue};
 
-    impl From<crate::DType> for cubecl::ir::Elem {
+    impl From<crate::DType> for cubecl::ir::ElemType {
         fn from(dtype: crate::DType) -> Self {
             match dtype {
-                crate::DType::F64 => Elem::Float(FloatKind::F64),
-                crate::DType::F32 => Elem::Float(FloatKind::F32),
-                crate::DType::Flex32 => Elem::Float(FloatKind::Flex32),
-                crate::DType::F16 => Elem::Float(FloatKind::F16),
-                crate::DType::BF16 => Elem::Float(FloatKind::BF16),
-                crate::DType::I64 => Elem::Int(IntKind::I64),
-                crate::DType::I32 => Elem::Int(IntKind::I32),
-                crate::DType::I16 => Elem::Int(IntKind::I16),
-                crate::DType::I8 => Elem::Int(IntKind::I8),
-                crate::DType::U64 => Elem::UInt(UIntKind::U64),
-                crate::DType::U32 => Elem::UInt(UIntKind::U32),
-                crate::DType::U16 => Elem::UInt(UIntKind::U16),
-                crate::DType::U8 => Elem::UInt(UIntKind::U8),
-                crate::DType::Bool => Elem::Bool,
+                crate::DType::F64 => ElemType::Float(FloatKind::F64),
+                crate::DType::F32 => ElemType::Float(FloatKind::F32),
+                crate::DType::Flex32 => ElemType::Float(FloatKind::Flex32),
+                crate::DType::F16 => ElemType::Float(FloatKind::F16),
+                crate::DType::BF16 => ElemType::Float(FloatKind::BF16),
+                crate::DType::I64 => ElemType::Int(IntKind::I64),
+                crate::DType::I32 => ElemType::Int(IntKind::I32),
+                crate::DType::I16 => ElemType::Int(IntKind::I16),
+                crate::DType::I8 => ElemType::Int(IntKind::I8),
+                crate::DType::U64 => ElemType::UInt(UIntKind::U64),
+                crate::DType::U32 => ElemType::UInt(UIntKind::U32),
+                crate::DType::U16 => ElemType::UInt(UIntKind::U16),
+                crate::DType::U8 => ElemType::UInt(UIntKind::U8),
+                crate::DType::Bool => ElemType::Bool,
                 crate::DType::QFloat(scheme) => match scheme.store {
                     QuantStore::Native => match scheme.value {
                         QuantValue::Q8F | QuantValue::Q8S => Self::Int(IntKind::I8),
@@ -63,6 +63,13 @@ mod cube {
                     QuantStore::U32 => Self::UInt(UIntKind::U32),
                 },
             }
+        }
+    }
+
+    impl From<crate::DType> for cubecl::ir::StorageType {
+        fn from(dtype: crate::DType) -> cubecl::ir::StorageType {
+            let elem: ElemType = dtype.into();
+            elem.into()
         }
     }
 }
@@ -96,6 +103,18 @@ mod cube_cuda {
     impl DeviceOps for CudaDevice {
         fn id(&self) -> DeviceId {
             DeviceId::new(0, self.index as u32)
+        }
+    }
+}
+
+#[cfg(feature = "cubecl-cpu")]
+mod cube_cpu {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::cpu::CpuDevice;
+
+    impl DeviceOps for CpuDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, 0)
         }
     }
 }

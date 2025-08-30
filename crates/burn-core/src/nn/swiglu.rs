@@ -102,8 +102,9 @@ mod tests {
 
     #[test]
     fn test_swiglu_forward_no_bias() {
-        TestBackend::seed(0);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let config = SwiGluConfig::new(3, 3).with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
         let input =
@@ -120,8 +121,9 @@ mod tests {
 
     #[test]
     fn test_swiglu_forward_with_bias() {
-        TestBackend::seed(0);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let config = SwiGluConfig::new(3, 3)
             .with_bias(true)
             .with_initializer(Initializer::Constant { value: 0.5 });

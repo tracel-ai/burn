@@ -10,9 +10,10 @@ mod tests {
     #[test]
     #[serial]
     fn empirical_mean_close_to_expectation() {
-        TestBackend::seed(0);
-        let shape = [100, 100];
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
+        let shape = [100, 100];
         let mean = 10.;
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(mean, 2.), &device)

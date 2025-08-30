@@ -11,7 +11,7 @@ use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 
 /// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct RmsNormConfig {
     /// The size of the input features.
     pub d_model: usize,

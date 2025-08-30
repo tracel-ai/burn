@@ -140,7 +140,7 @@ impl FullHistoryPoints {
     }
 
     fn push(&mut self, (x, y): (f64, NumericEntry)) {
-        if x as usize % self.step_size != 0 {
+        if !(x as usize).is_multiple_of(self.step_size) {
             return;
         }
 

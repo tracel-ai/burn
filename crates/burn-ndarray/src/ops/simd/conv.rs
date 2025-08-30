@@ -62,7 +62,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 
     let (lanes, accelerated) = precheck::<E>(PhantomData);
 
-    if !accelerated || channels_per_group % lanes != 0 {
+    if !accelerated || !channels_per_group.is_multiple_of(lanes) {
         return Err((x, weight, bias));
     }
 

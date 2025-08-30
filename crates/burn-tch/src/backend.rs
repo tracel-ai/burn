@@ -113,7 +113,7 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type QuantizedTensorPrimitive = TchQTensor;
     type QuantizedEncoding = Q;
 
-    fn seed(seed: u64) {
+    fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }
 

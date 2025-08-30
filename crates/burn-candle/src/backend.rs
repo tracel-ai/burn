@@ -186,7 +186,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         .to_string()
     }
 
-    fn seed(seed: u64) {
+    fn seed(device: &CandleDevice, seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
     }

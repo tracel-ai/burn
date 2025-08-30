@@ -99,7 +99,7 @@ impl QuantizedBytes {
 
         let qparams = values.split_off(values_end);
 
-        let qparams = if qparams.as_ptr() as usize % 4 == 0 {
+        let qparams = if (qparams.as_ptr() as usize).is_multiple_of(4) {
             let mut qparams = core::mem::ManuallyDrop::new(qparams);
             unsafe {
                 Vec::<u32>::from_raw_parts(

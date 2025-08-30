@@ -113,7 +113,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
 
     let batch_offset = batch * input.stride(0);
 
-    let warp_id = plane_broadcast(unit_pos / 32, 0);
+    let warp_id = unit_pos / 32;
     let warp_id_x = warp_id % tiles_x;
 
     let tile_x = CUBE_POS_X * tiles_x + warp_id_x;
