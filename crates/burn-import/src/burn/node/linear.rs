@@ -133,7 +133,18 @@ mod tests {
             LinearConfig::new(128, 128),
         ));
 
+        graph.register(LinearNode::new(
+            "linear",
+            TensorType::new_float("input", 4),
+            TensorType::new_float("output", 4),
+            TensorData::from([2f32]),
+            None,
+            LinearConfig::new(128, 128),
+        ));
+
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
+        println!("graph: {:#?}", graph);
 
         let expected = quote! {
             use burn::prelude::*;
