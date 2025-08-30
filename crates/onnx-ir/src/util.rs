@@ -108,14 +108,21 @@ pub fn same_as_input(node: &mut Node) {
 pub fn same_as_input_broadcast(node: &mut Node) {
     log::debug!("Broadcasting operation for node {}", node.name);
 
-    // Check if any input is a Shape type
+    // Check input types for Shape handling
+    let has_tensor_input = node
+        .inputs
+        .iter()
+        .any(|input| matches!(&input.ty, ArgType::Tensor(_)));
+
     let has_shape_input = node
         .inputs
         .iter()
         .any(|input| matches!(&input.ty, ArgType::Shape(_)));
 
-    if has_shape_input {
-        // If any input is a Shape, find the first Shape input and use its rank for the output
+    // If we have both Tensor and Shape inputs, the output is a Tensor
+    // If we have only Shape inputs, the output is a Shape
+    if has_shape_input && !has_tensor_input {
+        // All inputs are Shapes (or Scalars), so output is a Shape
         let shape_rank = node
             .inputs
             .iter()
@@ -126,7 +133,7 @@ pub fn same_as_input_broadcast(node: &mut Node) {
             .expect("Shape input must exist");
 
         log::debug!(
-            "Shape input detected for node {}, output will be Shape with rank {}",
+            "All non-scalar inputs are Shapes for node {}, output will be Shape with rank {}",
             node.name,
             shape_rank
         );
@@ -137,7 +144,7 @@ pub fn same_as_input_broadcast(node: &mut Node) {
     let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
         ArgType::Tensor(tensor) => acc.max(tensor.rank),
         ArgType::Scalar(_) => acc,
-        ArgType::Shape(_) => unreachable!("Shape case handled above"),
+        ArgType::Shape(_) => acc.max(1), // Shape is always treated as rank 1 tensor when converted
     });
 
     log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
@@ -315,11 +322,14 @@ mod tests {
 
         same_as_input_broadcast(&mut node);
 
+        // When we have both Tensor and Shape inputs, output should be Tensor
+        // because Shape gets converted to Tensor for the operation
         match &node.outputs[0].ty {
-            ArgType::Shape(rank) => {
-                assert_eq!(*rank, 3);
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 3);
+                assert_eq!(tensor.elem_type, ElementType::Float32);
             }
-            _ => panic!("Expected shape output when one input is Shape"),
+            _ => panic!("Expected tensor output when mixing Tensor and Shape inputs"),
         }
     }
 

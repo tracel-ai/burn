@@ -614,10 +614,10 @@ impl Data {
     }
 
     pub fn into_bool(self) -> bool {
-        if let Data::Bool(elem) = self {
-            elem
-        } else {
-            panic!("Expected Bool, got {self:?}");
+        match self {
+            Data::Bool(elem) => elem,
+            Data::Bools(elem) if elem.len() == 1 => elem[0],
+            _ => panic!("Expected Bool, got {self:?}"),
         }
     }
 

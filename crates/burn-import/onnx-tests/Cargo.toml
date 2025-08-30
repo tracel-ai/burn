@@ -9,6 +9,8 @@ default = ["test-ndarray"]
 test-wgpu = ["burn/wgpu"]
 test-ndarray = ["burn/ndarray"]
 test-tch = ["burn/tch"]
+test-metal = ["burn/metal"]
+test-candle = ["burn/candle"]
 
 [dev-dependencies]
 burn = { path = "../../burn" }

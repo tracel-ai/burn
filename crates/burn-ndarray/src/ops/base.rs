@@ -327,6 +327,67 @@ macro_rules! dispatch_unary_simd {
     ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{ $lhs }};
 }
 
+// Helper function to broadcast two tensors to a common shape for comparison operations
+// Returns broadcasted views that can be safely zipped
+fn broadcast_for_comparison<'a, E: Copy, S1, S2>(
+    lhs: &'a ndarray::ArrayBase<S1, ndarray::IxDyn>,
+    rhs: &'a ndarray::ArrayBase<S2, ndarray::IxDyn>,
+) -> (
+    ndarray::ArrayView<'a, E, ndarray::IxDyn>,
+    ndarray::ArrayView<'a, E, ndarray::IxDyn>,
+)
+where
+    S1: ndarray::Data<Elem = E>,
+    S2: ndarray::Data<Elem = E>,
+{
+    // Get shapes
+    let lhs_shape = lhs.shape();
+    let rhs_shape = rhs.shape();
+
+    // Compute broadcast shape using ndarray's broadcast compatibility rules
+    let ndims = lhs_shape.len().max(rhs_shape.len());
+    let mut broadcast_shape = vec![1; ndims];
+
+    for i in 0..ndims {
+        let lhs_dim = if i < lhs_shape.len() {
+            lhs_shape[lhs_shape.len() - 1 - i]
+        } else {
+            1
+        };
+        let rhs_dim = if i < rhs_shape.len() {
+            rhs_shape[rhs_shape.len() - 1 - i]
+        } else {
+            1
+        };
+
+        if lhs_dim == rhs_dim {
+            broadcast_shape[ndims - 1 - i] = lhs_dim;
+        } else if lhs_dim == 1 {
+            broadcast_shape[ndims - 1 - i] = rhs_dim;
+        } else if rhs_dim == 1 {
+            broadcast_shape[ndims - 1 - i] = lhs_dim;
+        } else {
+            panic!(
+                "Incompatible shapes for broadcasting: {:?} and {:?}",
+                lhs_shape, rhs_shape
+            );
+        }
+    }
+
+    // Create IxDyn from broadcast shape
+    let broadcast_dim = ndarray::IxDyn(&broadcast_shape);
+
+    // Broadcast both arrays
+    let lhs_broadcast = lhs
+        .broadcast(broadcast_dim.clone())
+        .expect("Failed to broadcast lhs");
+    let rhs_broadcast = rhs
+        .broadcast(broadcast_dim)
+        .expect("Failed to broadcast rhs");
+
+    (lhs_broadcast, rhs_broadcast)
+}
+
 impl<E> NdArrayMathOps<E>
 where
     E: Copy + NdArrayElement,
@@ -836,11 +897,15 @@ where
             E, VecEquals, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
         );
 
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| lhs_val == rhs_val)
-            .into_shared();
-        NdArrayTensor::new(output)
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
+        NdArrayTensor::new(
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs == rhs)
+                .into_shared(),
+        )
     }
 
     pub(crate) fn equal_elem(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<bool> {
@@ -870,16 +935,13 @@ where
             E, VecGreater, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
         );
 
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
         NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs > rhs)
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs > rhs)
                 .into_shared(),
         )
     }
@@ -927,16 +989,13 @@ where
             f64
         );
 
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
         NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs >= rhs)
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs >= rhs)
                 .into_shared(),
         )
     }
@@ -968,16 +1027,13 @@ where
             E, VecLowerEq, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
         );
 
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
-
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
         NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs <= rhs)
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs <= rhs)
                 .into_shared(),
         )
     }
@@ -1009,16 +1065,14 @@ where
             E, VecLower, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
         );
 
-        let lhs = lhs
-            .array
-            .broadcast(rhs.array.dim())
-            .unwrap_or(lhs.array.view());
-        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
 
+        // Now we can safely zip and compare
         NdArrayTensor::new(
-            Zip::from(lhs)
-                .and(rhs)
-                .map_collect(|lhs, rhs| lhs < rhs)
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs < rhs)
                 .into_shared(),
         )
     }
@@ -1159,11 +1213,15 @@ impl NdArrayBoolOps {
             Err(args) => args,
         };
 
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| lhs_val == rhs_val)
-            .into_shared();
-        NdArrayTensor::new(output)
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
+        NdArrayTensor::new(
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs == rhs)
+                .into_shared(),
+        )
     }
 
     pub(crate) fn and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
@@ -1173,11 +1231,15 @@ impl NdArrayBoolOps {
             Err(args) => args,
         };
 
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| lhs_val && rhs_val)
-            .into_shared();
-        NdArrayTensor::new(output)
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
+        NdArrayTensor::new(
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs && rhs)
+                .into_shared(),
+        )
     }
 
     pub(crate) fn or(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
@@ -1187,11 +1249,15 @@ impl NdArrayBoolOps {
             Err(args) => args,
         };
 
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| lhs_val || rhs_val)
-            .into_shared();
-        NdArrayTensor::new(output)
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs.array, &rhs.array);
+        // Now we can safely zip and compare
+        NdArrayTensor::new(
+            Zip::from(&lhs_broadcast)
+                .and(&rhs_broadcast)
+                .map_collect(|&lhs, &rhs| lhs || rhs)
+                .into_shared(),
+        )
     }
 }
 

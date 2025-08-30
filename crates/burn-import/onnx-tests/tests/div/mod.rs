@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(div, div_shape, div_broadcast);
+include_models!(div, div_shape, div_broadcast, div_shape_tensor);
 
 #[cfg(test)]
 mod tests {

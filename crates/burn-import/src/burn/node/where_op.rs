@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarType, ShapeType, ToTokens, Type};
+use crate::burn::{ScalarType, ShapeType, Type};
 
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -142,8 +142,12 @@ impl WhereNode {
             _ => panic!("Where op: {input:?} input not implemented"),
         };
         if rank < broadcast_rank {
-            let broadcast_rank_tokens = broadcast_rank.to_tokens();
-            quote! { #tensor.unsqueeze::<#broadcast_rank_tokens>()}
+            // Generate unsqueeze_dims to add trailing dimensions for broadcasting
+            // Create a vector of dimension indices to unsqueeze at the end
+            let dims_to_unsqueeze: Vec<isize> =
+                (rank..broadcast_rank).map(|d| d as isize).collect();
+            let dims = quote! { &[#(#dims_to_unsqueeze),*] };
+            quote! { #tensor.unsqueeze_dims(#dims) }
         } else {
             tensor
         }
@@ -263,8 +267,8 @@ mod tests {
                     tensor3: Tensor<B, 3>
                 ) -> Tensor<B, 4> {
                     let tensor4 = tensor3
-                        .unsqueeze::<4>()
-                        .mask_where(tensor1, tensor2.unsqueeze::<4>());
+                        .unsqueeze_dims(&[3isize])
+                        .mask_where(tensor1, tensor2.unsqueeze_dims(&[2isize, 3isize]));
 
                     tensor4
                 }

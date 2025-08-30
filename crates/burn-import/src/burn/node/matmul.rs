@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorKind, TensorType, ToTokens, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -45,37 +45,59 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
         // Support broadcasting for missing dimensions
         match lhs_dim.cmp(&rhs_dim) {
             Ordering::Greater => {
-                // Alternate unsqueeze(0) -> unsqueeze(-1) -> unsqueeze(0) -> ...
-                let axes = (0..lhs_dim - rhs_dim)
-                    .map(|i| if i % 2 == 0 { 0 } else { -1 })
-                    .collect::<Vec<i64>>();
-                let axes = axes.to_tokens();
+                let num_unsqueezes = lhs_dim - rhs_dim;
 
                 if rhs_dim == 1 {
-                    // Matrix-vector product: squeeze(-1)
+                    // Matrix-vector product: expand vector to match matrix rank
                     let squeeze_dim = lhs_dim - 1;
+                    let output_rank = self.output.rank;
+
+                    // Build unsqueeze dimensions: [-1, 0, 0, ...]
+                    let mut unsqueeze_dims = vec![-1isize];
+                    if num_unsqueezes > 1 {
+                        unsqueeze_dims.extend(std::iter::repeat_n(0isize, num_unsqueezes - 1));
+                    }
+
                     quote! {
-                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&#axes)).squeeze(#squeeze_dim);
+                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze::<#output_rank>(#squeeze_dim);
                     }
                 } else {
+                    // General tensor broadcasting: add leading dimensions
+                    let mut rhs_expanded = rhs;
+                    for i in 0..num_unsqueezes {
+                        let current_rank = rhs_dim + i + 1;
+                        rhs_expanded = quote! { #rhs_expanded.unsqueeze::<#current_rank>() };
+                    }
+
                     quote! {
-                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&#axes));
+                        let #output = #lhs.matmul(#rhs_expanded);
                     }
                 }
             }
             Ordering::Less => {
-                // Always unsqueeze(0)
-                let axes = [0i64].repeat(rhs_dim - lhs_dim).to_tokens();
+                let num_unsqueezes = rhs_dim - lhs_dim;
 
                 if lhs_dim == 1 {
-                    // Vector-matrix product: squeeze(-2)
+                    // Vector-matrix product: expand vector to match matrix rank
                     let squeeze_dim = rhs_dim - 2;
+                    let output_rank = self.output.rank;
+
+                    // Build unsqueeze dimensions: [0, 1, 2, ...]
+                    let unsqueeze_dims: Vec<_> = (0..num_unsqueezes as isize).collect();
+
                     quote! {
-                        let #output = #lhs.unsqueeze_dims(&#axes).matmul(#rhs).squeeze(#squeeze_dim);
+                        let #output = #lhs.unsqueeze_dims(&[#(#unsqueeze_dims),*]).matmul(#rhs).squeeze::<#output_rank>(#squeeze_dim);
                     }
                 } else {
+                    // General tensor broadcasting: add leading dimensions
+                    let mut lhs_expanded = lhs;
+                    for i in 0..num_unsqueezes {
+                        let current_rank = lhs_dim + i + 1;
+                        lhs_expanded = quote! { #lhs_expanded.unsqueeze::<#current_rank>() };
+                    }
+
                     quote! {
-                        let #output = #lhs.unsqueeze_dims(&#axes).matmul(#rhs);
+                        let #output = #lhs_expanded.matmul(#rhs);
                     }
                 }
             }
@@ -190,7 +212,7 @@ mod tests {
                     tensor1: Tensor<B, 4>,
                     tensor2: Tensor<B, 1>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[0, -1, 0])).squeeze(3usize);
+                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[-1isize, 0isize, 0isize])).squeeze::<3usize>(3usize);
 
                     tensor3
                 }
@@ -239,7 +261,7 @@ mod tests {
                     tensor1: Tensor<B, 1>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze_dims(&[0, 0, 0]).matmul(tensor2).squeeze(2usize);
+                    let tensor3 = tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).matmul(tensor2).squeeze::<3usize>(2usize);
 
                     tensor3
                 }

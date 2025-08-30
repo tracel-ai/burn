@@ -1,6 +1,13 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(add, add_int, add_shape, add_broadcast);
+include_models!(
+    add,
+    add_int,
+    add_shape,
+    add_broadcast,
+    add_shape_tensor,
+    add_argmax_with_shape
+);
 
 #[cfg(test)]
 mod tests {

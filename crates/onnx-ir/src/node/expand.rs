@@ -33,6 +33,12 @@ pub fn expand_update_outputs(node: &mut Node) {
         panic!("Expand operation requires exactly two inputs");
     };
 
+    // Get input element type - Expand should preserve the input's element type
+    let input_elem_type = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("Expand operation requires first input to be a tensor"),
+    };
+
     let output = match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => tensor.clone(),
         _ => panic!("Expand operation encountered invalid output types"),
@@ -40,9 +46,9 @@ pub fn expand_update_outputs(node: &mut Node) {
 
     if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: input_elem_type.clone(),
             rank: shape.len(),
             static_shape: Some(shape.into_iter().map(|dim| dim as usize).collect()),
-            ..output
         });
     } else {
         // When the shape cannot be determined statically (i.e., the second argument 'shape' is passed dynamically),
@@ -104,9 +110,9 @@ pub fn expand_update_outputs(node: &mut Node) {
         };
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: input_elem_type,
             rank: output_rank,
             static_shape: None, // The exact shape cannot be determined statically
-            ..output
         });
     }
 }
@@ -360,6 +366,127 @@ mod tests {
                 assert_eq!(tensor.elem_type, ElementType::Float32);
                 assert_eq!(tensor.rank, 3);
                 assert_eq!(tensor.static_shape, Some(vec![5, 10, 15]));
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_expand_preserves_input_element_type() {
+        // Test that Expand preserves the input element type for different types
+
+        // Test Float32 -> Float32
+        {
+            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+                .input_tensor_f32("input", 2, None)
+                .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
+                .output_tensor_f32("output", 0, None)
+                .build();
+
+            // Initially set output to wrong type
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64, // Wrong type
+                rank: 0,
+                static_shape: None,
+            });
+
+            expand_update_outputs(&mut node);
+
+            match &node.outputs[0].ty {
+                ArgType::Tensor(tensor) => {
+                    assert_eq!(
+                        tensor.elem_type,
+                        ElementType::Float32,
+                        "Expand should preserve Float32 input type"
+                    );
+                    assert_eq!(tensor.rank, 3);
+                }
+                _ => panic!("Expected tensor output"),
+            }
+        }
+
+        // Test Int64 -> Int64
+        {
+            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+                .input_tensor_i64("input", 2, None)
+                .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
+                .output_tensor_i64("output", 0, None)
+                .build();
+
+            // Initially set output to wrong type
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32, // Wrong type
+                rank: 0,
+                static_shape: None,
+            });
+
+            expand_update_outputs(&mut node);
+
+            match &node.outputs[0].ty {
+                ArgType::Tensor(tensor) => {
+                    assert_eq!(
+                        tensor.elem_type,
+                        ElementType::Int64,
+                        "Expand should preserve Int64 input type"
+                    );
+                    assert_eq!(tensor.rank, 3);
+                }
+                _ => panic!("Expected tensor output"),
+            }
+        }
+
+        // Test Bool -> Bool
+        {
+            let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+                .input_tensor_bool("input", 2, None)
+                .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
+                .output_tensor_bool("output", 0, None)
+                .build();
+
+            // Initially set output to wrong type
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Float32, // Wrong type
+                rank: 0,
+                static_shape: None,
+            });
+
+            expand_update_outputs(&mut node);
+
+            match &node.outputs[0].ty {
+                ArgType::Tensor(tensor) => {
+                    assert_eq!(
+                        tensor.elem_type,
+                        ElementType::Bool,
+                        "Expand should preserve Bool input type"
+                    );
+                    assert_eq!(tensor.rank, 3);
+                }
+                _ => panic!("Expected tensor output"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_expand_with_mismatched_output_type() {
+        // Test that Expand corrects output type even when initially set incorrectly
+        // This simulates the case where ONNX might have wrong type info
+        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_tensor_i64("input", 2, None) // Input is Int64
+            .input_tensor_i64_data("shape", vec![2, 3], vec![2])
+            .output_tensor_f32("output", 0, None) // Output incorrectly set to Float32
+            .build();
+
+        expand_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(
+                    tensor.elem_type,
+                    ElementType::Int64,
+                    "Expand should use input type (Int64) not initial output type (Float32)"
+                );
+                assert_eq!(tensor.rank, 2);
+                assert_eq!(tensor.static_shape, Some(vec![2, 3]));
             }
             _ => panic!("Expected tensor output"),
         }
