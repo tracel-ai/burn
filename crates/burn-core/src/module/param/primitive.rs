@@ -101,7 +101,7 @@ where
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
-            let index_str = i.to_string();
+            let index_str = alloc::format!("{}", i);
             visitor.enter_module(&index_str);
             module.visit(visitor);
             visitor.exit_module(&index_str);
@@ -203,7 +203,7 @@ where
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
-            let index_str = i.to_string();
+            let index_str = alloc::format!("{}", i);
             visitor.enter_module(&index_str);
             module.visit(visitor);
             visitor.exit_module(&index_str);

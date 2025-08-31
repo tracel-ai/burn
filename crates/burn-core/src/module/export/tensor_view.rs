@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
 /// A lightweight view of a tensor that can lazily produce TensorData.

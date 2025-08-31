@@ -1,3 +1,4 @@
+use alloc::string::String;
 use hashbrown::HashMap;
 
 use super::{TensorView, TensorViewCollector};
