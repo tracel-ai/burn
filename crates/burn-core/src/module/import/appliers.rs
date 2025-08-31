@@ -151,8 +151,6 @@ pub struct TensorApplier<B: Backend> {
     views: HashMap<String, TensorView>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
-    /// Device to create tensors on
-    device: B::Device,
     /// Regex filters for selective import
     #[cfg(target_has_atomic = "ptr")]
     filters: Option<Vec<Regex>>,
@@ -166,15 +164,16 @@ pub struct TensorApplier<B: Backend> {
     errors: Vec<String>,
     /// Track visited paths to find missing tensors
     visited_paths: Vec<String>,
+    /// Phantom data for backend type
+    _backend: core::marker::PhantomData<B>,
 }
 
 impl<B: Backend> TensorApplier<B> {
     /// Create a new tensor applier with all views
-    pub fn new(views: HashMap<String, TensorView>, device: B::Device) -> Self {
+    pub fn new(views: HashMap<String, TensorView>) -> Self {
         Self {
             views,
             path_stack: Vec::new(),
-            device,
             #[cfg(target_has_atomic = "ptr")]
             filters: None,
             predicate: None,
@@ -182,6 +181,7 @@ impl<B: Backend> TensorApplier<B> {
             skipped: Vec::new(),
             errors: Vec::new(),
             visited_paths: Vec::new(),
+            _backend: core::marker::PhantomData,
         }
     }
 
@@ -189,7 +189,6 @@ impl<B: Backend> TensorApplier<B> {
     #[cfg(target_has_atomic = "ptr")]
     pub fn with_filter<I, S>(
         views: HashMap<String, TensorView>,
-        device: B::Device,
         patterns: I,
     ) -> Result<Self, ImportError>
     where
@@ -204,29 +203,24 @@ impl<B: Backend> TensorApplier<B> {
         Ok(Self {
             views,
             path_stack: Vec::new(),
-            device,
             filters: Some(filters),
             predicate: None,
             applied: Vec::new(),
             skipped: Vec::new(),
             errors: Vec::new(),
             visited_paths: Vec::new(),
+            _backend: core::marker::PhantomData,
         })
     }
 
     /// Create a new tensor applier with a custom predicate
-    pub fn with_predicate<F>(
-        views: HashMap<String, TensorView>,
-        device: B::Device,
-        predicate: F,
-    ) -> Self
+    pub fn with_predicate<F>(views: HashMap<String, TensorView>, predicate: F) -> Self
     where
         F: Fn(&str) -> bool + 'static,
     {
         Self {
             views,
             path_stack: Vec::new(),
-            device,
             #[cfg(target_has_atomic = "ptr")]
             filters: None,
             predicate: Some(Box::new(predicate)),
@@ -234,6 +228,7 @@ impl<B: Backend> TensorApplier<B> {
             skipped: Vec::new(),
             errors: Vec::new(),
             visited_paths: Vec::new(),
+            _backend: core::marker::PhantomData,
         }
     }
 
@@ -330,8 +325,9 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
                 return tensor;
             }
 
-            // Apply the tensor
-            let new_tensor = Tensor::from_data(data.convert::<B::FloatElem>(), &self.device);
+            // Apply the tensor using the device from the existing tensor
+            let device = tensor.device();
+            let new_tensor = Tensor::from_data(data.convert::<B::FloatElem>(), &device);
             self.applied.push(path);
             new_tensor
         } else {
@@ -369,8 +365,9 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
                 return tensor;
             }
 
-            // Apply the tensor
-            let new_tensor = Tensor::from_data(data.convert::<B::IntElem>(), &self.device);
+            // Apply the tensor using the device from the existing tensor
+            let device = tensor.device();
+            let new_tensor = Tensor::from_data(data.convert::<B::IntElem>(), &device);
             self.applied.push(path);
             new_tensor
         } else {
@@ -408,8 +405,9 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
                 return tensor;
             }
 
-            // Apply the tensor
-            let new_tensor = Tensor::from_data(data.convert::<bool>(), &self.device);
+            // Apply the tensor using the device from the existing tensor
+            let device = tensor.device();
+            let new_tensor = Tensor::from_data(data.convert::<bool>(), &device);
             self.applied.push(path);
             new_tensor
         } else {
