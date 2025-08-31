@@ -231,4 +231,133 @@ mod tests {
         let bias_data = bias_view.to_data();
         assert_eq!(bias_data.shape, vec![20]);
     }
+
+    // Deep nesting test (5 levels deep)
+    #[derive(Module, Debug)]
+    struct DeepNestedModule<B: Backend> {
+        level1: Level1<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level1<B: Backend> {
+        level2_a: Level2<B>,
+        level2_b: Level2<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level2<B: Backend> {
+        level3: Level3<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level3<B: Backend> {
+        level4_main: Level4<B>,
+        level4_aux: Level4<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level4<B: Backend> {
+        conv: Param<Tensor<B, 4>>,
+        norm: Param<Tensor<B, 1>>,
+    }
+
+    impl<B: Backend> DeepNestedModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                level1: Level1::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level1<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                level2_a: Level2::new(device),
+                level2_b: Level2::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level2<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                level3: Level3::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level3<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                level4_main: Level4::new(device),
+                level4_aux: Level4::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level4<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                conv: Param::from_data([[[[1.0]]]], device),
+                norm: Param::from_data([0.5], device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_deep_nested_export() {
+        let device = Default::default();
+        let model = DeepNestedModule::<TestBackend>::new(&device);
+
+        // Test exporting all tensors from deeply nested structure
+        let all_views = model.export_tensor_views();
+
+        // Should have 8 tensors total (2 tensors × 2 level4 modules × 2 level2 branches)
+        assert_eq!(all_views.len(), 8);
+
+        // Verify deep paths exist
+        assert!(all_views.contains_key("level1.level2_a.level3.level4_main.conv"));
+        assert!(all_views.contains_key("level1.level2_a.level3.level4_main.norm"));
+        assert!(all_views.contains_key("level1.level2_a.level3.level4_aux.conv"));
+        assert!(all_views.contains_key("level1.level2_a.level3.level4_aux.norm"));
+        assert!(all_views.contains_key("level1.level2_b.level3.level4_main.conv"));
+        assert!(all_views.contains_key("level1.level2_b.level3.level4_main.norm"));
+        assert!(all_views.contains_key("level1.level2_b.level3.level4_aux.conv"));
+        assert!(all_views.contains_key("level1.level2_b.level3.level4_aux.norm"));
+    }
+
+    #[test]
+    fn test_deep_nested_filtered_export() {
+        let device = Default::default();
+        let model = DeepNestedModule::<TestBackend>::new(&device);
+
+        // Filter only level2_a branch
+        let level2_a_views = model
+            .export_tensor_views_filtered(&[r"^level1\.level2_a\..*"])
+            .unwrap();
+        assert_eq!(level2_a_views.len(), 4);
+
+        // Filter only main modules at any depth
+        let main_views = model
+            .export_tensor_views_filtered(&[r".*\.level4_main\..*"])
+            .unwrap();
+        assert_eq!(main_views.len(), 4);
+
+        // Filter only conv tensors
+        let conv_views = model.export_tensor_views_filtered(&[r".*\.conv$"]).unwrap();
+        assert_eq!(conv_views.len(), 4);
+
+        // Complex multi-pattern filter
+        let complex_views = model
+            .export_tensor_views_filtered(&[
+                r"^level1\.level2_a\..*\.norm$", // All norms in level2_a
+                r"^level1\.level2_b\..*\.conv$", // All convs in level2_b
+            ])
+            .unwrap();
+        assert_eq!(complex_views.len(), 4);
+        assert!(complex_views.contains_key("level1.level2_a.level3.level4_main.norm"));
+        assert!(complex_views.contains_key("level1.level2_a.level3.level4_aux.norm"));
+        assert!(complex_views.contains_key("level1.level2_b.level3.level4_main.conv"));
+        assert!(complex_views.contains_key("level1.level2_b.level3.level4_aux.conv"));
+    }
 }

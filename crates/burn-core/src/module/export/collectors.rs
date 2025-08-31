@@ -392,4 +392,177 @@ mod tests {
         assert_eq!(paths.get("weight").unwrap().1, vec![10, 20]);
         assert_eq!(paths.get("bias").unwrap().1, vec![20]);
     }
+
+    // Deep nesting test structures (4+ levels)
+    #[derive(Module, Debug)]
+    struct Level4Module<B: Backend> {
+        weight: Param<Tensor<B, 2>>,
+        bias: Param<Tensor<B, 1>>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level3Module<B: Backend> {
+        layer: Level4Module<B>,
+        extra: Level4Module<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level2Module<B: Backend> {
+        block1: Level3Module<B>,
+        block2: Level3Module<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Level1Module<B: Backend> {
+        encoder: Level2Module<B>,
+        decoder: Level2Module<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct DeepModel<B: Backend> {
+        backbone: Level1Module<B>,
+        head: Level4Module<B>,
+    }
+
+    impl<B: Backend> Level4Module<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                bias: Param::from_data([5.0, 6.0], device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level3Module<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layer: Level4Module::new(device),
+                extra: Level4Module::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level2Module<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                block1: Level3Module::new(device),
+                block2: Level3Module::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> Level1Module<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                encoder: Level2Module::new(device),
+                decoder: Level2Module::new(device),
+            }
+        }
+    }
+
+    impl<B: Backend> DeepModel<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                backbone: Level1Module::new(device),
+                head: Level4Module::new(device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_deep_module_path_tracking() {
+        let device = Default::default();
+        let model = DeepModel::<TestBackend>::new(&device);
+
+        let mut collector = TensorViewCollector::new();
+        model.visit(&mut collector);
+
+        let paths = collector.tensors;
+
+        // Test 5-level deep paths
+        assert!(paths.contains_key("backbone.encoder.block1.layer.weight"));
+        assert!(paths.contains_key("backbone.encoder.block1.layer.bias"));
+        assert!(paths.contains_key("backbone.encoder.block1.extra.weight"));
+        assert!(paths.contains_key("backbone.encoder.block1.extra.bias"));
+
+        assert!(paths.contains_key("backbone.encoder.block2.layer.weight"));
+        assert!(paths.contains_key("backbone.encoder.block2.layer.bias"));
+        assert!(paths.contains_key("backbone.encoder.block2.extra.weight"));
+        assert!(paths.contains_key("backbone.encoder.block2.extra.bias"));
+
+        assert!(paths.contains_key("backbone.decoder.block1.layer.weight"));
+        assert!(paths.contains_key("backbone.decoder.block1.layer.bias"));
+        assert!(paths.contains_key("backbone.decoder.block1.extra.weight"));
+        assert!(paths.contains_key("backbone.decoder.block1.extra.bias"));
+
+        assert!(paths.contains_key("backbone.decoder.block2.layer.weight"));
+        assert!(paths.contains_key("backbone.decoder.block2.layer.bias"));
+        assert!(paths.contains_key("backbone.decoder.block2.extra.weight"));
+        assert!(paths.contains_key("backbone.decoder.block2.extra.bias"));
+
+        // Test 2-level paths
+        assert!(paths.contains_key("head.weight"));
+        assert!(paths.contains_key("head.bias"));
+
+        // Total should be 18 tensors (16 from backbone + 2 from head)
+        assert_eq!(paths.len(), 18);
+
+        // Verify data can be materialized
+        let view = paths.get("backbone.encoder.block1.layer.weight").unwrap();
+        let data = view.to_data();
+        assert_eq!(data.shape, vec![2, 2]);
+    }
+
+    #[test]
+    fn test_deep_module_filtered_export() {
+        let device = Default::default();
+        let model = DeepModel::<TestBackend>::new(&device);
+
+        // Test filtering at different depths
+        let encoder_only = TensorViewCollector::with_filter(&[r"^backbone\.encoder\..*"]).unwrap();
+        let mut collector = encoder_only;
+        model.visit(&mut collector);
+        assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
+
+        // Test filtering specific blocks
+        let block1_only = TensorViewCollector::with_filter(&[r".*\.block1\..*"]).unwrap();
+        let mut collector = block1_only;
+        model.visit(&mut collector);
+        assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
+
+        // Test filtering by tensor type at any depth
+        let weights_only = TensorViewCollector::with_filter(&[r".*\.weight$"]).unwrap();
+        let mut collector = weights_only;
+        model.visit(&mut collector);
+        assert_eq!(collector.tensors.len(), 9); // All weight tensors
+
+        // Test complex multi-pattern filtering
+        let complex_filter = TensorViewCollector::with_filter(&[
+            r"^backbone\.encoder\.block1\..*", // All encoder.block1 tensors
+            r"^backbone\.decoder\..*\.bias$",  // All decoder biases
+            r"^head\.weight$",                 // Head weight only
+        ])
+        .unwrap();
+        let mut collector = complex_filter;
+        model.visit(&mut collector);
+
+        // Should have:
+        // - 4 from encoder.block1 (2 weights + 2 biases)
+        // - 4 decoder biases
+        // - 1 head weight
+        assert_eq!(collector.tensors.len(), 9);
+
+        assert!(
+            collector
+                .tensors
+                .contains_key("backbone.encoder.block1.layer.weight")
+        );
+        assert!(
+            collector
+                .tensors
+                .contains_key("backbone.decoder.block1.layer.bias")
+        );
+        assert!(collector.tensors.contains_key("head.weight"));
+        assert!(!collector.tensors.contains_key("head.bias")); // Not included
+    }
 }
