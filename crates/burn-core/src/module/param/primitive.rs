@@ -109,7 +109,16 @@ where
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        self.into_iter().map(|module| module.map(mapper)).collect()
+        self.into_iter()
+            .enumerate()
+            .map(|(i, module)| {
+                let index_str = alloc::format!("{}", i);
+                mapper.enter_module(&index_str);
+                let mapped = module.map(mapper);
+                mapper.exit_module(&index_str);
+                mapped
+            })
+            .collect()
     }
 
     fn into_record(self) -> Self::Record {
@@ -211,7 +220,17 @@ where
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        self.map(|module| module.map(mapper))
+        let mut result = Vec::with_capacity(N);
+        for (i, module) in IntoIterator::into_iter(self).enumerate() {
+            let index_str = alloc::format!("{}", i);
+            mapper.enter_module(&index_str);
+            let mapped = module.map(mapper);
+            mapper.exit_module(&index_str);
+            result.push(mapped);
+        }
+        result
+            .try_into()
+            .unwrap_or_else(|v: Vec<T>| panic!("Expected array of length {}, got {}", N, v.len()))
     }
 
     fn load_record(self, record: Self::Record) -> Self {

@@ -67,14 +67,20 @@ pub enum ReaderError {
     InvalidFormat(String),
     /// Shape mismatch
     ShapeMismatch {
+        /// Path of the tensor
         path: String,
+        /// Expected shape
         expected: Vec<usize>,
+        /// Found shape
         found: Vec<usize>,
     },
     /// Type mismatch
     TypeMismatch {
+        /// Path of the tensor
         path: String,
+        /// Expected data type
         expected: DType,
+        /// Found data type
         found: DType,
     },
     /// Generic error with message
