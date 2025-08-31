@@ -100,9 +100,12 @@ where
     }
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        self.iter().for_each(|module| {
+        for (i, module) in self.iter().enumerate() {
+            let index_str = i.to_string();
+            visitor.enter_module(&index_str);
             module.visit(visitor);
-        });
+            visitor.exit_module(&index_str);
+        }
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
@@ -199,9 +202,12 @@ where
     }
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        self.iter().for_each(|module| {
+        for (i, module) in self.iter().enumerate() {
+            let index_str = i.to_string();
+            visitor.enter_module(&index_str);
             module.visit(visitor);
-        });
+            visitor.exit_module(&index_str);
+        }
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {

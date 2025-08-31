@@ -127,7 +127,7 @@ mod tests {
     use crate::{
         TestBackend,
         module::{Module, Param},
-        nn::LinearConfig,
+        nn::{self, LinearConfig},
     };
     use burn_tensor::Tensor;
 
@@ -359,5 +359,338 @@ mod tests {
         assert!(complex_views.contains_key("level1.level2_a.level3.level4_aux.norm"));
         assert!(complex_views.contains_key("level1.level2_b.level3.level4_main.conv"));
         assert!(complex_views.contains_key("level1.level2_b.level3.level4_aux.conv"));
+    }
+
+    // Custom layer for testing various module configurations
+    #[derive(Module, Debug)]
+    struct CustomLayer<B: Backend> {
+        weight: Param<Tensor<B, 2>>,
+        scale: Param<Tensor<B, 1>>,
+    }
+
+    impl<B: Backend> CustomLayer<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                weight: Param::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], device),
+                scale: Param::from_data([0.1, 0.2, 0.3], device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_custom_layer_export() {
+        let device = Default::default();
+        let custom = CustomLayer::<TestBackend>::new(&device);
+
+        let views = custom.export_tensor_views();
+
+        assert_eq!(views.len(), 2);
+        assert!(views.contains_key("weight"));
+        assert!(views.contains_key("scale"));
+
+        // Verify tensor shapes
+        let weight_data = views.get("weight").unwrap().to_data();
+        assert_eq!(weight_data.shape, vec![2, 3]);
+
+        let scale_data = views.get("scale").unwrap().to_data();
+        assert_eq!(scale_data.shape, vec![3]);
+    }
+
+    #[test]
+    fn test_composite_module_export() {
+        let device = Default::default();
+
+        // Create a composite module with multiple custom layers
+        #[derive(Module, Debug)]
+        struct CompositeModule<B: Backend> {
+            layer1: CustomLayer<B>,
+            layer2: CustomLayer<B>,
+        }
+
+        impl<B: Backend> CompositeModule<B> {
+            fn new(device: &B::Device) -> Self {
+                Self {
+                    layer1: CustomLayer::new(device),
+                    layer2: CustomLayer::new(device),
+                }
+            }
+        }
+
+        let composite = CompositeModule::<TestBackend>::new(&device);
+        let views = composite.export_tensor_views();
+
+        assert_eq!(views.len(), 4);
+        assert!(views.contains_key("layer1.weight"));
+        assert!(views.contains_key("layer1.scale"));
+        assert!(views.contains_key("layer2.weight"));
+        assert!(views.contains_key("layer2.scale"));
+
+        // Test filtering
+        let weight_only = composite
+            .export_tensor_views_filtered(&[r".*\.weight$"])
+            .unwrap();
+        assert_eq!(weight_only.len(), 2);
+        assert!(weight_only.contains_key("layer1.weight"));
+        assert!(weight_only.contains_key("layer2.weight"));
+    }
+
+    // Test module with Option fields
+    #[derive(Module, Debug)]
+    struct OptionalFieldModule<B: Backend> {
+        required: Param<Tensor<B, 2>>,
+        optional: Option<Param<Tensor<B, 1>>>,
+    }
+
+    impl<B: Backend> OptionalFieldModule<B> {
+        fn new_with_optional(device: &B::Device) -> Self {
+            Self {
+                required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                optional: Some(Param::from_data([5.0, 6.0], device)),
+            }
+        }
+
+        fn new_without_optional(device: &B::Device) -> Self {
+            Self {
+                required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                optional: None,
+            }
+        }
+    }
+
+    #[test]
+    fn test_optional_field_module_with_value() {
+        let device = Default::default();
+        let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
+
+        let views = module.export_tensor_views();
+
+        assert_eq!(views.len(), 2);
+        assert!(views.contains_key("required"));
+        assert!(views.contains_key("optional"));
+    }
+
+    #[test]
+    fn test_optional_field_module_without_value() {
+        let device = Default::default();
+        let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
+
+        let views = module.export_tensor_views();
+
+        assert_eq!(views.len(), 1);
+        assert!(views.contains_key("required"));
+        assert!(!views.contains_key("optional"));
+    }
+
+    // Test Vec of modules
+    #[derive(Module, Debug)]
+    struct VecModule<B: Backend> {
+        layers: Vec<CustomLayer<B>>,
+    }
+
+    impl<B: Backend> VecModule<B> {
+        fn new(device: &B::Device, num_layers: usize) -> Self {
+            Self {
+                layers: (0..num_layers).map(|_| CustomLayer::new(device)).collect(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_vec_module_export() {
+        let device = Default::default();
+        let module = VecModule::<TestBackend>::new(&device, 3);
+
+        let views = module.export_tensor_views();
+
+        // With the fix, all Vec items should now be properly indexed and visited
+        assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
+
+        // Check that all indexed paths exist
+        assert!(views.contains_key("layers.0.weight"));
+        assert!(views.contains_key("layers.0.scale"));
+        assert!(views.contains_key("layers.1.weight"));
+        assert!(views.contains_key("layers.1.scale"));
+        assert!(views.contains_key("layers.2.weight"));
+        assert!(views.contains_key("layers.2.scale"));
+
+        // Verify the data from all tensors
+        for i in 0..3 {
+            let weight_path = format!("layers.{}.weight", i);
+            let scale_path = format!("layers.{}.scale", i);
+
+            let weight_data = views.get(&weight_path).unwrap().to_data();
+            assert_eq!(weight_data.shape, vec![2, 3]);
+
+            let scale_data = views.get(&scale_path).unwrap().to_data();
+            assert_eq!(scale_data.shape, vec![3]);
+        }
+
+        // Test filtering for specific layer
+        let layer1_only = module
+            .export_tensor_views_filtered(&[r"^layers\.1\..*"])
+            .unwrap();
+        assert_eq!(layer1_only.len(), 2);
+        assert!(layer1_only.contains_key("layers.1.weight"));
+        assert!(layer1_only.contains_key("layers.1.scale"));
+
+        // Test filtering for all weights
+        let weights_only = module
+            .export_tensor_views_filtered(&[r".*\.weight$"])
+            .unwrap();
+        assert_eq!(weights_only.len(), 3);
+        assert!(weights_only.contains_key("layers.0.weight"));
+        assert!(weights_only.contains_key("layers.1.weight"));
+        assert!(weights_only.contains_key("layers.2.weight"));
+    }
+
+    // Test array of modules
+    #[derive(Module, Debug)]
+    struct ArrayModule<B: Backend> {
+        layers: [CustomLayer<B>; 3],
+    }
+
+    impl<B: Backend> ArrayModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layers: [
+                    CustomLayer::new(device),
+                    CustomLayer::new(device),
+                    CustomLayer::new(device),
+                ],
+            }
+        }
+    }
+
+    #[test]
+    fn test_array_module_export() {
+        let device = Default::default();
+        let module = ArrayModule::<TestBackend>::new(&device);
+
+        let views = module.export_tensor_views();
+
+        // All array items should be properly indexed
+        assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
+
+        // Check indexed paths
+        for i in 0..3 {
+            assert!(views.contains_key(&format!("layers.{}.weight", i)));
+            assert!(views.contains_key(&format!("layers.{}.scale", i)));
+        }
+
+        // Test filtering for specific index
+        let layer2_only = module
+            .export_tensor_views_filtered(&[r"^layers\.2\..*"])
+            .unwrap();
+        assert_eq!(layer2_only.len(), 2);
+        assert!(layer2_only.contains_key("layers.2.weight"));
+        assert!(layer2_only.contains_key("layers.2.scale"));
+    }
+
+    // Test enum modules - they ARE supported by Burn
+    // Note: Burn requires all enum variants to have the same field type
+    #[derive(Module, Debug)]
+    enum EnumModule<B: Backend> {
+        LayerA(CustomLayer<B>),
+        LayerB(CustomLayer<B>),
+        LayerC(CustomLayer<B>),
+    }
+
+    #[test]
+    fn test_enum_module_export() {
+        let device = Default::default();
+
+        // Test variant A
+        let module_a = EnumModule::<TestBackend>::LayerA(CustomLayer::new(&device));
+        let views_a = module_a.export_tensor_views();
+
+        // Should have the variant name in the path
+        assert_eq!(views_a.len(), 2);
+        assert!(views_a.contains_key("LayerA.weight"));
+        assert!(views_a.contains_key("LayerA.scale"));
+
+        // Test variant B
+        let module_b = EnumModule::<TestBackend>::LayerB(CustomLayer::new(&device));
+        let views_b = module_b.export_tensor_views();
+
+        assert_eq!(views_b.len(), 2);
+        assert!(views_b.contains_key("LayerB.weight"));
+        assert!(views_b.contains_key("LayerB.scale"));
+
+        // Test variant C
+        let module_c = EnumModule::<TestBackend>::LayerC(CustomLayer::new(&device));
+        let views_c = module_c.export_tensor_views();
+
+        assert_eq!(views_c.len(), 2);
+        assert!(views_c.contains_key("LayerC.weight"));
+        assert!(views_c.contains_key("LayerC.scale"));
+
+        // Verify tensor data
+        let weight_data = views_a.get("LayerA.weight").unwrap().to_data();
+        assert_eq!(weight_data.shape, vec![2, 3]);
+
+        // Test filtering on enum module
+        let scale_only = module_a
+            .export_tensor_views_filtered(&[r".*\.scale$"])
+            .unwrap();
+        assert_eq!(scale_only.len(), 1);
+        assert!(scale_only.contains_key("LayerA.scale"));
+    }
+
+    // Test enum module with built-in module types
+    #[derive(Module, Debug)]
+    enum NetworkVariant<B: Backend> {
+        Small(nn::Linear<B>),
+        Medium(nn::Linear<B>),
+        Large(nn::Linear<B>),
+    }
+
+    #[test]
+    fn test_enum_with_linear_modules() {
+        let device = Default::default();
+
+        // Create different sized linear layers
+        let small_linear = LinearConfig::new(10, 20)
+            .with_bias(true)
+            .init::<TestBackend>(&device);
+        let medium_linear = LinearConfig::new(20, 50)
+            .with_bias(true)
+            .init::<TestBackend>(&device);
+        let large_linear = LinearConfig::new(50, 100)
+            .with_bias(true)
+            .init::<TestBackend>(&device);
+
+        // Test small variant
+        let small_net = NetworkVariant::Small(small_linear);
+        let small_views = small_net.export_tensor_views();
+
+        assert_eq!(small_views.len(), 2);
+        assert!(small_views.contains_key("Small.weight"));
+        assert!(small_views.contains_key("Small.bias"));
+
+        // Verify shapes
+        let weight_data = small_views.get("Small.weight").unwrap().to_data();
+        assert_eq!(weight_data.shape, vec![10, 20]);
+
+        // Test medium variant
+        let medium_net = NetworkVariant::Medium(medium_linear);
+        let medium_views = medium_net.export_tensor_views();
+
+        assert_eq!(medium_views.len(), 2);
+        assert!(medium_views.contains_key("Medium.weight"));
+        assert!(medium_views.contains_key("Medium.bias"));
+
+        let weight_data = medium_views.get("Medium.weight").unwrap().to_data();
+        assert_eq!(weight_data.shape, vec![20, 50]);
+
+        // Test large variant
+        let large_net = NetworkVariant::Large(large_linear);
+        let large_views = large_net.export_tensor_views();
+
+        assert_eq!(large_views.len(), 2);
+        assert!(large_views.contains_key("Large.weight"));
+        assert!(large_views.contains_key("Large.bias"));
+
+        let weight_data = large_views.get("Large.weight").unwrap().to_data();
+        assert_eq!(weight_data.shape, vec![50, 100]);
     }
 }
