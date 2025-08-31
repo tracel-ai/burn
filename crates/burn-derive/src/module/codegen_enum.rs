@@ -27,9 +27,14 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_visit(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|_| {
+        let match_body = self.gen_variants_match_fn(|variant_name| {
+            let variant_str = variant_name.to_string();
             quote! {
-                burn::module::Module::visit(module, visitor)
+                {
+                    visitor.enter_module(#variant_str);
+                    burn::module::Module::visit(module, visitor);
+                    visitor.exit_module(#variant_str);
+                }
             }
         });
 

@@ -217,6 +217,40 @@ pub trait ModuleVisitor<B: Backend> {
     fn visit_int<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Int>) {}
     /// Visit a bool tensor in the module.
     fn visit_bool<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Bool>) {}
+
+    // NEW path-aware methods for hierarchical visiting
+    /// Called when entering a submodule.
+    fn enter_module(&mut self, _name: &str) {}
+
+    /// Called when exiting a submodule.
+    fn exit_module(&mut self, _name: &str) {}
+
+    /// Visit a float tensor with its full module path.
+    fn visit_float_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D>,
+    ) {
+    }
+
+    /// Visit an int tensor with its full module path.
+    fn visit_int_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D, Int>,
+    ) {
+    }
+
+    /// Visit a bool tensor with its full module path.
+    fn visit_bool_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D, Bool>,
+    ) {
+    }
 }
 
 /// Module mapper trait.

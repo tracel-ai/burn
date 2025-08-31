@@ -30,8 +30,11 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_visit(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
+            let name_str = name.to_string();
             quote! {
+                visitor.enter_module(#name_str);
                 burn::module::Module::visit(&self.#name, visitor);
+                visitor.exit_module(#name_str);
             }
         });
 

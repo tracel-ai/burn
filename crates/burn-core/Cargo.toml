@@ -53,7 +53,7 @@ audio = ["burn-dataset?/audio"]
 collective = ["burn-collective"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["thiserror", "regex"]
+record-item-custom-serde = ["thiserror"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
@@ -111,7 +111,7 @@ ahash = { workspace = true }
 bincode = { workspace = true }
 half = { workspace = true }
 num-traits = { workspace = true }
-regex = { workspace = true, optional = true }
+regex = { workspace = true }
 rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
