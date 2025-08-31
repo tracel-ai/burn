@@ -8,7 +8,36 @@ use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 use super::TensorView;
 use crate::module::{ModuleVisitor, ParamId};
 
-/// Collects tensor views without copying data
+/// Collects tensor views from modules without copying data.
+///
+/// This collector traverses a module hierarchy and creates lightweight views
+/// of tensors that can be materialized to `TensorData` on demand.
+///
+/// # Examples
+///
+/// ## Collect all tensors
+/// ```ignore
+/// let collector = TensorViewCollector::new();
+/// module.visit(&mut collector);
+/// let all_tensors = collector.tensors;
+/// ```
+///
+/// ## Filter with single pattern
+/// ```ignore
+/// let collector = TensorViewCollector::with_filter(&[r"^encoder\..*"]).unwrap();
+/// module.visit(&mut collector);
+/// // Only collects tensors starting with "encoder."
+/// ```
+///
+/// ## Filter with multiple patterns (OR union)
+/// ```ignore
+/// let collector = TensorViewCollector::with_filter(&[
+///     r"^encoder\..*",  // Match all encoder tensors
+///     r".*\.bias$",     // OR match any bias tensors
+/// ]).unwrap();
+/// module.visit(&mut collector);
+/// // Collects tensors matching ANY of the patterns
+/// ```
 pub struct TensorViewCollector {
     /// Map of tensor paths to their views
     pub tensors: HashMap<String, TensorView>,
@@ -33,7 +62,36 @@ impl TensorViewCollector {
     }
 
     /// Create a new tensor view collector that only collects tensors matching any of the regex patterns.
+    ///
     /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
+    ///
+    /// # Arguments
+    ///
+    /// * `patterns` - An iterable of regex patterns. Can be a slice, Vec, or any IntoIterator.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Single pattern
+    /// let collector = TensorViewCollector::with_filter(&[r"^model\.layer1\..*"])?;
+    ///
+    /// // Multiple patterns (OR union)
+    /// let collector = TensorViewCollector::with_filter(&[
+    ///     r"^encoder\..*",     // All encoder tensors
+    ///     r"^decoder\..*",     // All decoder tensors
+    /// ])?;
+    ///
+    /// // Using Vec
+    /// let patterns = vec![r".*\.weight$", r".*\.bias$"];
+    /// let collector = TensorViewCollector::with_filter(patterns)?;
+    ///
+    /// // Complex patterns
+    /// let collector = TensorViewCollector::with_filter(&[
+    ///     r"^model\.layer[12]\..*",  // layer1 or layer2
+    ///     r".*\.(weight|bias)$",     // any weight or bias
+    ///     r"^attention\..*\.query",  // attention query tensors
+    /// ])?;
+    /// ```
     pub fn with_filter<I, S>(patterns: I) -> Result<Self, regex::Error>
     where
         I: IntoIterator<Item = S>,

@@ -4,9 +4,51 @@ use super::{TensorView, TensorViewCollector};
 use crate::module::Module;
 use crate::tensor::backend::Backend;
 
-/// Extension trait for modules that provides tensor export functionality
+/// Extension trait for modules that provides tensor export functionality.
+///
+/// This trait provides convenient methods to export tensor views from any Burn module
+/// without immediately copying the tensor data. The actual data copy only happens
+/// when you call `to_data()` on a `TensorView`.
+///
+/// # Examples
+///
+/// ```ignore
+/// use burn::module::export::ModuleExport;
+///
+/// // Export all tensors
+/// let all_views = model.export_tensor_views();
+/// for (path, view) in all_views.iter() {
+///     println!("{}: {:?}", path, view.to_data().shape);
+/// }
+///
+/// // Export only encoder tensors
+/// let encoder_views = model.export_tensor_views_filtered(&[r"^encoder\..*"])?;
+///
+/// // Export tensors matching multiple patterns (OR union)
+/// let views = model.export_tensor_views_filtered(&[
+///     r"^encoder\..*",     // All encoder tensors
+///     r".*\.bias$",        // OR any bias tensors
+///     r"^attention\..*",   // OR attention tensors
+/// ])?;
+/// ```
 pub trait ModuleExport<B: Backend>: Module<B> {
-    /// Export tensor views for inspection without copying data
+    /// Export tensor views for inspection without copying data.
+    ///
+    /// Returns a HashMap where keys are the full module paths (e.g., "encoder.layer1.weight")
+    /// and values are `TensorView` objects that can lazily materialize the tensor data.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let views = model.export_tensor_views();
+    /// println!("Total tensors: {}", views.len());
+    ///
+    /// // Materialize specific tensor data when needed
+    /// if let Some(weight_view) = views.get("encoder.weight") {
+    ///     let data = weight_view.to_data();
+    ///     println!("Encoder weight shape: {:?}", data.shape);
+    /// }
+    /// ```
     fn export_tensor_views(&self) -> HashMap<String, TensorView> {
         let mut collector = TensorViewCollector::new();
         self.visit(&mut collector);
@@ -14,7 +56,53 @@ pub trait ModuleExport<B: Backend>: Module<B> {
     }
 
     /// Export filtered tensor views matching any of the regex patterns.
+    ///
     /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
+    /// This allows flexible filtering strategies for complex module hierarchies.
+    ///
+    /// # Arguments
+    ///
+    /// * `patterns` - An iterable of regex patterns. Can be a slice, Vec, or any IntoIterator.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(HashMap)` - Map of matching tensor paths to their views
+    /// * `Err(regex::Error)` - If any pattern is invalid regex
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Single pattern - export only encoder tensors
+    /// let encoder_tensors = model.export_tensor_views_filtered(&[
+    ///     r"^encoder\..*"
+    /// ])?;
+    ///
+    /// // Multiple patterns (OR union) - export encoder OR decoder tensors
+    /// let tensors = model.export_tensor_views_filtered(&[
+    ///     r"^encoder\..*",
+    ///     r"^decoder\..*",
+    /// ])?;
+    ///
+    /// // Export all weights and biases
+    /// let params = model.export_tensor_views_filtered(&[
+    ///     r".*\.weight$",
+    ///     r".*\.bias$",
+    /// ])?;
+    ///
+    /// // Complex filtering - specific layers and tensor types
+    /// let filtered = model.export_tensor_views_filtered(&[
+    ///     r"^model\.layer[0-2]\..*",        // layers 0, 1, 2
+    ///     r"^attention\..*\.(query|key)$",  // attention Q and K
+    ///     r"^head\..*",                     // all head tensors
+    /// ])?;
+    ///
+    /// // Using with Vec for dynamic patterns
+    /// let mut patterns = vec![r"^encoder\..*"];
+    /// if include_decoder {
+    ///     patterns.push(r"^decoder\..*");
+    /// }
+    /// let tensors = model.export_tensor_views_filtered(patterns)?;
+    /// ```
     fn export_tensor_views_filtered<I, S>(
         &self,
         patterns: I,

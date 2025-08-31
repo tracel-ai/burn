@@ -1,7 +1,29 @@
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
-/// A view of a tensor that can lazily produce TensorData
-/// Stores a cloned tensor (cheap due to reference counting)
+/// A lightweight view of a tensor that can lazily produce TensorData.
+///
+/// TensorView stores a cloned tensor internally (which is cheap due to reference counting)
+/// and only materializes the actual data when `to_data()` is called. This allows
+/// efficient inspection of module structure without the overhead of copying all tensor data.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Create a view from a tensor
+/// let tensor = Tensor::<Backend, 2>::ones([3, 4], &device);
+/// let view = TensorView::from_float(&tensor);
+///
+/// // Data is not copied until explicitly requested
+/// let data = view.to_data();
+/// assert_eq!(data.shape, vec![3, 4]);
+///
+/// // Views can be created from different tensor types
+/// let int_tensor = Tensor::<Backend, 1, Int>::arange(0..10, &device);
+/// let int_view = TensorView::from_int(&int_tensor);
+///
+/// let bool_tensor = Tensor::<Backend, 2, Bool>::zeros([2, 2], &device);
+/// let bool_view = TensorView::from_bool(&bool_tensor);
+/// ```
 pub struct TensorView {
     /// Function to get tensor data when needed
     data_fn: Box<dyn Fn() -> TensorData>,
