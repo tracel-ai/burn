@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use hashbrown::HashMap;
@@ -9,6 +10,9 @@ use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use super::TensorView;
 use crate::module::{ModuleVisitor, ParamId};
+
+/// Type alias for the predicate function used to filter tensor paths.
+type TensorPathPredicate = Box<dyn Fn(&str) -> bool>;
 
 /// Collects tensor views from modules without copying data.
 ///
@@ -45,7 +49,8 @@ pub struct TensorViewCollector {
     pub tensors: HashMap<String, TensorView>,
     path_stack: Vec<String>,
     #[cfg(target_has_atomic = "ptr")]
-    filters: Vec<Regex>,
+    filters: Option<Vec<Regex>>,
+    predicate: Option<TensorPathPredicate>,
 }
 
 impl Default for TensorViewCollector {
@@ -61,7 +66,8 @@ impl TensorViewCollector {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
             #[cfg(target_has_atomic = "ptr")]
-            filters: Vec::new(),
+            filters: None,
+            predicate: None,
         }
     }
 
@@ -110,22 +116,66 @@ impl TensorViewCollector {
         Ok(Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
-            filters,
+            filters: Some(filters),
+            predicate: None,
         })
+    }
+
+    /// Create a new tensor view collector that uses a custom predicate function for filtering.
+    ///
+    /// The predicate function receives the tensor path and should return `true` to include
+    /// the tensor or `false` to exclude it.
+    ///
+    /// # Arguments
+    ///
+    /// * `predicate` - A function that takes a path (&str) and returns bool
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Collect only specific tensors
+    /// let collector = TensorViewCollector::with_predicate(|path| {
+    ///     path == "encoder.weight" || path == "decoder.bias"
+    /// });
+    ///
+    /// // Collect tensors based on complex logic
+    /// let collector = TensorViewCollector::with_predicate(|path| {
+    ///     path.starts_with("encoder.") && !path.contains("dropout")
+    /// });
+    /// ```
+    pub fn with_predicate<F>(predicate: F) -> Self
+    where
+        F: Fn(&str) -> bool + 'static,
+    {
+        Self {
+            tensors: HashMap::new(),
+            path_stack: Vec::new(),
+            #[cfg(target_has_atomic = "ptr")]
+            filters: None,
+            predicate: Some(Box::new(predicate)),
+        }
     }
 
     fn current_path(&self) -> String {
         self.path_stack.join(".")
     }
 
-    fn should_collect(&self, _path: &str) -> bool {
+    fn should_collect(&self, path: &str) -> bool {
+        // First check the predicate if one is provided
+        if let Some(ref predicate) = self.predicate {
+            return predicate(path);
+        }
+
+        // Otherwise check regex filters
         #[cfg(target_has_atomic = "ptr")]
         {
-            if self.filters.is_empty() {
-                true
-            } else {
-                // OR union - collect if ANY filter matches
-                self.filters.iter().any(|filter| filter.is_match(_path))
+            match &self.filters {
+                None => true,                                // No filters means collect all
+                Some(filters) if filters.is_empty() => true, // Empty filters means collect all
+                Some(filters) => {
+                    // OR union - collect if ANY filter matches
+                    filters.iter().any(|filter| filter.is_match(path))
+                }
             }
         }
         #[cfg(not(target_has_atomic = "ptr"))]
@@ -279,6 +329,67 @@ mod tests {
         assert!(collector.tensors.contains_key("decoder.bias"));
         assert!(collector.tensors.contains_key("encoder.bias"));
         assert!(!collector.tensors.contains_key("decoder.weight"));
+    }
+
+    #[test]
+    fn test_tensor_view_collector_with_predicate() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+
+        // Use predicate function for filtering
+        let mut collector = TensorViewCollector::with_predicate(|path| {
+            path.starts_with("encoder.") || path == "decoder.bias"
+        });
+        let id = ParamId::new();
+
+        // These should be collected
+        collector.visit_float_with_path("encoder.weight", id, &tensor);
+        collector.visit_float_with_path("encoder.bias", id, &tensor);
+        collector.visit_float_with_path("decoder.bias", id, &tensor);
+
+        // This should NOT be collected
+        collector.visit_float_with_path("decoder.weight", id, &tensor);
+        collector.visit_float_with_path("other.tensor", id, &tensor);
+
+        assert_eq!(collector.tensors.len(), 3);
+        assert!(collector.tensors.contains_key("encoder.weight"));
+        assert!(collector.tensors.contains_key("encoder.bias"));
+        assert!(collector.tensors.contains_key("decoder.bias"));
+        assert!(!collector.tensors.contains_key("decoder.weight"));
+        assert!(!collector.tensors.contains_key("other.tensor"));
+    }
+
+    #[test]
+    fn test_tensor_view_collector_predicate_with_complex_logic() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+
+        // Complex predicate with multiple conditions
+        let mut collector = TensorViewCollector::with_predicate(|path| {
+            let parts: Vec<&str> = path.split('.').collect();
+            if parts.len() != 3 {
+                return false;
+            }
+            // Only collect if it's layer1 or layer2, and it's a weight tensor
+            (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
+        });
+        let id = ParamId::new();
+
+        // These should be collected
+        collector.visit_float_with_path("model.layer1.weight", id, &tensor);
+        collector.visit_float_with_path("model.layer2.weight", id, &tensor);
+
+        // These should NOT be collected
+        collector.visit_float_with_path("model.layer1.bias", id, &tensor);
+        collector.visit_float_with_path("model.layer3.weight", id, &tensor);
+        collector.visit_float_with_path("encoder.weight", id, &tensor); // wrong structure
+
+        assert_eq!(collector.tensors.len(), 2);
+        assert!(collector.tensors.contains_key("model.layer1.weight"));
+        assert!(collector.tensors.contains_key("model.layer2.weight"));
+        assert!(!collector.tensors.contains_key("model.layer1.bias"));
+        assert!(!collector.tensors.contains_key("model.layer3.weight"));
+        assert!(!collector.tensors.contains_key("encoder.weight"));
     }
 
     // Test visitor that collects tensor paths

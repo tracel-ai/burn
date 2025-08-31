@@ -120,6 +120,69 @@ pub trait ModuleExport<B: Backend>: Module<B> {
         self.visit(&mut collector);
         Ok(collector.tensors)
     }
+
+    /// Export tensor views filtered by a custom predicate function.
+    ///
+    /// This method allows you to provide a custom function to filter which tensors
+    /// are collected. The function receives the tensor path (e.g., "encoder.layer1.weight")
+    /// and should return `true` to include the tensor or `false` to exclude it.
+    ///
+    /// # Arguments
+    ///
+    /// * `predicate` - A function that takes a tensor path (&str) and returns bool
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Export only tensors with specific names
+    /// let tensors = model.export_tensor_views_with_predicate(|path| {
+    ///     path == "encoder.weight" || path == "decoder.bias"
+    /// });
+    ///
+    /// // Export tensors based on custom logic
+    /// let large_tensors = model.export_tensor_views_with_predicate(|path| {
+    ///     // Only export tensors from layers 3, 4, and 5
+    ///     if let Some(captures) = regex::Regex::new(r"layer(\d+)")
+    ///         .unwrap()
+    ///         .captures(path)
+    ///     {
+    ///         if let Some(layer_num) = captures.get(1) {
+    ///             if let Ok(num) = layer_num.as_str().parse::<u32>() {
+    ///                 return num >= 3 && num <= 5;
+    ///             }
+    ///         }
+    ///     }
+    ///     false
+    /// });
+    ///
+    /// // Export tensors that don't contain certain keywords
+    /// let filtered = model.export_tensor_views_with_predicate(|path| {
+    ///     !path.contains("dropout") && !path.contains("auxiliary")
+    /// });
+    ///
+    /// // Combine multiple conditions
+    /// let specific_tensors = model.export_tensor_views_with_predicate(|path| {
+    ///     let is_encoder = path.starts_with("encoder.");
+    ///     let is_weight = path.ends_with(".weight");
+    ///     let not_attention = !path.contains("attention");
+    ///     
+    ///     is_encoder && is_weight && not_attention
+    /// });
+    ///
+    /// // Use with closure capturing external state
+    /// let allowed_prefixes = vec!["encoder", "decoder", "head"];
+    /// let tensors = model.export_tensor_views_with_predicate(|path| {
+    ///     allowed_prefixes.iter().any(|prefix| path.starts_with(prefix))
+    /// });
+    /// ```
+    fn export_tensor_views_with_predicate<F>(&self, predicate: F) -> HashMap<String, TensorView>
+    where
+        F: Fn(&str) -> bool + 'static,
+    {
+        let mut collector = TensorViewCollector::with_predicate(predicate);
+        self.visit(&mut collector);
+        collector.tensors
+    }
 }
 
 // Blanket implementation for all modules recursively
@@ -589,6 +652,114 @@ mod tests {
         assert_eq!(layer2_only.len(), 2);
         assert!(layer2_only.contains_key("layers.2.weight"));
         assert!(layer2_only.contains_key("layers.2.scale"));
+    }
+
+    #[test]
+    fn test_export_with_predicate() {
+        let device = Default::default();
+        let module = TestModule::<TestBackend>::new(&device);
+
+        // Test with simple predicate - only encoder tensors
+        let encoder_only =
+            module.export_tensor_views_with_predicate(|path| path.starts_with("encoder."));
+        assert_eq!(encoder_only.len(), 2);
+        assert!(encoder_only.contains_key("encoder.weight"));
+        assert!(encoder_only.contains_key("encoder.bias"));
+
+        // Test with specific names predicate
+        let specific = module.export_tensor_views_with_predicate(|path| {
+            path == "encoder.weight" || path == "decoder.bias"
+        });
+        assert_eq!(specific.len(), 2);
+        assert!(specific.contains_key("encoder.weight"));
+        assert!(specific.contains_key("decoder.bias"));
+
+        // Test with complex logic
+        let complex = module.export_tensor_views_with_predicate(|path| {
+            let parts: Vec<&str> = path.split('.').collect();
+            // Only collect if it's a weight OR if it's in the encoder
+            (parts.len() == 2 && parts[1] == "weight") || parts[0] == "encoder"
+        });
+        assert_eq!(complex.len(), 3);
+        assert!(complex.contains_key("encoder.weight"));
+        assert!(complex.contains_key("encoder.bias"));
+        assert!(complex.contains_key("decoder.weight"));
+    }
+
+    #[test]
+    fn test_predicate_with_deep_module() {
+        let device = Default::default();
+        let model = DeepNestedModule::<TestBackend>::new(&device);
+
+        // Filter using predicate - only level2_a branch
+        let level2_a_only =
+            model.export_tensor_views_with_predicate(|path| path.contains("level2_a"));
+        assert_eq!(level2_a_only.len(), 4);
+
+        // Filter by depth - only tensors at exactly 5 levels deep
+        let deep_only =
+            model.export_tensor_views_with_predicate(|path| path.split('.').count() == 5);
+        assert_eq!(deep_only.len(), 8); // All conv and norm tensors are 5 levels deep
+
+        // Complex predicate with multiple conditions
+        let complex = model.export_tensor_views_with_predicate(|path| {
+            let is_main = path.contains("level4_main");
+            let is_conv = path.ends_with(".conv");
+            is_main && is_conv
+        });
+        assert_eq!(complex.len(), 2);
+        assert!(complex.contains_key("level1.level2_a.level3.level4_main.conv"));
+        assert!(complex.contains_key("level1.level2_b.level3.level4_main.conv"));
+    }
+
+    #[test]
+    fn test_predicate_with_vec_module() {
+        let device = Default::default();
+        let module = VecModule::<TestBackend>::new(&device, 4);
+
+        // Filter using predicate - only even indices
+        let even_only = module.export_tensor_views_with_predicate(|path| {
+            if let Some(captures) = path.split('.').nth(1) {
+                if let Ok(index) = captures.parse::<usize>() {
+                    return index % 2 == 0;
+                }
+            }
+            false
+        });
+        assert_eq!(even_only.len(), 4); // layers.0 and layers.2, each with 2 tensors
+
+        // Filter for specific range of indices
+        let range = module.export_tensor_views_with_predicate(|path| {
+            if let Some(captures) = path.split('.').nth(1) {
+                if let Ok(index) = captures.parse::<usize>() {
+                    return index >= 1 && index <= 2;
+                }
+            }
+            false
+        });
+        assert_eq!(range.len(), 4); // layers.1 and layers.2, each with 2 tensors
+    }
+
+    #[test]
+    fn test_predicate_with_closure_capturing_state() {
+        let device = Default::default();
+        let module = TestModule::<TestBackend>::new(&device);
+
+        // Use closure that captures external state
+        let allowed_modules = vec!["encoder"];
+        let allowed_types = vec!["weight", "bias"];
+
+        let filtered = module.export_tensor_views_with_predicate(move |path| {
+            let parts: Vec<&str> = path.split('.').collect();
+            if parts.len() != 2 {
+                return false;
+            }
+            allowed_modules.contains(&parts[0]) && allowed_types.contains(&parts[1])
+        });
+
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.contains_key("encoder.weight"));
+        assert!(filtered.contains_key("encoder.bias"));
     }
 
     // Test enum modules - they ARE supported by Burn
