@@ -47,13 +47,14 @@ std = [
     "serde/std",
     "serde_json/std",
     "num-traits/std",
+    "regex/std",
 ]
 vision = ["burn-vision", "burn-dataset?/vision", "burn-common/network"]
 audio = ["burn-dataset?/audio"]
 collective = ["burn-collective"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["thiserror"]
+record-item-custom-serde = ["thiserror", "regex/std"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
