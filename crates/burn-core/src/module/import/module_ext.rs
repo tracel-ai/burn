@@ -20,24 +20,22 @@ use crate::tensor::backend::Backend;
 ///
 /// // Direct round-trip from export to import
 /// let exported = model1.export_tensor_views();
-/// let result = model2.import_tensor_views(exported, &device)?;
+/// let result = model2.import_tensor_views(exported)?;
 /// println!("Imported {} tensors", result.applied.len());
 ///
 /// // Import from a reader (lazy loading)
 /// let mut reader = SafeTensorsReader::new(file)?;
-/// let result = model.import_from_reader(&mut reader, &device)?;
+/// let result = model.import_from_reader(&mut reader)?;
 ///
 /// // Import with filtering
 /// let result = model.import_tensor_views_filtered(
 ///     views,
-///     &device,
 ///     &[r"^encoder\..*"]  // Only import encoder tensors
 /// )?;
 ///
 /// // Import with custom predicate
 /// let result = model.import_tensor_views_with_predicate(
 ///     views,
-///     &device,
 ///     |path| !path.contains("frozen")  // Skip frozen layers
 /// )?;
 /// ```
@@ -51,7 +49,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `device` - Device to create tensors on
     ///
     /// # Returns
     ///
@@ -63,7 +60,7 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// ```ignore
     /// // Direct export to import
     /// let exported = model1.export_tensor_views();
-    /// let result = model2.import_tensor_views(exported, &device)?;
+    /// let result = model2.import_tensor_views(exported)?;
     ///
     /// if result.is_success() {
     ///     println!("Successfully imported {} tensors", result.applied.len());
@@ -71,12 +68,8 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     ///     println!("Import had errors: {:?}", result.errors);
     /// }
     /// ```
-    fn import_tensor_views(
-        &mut self,
-        views: HashMap<String, TensorView>,
-        device: &B::Device,
-    ) -> ImportResult {
-        let mut applier = TensorApplier::new(views, device.clone());
+    fn import_tensor_views(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
+        let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
@@ -90,7 +83,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `device` - Device to create tensors on
     /// * `patterns` - An iterable of regex patterns
     ///
     /// # Returns
@@ -104,14 +96,12 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// // Import only encoder tensors
     /// let result = model.import_tensor_views_filtered(
     ///     views,
-    ///     &device,
     ///     &[r"^encoder\..*"]
     /// )?;
     ///
     /// // Import multiple specific parts
     /// let result = model.import_tensor_views_filtered(
     ///     views,
-    ///     &device,
     ///     &[
     ///         r"^encoder\..*",     // All encoder tensors
     ///         r"^decoder\..*",     // All decoder tensors
@@ -122,7 +112,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// // Import all weights and biases
     /// let result = model.import_tensor_views_filtered(
     ///     views,
-    ///     &device,
     ///     &[r".*\.weight$", r".*\.bias$"]
     /// )?;
     /// ```
@@ -130,14 +119,13 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     fn import_tensor_views_filtered<I, S>(
         &mut self,
         views: HashMap<String, TensorView>,
-        device: &B::Device,
         patterns: I,
     ) -> Result<ImportResult, ImportError>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let mut applier = TensorApplier::with_filter(views, device.clone(), patterns)?;
+        let mut applier = TensorApplier::with_filter(views, patterns)?;
         *self = self.clone().map(&mut applier);
         Ok(applier.into_result())
     }
@@ -188,13 +176,12 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     fn import_tensor_views_with_predicate<F>(
         &mut self,
         views: HashMap<String, TensorView>,
-        device: &B::Device,
         predicate: F,
     ) -> ImportResult
     where
         F: Fn(&str) -> bool + 'static,
     {
-        let mut applier = TensorApplier::with_predicate(views, device.clone(), predicate);
+        let mut applier = TensorApplier::with_predicate(views, predicate);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
@@ -221,27 +208,26 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// // Import from a SafeTensors file
     /// let file = File::open("model.safetensors")?;
     /// let mut reader = SafeTensorsReader::new(file)?;
-    /// let result = model.import_from_reader(&mut reader, &device)?;
+    /// let result = model.import_from_reader(&mut reader)?;
     ///
     /// // Import from an NPZ file
     /// let mut reader = NpzReader::new("checkpoint.npz")?;
-    /// let result = model.import_from_reader(&mut reader, &device)?;
+    /// let result = model.import_from_reader(&mut reader)?;
     ///
     /// // Import from a custom source
     /// struct DatabaseReader { /* ... */ }
     /// impl TensorReader for DatabaseReader { /* ... */ }
     /// let mut reader = DatabaseReader::new(connection);
-    /// let result = model.import_from_reader(&mut reader, &device)?;
+    /// let result = model.import_from_reader(&mut reader)?;
     /// ```
     fn import_from_reader(
         &mut self,
         reader: &mut dyn TensorReader,
-        device: &B::Device,
     ) -> Result<ImportResult, ImportError> {
         let views = reader
             .read_all_views()
             .map_err(|e| ImportError::Other(format!("Failed to read views: {}", e)))?;
-        Ok(self.import_tensor_views(views, device))
+        Ok(self.import_tensor_views(views))
     }
 
     /// Import tensors from a reader with filtering.
@@ -252,7 +238,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `reader` - A mutable reference to a TensorReader
-    /// * `device` - Device to create tensors on
     /// * `patterns` - An iterable of regex patterns
     ///
     /// # Returns
@@ -267,14 +252,12 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// let mut reader = SafeTensorsReader::new(file)?;
     /// let result = model.import_from_reader_filtered(
     ///     &mut reader,
-    ///     &device,
     ///     &[r"^encoder\..*"]
     /// )?;
     ///
     /// // Import specific layers
     /// let result = model.import_from_reader_filtered(
     ///     &mut reader,
-    ///     &device,
     ///     &[r"^model\.layer[0-2]\..*"]  // Only layers 0, 1, 2
     /// )?;
     /// ```
@@ -282,7 +265,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     fn import_from_reader_filtered<I, S>(
         &mut self,
         reader: &mut dyn TensorReader,
-        device: &B::Device,
         patterns: I,
     ) -> Result<ImportResult, ImportError>
     where
@@ -292,7 +274,7 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
         let views = reader
             .read_all_views()
             .map_err(|e| ImportError::Other(format!("Failed to read views: {}", e)))?;
-        self.import_tensor_views_filtered(views, device, patterns)
+        self.import_tensor_views_filtered(views, patterns)
     }
 }
 
@@ -361,7 +343,7 @@ mod tests {
         assert_eq!(exported.len(), 4);
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 4);
@@ -387,7 +369,7 @@ mod tests {
 
         // Import only encoder tensors into model2
         let result = model2
-            .import_tensor_views_filtered(exported, &device, &[r"^encoder\..*"])
+            .import_tensor_views_filtered(exported, &[r"^encoder\..*"])
             .unwrap();
 
         assert!(result.is_success());
@@ -421,9 +403,8 @@ mod tests {
         let exported = model1.export_tensor_views();
 
         // Import only weight tensors
-        let result = model2.import_tensor_views_with_predicate(exported, &device, |path| {
-            path.ends_with(".weight")
-        });
+        let result = model2
+            .import_tensor_views_with_predicate(exported, |path: &str| path.ends_with(".weight"));
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 2); // encoder.weight and decoder.weight
@@ -456,7 +437,7 @@ mod tests {
         assert_eq!(exported.len(), 2);
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 2); // Only encoder tensors
@@ -495,7 +476,7 @@ mod tests {
         assert_eq!(exported.len(), 2); // weight and bias
 
         // Import into linear2
-        let result = linear2.import_tensor_views(exported, &device);
+        let result = linear2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 2);
@@ -527,7 +508,7 @@ mod tests {
         let exported = linear1.export_tensor_views();
 
         // Try to import into linear2 (should fail for weight, succeed for bias)
-        let result = linear2.import_tensor_views(exported, &device);
+        let result = linear2.import_tensor_views(exported);
 
         assert!(!result.is_success());
         assert_eq!(result.applied.len(), 1); // Only bias should succeed
@@ -549,7 +530,6 @@ mod tests {
         let result = model2
             .import_tensor_views_filtered(
                 exported,
-                &device,
                 &[
                     r"^encoder\.weight$", // Specific encoder weight
                     r".*\.bias$",         // All biases
@@ -629,7 +609,7 @@ mod tests {
         assert!(exported.contains_key("layers.2.bias"));
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 6);
@@ -663,7 +643,7 @@ mod tests {
 
         // Import only layer 1 tensors
         let result = model2
-            .import_tensor_views_filtered(exported, &device, &[r"^layers\.1\..*"])
+            .import_tensor_views_filtered(exported, &[r"^layers\.1\..*"])
             .unwrap();
 
         assert!(result.is_success());
@@ -723,7 +703,7 @@ mod tests {
         }
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 6);
@@ -782,7 +762,7 @@ mod tests {
         assert!(exported.contains_key("Small.bias"));
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 2);
@@ -841,7 +821,7 @@ mod tests {
         assert!(exported.contains_key("decoder.layers.1.bias"));
 
         // Import into model2
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
 
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 8);
@@ -853,7 +833,7 @@ mod tests {
 
         let exported = model1.export_tensor_views();
         let result = model2
-            .import_tensor_views_filtered(exported, &device, &[r"^encoder\.layers\.0\..*"])
+            .import_tensor_views_filtered(exported, &[r"^encoder\.layers\.0\..*"])
             .unwrap();
 
         assert!(result.is_success());
@@ -909,7 +889,7 @@ mod tests {
         let exported = model1.export_tensor_views();
         assert_eq!(exported.len(), 4); // 2 modules × 2 tensors
 
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 4);
 
@@ -920,7 +900,7 @@ mod tests {
         let exported = model1.export_tensor_views();
         assert_eq!(exported.len(), 2); // Only required module
 
-        let result = model2.import_tensor_views(exported, &device);
+        let result = model2.import_tensor_views(exported);
         assert!(result.is_success());
         assert_eq!(result.applied.len(), 2); // Only required tensors applied
         assert_eq!(result.missing.len(), 2); // Optional tensors are missing
