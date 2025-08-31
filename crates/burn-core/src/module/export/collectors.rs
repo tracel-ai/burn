@@ -1,6 +1,8 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use hashbrown::HashMap;
+
+#[cfg(target_has_atomic = "ptr")]
 use regex::Regex;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
@@ -42,6 +44,7 @@ pub struct TensorViewCollector {
     /// Map of tensor paths to their views
     pub tensors: HashMap<String, TensorView>,
     path_stack: Vec<String>,
+    #[cfg(target_has_atomic = "ptr")]
     filters: Vec<Regex>,
 }
 
@@ -57,6 +60,7 @@ impl TensorViewCollector {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
+            #[cfg(target_has_atomic = "ptr")]
             filters: Vec::new(),
         }
     }
@@ -92,6 +96,7 @@ impl TensorViewCollector {
     ///     r"^attention\..*\.query",  // attention query tensors
     /// ])?;
     /// ```
+    #[cfg(target_has_atomic = "ptr")]
     pub fn with_filter<I, S>(patterns: I) -> Result<Self, regex::Error>
     where
         I: IntoIterator<Item = S>,
@@ -113,12 +118,20 @@ impl TensorViewCollector {
         self.path_stack.join(".")
     }
 
-    fn should_collect(&self, path: &str) -> bool {
-        if self.filters.is_empty() {
+    fn should_collect(&self, _path: &str) -> bool {
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            if self.filters.is_empty() {
+                true
+            } else {
+                // OR union - collect if ANY filter matches
+                self.filters.iter().any(|filter| filter.is_match(_path))
+            }
+        }
+        #[cfg(not(target_has_atomic = "ptr"))]
+        {
+            // Without regex support, collect all tensors
             true
-        } else {
-            // OR union - collect if ANY filter matches
-            self.filters.iter().any(|filter| filter.is_match(path))
         }
     }
 }
@@ -190,7 +203,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
     use crate as burn; // Required for the derive macro

@@ -1,6 +1,9 @@
 use alloc::string::String;
 use hashbrown::HashMap;
 
+#[cfg(target_has_atomic = "ptr")]
+use regex;
+
 use super::{TensorView, TensorViewCollector};
 use crate::module::Module;
 use crate::tensor::backend::Backend;
@@ -104,6 +107,7 @@ pub trait ModuleExport<B: Backend>: Module<B> {
     /// }
     /// let tensors = model.export_tensor_views_filtered(patterns)?;
     /// ```
+    #[cfg(target_has_atomic = "ptr")]
     fn export_tensor_views_filtered<I, S>(
         &self,
         patterns: I,
@@ -121,7 +125,7 @@ pub trait ModuleExport<B: Backend>: Module<B> {
 // Blanket implementation for all modules recursively
 impl<B: Backend, M: Module<B>> ModuleExport<B> for M {}
 
-#[cfg(test)]
+#[cfg(all(test, target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
     use crate as burn;

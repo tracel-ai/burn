@@ -47,14 +47,13 @@ std = [
     "serde/std",
     "serde_json/std",
     "num-traits/std",
-    "regex/std",
 ]
 vision = ["burn-vision", "burn-dataset?/vision", "burn-common/network"]
 audio = ["burn-dataset?/audio"]
 collective = ["burn-collective"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["thiserror", "regex/std"]
+record-item-custom-serde = ["thiserror"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
@@ -112,11 +111,13 @@ ahash = { workspace = true }
 bincode = { workspace = true }
 half = { workspace = true }
 num-traits = { workspace = true }
-regex = { workspace = true }
 rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
 thiserror = { workspace = true, optional = true }
+
+[target.'cfg(target_has_atomic = "ptr")'.dependencies]
+regex = { workspace = true }
 
 # FOR TESTING
 burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true, default-features = false }
@@ -128,7 +129,9 @@ burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true, defaul
 burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic = { workspace = true, features = ["critical-section"] }
 portable-atomic-util = { workspace = true }
+critical-section = { version = "1.2" }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
