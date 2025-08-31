@@ -125,7 +125,7 @@ pub trait ModuleExport<B: Backend>: Module<B> {
 // Blanket implementation for all modules recursively
 impl<B: Backend, M: Module<B>> ModuleExport<B> for M {}
 
-#[cfg(all(test, target_has_atomic = "ptr"))]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
     use crate as burn;

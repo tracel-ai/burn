@@ -203,7 +203,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
     }
 }
 
-#[cfg(all(test, target_has_atomic = "ptr"))]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
     use crate as burn; // Required for the derive macro
