@@ -92,8 +92,14 @@ impl ModuleCodegen for EnumModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
+            let variant_str = variant.to_string();
             quote! {
-                Self::#variant(burn::module::Module::<B>::map(module, mapper))
+                {
+                    mapper.enter_module(#variant_str);
+                    let result = burn::module::Module::<B>::map(module, mapper);
+                    mapper.exit_module(#variant_str);
+                    Self::#variant(result)
+                }
             }
         });
 

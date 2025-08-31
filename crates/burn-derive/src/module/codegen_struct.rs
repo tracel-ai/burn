@@ -102,8 +102,11 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_map(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
+            let name_str = name.to_string();
             quote! {
+                mapper.enter_module(#name_str);
                 let #name = burn::module::Module::<B>::map(self.#name, mapper);
+                mapper.exit_module(#name_str);
             }
         });
 
