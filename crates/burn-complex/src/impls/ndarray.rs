@@ -1,4 +1,5 @@
 use burn_ndarray::{FloatNdArrayElement, IntNdArrayElement, NdArray, QuantElement};
+use ndarray::Array;
 
 use crate::base::ComplexTensorBackend;
 
@@ -7,22 +8,37 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTenso
 {
     type InnerBackend = NdArray<E, I, Q>;
 
-    type ComplexTensorPrimitive;
+    type ComplexTensorPrimitive = NdArrayTensor<Complex32>;
+    type ComplexElem = Complex32;
 
-    type ComplexElem;
-
-    type Layout: ComplexPrimitive;
+    type Layout = ComplexElementLayout;
 
     fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend> {
-        todo!()
+        ndarray::Array::from_shape_vec(
+            tensor.shape(),
+            tensor.data().iter().map(|c| c.real).collect(),
+        )
+        .unwrap()
     }
 
     fn imag(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend> {
-        todo!()
+        ndarray::Array::from_shape_vec(
+            tensor.shape(),
+            tensor.data().iter().map(|c| c.imag).collect(),
+        )
+        .unwrap()
     }
 
     fn to_complex(tensor: FloatTensor<Self::InnerBackend>) -> ComplexTensor<Self> {
-        todo!()
+        Array::from_shape_vec(
+            tensor.shape(),
+            tensor
+                .data()
+                .iter()
+                .map(|r| Complex32::new(*r, 0.0))
+                .collect(),
+        )
+        .unwrap()
     }
 }
 
@@ -351,4 +367,93 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
         let cos_z = Self::complex_cos(tensor);
         Self::complex_div(sin_z, cos_z)
     }
+
+    // #[test]
+    // fn should_support_complex32() {
+    //     use crate::tensor::element::Complex32;
+
+    //     let data = vec![
+    //         Complex32::new(1.0, 2.0),
+    //         Complex32::new(3.0, -4.0),
+    //         Complex32::new(-5.0, 6.0),
+    //     ];
+    //     let tensor_data = TensorData::new(data.clone(), [3]);
+
+    //     // Test as_slice
+    //     let slice = tensor_data.as_slice::<Complex32>().unwrap();
+    //     assert_eq!(slice.len(), 3);
+    //     assert_eq!(slice[0], Complex32::new(1.0, 2.0));
+    //     assert_eq!(slice[1], Complex32::new(3.0, -4.0));
+    //     assert_eq!(slice[2], Complex32::new(-5.0, 6.0));
+
+    //     // Test into_vec
+    //     let vec = tensor_data.clone().into_vec::<Complex32>().unwrap();
+    //     assert_eq!(vec, data);
+
+    //     // Test iterator
+    //     let collected: Vec<Complex32> = tensor_data.iter::<Complex32>().collect();
+    //     assert_eq!(collected, data);
+
+    //     // Test display
+    //     let display_str = format!("{}", tensor_data);
+    //     assert!(display_str.contains("Complex32"));
+    //     assert!(display_str.contains("real: 1.0, imag: 2.0"));
+    //     assert!(display_str.contains("real: 3.0, imag: -4.0"));
+    // }
+
+    // #[test]
+    // fn should_support_complex64() {
+    //     use crate::tensor::element::Complex64;
+
+    //     let data = vec![
+    //         Complex64::new(1.5, 2.5),
+    //         Complex64::new(3.5, -4.5),
+    //         Complex64::new(-5.5, 6.5),
+    //     ];
+    //     let tensor_data = TensorData::new(data.clone(), [3]);
+
+    //     // Test as_slice
+    //     let slice = tensor_data.as_slice::<Complex64>().unwrap();
+    //     assert_eq!(slice.len(), 3);
+    //     assert_eq!(slice[0], Complex64::new(1.5, 2.5));
+    //     assert_eq!(slice[1], Complex64::new(3.5, -4.5));
+    //     assert_eq!(slice[2], Complex64::new(-5.5, 6.5));
+
+    //     // Test into_vec
+    //     let vec = tensor_data.clone().into_vec::<Complex64>().unwrap();
+    //     assert_eq!(vec, data);
+
+    //     // Test iterator
+    //     let collected: Vec<Complex64> = tensor_data.iter::<Complex64>().collect();
+    //     assert_eq!(collected, data);
+
+    //     // Test display
+    //     let display_str = format!("{}", tensor_data);
+    //     assert!(display_str.contains("Complex64"));
+    //     assert!(display_str.contains("real: 1.5, imag: 2.5"));
+    //     assert!(display_str.contains("real: 3.5, imag: -4.5"));
+    // }
+
+    // #[test]
+    // fn should_support_complex_conversion() {
+    //     use crate::tensor::element::{Complex32, Complex64};
+
+    //     // Test Complex32 to Complex64 conversion
+    //     let data32 = vec![Complex32::new(1.0, 2.0), Complex32::new(3.0, -4.0)];
+    //     let tensor_data32 = TensorData::new(data32, [2]);
+    //     let tensor_data64 = tensor_data32.convert::<Complex64>();
+
+    //     let vec64 = tensor_data64.into_vec::<Complex64>().unwrap();
+    //     assert_eq!(vec64[0], Complex64::new(1.0, 2.0));
+    //     assert_eq!(vec64[1], Complex64::new(3.0, -4.0));
+
+    //     // Test Complex64 to Complex32 conversion
+    //     let data64 = vec![Complex64::new(1.5, 2.5), Complex64::new(3.5, -4.5)];
+    //     let tensor_data64 = TensorData::new(data64, [2]);
+    //     let tensor_data32 = tensor_data64.convert::<Complex32>();
+
+    //     let vec32 = tensor_data32.into_vec::<Complex32>().unwrap();
+    //     assert_eq!(vec32[0], Complex32::new(1.5, 2.5));
+    //     assert_eq!(vec32[1], Complex32::new(3.5, -4.5));
+    // }
 }

@@ -14,16 +14,20 @@ pub trait ComplexLayout {}
 
 /// Complex element type used by backend.
 pub type ComplexElem<B> = <B as ComplexTensorBackend>::ComplexElem;
+
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as ComplexTensorBackend>::ComplexTensorPrimitive;
+
 pub trait ComplexTensorBackend: Backend + ComplexTensorOps<Self> {
     /// The inner backend type.
     type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem>;
 
     /// Tensor primitive to be used for all complex operations.
     type ComplexTensorPrimitive: TensorMetadata + 'static;
+
     /// Complex element type.
     type ComplexElem: Element;
+
     /// The underlaying layout for the complex elements
     type Layout: ComplexLayout;
 
@@ -1001,5 +1005,356 @@ impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
     type Primitive = B::ComplexTensorPrimitive;
     fn name() -> &'static str {
         "Complex"
+    }
+}
+
+use num_complex::Complex as NumComplex;
+/// 32-bit complex number type (real and imaginary parts are f32).
+#[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Complex32 {
+    /// Real component
+    pub real: f32,
+    /// Imaginary component  
+    pub imag: f32,
+}
+
+impl Complex32 {
+    /// Create a new complex number from real and imaginary parts
+    #[inline]
+    pub const fn new(real: f32, imag: f32) -> Self {
+        Self { real, imag }
+    }
+
+    /// Create a complex number from a real number
+    #[inline]
+    pub const fn from_real(real: f32) -> Self {
+        Self { real, imag: 0.0 }
+    }
+
+    /// Get the magnitude (absolute value) of the complex number
+    #[inline]
+    pub fn abs(self) -> f32 {
+        (self.real * self.real + self.imag * self.imag).sqrt()
+    }
+
+    /// Get the conjugate of the complex number
+    #[inline]
+    pub fn conj(self) -> Self {
+        Self {
+            real: self.real,
+            imag: -self.imag,
+        }
+    }
+}
+
+impl core::fmt::Display for Complex32 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.imag >= 0.0 {
+            write!(f, "{}+{}i", self.real, self.imag)
+        } else {
+            write!(f, "{}{}i", self.real, self.imag)
+        }
+    }
+}
+
+// Arithmetic operators for Complex32
+impl core::ops::Add for Complex32 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real + rhs.real,
+            imag: self.imag + rhs.imag,
+        }
+    }
+}
+
+impl core::ops::Sub for Complex32 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real - rhs.real,
+            imag: self.imag - rhs.imag,
+        }
+    }
+}
+
+impl core::ops::Mul for Complex32 {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            real: self.real * rhs.real - self.imag * rhs.imag,
+            imag: self.real * rhs.imag + self.imag * rhs.real,
+        }
+    }
+}
+
+impl core::ops::Neg for Complex32 {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            real: -self.real,
+            imag: -self.imag,
+        }
+    }
+}
+
+/// 64-bit complex number type (real and imaginary parts are f64).
+#[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Complex64 {
+    /// Real component
+    pub real: f64,
+    /// Imaginary component
+    pub imag: f64,
+}
+
+impl Complex64 {
+    /// Create a new complex number from real and imaginary parts
+    #[inline]
+    pub const fn new(real: f64, imag: f64) -> Self {
+        Self { real, imag }
+    }
+
+    /// Create a complex number from a real number
+    #[inline]
+    pub const fn from_real(real: f64) -> Self {
+        Self { real, imag: 0.0 }
+    }
+
+    /// Get the magnitude (absolute value) of the complex number
+    #[inline]
+    pub fn abs(self) -> f64 {
+        (self.real * self.real + self.imag * self.imag).sqrt()
+    }
+
+    /// Get the conjugate of the complex number
+    #[inline]
+    pub fn conj(self) -> Self {
+        Self {
+            real: self.real,
+            imag: -self.imag,
+        }
+    }
+}
+
+impl core::fmt::Display for Complex64 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.imag >= 0.0 {
+            write!(f, "{}+{}i", self.real, self.imag)
+        } else {
+            write!(f, "{}{}i", self.real, self.imag)
+        }
+    }
+}
+
+/// Macro to implement the element trait for a type.
+#[macro_export]
+macro_rules! make_complex {
+    (
+        ty $type:ident $inner:ident $precision:expr,
+        convert $convert:expr,
+        random $random:expr,
+        cmp $cmp:expr,
+        dtype $dtype:expr
+    ) => {
+        make_complex!(ty $type $inner $precision, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+    };
+    (
+        ty $type:ident $inner:ident $precision:expr,
+        convert $convert:expr,
+        random $random:expr,
+        cmp $cmp:expr,
+        dtype $dtype:expr,
+        min $min:expr,
+        max $max:expr
+    ) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
+        #[repr(C)]
+        pub struct $type {
+            /// Real component
+            pub real: $inner,
+            /// Imaginary component
+            pub imag: $inner,
+        }
+
+        impl $type {
+            /// Create a new complex number from real and imaginary parts
+            #[inline]
+            pub const fn new(real: $inner, imag: $inner) -> Self {
+                Self { real, imag }
+            }
+
+            /// Create a complex number from a real number
+            #[inline]
+            pub const fn from_real(real: $inner) -> Self {
+                Self { real, imag: $inner::ZERO }
+            }
+
+            /// Get the magnitude (absolute value) of the complex number
+            #[inline]
+            pub fn abs(self) -> f64 {
+                (self.real * self.real + self.imag * self.imag).sqrt()
+            }
+
+            /// Get the conjugate of the complex number
+            #[inline]
+            pub fn conj(self) -> Self {
+                Self {
+                    real: self.real,
+                    imag: -self.imag,
+                }
+            }
+        }
+
+        impl core::fmt::Display for $type {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                if self.imag >= 0.0 {
+                    write!(f, "{}+{}i", self.real, self.imag)
+                } else {
+                    write!(f, "{}{}i", self.real, self.imag)
+                }
+            }
+        }
+        impl Element for $type {
+            #[inline(always)]
+            fn dtype() -> $crate::DType {
+                $dtype
+            }
+        }
+
+        impl ElementConversion for $type {
+            #[inline(always)]
+            fn from_elem<E: ToElement>(elem: E) -> Self {
+                #[allow(clippy::redundant_closure_call)]
+                $convert(&elem)
+            }
+            #[inline(always)]
+            fn elem<E: Element>(self) -> E {
+                E::from_elem(self)
+            }
+        }
+
+        impl ElementPrecision for $type {
+            fn precision() -> Precision {
+                $precision
+            }
+        }
+
+        impl ElementRandom for $type {
+            fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self {
+                #[allow(clippy::redundant_closure_call)]
+                $random(distribution, rng)
+            }
+        }
+
+        impl ElementComparison for $type {
+            fn cmp(&self, other: &Self) -> Ordering {
+                let a = self.elem::<$type>();
+                let b = other.elem::<$type>();
+                #[allow(clippy::redundant_closure_call)]
+                $cmp(&a, &b)
+            }
+        }
+
+        impl ElementLimits for $type {
+            const MIN: Self = $min;
+            const MAX: Self = $max;
+        }
+    };
+}
+make_complex!(
+    ty Complex32 f32 Precision::Full,
+    convert ToElement::to_complex32,
+    random |distribution: Distribution, rng: &mut R| {
+        let real: f32 = distribution.sampler(rng).sample();
+        let imag: f32 = distribution.sampler(rng).sample();
+        Complex32::new(real, imag)
+    },
+    cmp |a: &Complex32, b: &Complex32| {
+        // Compare by magnitude, then by real part if magnitudes are equal
+        let mag_cmp = a.abs().total_cmp(&b.abs());
+        if mag_cmp == Ordering::Equal {
+            a.real.total_cmp(&b.real)
+        } else {
+            mag_cmp
+        }
+    },
+    dtype DType::Complex32,
+    min Complex32::new(f32::MIN, f32::MIN),
+    max Complex32::new(f32::MAX, f32::MAX)
+);
+
+make_complex!(
+    ty Complex64 f64 Precision::Double,
+    convert ToElement::to_complex64,
+    random |distribution: Distribution, rng: &mut R| {
+        let real: f64 = distribution.sampler(rng).sample();
+        let imag: f64 = distribution.sampler(rng).sample();
+        Complex64::new(real, imag)
+    },
+    cmp |a: &Complex64, b: &Complex64| {
+        // Compare by magnitude, then by real part if magnitudes are equal
+        let mag_cmp = a.abs().total_cmp(&b.abs());
+        if mag_cmp == Ordering::Equal {
+            a.real.total_cmp(&b.real)
+        } else {
+            mag_cmp
+        }
+    },
+    dtype DType::Complex64,
+    min Complex64::new(f64::MIN, f64::MIN),
+    max Complex64::new(f64::MAX, f64::MAX)
+);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_complex32_basic() {
+        let c = Complex32::new(3.0, 4.0);
+        assert_eq!(c.real, 3.0);
+        assert_eq!(c.imag, 4.0);
+        assert_eq!(c.abs(), 5.0); // 3-4-5 triangle
+        assert_eq!(c.conj(), Complex32::new(3.0, -4.0));
+    }
+
+    #[test]
+    fn test_complex64_basic() {
+        let c = Complex64::new(3.0, 4.0);
+        assert_eq!(c.real, 3.0);
+        assert_eq!(c.imag, 4.0);
+        assert_eq!(c.abs(), 5.0); // 3-4-5 triangle
+        assert_eq!(c.conj(), Complex64::new(3.0, -4.0));
+    }
+
+    #[test]
+    fn test_complex_element_traits() {
+        // Test that our complex types implement Element trait
+        assert_eq!(Complex32::dtype(), DType::Complex32);
+        assert_eq!(Complex64::dtype(), DType::Complex64);
+
+        // Test conversion
+        let c32 = Complex32::new(1.0, 2.0);
+        let c64: Complex64 = c32.elem();
+        assert_eq!(c64.real, 1.0);
+        assert_eq!(c64.imag, 2.0);
+    }
+
+    #[test]
+    fn test_complex_display() {
+        let c1 = Complex32::new(3.0, 4.0);
+        assert_eq!(format!("{}", c1), "3+4i");
+
+        let c2 = Complex32::new(3.0, -4.0);
+        assert_eq!(format!("{}", c2), "3-4i");
+
+        let c3 = Complex64::new(-3.0, 4.0);
+        assert_eq!(format!("{}", c3), "-3+4i");
     }
 }
