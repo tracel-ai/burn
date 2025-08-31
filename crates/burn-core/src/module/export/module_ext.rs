@@ -13,12 +13,17 @@ pub trait ModuleExport<B: Backend>: Module<B> {
         collector.tensors
     }
 
-    /// Export filtered tensor views matching a regex pattern
-    fn export_tensor_views_filtered(
+    /// Export filtered tensor views matching any of the regex patterns.
+    /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
+    fn export_tensor_views_filtered<I, S>(
         &self,
-        pattern: &str,
-    ) -> Result<HashMap<String, TensorView>, regex::Error> {
-        let mut collector = TensorViewCollector::with_filter(pattern)?;
+        patterns: I,
+    ) -> Result<HashMap<String, TensorView>, regex::Error>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut collector = TensorViewCollector::with_filter(patterns)?;
         self.visit(&mut collector);
         Ok(collector.tensors)
     }
@@ -88,7 +93,7 @@ mod tests {
         let module = TestModule::<TestBackend>::new(&device);
 
         let views = module
-            .export_tensor_views_filtered(r"^encoder\..*")
+            .export_tensor_views_filtered(&[r"^encoder\..*"])
             .unwrap();
 
         assert_eq!(views.len(), 2);
@@ -96,6 +101,26 @@ mod tests {
         assert!(views.contains_key("encoder.bias"));
         assert!(!views.contains_key("decoder.weight"));
         assert!(!views.contains_key("decoder.bias"));
+    }
+
+    #[test]
+    fn test_export_tensor_views_filtered_multiple_patterns() {
+        let device = Default::default();
+        let module = TestModule::<TestBackend>::new(&device);
+
+        // Export tensors matching either pattern (OR union)
+        let views = module
+            .export_tensor_views_filtered(&[
+                r"^encoder\.weight$", // Only encoder.weight
+                r".*\.bias$",         // Any .bias tensor
+            ])
+            .unwrap();
+
+        assert_eq!(views.len(), 3);
+        assert!(views.contains_key("encoder.weight")); // matches first pattern
+        assert!(views.contains_key("encoder.bias")); // matches second pattern
+        assert!(views.contains_key("decoder.bias")); // matches second pattern
+        assert!(!views.contains_key("decoder.weight")); // matches neither
     }
 
     #[test]

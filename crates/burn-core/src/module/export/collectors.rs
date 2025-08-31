@@ -13,7 +13,7 @@ pub struct TensorViewCollector {
     /// Map of tensor paths to their views
     pub tensors: HashMap<String, TensorView>,
     path_stack: Vec<String>,
-    filter: Option<Regex>,
+    filters: Vec<Regex>,
 }
 
 impl Default for TensorViewCollector {
@@ -28,16 +28,26 @@ impl TensorViewCollector {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
-            filter: None,
+            filters: Vec::new(),
         }
     }
 
-    /// Create a new tensor view collector that only collects tensors matching the regex pattern.
-    pub fn with_filter(pattern: &str) -> Result<Self, regex::Error> {
+    /// Create a new tensor view collector that only collects tensors matching any of the regex patterns.
+    /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
+    pub fn with_filter<I, S>(patterns: I) -> Result<Self, regex::Error>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut filters = Vec::new();
+        for pattern in patterns {
+            filters.push(Regex::new(pattern.as_ref())?);
+        }
+
         Ok(Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
-            filter: Some(Regex::new(pattern)?),
+            filters,
         })
     }
 
@@ -46,9 +56,11 @@ impl TensorViewCollector {
     }
 
     fn should_collect(&self, path: &str) -> bool {
-        match &self.filter {
-            Some(filter) => filter.is_match(path),
-            None => true,
+        if self.filters.is_empty() {
+            true
+        } else {
+            // OR union - collect if ANY filter matches
+            self.filters.iter().any(|filter| filter.is_match(path))
         }
     }
 }
@@ -157,7 +169,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = TensorViewCollector::with_filter(r"^encoder\..*").unwrap();
+        let mut collector = TensorViewCollector::with_filter(&[r"^encoder\..*"]).unwrap();
         let id = ParamId::new();
 
         // This should be collected
@@ -167,6 +179,34 @@ mod tests {
 
         assert_eq!(collector.tensors.len(), 1);
         assert!(collector.tensors.contains_key("encoder.weight"));
+        assert!(!collector.tensors.contains_key("decoder.weight"));
+    }
+
+    #[test]
+    fn test_tensor_view_collector_with_multiple_filters() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+
+        // Multiple patterns - collect if matches ANY (OR union)
+        let mut collector = TensorViewCollector::with_filter(&[
+            r"^encoder\..*", // Match encoder.*
+            r".*\.bias$",    // Match *.bias
+        ])
+        .unwrap();
+        let id = ParamId::new();
+
+        // These should be collected
+        collector.visit_float_with_path("encoder.weight", id, &tensor); // matches first pattern
+        collector.visit_float_with_path("decoder.bias", id, &tensor); // matches second pattern
+        collector.visit_float_with_path("encoder.bias", id, &tensor); // matches both patterns
+
+        // This should NOT be collected
+        collector.visit_float_with_path("decoder.weight", id, &tensor); // matches neither
+
+        assert_eq!(collector.tensors.len(), 3);
+        assert!(collector.tensors.contains_key("encoder.weight"));
+        assert!(collector.tensors.contains_key("decoder.bias"));
+        assert!(collector.tensors.contains_key("encoder.bias"));
         assert!(!collector.tensors.contains_key("decoder.weight"));
     }
 
