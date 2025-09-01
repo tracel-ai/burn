@@ -8,8 +8,8 @@ use regex::Regex;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use super::TensorView;
 use crate::module::{ModuleVisitor, ParamId};
+use crate::persist::TensorView;
 
 /// Type alias for the predicate function used to filter tensor paths.
 type TensorPathPredicate = Box<dyn Fn(&str) -> bool>;

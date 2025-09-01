@@ -4,8 +4,9 @@ use hashbrown::HashMap;
 #[cfg(target_has_atomic = "ptr")]
 use regex;
 
-use super::{TensorView, TensorViewCollector};
+use super::TensorViewCollector;
 use crate::module::Module;
+use crate::persist::TensorView;
 use crate::tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor export functionality.
