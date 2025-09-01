@@ -9,7 +9,7 @@ use regex::Regex;
 
 use super::{ImportError, ImportResult, TensorApplier};
 use crate::module::Module;
-use crate::module::export::TensorView;
+use crate::persist::TensorView;
 use crate::tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor import functionality.
@@ -382,8 +382,9 @@ mod tests {
     use crate as burn;
     use crate::{
         TestBackend,
-        module::{Module, ModuleExport, Param},
+        module::{Module, Param},
         nn::{Linear, LinearConfig},
+        persist::ModuleExport,
     };
     use burn_tensor::Tensor;
 

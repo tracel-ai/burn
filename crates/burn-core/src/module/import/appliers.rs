@@ -10,7 +10,7 @@ use regex::Regex;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::module::export::TensorView;
+use crate::persist::TensorView;
 use crate::module::{ModuleMapper, ParamId};
 
 /// Type alias for the predicate function used to filter tensor paths.
