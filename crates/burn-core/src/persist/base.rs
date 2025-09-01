@@ -9,7 +9,7 @@ use crate::module::Module;
 use crate::persist::TensorView;
 use crate::tensor::backend::Backend;
 
-/// Extension trait for modules that provides tensor export functionality.
+/// Extension trait for modules that provides tensor persistence functionality.
 ///
 /// This trait provides convenient methods to export tensor views from any Burn module
 /// without immediately copying the tensor data. The actual data copy only happens
@@ -18,7 +18,7 @@ use crate::tensor::backend::Backend;
 /// # Examples
 ///
 /// ```ignore
-/// use burn::module::export::ModuleExport;
+/// use burn::persist::ModulePersist;
 ///
 /// // Export all tensors
 /// let all_views = model.export_tensor_views();
@@ -36,7 +36,7 @@ use crate::tensor::backend::Backend;
 ///     r"^attention\..*",   // OR attention tensors
 /// ])?;
 /// ```
-pub trait ModuleExport<B: Backend>: Module<B> {
+pub trait ModulePersist<B: Backend>: Module<B> {
     /// Export tensor views for inspection without copying data.
     ///
     /// Returns a HashMap where keys are the full module paths (e.g., "encoder.layer1.weight")
@@ -187,7 +187,7 @@ pub trait ModuleExport<B: Backend>: Module<B> {
 }
 
 // Blanket implementation for all modules recursively
-impl<B: Backend, M: Module<B>> ModuleExport<B> for M {}
+impl<B: Backend, M: Module<B>> ModulePersist<B> for M {}
 
 #[cfg(all(test, feature = "std"))]
 mod tests {

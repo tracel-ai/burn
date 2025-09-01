@@ -5,10 +5,11 @@
 //! creating lightweight tensor views that can be materialized on demand,
 //! allowing for efficient memory usage during serialization operations.
 
-/// Module export functionality for extracting tensor data.
-pub mod export;
+mod base;
+mod collectors;
 /// Lightweight tensor view representations.
 pub mod tensor_view;
 
-pub use export::*;
+pub use base::ModulePersist;
+pub use collectors::TensorViewCollector;
 pub use tensor_view::*;
