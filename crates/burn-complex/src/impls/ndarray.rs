@@ -1,7 +1,7 @@
-use burn_ndarray::{FloatNdArrayElement, IntNdArrayElement, NdArray, QuantElement};
+use burn_ndarray::{FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement};
 use ndarray::Array;
 
-use crate::base::ComplexTensorBackend;
+use crate::base::{Complex32, ComplexElementLayout, ComplexTensor, ComplexTensorBackend};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTensorBackend
     for NdArray<E, I, Q>

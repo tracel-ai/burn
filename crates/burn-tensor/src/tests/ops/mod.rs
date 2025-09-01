@@ -16,7 +16,6 @@ mod ceil;
 mod chunk;
 mod clamp;
 mod close;
-mod complex;
 mod cos;
 mod cosh;
 mod create_like;
