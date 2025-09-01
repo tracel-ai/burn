@@ -1032,7 +1032,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_import_with_remapping() {
         let device = Default::default();
         let model1 = TestModule::<TestBackend>::new(&device);
@@ -1086,7 +1085,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_import_with_complex_remapping() {
         let device = Default::default();
         let model1 = VecModule::<TestBackend>::new(&device, 3);
@@ -1131,7 +1129,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_import_remapped_filtered() {
         let device = Default::default();
         let model1 = VecModule::<TestBackend>::new(&device, 3);
