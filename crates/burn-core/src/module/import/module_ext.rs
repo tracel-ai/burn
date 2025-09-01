@@ -1,6 +1,10 @@
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use hashbrown::HashMap;
+
+#[cfg(target_has_atomic = "ptr")]
+use regex::Regex;
 
 use super::{ImportError, ImportResult, TensorApplier, TensorReader};
 use crate::module::Module;
@@ -276,6 +280,155 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
             .map_err(|e| ImportError::Other(format!("Failed to read views: {}", e)))?;
         self.import_tensor_views_filtered(views, patterns)
     }
+
+    /// Import tensor views with key remapping using regex patterns.
+    ///
+    /// This method allows you to transform tensor paths during import, which is useful
+    /// when loading models that have different naming conventions or when adapting
+    /// models from other frameworks.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `key_remap` - Vector of (Regex, String) pairs for path transformation
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((ImportResult, remapped_names))` - Import results and remapping information
+    /// * `Err(ImportError)` - If regex compilation fails
+    ///
+    /// The returned `remapped_names` is a vector of tuples (new_path, original_path)
+    /// showing how each path was transformed.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use regex::Regex;
+    ///
+    /// // Rename all "layer" to "block"
+    /// let remaps = vec![
+    ///     (Regex::new(r"layer")?, "block".to_string()),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Add prefix to all tensors
+    /// let remaps = vec![
+    ///     (Regex::new(r"^")?, "model.".to_string()),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Rename specific components
+    /// let remaps = vec![
+    ///     (Regex::new(r"encoder")?, "enc".to_string()),
+    ///     (Regex::new(r"decoder")?, "dec".to_string()),
+    ///     (Regex::new(r"weight")?, "w".to_string()),
+    ///     (Regex::new(r"bias")?, "b".to_string()),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Complex transformation - change layer numbering
+    /// let remaps = vec![
+    ///     (Regex::new(r"layers\.(\d+)")?, "blocks.$1".to_string()),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    fn import_tensor_views_remapped(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        key_remap: Vec<(Regex, String)>,
+    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError> {
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, key_remap);
+        let result = self.import_tensor_views(remapped_views);
+        Ok((result, remapped_names))
+    }
+
+    /// Import tensor views with key remapping and filtering.
+    ///
+    /// Combines remapping and filtering - first remaps the paths, then applies filters
+    /// to the remapped paths.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `key_remap` - Vector of (Regex, String) pairs for path transformation
+    /// * `patterns` - Regex patterns to filter which tensors to import (applied after remapping)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use regex::Regex;
+    ///
+    /// // First rename layer to block, then only import block 0 and 1
+    /// let remaps = vec![
+    ///     (Regex::new(r"layer")?, "block".to_string()),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped_filtered(
+    ///     views,
+    ///     remaps,
+    ///     &[r"^block\.[01]\..*"]
+    /// )?;
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    fn import_tensor_views_remapped_filtered<I, S>(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        key_remap: Vec<(Regex, String)>,
+        patterns: I,
+    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, key_remap);
+        let result = self.import_tensor_views_filtered(remapped_views, patterns)?;
+        Ok((result, remapped_names))
+    }
+}
+
+/// Remap tensor paths using regex patterns.
+///
+/// This function transforms the keys in a HashMap of tensor views according to
+/// the provided regex patterns and replacement strings.
+///
+/// # Arguments
+///
+/// * `tensors` - HashMap of original tensor paths to TensorViews
+/// * `key_remap` - Vector of (Regex, String) pairs for transformation
+///
+/// # Returns
+///
+/// A tuple containing:
+/// * The remapped HashMap with transformed keys
+/// * A vector of (new_path, original_path) showing the transformations
+#[cfg(target_has_atomic = "ptr")]
+fn remap_tensor_paths(
+    mut tensors: HashMap<String, TensorView>,
+    key_remap: Vec<(Regex, String)>,
+) -> (HashMap<String, TensorView>, Vec<(String, String)>) {
+    if key_remap.is_empty() {
+        let remapped_names = tensors.keys().cloned().map(|s| (s.clone(), s)).collect();
+        return (tensors, remapped_names);
+    }
+
+    let mut remapped = HashMap::new();
+    let mut remapped_names = Vec::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&new_name) {
+                new_name = pattern
+                    .replace_all(&new_name, replacement.as_str())
+                    .to_string();
+            }
+        }
+
+        remapped_names.push((new_name.clone(), name));
+        remapped.insert(new_name, tensor);
+    }
+
+    (remapped, remapped_names)
 }
 
 // Blanket implementation for all modules that implement Clone
@@ -876,6 +1029,143 @@ mod tests {
                 optional: None,
             }
         }
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn test_import_with_remapping() {
+        let device = Default::default();
+        let model1 = TestModule::<TestBackend>::new(&device);
+        let mut model2 = TestModule::<TestBackend>::new_zeros(&device);
+
+        // Export from model1 and simulate external naming (e.g., from another framework)
+        let mut external_views = model1.export_tensor_views();
+
+        // Simulate external naming convention: enc -> encoder, dec -> decoder
+        let mut renamed_views = HashMap::new();
+        for (key, value) in external_views.drain() {
+            let new_key = key.replace("encoder", "enc").replace("decoder", "dec");
+            renamed_views.insert(new_key, value);
+        }
+
+        // Now we have tensors with external names: enc.weight, enc.bias, dec.weight, dec.bias
+        // We need to remap them back to match our module: encoder.*, decoder.*
+        let remaps = vec![
+            (Regex::new(r"^enc\.").unwrap(), "encoder.".to_string()),
+            (Regex::new(r"^dec\.").unwrap(), "decoder.".to_string()),
+        ];
+
+        let (result, remapped_names) = model2
+            .import_tensor_views_remapped(renamed_views, remaps)
+            .unwrap();
+
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 4); // All tensors should be applied
+
+        // Check remapping happened correctly
+        let found_encoder_weight = remapped_names
+            .iter()
+            .any(|(new, old)| new == "encoder.weight" && old == "enc.weight");
+        let found_decoder_bias = remapped_names
+            .iter()
+            .any(|(new, old)| new == "decoder.bias" && old == "dec.bias");
+
+        assert!(
+            found_encoder_weight,
+            "enc.weight should be remapped to encoder.weight"
+        );
+        assert!(
+            found_decoder_bias,
+            "dec.bias should be remapped to decoder.bias"
+        );
+
+        // Verify the data was actually imported
+        let model2_exported = model2.export_tensor_views();
+        assert!(model2_exported.contains_key("encoder.weight"));
+        assert!(model2_exported.contains_key("decoder.bias"));
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn test_import_with_complex_remapping() {
+        let device = Default::default();
+        let model1 = VecModule::<TestBackend>::new(&device, 3);
+        let mut model2 = VecModule::<TestBackend>::new_zeros(&device, 3);
+
+        // Export from model1 and simulate external naming
+        let mut external_views = model1.export_tensor_views();
+
+        // Simulate external naming convention where "layers" is called "blocks"
+        let mut renamed_views = HashMap::new();
+        for (key, value) in external_views.drain() {
+            let new_key = key.replace("layers", "blocks");
+            renamed_views.insert(new_key, value);
+        }
+
+        // Now remap blocks.N back to layers.N to match our module
+        let remaps = vec![(
+            Regex::new(r"blocks\.(\d+)").unwrap(),
+            "layers.$1".to_string(),
+        )];
+
+        let (result, remapped_names) = model2
+            .import_tensor_views_remapped(renamed_views, remaps)
+            .unwrap();
+
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 6);
+
+        // Check that blocks.0.weight was remapped to layers.0.weight
+        let found_layer0 = remapped_names
+            .iter()
+            .any(|(new, old)| new == "layers.0.weight" && old == "blocks.0.weight");
+        assert!(
+            found_layer0,
+            "blocks.0.weight should be remapped to layers.0.weight"
+        );
+
+        // Export and verify the data was actually imported
+        let model2_exported = model2.export_tensor_views();
+        assert!(model2_exported.contains_key("layers.0.weight"));
+        assert!(model2_exported.contains_key("layers.2.bias"));
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn test_import_remapped_filtered() {
+        let device = Default::default();
+        let model1 = VecModule::<TestBackend>::new(&device, 3);
+        let mut model2 = VecModule::<TestBackend>::new_zeros(&device, 3);
+
+        // Export from model1 and simulate external naming
+        let mut external_views = model1.export_tensor_views();
+
+        // Simulate external naming where "layers" is called "blocks"
+        let mut renamed_views = HashMap::new();
+        for (key, value) in external_views.drain() {
+            let new_key = key.replace("layers", "blocks");
+            renamed_views.insert(new_key, value);
+        }
+
+        // Remap blocks back to layers, then filter to only import layers 0 and 1
+        let remaps = vec![(Regex::new(r"blocks").unwrap(), "layers".to_string())];
+
+        let (result, remapped_names) = model2
+            .import_tensor_views_remapped_filtered(renamed_views, remaps, &[r"^layers\.[01]\..*"])
+            .unwrap();
+
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 4); // Only layers 0 and 1 (2 tensors each)
+        assert_eq!(result.skipped.len(), 2); // layers.2 tensors skipped
+
+        // Verify remapping
+        let found_layer1_weight = remapped_names
+            .iter()
+            .any(|(new, old)| new == "layers.1.weight" && old == "blocks.1.weight");
+        assert!(
+            found_layer1_weight,
+            "blocks.1.weight should be remapped to layers.1.weight"
+        );
     }
 
     #[test]
