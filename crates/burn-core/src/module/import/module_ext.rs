@@ -1,6 +1,8 @@
 use alloc::format;
 use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec::Vec;
+
 use hashbrown::HashMap;
 
 #[cfg(target_has_atomic = "ptr")]
