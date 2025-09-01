@@ -17,6 +17,5 @@ pub type FloatTensor<B> = <B as Backend>::FloatTensorPrimitive;
 pub type IntTensor<B> = <B as Backend>::IntTensorPrimitive;
 /// Boolean tensor primitive type used by the backend.
 pub type BoolTensor<B> = <B as Backend>::BoolTensorPrimitive;
-
 /// Quantized tensor primitive type used by the backend.
 pub type QuantizedTensor<B> = <B as Backend>::QuantizedTensorPrimitive;

@@ -1010,147 +1010,6 @@ impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
 
 use num_complex::Complex as NumComplex;
 /// 32-bit complex number type (real and imaginary parts are f32).
-#[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct Complex32 {
-    /// Real component
-    pub real: f32,
-    /// Imaginary component  
-    pub imag: f32,
-}
-
-impl Complex32 {
-    /// Create a new complex number from real and imaginary parts
-    #[inline]
-    pub const fn new(real: f32, imag: f32) -> Self {
-        Self { real, imag }
-    }
-
-    /// Create a complex number from a real number
-    #[inline]
-    pub const fn from_real(real: f32) -> Self {
-        Self { real, imag: 0.0 }
-    }
-
-    /// Get the magnitude (absolute value) of the complex number
-    #[inline]
-    pub fn abs(self) -> f32 {
-        (self.real * self.real + self.imag * self.imag).sqrt()
-    }
-
-    /// Get the conjugate of the complex number
-    #[inline]
-    pub fn conj(self) -> Self {
-        Self {
-            real: self.real,
-            imag: -self.imag,
-        }
-    }
-}
-
-impl core::fmt::Display for Complex32 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.imag >= 0.0 {
-            write!(f, "{}+{}i", self.real, self.imag)
-        } else {
-            write!(f, "{}{}i", self.real, self.imag)
-        }
-    }
-}
-
-// Arithmetic operators for Complex32
-impl core::ops::Add for Complex32 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            real: self.real + rhs.real,
-            imag: self.imag + rhs.imag,
-        }
-    }
-}
-
-impl core::ops::Sub for Complex32 {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            real: self.real - rhs.real,
-            imag: self.imag - rhs.imag,
-        }
-    }
-}
-
-impl core::ops::Mul for Complex32 {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            real: self.real * rhs.real - self.imag * rhs.imag,
-            imag: self.real * rhs.imag + self.imag * rhs.real,
-        }
-    }
-}
-
-impl core::ops::Neg for Complex32 {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        Self {
-            real: -self.real,
-            imag: -self.imag,
-        }
-    }
-}
-
-/// 64-bit complex number type (real and imaginary parts are f64).
-#[derive(Debug, Clone, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct Complex64 {
-    /// Real component
-    pub real: f64,
-    /// Imaginary component
-    pub imag: f64,
-}
-
-impl Complex64 {
-    /// Create a new complex number from real and imaginary parts
-    #[inline]
-    pub const fn new(real: f64, imag: f64) -> Self {
-        Self { real, imag }
-    }
-
-    /// Create a complex number from a real number
-    #[inline]
-    pub const fn from_real(real: f64) -> Self {
-        Self { real, imag: 0.0 }
-    }
-
-    /// Get the magnitude (absolute value) of the complex number
-    #[inline]
-    pub fn abs(self) -> f64 {
-        (self.real * self.real + self.imag * self.imag).sqrt()
-    }
-
-    /// Get the conjugate of the complex number
-    #[inline]
-    pub fn conj(self) -> Self {
-        Self {
-            real: self.real,
-            imag: -self.imag,
-        }
-    }
-}
-
-impl core::fmt::Display for Complex64 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.imag >= 0.0 {
-            write!(f, "{}+{}i", self.real, self.imag)
-        } else {
-            write!(f, "{}{}i", self.real, self.imag)
-        }
-    }
-}
 
 /// Macro to implement the element trait for a type.
 #[macro_export]
@@ -1197,7 +1056,7 @@ macro_rules! make_complex {
 
             /// Get the magnitude (absolute value) of the complex number
             #[inline]
-            pub fn abs(self) -> f64 {
+            pub fn abs(self) -> $inner {
                 (self.real * self.real + self.imag * self.imag).sqrt()
             }
 
@@ -1217,6 +1076,52 @@ macro_rules! make_complex {
                     write!(f, "{}+{}i", self.real, self.imag)
                 } else {
                     write!(f, "{}{}i", self.real, self.imag)
+                }
+            }
+        }
+
+
+        // Arithmetic operators for Complex32
+        impl core::ops::Add for $type {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self::Output {
+                Self {
+                    real: self.real + rhs.real,
+                    imag: self.imag + rhs.imag,
+                }
+            }
+        }
+
+        impl core::ops::Sub for $type {
+            type Output = Self;
+
+            fn sub(self, rhs: Self) -> Self::Output {
+                Self {
+                    real: self.real - rhs.real,
+                    imag: self.imag - rhs.imag,
+                }
+            }
+        }
+
+        impl core::ops::Mul for $type {
+            type Output = Self;
+
+            fn mul(self, rhs: Self) -> Self::Output {
+                Self {
+                    real: self.real * rhs.real - self.imag * rhs.imag,
+                    imag: self.real * rhs.imag + self.imag * rhs.real,
+                }
+            }
+        }
+
+        impl core::ops::Neg for $type {
+            type Output = Self;
+
+            fn neg(self) -> Self::Output {
+                Self {
+                    real: -self.real,
+                    imag: -self.imag,
                 }
             }
         }
@@ -1265,6 +1170,37 @@ macro_rules! make_complex {
             const MIN: Self = $min;
             const MAX: Self = $max;
         }
+
+        impl ToElement for $type {
+            #[inline]
+            fn to_i64(&self) -> i64 {
+                self.real.to_i64()
+            }
+            #[inline]
+            fn to_u64(&self) -> u64 {
+                self.real.to_u64()
+            }
+            #[inline]
+            fn to_f32(&self) -> f32 {
+                self.real as f32
+            }
+            #[inline]
+            fn to_f64(&self) -> f64 {
+                self.real as f64
+            }
+            #[inline]
+            fn to_bool(&self) -> bool {
+                self.real != 0.0 || self.imag != 0.0
+            }
+            #[inline]
+            fn to_complex32(&self) -> Complex32 {
+                Complex32::new(self.real as f32, self.imag as f32)
+            }
+            #[inline]
+            fn to_complex64(&self) -> Complex64 {
+                Complex64::new(self.real as f64, self.imag as f64)
+            }
+        }
     };
 }
 make_complex!(
@@ -1309,6 +1245,8 @@ make_complex!(
     dtype DType::Complex64,
     min Complex64::new(f64::MIN, f64::MIN),
     max Complex64::new(f64::MAX, f64::MAX)
+
+
 );
 
 #[cfg(test)]

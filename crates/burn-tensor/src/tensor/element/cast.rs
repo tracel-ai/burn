@@ -2,8 +2,6 @@ use core::mem::size_of;
 
 use half::{bf16, f16};
 
-use super::base::{Complex32, Complex64};
-
 /// A generic trait for converting a value to a number.
 /// Adapted from [num_traits::ToPrimitive] to support [bool].
 ///
@@ -132,20 +130,6 @@ pub trait ToElement {
     #[inline]
     fn to_bool(&self) -> bool {
         ToElement::to_bool(&self.to_u64())
-    }
-
-    /// Converts the value of `self` to a `Complex32`.
-    /// For real numbers, the imaginary part will be zero.
-    #[inline]
-    fn to_complex32(&self) -> Complex32 {
-        Complex32::from_real(self.to_f32())
-    }
-
-    /// Converts the value of `self` to a `Complex64`.
-    /// For real numbers, the imaginary part will be zero.
-    #[inline]
-    fn to_complex64(&self) -> Complex64 {
-        Complex64::from_real(self.to_f64())
     }
 }
 
@@ -604,68 +588,6 @@ impl ToElement for bool {
     }
     #[inline]
     fn to_bool(&self) -> bool {
-        *self
-    }
-}
-
-impl ToElement for Complex32 {
-    #[inline]
-    fn to_i64(&self) -> i64 {
-        self.real.to_i64()
-    }
-    #[inline]
-    fn to_u64(&self) -> u64 {
-        self.real.to_u64()
-    }
-    #[inline]
-    fn to_f32(&self) -> f32 {
-        self.real
-    }
-    #[inline]
-    fn to_f64(&self) -> f64 {
-        self.real as f64
-    }
-    #[inline]
-    fn to_bool(&self) -> bool {
-        self.real != 0.0 || self.imag != 0.0
-    }
-    #[inline]
-    fn to_complex32(&self) -> Complex32 {
-        *self
-    }
-    #[inline]
-    fn to_complex64(&self) -> Complex64 {
-        Complex64::new(self.real as f64, self.imag as f64)
-    }
-}
-
-impl ToElement for Complex64 {
-    #[inline]
-    fn to_i64(&self) -> i64 {
-        self.real.to_i64()
-    }
-    #[inline]
-    fn to_u64(&self) -> u64 {
-        self.real.to_u64()
-    }
-    #[inline]
-    fn to_f32(&self) -> f32 {
-        self.real as f32
-    }
-    #[inline]
-    fn to_f64(&self) -> f64 {
-        self.real
-    }
-    #[inline]
-    fn to_bool(&self) -> bool {
-        self.real != 0.0 || self.imag != 0.0
-    }
-    #[inline]
-    fn to_complex32(&self) -> Complex32 {
-        Complex32::new(self.real as f32, self.imag as f32)
-    }
-    #[inline]
-    fn to_complex64(&self) -> Complex64 {
         *self
     }
 }

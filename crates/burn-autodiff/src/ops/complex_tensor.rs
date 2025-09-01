@@ -1,5 +1,3 @@
-use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
-use burn_tensor::{Distribution, Shape, TensorData, backend::Backend};
 
 // impl<B: Backend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C> {
 //     fn complex_from_data(data: TensorData, device: &Device<Self>) -> ComplexTensor<Self> {

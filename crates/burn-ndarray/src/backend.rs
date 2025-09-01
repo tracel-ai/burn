@@ -3,7 +3,6 @@ use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
-use burn_tensor::Complex32;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;

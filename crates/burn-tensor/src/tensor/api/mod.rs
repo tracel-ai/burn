@@ -19,7 +19,6 @@ pub use autodiff::*;
 pub use base::*;
 pub use cartesian_grid::cartesian_grid;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
-pub use int::*;
 pub use kind::*;
 pub use numeric::*;
 pub use slice::*;
