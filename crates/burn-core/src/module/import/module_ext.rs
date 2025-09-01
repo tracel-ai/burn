@@ -292,7 +292,7 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `key_remap` - Vector of (Regex, String) pairs for path transformation
+    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
     ///
     /// # Returns
     ///
@@ -305,42 +305,45 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// use regex::Regex;
-    ///
     /// // Rename all "layer" to "block"
     /// let remaps = vec![
-    ///     (Regex::new(r"layer")?, "block".to_string()),
+    ///     (r"layer", "block"),
     /// ];
     /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
     ///
     /// // Add prefix to all tensors
     /// let remaps = vec![
-    ///     (Regex::new(r"^")?, "model.".to_string()),
+    ///     (r"^", "model."),
     /// ];
     /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
     ///
     /// // Rename specific components
     /// let remaps = vec![
-    ///     (Regex::new(r"encoder")?, "enc".to_string()),
-    ///     (Regex::new(r"decoder")?, "dec".to_string()),
-    ///     (Regex::new(r"weight")?, "w".to_string()),
-    ///     (Regex::new(r"bias")?, "b".to_string()),
+    ///     (r"encoder", "enc"),
+    ///     (r"decoder", "dec"),
+    ///     (r"weight", "w"),
+    ///     (r"bias", "b"),
     /// ];
     /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
     ///
     /// // Complex transformation - change layer numbering
     /// let remaps = vec![
-    ///     (Regex::new(r"layers\.(\d+)")?, "blocks.$1".to_string()),
+    ///     (r"layers\.(\d+)", "blocks.$1"),
     /// ];
     /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn import_tensor_views_remapped(
+    fn import_tensor_views_remapped<S1, S2>(
         &mut self,
         views: HashMap<String, TensorView>,
-        key_remap: Vec<(Regex, String)>,
-    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError> {
-        let (remapped_views, remapped_names) = remap_tensor_paths(views, key_remap);
+        key_remap: Vec<(S1, S2)>,
+    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        let compiled_remaps = compile_remap_patterns(key_remap)?;
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
         let result = self.import_tensor_views(remapped_views);
         Ok((result, remapped_names))
     }
@@ -353,17 +356,15 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `key_remap` - Vector of (Regex, String) pairs for path transformation
+    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
     /// * `patterns` - Regex patterns to filter which tensors to import (applied after remapping)
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// use regex::Regex;
-    ///
     /// // First rename layer to block, then only import block 0 and 1
     /// let remaps = vec![
-    ///     (Regex::new(r"layer")?, "block".to_string()),
+    ///     (r"layer", "block"),
     /// ];
     /// let (result, remapped) = model.import_tensor_views_remapped_filtered(
     ///     views,
@@ -372,20 +373,51 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     /// )?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn import_tensor_views_remapped_filtered<I, S>(
+    fn import_tensor_views_remapped_filtered<S1, S2, I, S3>(
         &mut self,
         views: HashMap<String, TensorView>,
-        key_remap: Vec<(Regex, String)>,
+        key_remap: Vec<(S1, S2)>,
         patterns: I,
     ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
     where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+        I: IntoIterator<Item = S3>,
+        S3: AsRef<str>,
     {
-        let (remapped_views, remapped_names) = remap_tensor_paths(views, key_remap);
+        let compiled_remaps = compile_remap_patterns(key_remap)?;
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
         let result = self.import_tensor_views_filtered(remapped_views, patterns)?;
         Ok((result, remapped_names))
     }
+}
+
+/// Compile string patterns into regex patterns for remapping.
+///
+/// # Arguments
+///
+/// * `patterns` - Vector of (pattern, replacement) string pairs
+///
+/// # Returns
+///
+/// * `Ok(Vec<(Regex, String)>)` - Compiled regex patterns with replacements
+/// * `Err(ImportError)` - If any pattern fails to compile
+#[cfg(target_has_atomic = "ptr")]
+fn compile_remap_patterns<S1, S2>(
+    patterns: Vec<(S1, S2)>,
+) -> Result<Vec<(Regex, String)>, ImportError>
+where
+    S1: AsRef<str>,
+    S2: AsRef<str>,
+{
+    patterns
+        .into_iter()
+        .map(|(pattern, replacement)| {
+            Regex::new(pattern.as_ref())
+                .map(|regex| (regex, replacement.as_ref().to_string()))
+                .map_err(ImportError::from)
+        })
+        .collect()
 }
 
 /// Remap tensor paths using regex patterns.
@@ -1051,10 +1083,7 @@ mod tests {
 
         // Now we have tensors with external names: enc.weight, enc.bias, dec.weight, dec.bias
         // We need to remap them back to match our module: encoder.*, decoder.*
-        let remaps = vec![
-            (Regex::new(r"^enc\.").unwrap(), "encoder.".to_string()),
-            (Regex::new(r"^dec\.").unwrap(), "decoder.".to_string()),
-        ];
+        let remaps = vec![(r"^enc\.", "encoder."), (r"^dec\.", "decoder.")];
 
         let (result, remapped_names) = model2
             .import_tensor_views_remapped(renamed_views, remaps)
@@ -1103,10 +1132,7 @@ mod tests {
         }
 
         // Now remap blocks.N back to layers.N to match our module
-        let remaps = vec![(
-            Regex::new(r"blocks\.(\d+)").unwrap(),
-            "layers.$1".to_string(),
-        )];
+        let remaps = vec![(r"blocks\.(\d+)", "layers.$1")];
 
         let (result, remapped_names) = model2
             .import_tensor_views_remapped(renamed_views, remaps)
@@ -1147,7 +1173,7 @@ mod tests {
         }
 
         // Remap blocks back to layers, then filter to only import layers 0 and 1
-        let remaps = vec![(Regex::new(r"blocks").unwrap(), "layers".to_string())];
+        let remaps = vec![(r"blocks", "layers")];
 
         let (result, remapped_names) = model2
             .import_tensor_views_remapped_filtered(renamed_views, remaps, &[r"^layers\.[01]\..*"])
