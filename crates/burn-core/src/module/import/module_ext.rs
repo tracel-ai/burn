@@ -1,4 +1,3 @@
-use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -8,7 +7,7 @@ use hashbrown::HashMap;
 #[cfg(target_has_atomic = "ptr")]
 use regex::Regex;
 
-use super::{ImportError, ImportResult, TensorApplier, TensorReader};
+use super::{ImportError, ImportResult, TensorApplier};
 use crate::module::Module;
 use crate::module::export::TensorView;
 use crate::tensor::backend::Backend;
@@ -50,7 +49,7 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
     ///
     /// This is the primary import method that applies tensor data from TensorViews
     /// to the corresponding tensors in the module. The views are typically obtained
-    /// from `export_tensor_views()` or from a `TensorReader`.
+    /// from `export_tensor_views()`
     ///
     /// # Arguments
     ///
@@ -190,97 +189,6 @@ pub trait ModuleImport<B: Backend>: Module<B> + Clone {
         let mut applier = TensorApplier::with_predicate(views, predicate);
         *self = self.clone().map(&mut applier);
         applier.into_result()
-    }
-
-    /// Import tensors from any TensorReader implementation.
-    ///
-    /// This method provides a convenient way to import from various sources
-    /// (files, streams, databases) by using a TensorReader. The reader handles
-    /// the lazy loading of tensor data.
-    ///
-    /// # Arguments
-    ///
-    /// * `reader` - A mutable reference to a TensorReader
-    /// * `device` - Device to create tensors on
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(ImportResult)` - Import results
-    /// * `Err(ImportError)` - If reading fails
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Import from a SafeTensors file
-    /// let file = File::open("model.safetensors")?;
-    /// let mut reader = SafeTensorsReader::new(file)?;
-    /// let result = model.import_from_reader(&mut reader)?;
-    ///
-    /// // Import from an NPZ file
-    /// let mut reader = NpzReader::new("checkpoint.npz")?;
-    /// let result = model.import_from_reader(&mut reader)?;
-    ///
-    /// // Import from a custom source
-    /// struct DatabaseReader { /* ... */ }
-    /// impl TensorReader for DatabaseReader { /* ... */ }
-    /// let mut reader = DatabaseReader::new(connection);
-    /// let result = model.import_from_reader(&mut reader)?;
-    /// ```
-    fn import_from_reader(
-        &mut self,
-        reader: &mut dyn TensorReader,
-    ) -> Result<ImportResult, ImportError> {
-        let views = reader
-            .read_all_views()
-            .map_err(|e| ImportError::Other(format!("Failed to read views: {}", e)))?;
-        Ok(self.import_tensor_views(views))
-    }
-
-    /// Import tensors from a reader with filtering.
-    ///
-    /// Combines reader-based import with regex filtering to selectively load
-    /// tensors from a source.
-    ///
-    /// # Arguments
-    ///
-    /// * `reader` - A mutable reference to a TensorReader
-    /// * `patterns` - An iterable of regex patterns
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(ImportResult)` - Import results
-    /// * `Err(ImportError)` - If reading fails or regex is invalid
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Import only encoder tensors from a file
-    /// let mut reader = SafeTensorsReader::new(file)?;
-    /// let result = model.import_from_reader_filtered(
-    ///     &mut reader,
-    ///     &[r"^encoder\..*"]
-    /// )?;
-    ///
-    /// // Import specific layers
-    /// let result = model.import_from_reader_filtered(
-    ///     &mut reader,
-    ///     &[r"^model\.layer[0-2]\..*"]  // Only layers 0, 1, 2
-    /// )?;
-    /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    fn import_from_reader_filtered<I, S>(
-        &mut self,
-        reader: &mut dyn TensorReader,
-        patterns: I,
-    ) -> Result<ImportResult, ImportError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let views = reader
-            .read_all_views()
-            .map_err(|e| ImportError::Other(format!("Failed to read views: {}", e)))?;
-        self.import_tensor_views_filtered(views, patterns)
     }
 
     /// Import tensor views with key remapping using regex patterns.
