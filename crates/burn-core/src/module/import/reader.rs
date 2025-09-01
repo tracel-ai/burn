@@ -67,8 +67,7 @@ impl fmt::Display for ReaderError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ReaderError {}
+impl core::error::Error for ReaderError {}
 
 impl From<core::fmt::Error> for ReaderError {
     fn from(err: core::fmt::Error) -> Self {
