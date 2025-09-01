@@ -1,60 +1,11 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_tensor::DType;
 use core::fmt;
 use hashbrown::HashMap;
 
 use crate::module::export::TensorView;
-
-/// Metadata about a tensor without loading its data
-#[derive(Debug, Clone)]
-pub struct TensorMetadata {
-    /// Shape of the tensor
-    pub shape: Vec<usize>,
-    /// Data type of the tensor
-    pub dtype: DType,
-    /// Size in bytes (optional, for readers that know this upfront)
-    pub size_bytes: Option<usize>,
-}
-
-/// Supported data types for tensors
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DType {
-    /// 32-bit floating point
-    F32,
-    /// 64-bit floating point
-    F64,
-    /// 16-bit floating point
-    F16,
-    /// Brain floating point
-    BF16,
-    /// 32-bit integer
-    I32,
-    /// 64-bit integer
-    I64,
-    /// 8-bit integer
-    I8,
-    /// 8-bit unsigned integer
-    U8,
-    /// Boolean
-    Bool,
-}
-
-impl fmt::Display for DType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DType::F32 => write!(f, "f32"),
-            DType::F64 => write!(f, "f64"),
-            DType::F16 => write!(f, "f16"),
-            DType::BF16 => write!(f, "bf16"),
-            DType::I32 => write!(f, "i32"),
-            DType::I64 => write!(f, "i64"),
-            DType::I8 => write!(f, "i8"),
-            DType::U8 => write!(f, "u8"),
-            DType::Bool => write!(f, "bool"),
-        }
-    }
-}
 
 /// Error types for tensor reading operations
 #[derive(Debug)]
@@ -108,7 +59,7 @@ impl fmt::Display for ReaderError {
                 found,
             } => write!(
                 f,
-                "Type mismatch for {}: expected {}, found {}",
+                "Type mismatch for {}: expected {:?}, found {:?}",
                 path, expected, found
             ),
             ReaderError::Other(msg) => write!(f, "{}", msg),
@@ -152,9 +103,6 @@ impl From<core::fmt::Error> for ReaderError {
 pub trait TensorReader: Send {
     /// List available tensor paths without loading data
     fn list_tensors(&mut self) -> Result<Vec<String>, ReaderError>;
-
-    /// Get metadata for a tensor without loading its data
-    fn tensor_metadata(&mut self, path: &str) -> Result<TensorMetadata, ReaderError>;
 
     /// Create a lazy TensorView for the given path.
     /// The actual tensor data should only be loaded when TensorView::to_data() is called.
