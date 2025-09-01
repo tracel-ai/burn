@@ -1,19 +1,23 @@
-use alloc::string::String;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 #[cfg(target_has_atomic = "ptr")]
-use regex;
+use regex::{self, Regex};
 
-use super::TensorViewCollector;
+use super::{
+    TensorViewCollector,
+    appliers::{ImportError, ImportResult, TensorApplier},
+};
 use crate::module::Module;
 use crate::persist::TensorView;
 use crate::tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor persistence functionality.
 ///
-/// This trait provides convenient methods to export tensor views from any Burn module
-/// without immediately copying the tensor data. The actual data copy only happens
-/// when you call `to_data()` on a `TensorView`.
+/// This trait provides convenient methods to export and import tensor views from any Burn module.
+/// Export operations create lightweight tensor views without immediately copying data.
+/// Import operations apply tensor data from views to the corresponding tensors in the module.
 ///
 /// # Examples
 ///
@@ -29,14 +33,17 @@ use crate::tensor::backend::Backend;
 /// // Export only encoder tensors
 /// let encoder_views = model.export_tensor_views_filtered(&[r"^encoder\..*"])?;
 ///
-/// // Export tensors matching multiple patterns (OR union)
-/// let views = model.export_tensor_views_filtered(&[
-///     r"^encoder\..*",     // All encoder tensors
-///     r".*\.bias$",        // OR any bias tensors
-///     r"^attention\..*",   // OR attention tensors
-/// ])?;
+/// // Import tensor views into another model
+/// let result = model2.import_tensor_views(exported)?;
+/// println!("Imported {} tensors", result.applied.len());
+///
+/// // Import with filtering
+/// let result = model.import_tensor_views_filtered(
+///     views,
+///     &[r"^encoder\..*"]  // Only import encoder tensors
+/// )?;
 /// ```
-pub trait ModulePersist<B: Backend>: Module<B> {
+pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Export tensor views for inspection without copying data.
     ///
     /// Returns a HashMap where keys are the full module paths (e.g., "encoder.layer1.weight")
@@ -184,10 +191,333 @@ pub trait ModulePersist<B: Backend>: Module<B> {
         self.visit(&mut collector);
         collector.tensors
     }
+
+    /// Import tensor views directly into the module.
+    ///
+    /// This is the primary import method that applies tensor data from TensorViews
+    /// to the corresponding tensors in the module. The views are typically obtained
+    /// from `export_tensor_views()`
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    ///
+    /// # Returns
+    ///
+    /// An `ImportResult` containing information about applied, skipped, missing,
+    /// and unused tensors, as well as any errors encountered.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Direct export to import
+    /// let exported = model1.export_tensor_views();
+    /// let result = model2.import_tensor_views(exported)?;
+    ///
+    /// if result.is_success() {
+    ///     println!("Successfully imported {} tensors", result.applied.len());
+    /// } else {
+    ///     println!("Import had errors: {:?}", result.errors);
+    /// }
+    /// ```
+    fn import_tensor_views(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
+        let mut applier = TensorApplier::new(views);
+        *self = self.clone().map(&mut applier);
+        applier.into_result()
+    }
+
+    /// Import filtered tensor views matching any of the regex patterns.
+    ///
+    /// Multiple patterns work as an OR union - a tensor is imported if it matches ANY pattern.
+    /// This allows selective loading of specific parts of a model, useful for fine-tuning
+    /// or partial model updates.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `patterns` - An iterable of regex patterns
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(ImportResult)` - Import results
+    /// * `Err(ImportError)` - If any pattern is invalid regex
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Import only encoder tensors
+    /// let result = model.import_tensor_views_filtered(
+    ///     views,
+    ///     &[r"^encoder\..*"]
+    /// )?;
+    ///
+    /// // Import multiple specific parts
+    /// let result = model.import_tensor_views_filtered(
+    ///     views,
+    ///     &[
+    ///         r"^encoder\..*",     // All encoder tensors
+    ///         r"^decoder\..*",     // All decoder tensors
+    ///         r"^head\.weight$",   // Specific head weight
+    ///     ]
+    /// )?;
+    ///
+    /// // Import all weights and biases
+    /// let result = model.import_tensor_views_filtered(
+    ///     views,
+    ///     &[r".*\.weight$", r".*\.bias$"]
+    /// )?;
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    fn import_tensor_views_filtered<I, S>(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        patterns: I,
+    ) -> Result<ImportResult, ImportError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut applier = TensorApplier::with_filter(views, patterns)?;
+        *self = self.clone().map(&mut applier);
+        Ok(applier.into_result())
+    }
+
+    /// Import tensor views filtered by a custom predicate function.
+    ///
+    /// This method allows you to provide a custom function to filter which tensors
+    /// are imported. The function receives the tensor path and should return `true`
+    /// to import the tensor or `false` to skip it.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `predicate` - A function that takes a path (&str) and returns bool
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Import only non-frozen layers
+    /// let result = model.import_tensor_views_with_predicate(
+    ///     views,
+    ///     |path| !path.contains("frozen")
+    /// );
+    ///
+    /// // Import specific tensors
+    /// let result = model.import_tensor_views_with_predicate(
+    ///     views,
+    ///     |path| path == "encoder.weight" || path == "decoder.bias"
+    /// );
+    ///
+    /// // Import based on complex logic
+    /// let allowed_layers = vec![3, 4, 5];
+    /// let result = model.import_tensor_views_with_predicate(
+    ///     views,
+    ///     move |path| {
+    ///         if let Some(layer_num) = extract_layer_number(path) {
+    ///             allowed_layers.contains(&layer_num)
+    ///         } else {
+    ///             false
+    ///         }
+    ///     }
+    /// );
+    /// ```
+    fn import_tensor_views_with_predicate<F>(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        predicate: F,
+    ) -> ImportResult
+    where
+        F: Fn(&str) -> bool + 'static,
+    {
+        let mut applier = TensorApplier::with_predicate(views, predicate);
+        *self = self.clone().map(&mut applier);
+        applier.into_result()
+    }
+
+    /// Import tensor views with key remapping using regex patterns.
+    ///
+    /// This method allows you to transform tensor paths during import, which is useful
+    /// when loading models that have different naming conventions or when adapting
+    /// models from other frameworks.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((ImportResult, remapped_names))` - Import results and remapping information
+    /// * `Err(ImportError)` - If regex compilation fails
+    ///
+    /// The returned `remapped_names` is a vector of tuples (new_path, original_path)
+    /// showing how each path was transformed.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Rename all "layer" to "block"
+    /// let remaps = vec![
+    ///     (r"layer", "block"),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Add prefix to all tensors
+    /// let remaps = vec![
+    ///     (r"^", "model."),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Rename specific components
+    /// let remaps = vec![
+    ///     (r"encoder", "enc"),
+    ///     (r"decoder", "dec"),
+    ///     (r"weight", "w"),
+    ///     (r"bias", "b"),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    ///
+    /// // Complex transformation - change layer numbering
+    /// let remaps = vec![
+    ///     (r"layers\.(\d+)", "blocks.$1"),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    fn import_tensor_views_remapped<S1, S2>(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        key_remap: Vec<(S1, S2)>,
+    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        let compiled_remaps = compile_remap_patterns(key_remap)?;
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
+        let result = self.import_tensor_views(remapped_views);
+        Ok((result, remapped_names))
+    }
+
+    /// Import tensor views with key remapping and filtering.
+    ///
+    /// Combines remapping and filtering - first remaps the paths, then applies filters
+    /// to the remapped paths.
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
+    /// * `patterns` - Regex patterns to filter which tensors to import (applied after remapping)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // First rename layer to block, then only import block 0 and 1
+    /// let remaps = vec![
+    ///     (r"layer", "block"),
+    /// ];
+    /// let (result, remapped) = model.import_tensor_views_remapped_filtered(
+    ///     views,
+    ///     remaps,
+    ///     &[r"^block\.[01]\..*"]
+    /// )?;
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    fn import_tensor_views_remapped_filtered<S1, S2, I, S3>(
+        &mut self,
+        views: HashMap<String, TensorView>,
+        key_remap: Vec<(S1, S2)>,
+        patterns: I,
+    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+        I: IntoIterator<Item = S3>,
+        S3: AsRef<str>,
+    {
+        let compiled_remaps = compile_remap_patterns(key_remap)?;
+        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
+        let result = self.import_tensor_views_filtered(remapped_views, patterns)?;
+        Ok((result, remapped_names))
+    }
 }
 
-// Blanket implementation for all modules recursively
-impl<B: Backend, M: Module<B>> ModulePersist<B> for M {}
+/// Compile string patterns into regex patterns for remapping.
+///
+/// # Arguments
+///
+/// * `patterns` - Vector of (pattern, replacement) string pairs
+///
+/// # Returns
+///
+/// * `Ok(Vec<(Regex, String)>)` - Compiled regex patterns with replacements
+/// * `Err(ImportError)` - If any pattern fails to compile
+#[cfg(target_has_atomic = "ptr")]
+fn compile_remap_patterns<S1, S2>(
+    patterns: Vec<(S1, S2)>,
+) -> Result<Vec<(Regex, String)>, ImportError>
+where
+    S1: AsRef<str>,
+    S2: AsRef<str>,
+{
+    patterns
+        .into_iter()
+        .map(|(pattern, replacement)| {
+            Regex::new(pattern.as_ref())
+                .map(|regex| (regex, replacement.as_ref().to_string()))
+                .map_err(ImportError::from)
+        })
+        .collect()
+}
+
+/// Remap tensor paths using regex patterns.
+///
+/// This function transforms the keys in a HashMap of tensor views according to
+/// the provided regex patterns and replacement strings.
+///
+/// # Arguments
+///
+/// * `tensors` - HashMap of original tensor paths to TensorViews
+/// * `key_remap` - Vector of (Regex, String) pairs for transformation
+///
+/// # Returns
+///
+/// A tuple containing:
+/// * The remapped HashMap with transformed keys
+/// * A vector of (new_path, original_path) showing the transformations
+#[cfg(target_has_atomic = "ptr")]
+fn remap_tensor_paths(
+    mut tensors: HashMap<String, TensorView>,
+    key_remap: Vec<(Regex, String)>,
+) -> (HashMap<String, TensorView>, Vec<(String, String)>) {
+    if key_remap.is_empty() {
+        let remapped_names = tensors.keys().cloned().map(|s| (s.clone(), s)).collect();
+        return (tensors, remapped_names);
+    }
+
+    let mut remapped = HashMap::new();
+    let mut remapped_names = Vec::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&new_name) {
+                new_name = pattern
+                    .replace_all(&new_name, replacement.as_str())
+                    .to_string();
+            }
+        }
+
+        remapped_names.push((new_name.clone(), name));
+        remapped.insert(new_name, tensor);
+    }
+
+    (remapped, remapped_names)
+}
+
+// Blanket implementation for all modules that implement Clone
+impl<B: Backend, M: Module<B> + Clone> ModulePersist<B> for M {}
 
 #[cfg(all(test, feature = "std"))]
 mod tests {

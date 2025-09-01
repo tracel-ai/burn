@@ -15,7 +15,7 @@
 //! # Example Usage
 //!
 //! ```ignore
-//! use burn_core::persist::{ModuleExport, ModuleImport};
+//! use burn_core::persist::ModulePersist;
 //!
 //! // Export tensors from a model
 //! let tensor_views = model.export_tensor_views();
@@ -27,32 +27,12 @@
 //! )?;
 //! ```
 
+mod appliers;
 mod base;
 mod collectors;
-/// Lightweight tensor view representations.
-pub mod tensor_view;
+mod tensor_view;
 
+pub use appliers::{ImportError, ImportResult, TensorApplier};
 pub use base::ModulePersist;
 pub use collectors::TensorViewCollector;
-/// Module export functionality for extracting tensor data.
-/// Module export functionality for extracting tensor data from modules.
-///
-/// Provides methods to export tensor views with optional filtering using regex patterns
-/// or custom predicates. Exported views are lazy and only materialize data when needed.
-pub mod export;
-
-/// Module import functionality for loading tensor data into modules.
-///
-/// Provides methods to import tensor views with validation, filtering, and path remapping.
-/// Supports partial imports and provides detailed error reporting for mismatches.
-pub mod import;
-
-/// Lightweight tensor view representations for efficient data handling.
-///
-/// TensorView provides a lazy representation of tensor data that can be materialized
-/// on demand, reducing memory usage during persistence operations.
-pub mod tensor_view;
-
-pub use export::*;
-pub use import::*;
-pub use tensor_view::*;
+pub use tensor_view::TensorView;
