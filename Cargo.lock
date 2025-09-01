@@ -691,6 +691,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-complex"
+version = "0.19.0"
+dependencies = [
+ "bon",
+ "burn-ndarray",
+ "burn-tensor",
+ "bytemuck",
+ "derive-new",
+ "half",
+ "macerator",
+ "ndarray",
+ "num-complex",
+ "num-traits",
+]
+
+[[package]]
 name = "burn-core"
 version = "0.19.0"
 dependencies = [

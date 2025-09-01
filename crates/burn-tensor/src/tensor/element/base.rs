@@ -93,6 +93,17 @@ pub enum Precision {
     /// Other precision.
     Other,
 }
+impl Precision {
+    /// Returns the precision in bytes.
+    pub const fn bytes(&self) -> usize {
+        match self {
+            Precision::Double => 8,
+            Precision::Full => 4,
+            Precision::Half => 2,
+            Precision::Other => 1,
+        }
+    }
+}
 
 /// Element precision trait for tensor.
 pub trait ElementPrecision {
@@ -314,6 +325,8 @@ pub enum DType {
     U16,
     U8,
     Bool,
+    Complex64,
+    Complex32,
     QFloat(QuantScheme),
 }
 
@@ -372,6 +385,8 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
+            DType::Complex64 => 2 * Precision::Full.bytes(),
+            DType::Complex32 => 2 * Precision::Full.bytes(),
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
@@ -401,6 +416,11 @@ impl DType {
         matches!(self, DType::Bool)
     }
 
+    /// Returns true if the data type is a complex type
+    pub fn is_complex(&self) -> bool {
+        matches!(self, DType::Complex64 | DType::Complex32)
+    }
+
     /// Returns the data type name.
     pub fn name(&self) -> &'static str {
         match self {
@@ -418,6 +438,8 @@ impl DType {
             DType::U16 => "u16",
             DType::U8 => "u8",
             DType::Bool => "bool",
+            DType::Complex64 => "complex64",
+            DType::Complex32 => "complex32",
             DType::QFloat(_) => "qfloat",
         }
     }

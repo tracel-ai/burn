@@ -40,6 +40,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolElem = B::BoolElem;
 
+    // type ComplexTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    // type ComplexElem = B::ComplexElem;
+
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type QuantizedEncoding = B::QuantizedEncoding;
@@ -216,6 +220,10 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
         handle.handle
     }
 
+    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+    //     handle.handle
+    // }
+
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
         tensor
     }
@@ -231,4 +239,8 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
     }
+
+    // fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+    //     tensor
+    // }
 }

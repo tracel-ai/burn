@@ -118,4 +118,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr fo
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
     }
+
+    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+    //     match handle.handle {
+    //         HandleKind::Complex(handle) => handle,
+    //         _ => panic!("Expected complex handle, got {}", handle.handle.name()),
+    //     }
+    // }
+
+    // fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+    //     HandleKind::Complex(tensor)
+    // }
 }
