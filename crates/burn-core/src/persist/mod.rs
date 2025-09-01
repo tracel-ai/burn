@@ -6,24 +6,24 @@
 //!
 //! # Features
 //!
-//! - **Export**: Extract tensor data from modules with regex-based filtering
-//! - **Import**: Load tensor data into modules with validation and error handling
+//! - **Collection**: Extract tensor data from modules with regex-based filtering
+//! - **Apply**: Apply tensor data to modules with validation and error handling
 //! - **TensorView**: Lightweight tensor representations that materialize data on demand
 //! - **Filtering**: Regex patterns and predicates for selective tensor operations
-//! - **Remapping**: Transform tensor paths during import/export for framework interoperability
+//! - **Remapping**: Transform tensor paths during apply operations for framework interoperability
 //!
 //! # Example Usage
 //!
 //! ```ignore
 //! use burn_core::persist::ModulePersist;
 //!
-//! // Export tensors from a model
-//! let tensor_views = model.export_tensor_views();
+//! // Collect tensors from a model
+//! let tensor_views = model.collect();
 //!
-//! // Import into another model with filtering
-//! let result = other_model.import_tensor_views_filtered(
+//! // Apply to another model with filtering
+//! let result = other_model.apply_filtered(
 //!     tensor_views,
-//!     &[r"^encoder\..*"]  // Only import encoder tensors
+//!     &[r"^encoder\..*"]  // Only apply encoder tensors
 //! )?;
 //! ```
 

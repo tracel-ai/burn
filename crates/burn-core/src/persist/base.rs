@@ -15,36 +15,36 @@ use crate::tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor persistence functionality.
 ///
-/// This trait provides convenient methods to export and import tensor views from any Burn module.
-/// Export operations create lightweight tensor views without immediately copying data.
-/// Import operations apply tensor data from views to the corresponding tensors in the module.
+/// This trait provides convenient methods to collect and apply tensor views from any Burn module.
+/// Collection operations create lightweight tensor views without immediately copying data.
+/// Apply operations apply tensor data from views to the corresponding tensors in the module.
 ///
 /// # Examples
 ///
 /// ```ignore
 /// use burn::persist::ModulePersist;
 ///
-/// // Export all tensors
-/// let all_views = model.export_tensor_views();
+/// // Collect all tensors
+/// let all_views = model.collect();
 /// for (path, view) in all_views.iter() {
 ///     println!("{}: {:?}", path, view.to_data().shape);
 /// }
 ///
-/// // Export only encoder tensors
-/// let encoder_views = model.export_tensor_views_filtered(&[r"^encoder\..*"])?;
+/// // Collect only encoder tensors
+/// let encoder_views = model.collect_filtered(&[r"^encoder\..*"])?;
 ///
-/// // Import tensor views into another model
-/// let result = model2.import_tensor_views(exported)?;
-/// println!("Imported {} tensors", result.applied.len());
+/// // Apply tensor views to another model
+/// let result = model2.apply(collected)?;
+/// println!("Applied {} tensors", result.applied.len());
 ///
-/// // Import with filtering
-/// let result = model.import_tensor_views_filtered(
+/// // Apply with filtering
+/// let result = model.apply_filtered(
 ///     views,
-///     &[r"^encoder\..*"]  // Only import encoder tensors
+///     &[r"^encoder\..*"]  // Only apply encoder tensors
 /// )?;
 /// ```
 pub trait ModulePersist<B: Backend>: Module<B> + Clone {
-    /// Export tensor views for inspection without copying data.
+    /// Collect tensor views for inspection without copying data.
     ///
     /// Returns a HashMap where keys are the full module paths (e.g., "encoder.layer1.weight")
     /// and values are `TensorView` objects that can lazily materialize the tensor data.
@@ -52,7 +52,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// let views = model.export_tensor_views();
+    /// let views = model.collect();
     /// println!("Total tensors: {}", views.len());
     ///
     /// // Materialize specific tensor data when needed
@@ -61,13 +61,13 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     println!("Encoder weight shape: {:?}", data.shape);
     /// }
     /// ```
-    fn export_tensor_views(&self) -> HashMap<String, TensorView> {
+    fn collect(&self) -> HashMap<String, TensorView> {
         let mut collector = TensorViewCollector::new();
         self.visit(&mut collector);
         collector.tensors
     }
 
-    /// Export filtered tensor views matching any of the regex patterns.
+    /// Collect filtered tensor views matching any of the regex patterns.
     ///
     /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
     /// This allows flexible filtering strategies for complex module hierarchies.
@@ -84,25 +84,25 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// // Single pattern - export only encoder tensors
-    /// let encoder_tensors = model.export_tensor_views_filtered(&[
+    /// // Single pattern - collect only encoder tensors
+    /// let encoder_tensors = model.collect_filtered(&[
     ///     r"^encoder\..*"
     /// ])?;
     ///
-    /// // Multiple patterns (OR union) - export encoder OR decoder tensors
-    /// let tensors = model.export_tensor_views_filtered(&[
+    /// // Multiple patterns (OR union) - collect encoder OR decoder tensors
+    /// let tensors = model.collect_filtered(&[
     ///     r"^encoder\..*",
     ///     r"^decoder\..*",
     /// ])?;
     ///
-    /// // Export all weights and biases
-    /// let params = model.export_tensor_views_filtered(&[
+    /// // Collect all weights and biases
+    /// let params = model.collect_filtered(&[
     ///     r".*\.weight$",
     ///     r".*\.bias$",
     /// ])?;
     ///
     /// // Complex filtering - specific layers and tensor types
-    /// let filtered = model.export_tensor_views_filtered(&[
+    /// let filtered = model.collect_filtered(&[
     ///     r"^model\.layer[0-2]\..*",        // layers 0, 1, 2
     ///     r"^attention\..*\.(query|key)$",  // attention Q and K
     ///     r"^head\..*",                     // all head tensors
@@ -113,10 +113,10 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// if include_decoder {
     ///     patterns.push(r"^decoder\..*");
     /// }
-    /// let tensors = model.export_tensor_views_filtered(patterns)?;
+    /// let tensors = model.collect_filtered(patterns)?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn export_tensor_views_filtered<I, S>(
+    fn collect_filtered<I, S>(
         &self,
         patterns: I,
     ) -> Result<HashMap<String, TensorView>, regex::Error>
@@ -129,7 +129,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         Ok(collector.tensors)
     }
 
-    /// Export tensor views filtered by a custom predicate function.
+    /// Collect tensor views filtered by a custom predicate function.
     ///
     /// This method allows you to provide a custom function to filter which tensors
     /// are collected. The function receives the tensor path (e.g., "encoder.layer1.weight")
@@ -142,14 +142,14 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// // Export only tensors with specific names
-    /// let tensors = model.export_tensor_views_with_predicate(|path| {
+    /// // Collect only tensors with specific names
+    /// let tensors = model.collect_with_predicate(|path| {
     ///     path == "encoder.weight" || path == "decoder.bias"
     /// });
     ///
-    /// // Export tensors based on custom logic
-    /// let large_tensors = model.export_tensor_views_with_predicate(|path| {
-    ///     // Only export tensors from layers 3, 4, and 5
+    /// // Collect tensors based on custom logic
+    /// let large_tensors = model.collect_with_predicate(|path| {
+    ///     // Only collect tensors from layers 3, 4, and 5
     ///     if let Some(captures) = regex::Regex::new(r"layer(\d+)")
     ///         .unwrap()
     ///         .captures(path)
@@ -163,13 +163,13 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     false
     /// });
     ///
-    /// // Export tensors that don't contain certain keywords
-    /// let filtered = model.export_tensor_views_with_predicate(|path| {
+    /// // Collect tensors that don't contain certain keywords
+    /// let filtered = model.collect_with_predicate(|path| {
     ///     !path.contains("dropout") && !path.contains("auxiliary")
     /// });
     ///
     /// // Combine multiple conditions
-    /// let specific_tensors = model.export_tensor_views_with_predicate(|path| {
+    /// let specific_tensors = model.collect_with_predicate(|path| {
     ///     let is_encoder = path.starts_with("encoder.");
     ///     let is_weight = path.ends_with(".weight");
     ///     let not_attention = !path.contains("attention");
@@ -179,11 +179,11 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// // Use with closure capturing external state
     /// let allowed_prefixes = vec!["encoder", "decoder", "head"];
-    /// let tensors = model.export_tensor_views_with_predicate(|path| {
+    /// let tensors = model.collect_with_predicate(|path| {
     ///     allowed_prefixes.iter().any(|prefix| path.starts_with(prefix))
     /// });
     /// ```
-    fn export_tensor_views_with_predicate<F>(&self, predicate: F) -> HashMap<String, TensorView>
+    fn collect_with_predicate<F>(&self, predicate: F) -> HashMap<String, TensorView>
     where
         F: Fn(&str) -> bool + 'static,
     {
@@ -192,11 +192,11 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         collector.tensors
     }
 
-    /// Import tensor views directly into the module.
+    /// Apply tensor views directly to the module.
     ///
-    /// This is the primary import method that applies tensor data from TensorViews
+    /// This is the primary apply method that applies tensor data from TensorViews
     /// to the corresponding tensors in the module. The views are typically obtained
-    /// from `export_tensor_views()`
+    /// from `collect()`
     ///
     /// # Arguments
     ///
@@ -210,25 +210,25 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// // Direct export to import
-    /// let exported = model1.export_tensor_views();
-    /// let result = model2.import_tensor_views(exported)?;
+    /// // Direct collect to apply
+    /// let collected = model1.collect();
+    /// let result = model2.apply(collected)?;
     ///
     /// if result.is_success() {
-    ///     println!("Successfully imported {} tensors", result.applied.len());
+    ///     println!("Successfully applied {} tensors", result.applied.len());
     /// } else {
-    ///     println!("Import had errors: {:?}", result.errors);
+    ///     println!("Apply had errors: {:?}", result.errors);
     /// }
     /// ```
-    fn import_tensor_views(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
+    fn apply(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
         let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
 
-    /// Import filtered tensor views matching any of the regex patterns.
+    /// Apply filtered tensor views matching any of the regex patterns.
     ///
-    /// Multiple patterns work as an OR union - a tensor is imported if it matches ANY pattern.
+    /// Multiple patterns work as an OR union - a tensor is applied if it matches ANY pattern.
     /// This allows selective loading of specific parts of a model, useful for fine-tuning
     /// or partial model updates.
     ///
@@ -245,14 +245,14 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// // Import only encoder tensors
-    /// let result = model.import_tensor_views_filtered(
+    /// // Apply only encoder tensors
+    /// let result = model.apply_filtered(
     ///     views,
     ///     &[r"^encoder\..*"]
     /// )?;
     ///
-    /// // Import multiple specific parts
-    /// let result = model.import_tensor_views_filtered(
+    /// // Apply multiple specific parts
+    /// let result = model.apply_filtered(
     ///     views,
     ///     &[
     ///         r"^encoder\..*",     // All encoder tensors
@@ -261,14 +261,14 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     ]
     /// )?;
     ///
-    /// // Import all weights and biases
-    /// let result = model.import_tensor_views_filtered(
+    /// // Apply all weights and biases
+    /// let result = model.apply_filtered(
     ///     views,
     ///     &[r".*\.weight$", r".*\.bias$"]
     /// )?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn import_tensor_views_filtered<I, S>(
+    fn apply_filtered<I, S>(
         &mut self,
         views: HashMap<String, TensorView>,
         patterns: I,
@@ -282,11 +282,11 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         Ok(applier.into_result())
     }
 
-    /// Import tensor views filtered by a custom predicate function.
+    /// Apply tensor views filtered by a custom predicate function.
     ///
     /// This method allows you to provide a custom function to filter which tensors
-    /// are imported. The function receives the tensor path and should return `true`
-    /// to import the tensor or `false` to skip it.
+    /// are applied. The function receives the tensor path and should return `true`
+    /// to apply the tensor or `false` to skip it.
     ///
     /// # Arguments
     ///
@@ -296,21 +296,21 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// // Import only non-frozen layers
-    /// let result = model.import_tensor_views_with_predicate(
+    /// // Apply only non-frozen layers
+    /// let result = model.apply_with_predicate(
     ///     views,
     ///     |path| !path.contains("frozen")
     /// );
     ///
-    /// // Import specific tensors
-    /// let result = model.import_tensor_views_with_predicate(
+    /// // Apply specific tensors
+    /// let result = model.apply_with_predicate(
     ///     views,
     ///     |path| path == "encoder.weight" || path == "decoder.bias"
     /// );
     ///
-    /// // Import based on complex logic
+    /// // Apply based on complex logic
     /// let allowed_layers = vec![3, 4, 5];
-    /// let result = model.import_tensor_views_with_predicate(
+    /// let result = model.apply_with_predicate(
     ///     views,
     ///     move |path| {
     ///         if let Some(layer_num) = extract_layer_number(path) {
@@ -321,7 +321,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     }
     /// );
     /// ```
-    fn import_tensor_views_with_predicate<F>(
+    fn apply_with_predicate<F>(
         &mut self,
         views: HashMap<String, TensorView>,
         predicate: F,
@@ -334,9 +334,9 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         applier.into_result()
     }
 
-    /// Import tensor views with key remapping using regex patterns.
+    /// Apply tensor views with key remapping using regex patterns.
     ///
-    /// This method allows you to transform tensor paths during import, which is useful
+    /// This method allows you to transform tensor paths during apply, which is useful
     /// when loading models that have different naming conventions or when adapting
     /// models from other frameworks.
     ///
@@ -347,7 +347,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// # Returns
     ///
-    /// * `Ok((ImportResult, remapped_names))` - Import results and remapping information
+    /// * `Ok((ImportResult, remapped_names))` - Apply results and remapping information
     /// * `Err(ImportError)` - If regex compilation fails
     ///
     /// The returned `remapped_names` is a vector of tuples (new_path, original_path)
@@ -360,13 +360,13 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// let remaps = vec![
     ///     (r"layer", "block"),
     /// ];
-    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
     ///
     /// // Add prefix to all tensors
     /// let remaps = vec![
     ///     (r"^", "model."),
     /// ];
-    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
     ///
     /// // Rename specific components
     /// let remaps = vec![
@@ -375,16 +375,16 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     (r"weight", "w"),
     ///     (r"bias", "b"),
     /// ];
-    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
     ///
     /// // Complex transformation - change layer numbering
     /// let remaps = vec![
     ///     (r"layers\.(\d+)", "blocks.$1"),
     /// ];
-    /// let (result, remapped) = model.import_tensor_views_remapped(views, remaps)?;
+    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn import_tensor_views_remapped<S1, S2>(
+    fn apply_remapped<S1, S2>(
         &mut self,
         views: HashMap<String, TensorView>,
         key_remap: Vec<(S1, S2)>,
@@ -395,11 +395,11 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     {
         let compiled_remaps = compile_remap_patterns(key_remap)?;
         let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
-        let result = self.import_tensor_views(remapped_views);
+        let result = self.apply(remapped_views);
         Ok((result, remapped_names))
     }
 
-    /// Import tensor views with key remapping and filtering.
+    /// Apply tensor views with key remapping and filtering.
     ///
     /// Combines remapping and filtering - first remaps the paths, then applies filters
     /// to the remapped paths.
@@ -408,23 +408,23 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
     /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
-    /// * `patterns` - Regex patterns to filter which tensors to import (applied after remapping)
+    /// * `patterns` - Regex patterns to filter which tensors to apply (applied after remapping)
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// // First rename layer to block, then only import block 0 and 1
+    /// // First rename layer to block, then only apply block 0 and 1
     /// let remaps = vec![
     ///     (r"layer", "block"),
     /// ];
-    /// let (result, remapped) = model.import_tensor_views_remapped_filtered(
+    /// let (result, remapped) = model.apply_remapped_filtered(
     ///     views,
     ///     remaps,
     ///     &[r"^block\.[01]\..*"]
     /// )?;
     /// ```
     #[cfg(target_has_atomic = "ptr")]
-    fn import_tensor_views_remapped_filtered<S1, S2, I, S3>(
+    fn apply_remapped_filtered<S1, S2, I, S3>(
         &mut self,
         views: HashMap<String, TensorView>,
         key_remap: Vec<(S1, S2)>,
@@ -438,7 +438,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     {
         let compiled_remaps = compile_remap_patterns(key_remap)?;
         let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
-        let result = self.import_tensor_views_filtered(remapped_views, patterns)?;
+        let result = self.apply_filtered(remapped_views, patterns)?;
         Ok((result, remapped_names))
     }
 }
@@ -561,11 +561,11 @@ mod tests {
     }
 
     #[test]
-    fn test_export_tensor_views() {
+    fn test_collect() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        let views = module.export_tensor_views();
+        let views = module.collect();
 
         assert_eq!(views.len(), 4);
         assert!(views.contains_key("encoder.weight"));
@@ -575,13 +575,11 @@ mod tests {
     }
 
     #[test]
-    fn test_export_tensor_views_filtered() {
+    fn test_collect_filtered() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        let views = module
-            .export_tensor_views_filtered(&[r"^encoder\..*"])
-            .unwrap();
+        let views = module.collect_filtered(&[r"^encoder\..*"]).unwrap();
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("encoder.weight"));
@@ -591,13 +589,13 @@ mod tests {
     }
 
     #[test]
-    fn test_export_tensor_views_filtered_multiple_patterns() {
+    fn test_collect_filtered_multiple_patterns() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        // Export tensors matching either pattern (OR union)
+        // Collect tensors matching either pattern (OR union)
         let views = module
-            .export_tensor_views_filtered(&[
+            .collect_filtered(&[
                 r"^encoder\.weight$", // Only encoder.weight
                 r".*\.bias$",         // Any .bias tensor
             ])
@@ -617,7 +615,7 @@ mod tests {
             .with_bias(true)
             .init::<TestBackend>(&device);
 
-        let views = linear.export_tensor_views();
+        let views = linear.collect();
         assert!(views.contains_key("weight"));
         assert!(views.contains_key("bias"));
 
@@ -704,12 +702,12 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_nested_export() {
+    fn test_deep_nested_collect() {
         let device = Default::default();
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
-        // Test exporting all tensors from deeply nested structure
-        let all_views = model.export_tensor_views();
+        // Test collecting all tensors from deeply nested structure
+        let all_views = model.collect();
 
         // Should have 8 tensors total (2 tensors × 2 level4 modules × 2 level2 branches)
         assert_eq!(all_views.len(), 8);
@@ -726,29 +724,25 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_nested_filtered_export() {
+    fn test_deep_nested_filtered_collect() {
         let device = Default::default();
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
         // Filter only level2_a branch
-        let level2_a_views = model
-            .export_tensor_views_filtered(&[r"^level1\.level2_a\..*"])
-            .unwrap();
+        let level2_a_views = model.collect_filtered(&[r"^level1\.level2_a\..*"]).unwrap();
         assert_eq!(level2_a_views.len(), 4);
 
         // Filter only main modules at any depth
-        let main_views = model
-            .export_tensor_views_filtered(&[r".*\.level4_main\..*"])
-            .unwrap();
+        let main_views = model.collect_filtered(&[r".*\.level4_main\..*"]).unwrap();
         assert_eq!(main_views.len(), 4);
 
         // Filter only conv tensors
-        let conv_views = model.export_tensor_views_filtered(&[r".*\.conv$"]).unwrap();
+        let conv_views = model.collect_filtered(&[r".*\.conv$"]).unwrap();
         assert_eq!(conv_views.len(), 4);
 
         // Complex multi-pattern filter
         let complex_views = model
-            .export_tensor_views_filtered(&[
+            .collect_filtered(&[
                 r"^level1\.level2_a\..*\.norm$", // All norms in level2_a
                 r"^level1\.level2_b\..*\.conv$", // All convs in level2_b
             ])
@@ -777,11 +771,11 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_layer_export() {
+    fn test_custom_layer_collect() {
         let device = Default::default();
         let custom = CustomLayer::<TestBackend>::new(&device);
 
-        let views = custom.export_tensor_views();
+        let views = custom.collect();
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("weight"));
@@ -796,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn test_composite_module_export() {
+    fn test_composite_module_collect() {
         let device = Default::default();
 
         // Create a composite module with multiple custom layers
@@ -816,7 +810,7 @@ mod tests {
         }
 
         let composite = CompositeModule::<TestBackend>::new(&device);
-        let views = composite.export_tensor_views();
+        let views = composite.collect();
 
         assert_eq!(views.len(), 4);
         assert!(views.contains_key("layer1.weight"));
@@ -825,9 +819,7 @@ mod tests {
         assert!(views.contains_key("layer2.scale"));
 
         // Test filtering
-        let weight_only = composite
-            .export_tensor_views_filtered(&[r".*\.weight$"])
-            .unwrap();
+        let weight_only = composite.collect_filtered(&[r".*\.weight$"]).unwrap();
         assert_eq!(weight_only.len(), 2);
         assert!(weight_only.contains_key("layer1.weight"));
         assert!(weight_only.contains_key("layer2.weight"));
@@ -861,7 +853,7 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
 
-        let views = module.export_tensor_views();
+        let views = module.collect();
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("required"));
@@ -873,7 +865,7 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
 
-        let views = module.export_tensor_views();
+        let views = module.collect();
 
         assert_eq!(views.len(), 1);
         assert!(views.contains_key("required"));
@@ -895,11 +887,11 @@ mod tests {
     }
 
     #[test]
-    fn test_vec_module_export() {
+    fn test_vec_module_collect() {
         let device = Default::default();
         let module = VecModule::<TestBackend>::new(&device, 3);
 
-        let views = module.export_tensor_views();
+        let views = module.collect();
 
         // With the fix, all Vec items should now be properly indexed and visited
         assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
@@ -925,17 +917,13 @@ mod tests {
         }
 
         // Test filtering for specific layer
-        let layer1_only = module
-            .export_tensor_views_filtered(&[r"^layers\.1\..*"])
-            .unwrap();
+        let layer1_only = module.collect_filtered(&[r"^layers\.1\..*"]).unwrap();
         assert_eq!(layer1_only.len(), 2);
         assert!(layer1_only.contains_key("layers.1.weight"));
         assert!(layer1_only.contains_key("layers.1.scale"));
 
         // Test filtering for all weights
-        let weights_only = module
-            .export_tensor_views_filtered(&[r".*\.weight$"])
-            .unwrap();
+        let weights_only = module.collect_filtered(&[r".*\.weight$"]).unwrap();
         assert_eq!(weights_only.len(), 3);
         assert!(weights_only.contains_key("layers.0.weight"));
         assert!(weights_only.contains_key("layers.1.weight"));
@@ -961,11 +949,11 @@ mod tests {
     }
 
     #[test]
-    fn test_array_module_export() {
+    fn test_array_module_collect() {
         let device = Default::default();
         let module = ArrayModule::<TestBackend>::new(&device);
 
-        let views = module.export_tensor_views();
+        let views = module.collect();
 
         // All array items should be properly indexed
         assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
@@ -977,36 +965,32 @@ mod tests {
         }
 
         // Test filtering for specific index
-        let layer2_only = module
-            .export_tensor_views_filtered(&[r"^layers\.2\..*"])
-            .unwrap();
+        let layer2_only = module.collect_filtered(&[r"^layers\.2\..*"]).unwrap();
         assert_eq!(layer2_only.len(), 2);
         assert!(layer2_only.contains_key("layers.2.weight"));
         assert!(layer2_only.contains_key("layers.2.scale"));
     }
 
     #[test]
-    fn test_export_with_predicate() {
+    fn test_collect_with_predicate() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
         // Test with simple predicate - only encoder tensors
-        let encoder_only =
-            module.export_tensor_views_with_predicate(|path| path.starts_with("encoder."));
+        let encoder_only = module.collect_with_predicate(|path| path.starts_with("encoder."));
         assert_eq!(encoder_only.len(), 2);
         assert!(encoder_only.contains_key("encoder.weight"));
         assert!(encoder_only.contains_key("encoder.bias"));
 
         // Test with specific names predicate
-        let specific = module.export_tensor_views_with_predicate(|path| {
-            path == "encoder.weight" || path == "decoder.bias"
-        });
+        let specific = module
+            .collect_with_predicate(|path| path == "encoder.weight" || path == "decoder.bias");
         assert_eq!(specific.len(), 2);
         assert!(specific.contains_key("encoder.weight"));
         assert!(specific.contains_key("decoder.bias"));
 
         // Test with complex logic
-        let complex = module.export_tensor_views_with_predicate(|path| {
+        let complex = module.collect_with_predicate(|path| {
             let parts: Vec<&str> = path.split('.').collect();
             // Only collect if it's a weight OR if it's in the encoder
             (parts.len() == 2 && parts[1] == "weight") || parts[0] == "encoder"
@@ -1023,17 +1007,15 @@ mod tests {
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
         // Filter using predicate - only level2_a branch
-        let level2_a_only =
-            model.export_tensor_views_with_predicate(|path| path.contains("level2_a"));
+        let level2_a_only = model.collect_with_predicate(|path| path.contains("level2_a"));
         assert_eq!(level2_a_only.len(), 4);
 
         // Filter by depth - only tensors at exactly 5 levels deep
-        let deep_only =
-            model.export_tensor_views_with_predicate(|path| path.split('.').count() == 5);
+        let deep_only = model.collect_with_predicate(|path| path.split('.').count() == 5);
         assert_eq!(deep_only.len(), 8); // All conv and norm tensors are 5 levels deep
 
         // Complex predicate with multiple conditions
-        let complex = model.export_tensor_views_with_predicate(|path| {
+        let complex = model.collect_with_predicate(|path| {
             let is_main = path.contains("level4_main");
             let is_conv = path.ends_with(".conv");
             is_main && is_conv
@@ -1049,7 +1031,7 @@ mod tests {
         let module = VecModule::<TestBackend>::new(&device, 4);
 
         // Filter using predicate - only even indices
-        let even_only = module.export_tensor_views_with_predicate(|path| {
+        let even_only = module.collect_with_predicate(|path| {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index % 2 == 0;
@@ -1060,7 +1042,7 @@ mod tests {
         assert_eq!(even_only.len(), 4); // layers.0 and layers.2, each with 2 tensors
 
         // Filter for specific range of indices
-        let range = module.export_tensor_views_with_predicate(|path| {
+        let range = module.collect_with_predicate(|path| {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index >= 1 && index <= 2;
@@ -1080,7 +1062,7 @@ mod tests {
         let allowed_modules = vec!["encoder"];
         let allowed_types = vec!["weight", "bias"];
 
-        let filtered = module.export_tensor_views_with_predicate(move |path| {
+        let filtered = module.collect_with_predicate(move |path| {
             let parts: Vec<&str> = path.split('.').collect();
             if parts.len() != 2 {
                 return false;
@@ -1103,12 +1085,12 @@ mod tests {
     }
 
     #[test]
-    fn test_enum_module_export() {
+    fn test_enum_module_collect() {
         let device = Default::default();
 
         // Test variant A
         let module_a = EnumModule::<TestBackend>::LayerA(CustomLayer::new(&device));
-        let views_a = module_a.export_tensor_views();
+        let views_a = module_a.collect();
 
         // Should have the variant name in the path
         assert_eq!(views_a.len(), 2);
@@ -1117,7 +1099,7 @@ mod tests {
 
         // Test variant B
         let module_b = EnumModule::<TestBackend>::LayerB(CustomLayer::new(&device));
-        let views_b = module_b.export_tensor_views();
+        let views_b = module_b.collect();
 
         assert_eq!(views_b.len(), 2);
         assert!(views_b.contains_key("LayerB.weight"));
@@ -1125,7 +1107,7 @@ mod tests {
 
         // Test variant C
         let module_c = EnumModule::<TestBackend>::LayerC(CustomLayer::new(&device));
-        let views_c = module_c.export_tensor_views();
+        let views_c = module_c.collect();
 
         assert_eq!(views_c.len(), 2);
         assert!(views_c.contains_key("LayerC.weight"));
@@ -1136,9 +1118,7 @@ mod tests {
         assert_eq!(weight_data.shape, vec![2, 3]);
 
         // Test filtering on enum module
-        let scale_only = module_a
-            .export_tensor_views_filtered(&[r".*\.scale$"])
-            .unwrap();
+        let scale_only = module_a.collect_filtered(&[r".*\.scale$"]).unwrap();
         assert_eq!(scale_only.len(), 1);
         assert!(scale_only.contains_key("LayerA.scale"));
     }
@@ -1168,7 +1148,7 @@ mod tests {
 
         // Test small variant
         let small_net = NetworkVariant::Small(small_linear);
-        let small_views = small_net.export_tensor_views();
+        let small_views = small_net.collect();
 
         assert_eq!(small_views.len(), 2);
         assert!(small_views.contains_key("Small.weight"));
@@ -1180,7 +1160,7 @@ mod tests {
 
         // Test medium variant
         let medium_net = NetworkVariant::Medium(medium_linear);
-        let medium_views = medium_net.export_tensor_views();
+        let medium_views = medium_net.collect();
 
         assert_eq!(medium_views.len(), 2);
         assert!(medium_views.contains_key("Medium.weight"));
@@ -1191,7 +1171,7 @@ mod tests {
 
         // Test large variant
         let large_net = NetworkVariant::Large(large_linear);
-        let large_views = large_net.export_tensor_views();
+        let large_views = large_net.collect();
 
         assert_eq!(large_views.len(), 2);
         assert!(large_views.contains_key("Large.weight"));
