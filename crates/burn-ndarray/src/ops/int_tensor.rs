@@ -28,9 +28,10 @@ where
     NdArrayTensor: From<SharedArray<I>>,
 {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor {
-        match data.dtype {
-            DType::I64 | DType::I32 => NdArrayTensor::from_data(data),
-            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        if data.dtype.is_int() || data.dtype.is_uint() {
+            NdArrayTensor::from_data(data)
+        } else {
+            unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype)
         }
     }
 

@@ -160,7 +160,7 @@ where
     ///
     /// # Warning
     /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
-    /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
+    /// have the same integer data type for operations multiple input tensors (e.g., binary ops).
     pub fn cast<F: Into<IntDType>>(self, dtype: F) -> Tensor<B, D, Int> {
         Tensor::new(B::int_cast(self.primitive, dtype.into()))
     }

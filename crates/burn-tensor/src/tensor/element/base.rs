@@ -396,6 +396,10 @@ impl DType {
     pub fn is_int(&self) -> bool {
         matches!(self, DType::I64 | DType::I32 | DType::I16 | DType::I8)
     }
+    /// Returns true if the data type is an unsigned integer type.
+    pub fn is_uint(&self) -> bool {
+        matches!(self, DType::U64 | DType::U32 | DType::U16 | DType::U8)
+    }
 
     /// Returns true if the data type is a boolean type
     pub fn is_bool(&self) -> bool {

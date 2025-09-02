@@ -1182,7 +1182,7 @@ pub trait IntTensorOps<B: Backend> {
     /// Bitwise right shift operation for Int Tensors with a scalar
     fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 
-    /// Converts a tensor to another floating point data type.
+    /// Converts a tensor to another integer data type.
     ///
     /// # Arguments
     ///
@@ -1191,6 +1191,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same values as `tensor` but in the target floating point data type.
+    /// A tensor with the same values as `tensor` but in the target integer data type.
     fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
 }
