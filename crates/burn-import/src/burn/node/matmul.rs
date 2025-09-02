@@ -63,41 +63,29 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let mut rhs_expanded = rhs;
-                    for i in 0..num_unsqueezes {
-                        let current_rank = rhs_dim + i + 1;
-                        rhs_expanded = quote! { #rhs_expanded.unsqueeze::<#current_rank>() };
-                    }
+                    let target_rank = lhs_dim;
 
                     quote! {
-                        let #output = #lhs.matmul(#rhs_expanded);
+                        let #output = #lhs.matmul(#rhs.unsqueeze::<#target_rank>());
                     }
                 }
             }
             Ordering::Less => {
-                let num_unsqueezes = rhs_dim - lhs_dim;
-
                 if lhs_dim == 1 {
                     // Vector-matrix product: expand vector to match matrix rank
                     let squeeze_dim = rhs_dim - 2;
                     let output_rank = self.output.rank;
-
-                    // Build unsqueeze dimensions: [0, 1, 2, ...]
-                    let unsqueeze_dims: Vec<_> = (0..num_unsqueezes as isize).collect();
+                    let target_rank = rhs_dim;
 
                     quote! {
-                        let #output = #lhs.unsqueeze_dims(&[#(#unsqueeze_dims),*]).matmul(#rhs).squeeze::<#output_rank>(#squeeze_dim);
+                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs).squeeze::<#output_rank>(#squeeze_dim);
                     }
                 } else {
                     // General tensor broadcasting: add leading dimensions
-                    let mut lhs_expanded = lhs;
-                    for i in 0..num_unsqueezes {
-                        let current_rank = lhs_dim + i + 1;
-                        lhs_expanded = quote! { #lhs_expanded.unsqueeze::<#current_rank>() };
-                    }
+                    let target_rank = rhs_dim;
 
                     quote! {
-                        let #output = #lhs_expanded.matmul(#rhs);
+                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs);
                     }
                 }
             }
@@ -261,7 +249,7 @@ mod tests {
                     tensor1: Tensor<B, 1>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).matmul(tensor2).squeeze::<3usize>(2usize);
+                    let tensor3 = tensor1.unsqueeze::<4usize>().matmul(tensor2).squeeze::<3usize>(2usize);
 
                     tensor3
                 }
