@@ -28,7 +28,7 @@ pub struct MlpConfig {
 pub struct Mlp<B: Backend> {
     linears: Vec<nn::Linear<B>>,
     dropout: nn::Dropout,
-    activation: nn::activation::Relu,
+    activation: nn::Relu,
 }
 
 impl<B: Backend> Mlp<B> {
@@ -43,7 +43,7 @@ impl<B: Backend> Mlp<B> {
         Self {
             linears,
             dropout: nn::DropoutConfig::new(0.3).init(),
-            activation: nn::activation::Relu::new(),
+            activation: nn::Relu::new(),
         }
     }
 

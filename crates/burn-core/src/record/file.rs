@@ -321,11 +321,11 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
 mod tests {
     use super::*;
     use crate as burn;
-    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestBackend,
         module::Module,
         nn::conv::{Conv2d, Conv2dConfig},
+        nn::{Linear, LinearConfig},
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
     use burn_tensor::backend::Backend;
