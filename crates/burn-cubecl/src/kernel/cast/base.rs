@@ -10,10 +10,10 @@ use std::any::TypeId;
 
 #[cube(launch)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
-    input: &LinearView<I>,
-    output: &mut LinearView<O, ReadWrite>,
+    input: &LinearView<Line<I>>,
+    output: &mut LinearView<Line<O>, ReadWrite>,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 

@@ -85,11 +85,11 @@ impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
-    input: &LinearView<C>,
+    input: &LinearView<Line<C>>,
     scalar: C,
-    output: &mut LinearView<C, ReadWrite>,
+    output: &mut LinearView<Line<C>, ReadWrite>,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
