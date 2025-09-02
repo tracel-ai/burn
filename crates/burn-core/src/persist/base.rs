@@ -14,135 +14,59 @@ use crate::tensor::backend::Backend;
 /// This trait provides convenient methods to collect and apply tensor views from any Burn module.
 /// Collection operations create lightweight tensor views without immediately copying data.
 /// Apply operations apply tensor data from views to the corresponding tensors in the module.
-///
-/// # Examples
-///
-/// ```ignore
-/// use burn::persist::ModulePersist;
-///
-/// // Collect all tensors
-/// let all_views = model.collect();
-/// for (path, view) in all_views.iter() {
-///     println!("{}: {:?}", path, view.to_data().shape);
-/// }
-///
-/// // Collect only encoder tensors
-/// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-/// let encoder_views = model.collect_with_filter(filter);
-///
-/// // Apply tensor views to another model
-/// let result = model2.apply(collected);
-/// println!("Applied {} tensors", result.applied.len());
-///
-/// // Apply with filtering
-/// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-/// let result = model.apply_with_filter(
-///     views,
-///     filter  // Only apply encoder tensors
-/// );
-/// ```
 pub trait ModulePersist<B: Backend>: Module<B> + Clone {
-    /// Collect tensor views for inspection without copying data.
+    /// Collects tensor views for inspection without copying data.
     ///
-    /// Returns a HashMap where keys are the full module paths (e.g., "encoder.layer1.weight")
+    /// Returns a `HashMap` where keys are the full module paths (e.g., "encoder.layer1.weight")
     /// and values are `TensorView` objects that can lazily materialize the tensor data.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let views = model.collect();
-    /// println!("Total tensors: {}", views.len());
-    ///
-    /// // Materialize specific tensor data when needed
-    /// if let Some(weight_view) = views.get("encoder.weight") {
-    ///     let data = weight_view.to_data();
-    ///     println!("Encoder weight shape: {:?}", data.shape);
-    /// }
-    /// ```
     fn collect(&self) -> HashMap<String, TensorView> {
         let mut collector = TensorViewCollector::new();
         self.visit(&mut collector);
         collector.tensors
     }
 
-    /// Collect tensor views with a PathFilter.
+    /// Collects tensor views with a [`PathFilter`].
     ///
-    /// This provides the most flexible filtering using PathFilter's capabilities
+    /// This provides flexible filtering using `PathFilter`'s capabilities
     /// including regex patterns, exact paths, and predicates.
     ///
     /// # Arguments
     ///
-    /// * `filter` - A PathFilter to determine which tensors to collect
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use burn::persist::PathFilter;
-    ///
-    /// // Collect encoder tensors
-    /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-    /// let encoder_tensors = model.collect_with_filter(filter);
-    ///
-    /// // Collect multiple patterns (OR union)
-    /// let filter = PathFilter::new()
-    ///     .with_regex(r"^encoder\..*")
-    ///     .with_regex(r"^decoder\..*");
-    /// let tensors = model.collect_with_filter(filter);
-    ///
-    /// // Mix regex and exact paths
-    /// let filter = PathFilter::new()
-    ///     .with_regex(r".*\.weight$")
-    ///     .with_full_path("encoder.bias");
-    /// let params = model.collect_with_filter(filter);
-    /// ```
+    /// * `filter` - A [`PathFilter`] to determine which tensors to collect
     fn collect_with_filter(&self, filter: PathFilter) -> HashMap<String, TensorView> {
         let mut collector = TensorViewCollector::with_filter(filter);
         self.visit(&mut collector);
         collector.tensors
     }
 
-    /// Apply tensor views directly to the module.
+    /// Applies tensor views directly to the module.
     ///
-    /// This is the primary apply method that applies tensor data from TensorViews
+    /// This is the primary apply method that applies tensor data from `TensorView`s
     /// to the corresponding tensors in the module. The views are typically obtained
-    /// from `collect()`
+    /// from `collect()`.
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to TensorViews
+    /// * `views` - HashMap of tensor paths to `TensorView`s
     ///
     /// # Returns
     ///
-    /// An `ImportResult` containing information about applied, skipped, missing,
+    /// An [`ImportResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Direct collect to apply
-    /// let collected = model1.collect();
-    /// let result = model2.apply(collected)?;
-    ///
-    /// if result.is_success() {
-    ///     println!("Successfully applied {} tensors", result.applied.len());
-    /// } else {
-    ///     println!("Apply had errors: {:?}", result.errors);
-    /// }
-    /// ```
     fn apply(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
         let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
 
-    /// Apply tensor views with a PathFilter.
+    /// Applies tensor views with a [`PathFilter`].
     ///
-    /// This provides the most flexible filtering using PathFilter's capabilities.
+    /// This provides flexible filtering using `PathFilter`'s capabilities.
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `filter` - A PathFilter to determine which tensors to apply
+    /// * `views` - HashMap of tensor paths to `TensorView`s
+    /// * `filter` - A [`PathFilter`] to determine which tensors to apply
     ///
     /// # Examples
     ///
@@ -170,24 +94,14 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         applier.into_result()
     }
 
-    /// Collect tensor views into a ModulePersister for saving.
+    /// Collects tensor views into a [`ModulePersister`] for saving.
     ///
-    /// This method allows using a ModulePersister implementation to handle the
+    /// This method allows using a `ModulePersister` implementation to handle the
     /// collection and writing logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a ModulePersister that will collect and save the tensors
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let mut persister = SafetensorsPersisterConfig::new()
-    ///     .with_filter(&[r"^encoder\..*"])
-    ///     .build("model.safetensors")?;
-    ///
-    /// model.collect_to(&mut persister)?;
-    /// ```
+    /// * `persister` - A mutable reference to a [`ModulePersister`] that will collect and save the tensors
     fn collect_to<P>(&self, persister: &mut P) -> Result<(), P::Error>
     where
         P: crate::persist::persister::ModulePersister,
@@ -195,14 +109,14 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         persister.collect_from(self)
     }
 
-    /// Apply tensor data from a ModulePersister for loading.
+    /// Applies tensor data from a [`ModulePersister`] for loading.
     ///
-    /// This method allows using a ModulePersister implementation to handle the
+    /// This method allows using a `ModulePersister` implementation to handle the
     /// loading and application logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a ModulePersister that will load and apply tensors
+    /// * `persister` - A mutable reference to a [`ModulePersister`] that will load and apply tensors
     fn apply_from<P>(&mut self, persister: &mut P) -> Result<ImportResult, P::Error>
     where
         P: crate::persist::persister::ModulePersister,
