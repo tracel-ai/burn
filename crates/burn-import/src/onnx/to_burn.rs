@@ -757,13 +757,6 @@ impl ParsedOnnxGraph {
         let rhs = Type::from(rhs_arg);
         let output = Type::from(output_arg);
 
-        log::debug!(
-            "mul_conversion types: lhs={:?}, rhs={:?}, output={:?}",
-            lhs,
-            rhs,
-            output
-        );
-
         BinaryNode::mul(lhs, rhs, output)
     }
 
