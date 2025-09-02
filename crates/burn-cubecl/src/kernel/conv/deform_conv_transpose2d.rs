@@ -6,7 +6,10 @@ use burn_tensor::{
 };
 use cubecl::{
     AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
-    convolution::components::ConvSetupError, cube, ir::Elem, prelude::*,
+    convolution::components::ConvSetupError,
+    cube,
+    ir::{ElemType, StorageType},
+    prelude::*,
 };
 
 use crate::{
@@ -259,8 +262,13 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     kernel_width: u32,
 }
 
-#[allow(clippy::collapsible_if)]
+#[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
+#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "cubecl cannot expand is_multiple_of"
+)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
@@ -444,14 +452,15 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
-    let kind = match E::as_elem_native_unchecked() {
-        Elem::Float(kind) => kind,
+    let kind = match E::as_type_native_unchecked().elem_type() {
+        ElemType::Float(kind) => kind,
         _ => unreachable!("Should be float"),
     };
     let props = client.properties();
 
     let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
-    let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
+    let supports_same_type =
+        props.feature_enabled(Feature::Type(StorageType::Atomic(ElemType::Float(kind))));
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;

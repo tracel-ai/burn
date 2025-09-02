@@ -66,7 +66,6 @@ where
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type QuantizedEncoding = Q;
 
     fn ad_enabled() -> bool {
         false
@@ -76,7 +75,7 @@ where
         String::from("ndarray")
     }
 
-    fn seed(seed: u64) {
+    fn seed(_device: &Self::Device, seed: u64) {
         let rng = StdRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);

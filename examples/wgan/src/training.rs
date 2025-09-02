@@ -102,7 +102,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Create the model and optimizer
     let (mut generator, mut discriminator) = config.model.init::<B>(&device);

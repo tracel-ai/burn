@@ -1,6 +1,8 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::StridedLayout,
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::{layout::linear::LinearView, r#virtual::ReadWrite},
     tensor_line_size_parallel,
 };
 use cubecl::{
@@ -13,7 +15,7 @@ use crate::{
     kernel::{
         conv::div_mod_seq,
         into_contiguous_aligned,
-        utils::{shape_divmod, strided_layout},
+        utils::{linear_view, shape_divmod},
     },
     ops::{max_line_size, numeric::empty_device_strided},
     tensor::CubeTensor,
@@ -32,18 +34,16 @@ fn direct_conv2d_kernel<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
     bias: CubeOption<Tensor<Line<E>>>,
-    output: &mut Tensor<Line<E>>,
+    output: &mut LinearView<E, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod>,
     shape_out_c: FastDivmod,
-    layout_out: StridedLayout,
     #[comptime] has_padding: bool,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
-    let out_pos = layout_out.index(output, ABSOLUTE_POS);
     let n_spatial = comptime![shape_out.len()];
 
     let line_size_out = output.line_size();
@@ -104,7 +104,7 @@ fn direct_conv2d_kernel<E: Numeric>(
         has_padding,
     );
 
-    output[out_pos] = sum;
+    output[ABSOLUTE_POS] = sum;
 }
 
 #[derive(CubeType, Clone)]
@@ -284,7 +284,6 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
         ));
     }
 
-    let layout_out = strided_layout(&output);
     let bias = bias.as_ref().map(|b| b.as_tensor_arg::<E>(line_size_out));
 
     let num_elems_output = output.shape.num_elements() / line_size_out as usize;
@@ -299,11 +298,10 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
             input.as_tensor_arg::<E>(line_size_in),
             weight.as_tensor_arg::<E>(line_size_in),
             bias.into(),
-            output.as_tensor_arg::<E>(line_size_out),
+            linear_view(&output, &line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,
-            layout_out,
             options.padding.iter().any(|it| *it != 0),
         )
     };

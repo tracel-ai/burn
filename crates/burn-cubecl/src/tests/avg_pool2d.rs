@@ -32,13 +32,13 @@ mod tests {
 
     #[test]
     fn avg_pool2d_backward_should_match_reference_backend() {
-        TestBackend::seed(0);
-        ReferenceBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 4>::random(
-            [32, 32, 32, 32],
-            Distribution::Default,
-            &Default::default(),
-        );
+        let device = Default::default();
+
+        TestBackend::seed(&device, 0);
+        ReferenceBackend::seed(&Default::default(), 0);
+
+        let tensor =
+            Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &device);
         let tensor_ref =
             Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
         let kernel_size = [3, 3];

@@ -55,7 +55,7 @@ where
 {
     let ndims = tensor.shape.num_dims();
     let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &tensor.shape.dims,
         &tensor.strides,
         ndims - 1,

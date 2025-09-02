@@ -408,7 +408,8 @@ where
         }
     }
 
-    fn elem_size(&self) -> usize {
+    /// Returns the element size of this tensor
+    pub fn elem_size(&self) -> usize {
         if let DType::QFloat(_) = self.dtype {
             // Encoded as u32
             core::mem::size_of::<u32>()

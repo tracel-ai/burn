@@ -233,6 +233,11 @@ struct Col2ImArgs {
 }
 
 #[cube(launch_unchecked)]
+#[allow(unknown_lints, reason = "manual_is_multiple_of is from Rust 1.89.0")]
+#[expect(
+    clippy::manual_is_multiple_of,
+    reason = "cubecl cannot expand is_multiple_of"
+)]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
     bias: &Tensor<E>,
