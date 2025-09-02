@@ -33,8 +33,10 @@ mod collectors;
 mod filter;
 mod tensor_view;
 
+mod persister;
 pub use appliers::{ImportError, ImportResult, TensorApplier};
 pub use base::ModulePersist;
 pub use collectors::TensorViewCollector;
 pub use filter::PathFilter;
+pub use persister::ModulePersister;
 pub use tensor_view::TensorView;
