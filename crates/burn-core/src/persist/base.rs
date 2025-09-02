@@ -1,9 +1,5 @@
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::string::String;
 use hashbrown::HashMap;
-
-#[cfg(target_has_atomic = "ptr")]
-use regex::{self, Regex};
 
 use super::{
     TensorViewCollector,
@@ -207,67 +203,12 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `persister` - A mutable reference to a ModulePersister that will load and apply tensors
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let mut persister = SafetensorsPersisterConfig::new()
-    ///     .with_remapping([("old_name", "new_name")])
-    ///     .build("model.safetensors")?;
-    ///
-    /// model.apply_from(&mut persister)?;
-    /// ```
     fn apply_from<P>(&mut self, persister: &mut P) -> Result<ImportResult, P::Error>
     where
         P: crate::persist::persister::ModulePersister,
     {
         persister.apply_to(self)
     }
-}
-
-/// Remap tensor paths using regex patterns.
-///
-/// This function transforms the keys in a HashMap of tensor views according to
-/// the provided regex patterns and replacement strings.
-///
-/// # Arguments
-///
-/// * `tensors` - HashMap of original tensor paths to TensorViews
-/// * `key_remap` - Vector of (Regex, String) pairs for transformation
-///
-/// # Returns
-///
-/// A tuple containing:
-/// * The remapped HashMap with transformed keys
-/// * A vector of (new_path, original_path) showing the transformations
-#[cfg(target_has_atomic = "ptr")]
-pub fn remap_tensor_paths(
-    mut tensors: HashMap<String, TensorView>,
-    key_remap: Vec<(Regex, String)>,
-) -> (HashMap<String, TensorView>, Vec<(String, String)>) {
-    if key_remap.is_empty() {
-        let remapped_names = tensors.keys().cloned().map(|s| (s.clone(), s)).collect();
-        return (tensors, remapped_names);
-    }
-
-    let mut remapped = HashMap::new();
-    let mut remapped_names = Vec::new();
-
-    for (name, tensor) in tensors.drain() {
-        let mut new_name = name.clone();
-        for (pattern, replacement) in &key_remap {
-            if pattern.is_match(&new_name) {
-                new_name = pattern
-                    .replace_all(&new_name, replacement.as_str())
-                    .to_string();
-            }
-        }
-
-        remapped_names.push((new_name.clone(), name));
-        remapped.insert(new_name, tensor);
-    }
-
-    (remapped, remapped_names)
 }
 
 // Blanket implementation for all modules that implement Clone
