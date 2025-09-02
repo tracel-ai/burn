@@ -65,20 +65,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
                 let literal = Literal::i64_suffixed(*value);
                 quote! { #literal }
             }
-            RangeParam::Runtime(t) => {
-                match t {
-                    Type::Scalar(s) => {
-                        let name = &s.name;
-                        quote! { #name }
-                    }
-                    Type::Tensor(tensor) if tensor.rank == 0 => {
-                        // Rank 0 tensor is treated as scalar
-                        let name = &tensor.name;
-                        quote! { #name }
-                    }
-                    _ => panic!("Range parameter must be a scalar"),
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
                 }
-            }
+                _ => panic!("Range parameter must be a scalar"),
+            },
         };
 
         let limit = match &self.limit {
@@ -86,20 +79,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
                 let literal = Literal::i64_suffixed(*value);
                 quote! { #literal }
             }
-            RangeParam::Runtime(t) => {
-                match t {
-                    Type::Scalar(s) => {
-                        let name = &s.name;
-                        quote! { #name }
-                    }
-                    Type::Tensor(tensor) if tensor.rank == 0 => {
-                        // Rank 0 tensor is treated as scalar
-                        let name = &tensor.name;
-                        quote! { #name }
-                    }
-                    _ => panic!("Range parameter must be a scalar"),
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
                 }
-            }
+                _ => panic!("Range parameter must be a scalar"),
+            },
         };
 
         let delta = match &self.delta {
@@ -107,20 +93,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
                 let literal = Literal::i64_suffixed(*value);
                 quote! { #literal }
             }
-            RangeParam::Runtime(t) => {
-                match t {
-                    Type::Scalar(s) => {
-                        let name = &s.name;
-                        quote! { #name }
-                    }
-                    Type::Tensor(tensor) if tensor.rank == 0 => {
-                        // Rank 0 tensor is treated as scalar
-                        let name = &tensor.name;
-                        quote! { #name }
-                    }
-                    _ => panic!("Range parameter must be a scalar"),
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
                 }
-            }
+                _ => panic!("Range parameter must be a scalar"),
+            },
         };
 
         quote! {
