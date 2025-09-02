@@ -1,6 +1,5 @@
 #![cfg(target_os = "linux")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg(target_os = "linux")]
 
 extern crate alloc;
 
