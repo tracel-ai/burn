@@ -7,10 +7,10 @@ use regex::{self, Regex};
 
 use super::{
     TensorViewCollector,
-    appliers::{ImportError, ImportResult, TensorApplier},
+    appliers::{ImportResult, TensorApplier},
 };
 use crate::module::Module;
-use crate::persist::TensorView;
+use crate::persist::{PathFilter, TensorView};
 use crate::tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor persistence functionality.
@@ -31,17 +31,19 @@ use crate::tensor::backend::Backend;
 /// }
 ///
 /// // Collect only encoder tensors
-/// let encoder_views = model.collect_filtered(&[r"^encoder\..*"])?;
+/// let filter = PathFilter::new().with_regex(r"^encoder\..*");
+/// let encoder_views = model.collect_with_filter(filter);
 ///
 /// // Apply tensor views to another model
-/// let result = model2.apply(collected)?;
+/// let result = model2.apply(collected);
 /// println!("Applied {} tensors", result.applied.len());
 ///
 /// // Apply with filtering
-/// let result = model.apply_filtered(
+/// let filter = PathFilter::new().with_regex(r"^encoder\..*");
+/// let result = model.apply_with_filter(
 ///     views,
-///     &[r"^encoder\..*"]  // Only apply encoder tensors
-/// )?;
+///     filter  // Only apply encoder tensors
+/// );
 /// ```
 pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Collect tensor views for inspection without copying data.
@@ -67,127 +69,38 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         collector.tensors
     }
 
-    /// Collect filtered tensor views matching any of the regex patterns.
+    /// Collect tensor views with a PathFilter.
     ///
-    /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
-    /// This allows flexible filtering strategies for complex module hierarchies.
+    /// This provides the most flexible filtering using PathFilter's capabilities
+    /// including regex patterns, exact paths, and predicates.
     ///
     /// # Arguments
     ///
-    /// * `patterns` - An iterable of regex patterns. Can be a slice, Vec, or any IntoIterator.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(HashMap)` - Map of matching tensor paths to their views
-    /// * `Err(regex::Error)` - If any pattern is invalid regex
+    /// * `filter` - A PathFilter to determine which tensors to collect
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// // Single pattern - collect only encoder tensors
-    /// let encoder_tensors = model.collect_filtered(&[
-    ///     r"^encoder\..*"
-    /// ])?;
+    /// use burn::persist::PathFilter;
     ///
-    /// // Multiple patterns (OR union) - collect encoder OR decoder tensors
-    /// let tensors = model.collect_filtered(&[
-    ///     r"^encoder\..*",
-    ///     r"^decoder\..*",
-    /// ])?;
+    /// // Collect encoder tensors
+    /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
+    /// let encoder_tensors = model.collect_with_filter(filter);
     ///
-    /// // Collect all weights and biases
-    /// let params = model.collect_filtered(&[
-    ///     r".*\.weight$",
-    ///     r".*\.bias$",
-    /// ])?;
+    /// // Collect multiple patterns (OR union)
+    /// let filter = PathFilter::new()
+    ///     .with_regex(r"^encoder\..*")
+    ///     .with_regex(r"^decoder\..*");
+    /// let tensors = model.collect_with_filter(filter);
     ///
-    /// // Complex filtering - specific layers and tensor types
-    /// let filtered = model.collect_filtered(&[
-    ///     r"^model\.layer[0-2]\..*",        // layers 0, 1, 2
-    ///     r"^attention\..*\.(query|key)$",  // attention Q and K
-    ///     r"^head\..*",                     // all head tensors
-    /// ])?;
-    ///
-    /// // Using with Vec for dynamic patterns
-    /// let mut patterns = vec![r"^encoder\..*"];
-    /// if include_decoder {
-    ///     patterns.push(r"^decoder\..*");
-    /// }
-    /// let tensors = model.collect_filtered(patterns)?;
+    /// // Mix regex and exact paths
+    /// let filter = PathFilter::new()
+    ///     .with_regex(r".*\.weight$")
+    ///     .with_full_path("encoder.bias");
+    /// let params = model.collect_with_filter(filter);
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    fn collect_filtered<I, S>(
-        &self,
-        patterns: I,
-    ) -> Result<HashMap<String, TensorView>, regex::Error>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut collector = TensorViewCollector::with_filter(patterns)?;
-        self.visit(&mut collector);
-        Ok(collector.tensors)
-    }
-
-    /// Collect tensor views filtered by a custom predicate function.
-    ///
-    /// This method allows you to provide a custom function to filter which tensors
-    /// are collected. The function receives the tensor path (e.g., "encoder.layer1.weight")
-    /// and should return `true` to include the tensor or `false` to exclude it.
-    ///
-    /// # Arguments
-    ///
-    /// * `predicate` - A function that takes a tensor path (&str) and returns bool
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Collect only tensors with specific names
-    /// let tensors = model.collect_with_predicate(|path| {
-    ///     path == "encoder.weight" || path == "decoder.bias"
-    /// });
-    ///
-    /// // Collect tensors based on custom logic
-    /// let large_tensors = model.collect_with_predicate(|path| {
-    ///     // Only collect tensors from layers 3, 4, and 5
-    ///     if let Some(captures) = regex::Regex::new(r"layer(\d+)")
-    ///         .unwrap()
-    ///         .captures(path)
-    ///     {
-    ///         if let Some(layer_num) = captures.get(1) {
-    ///             if let Ok(num) = layer_num.as_str().parse::<u32>() {
-    ///                 return num >= 3 && num <= 5;
-    ///             }
-    ///         }
-    ///     }
-    ///     false
-    /// });
-    ///
-    /// // Collect tensors that don't contain certain keywords
-    /// let filtered = model.collect_with_predicate(|path| {
-    ///     !path.contains("dropout") && !path.contains("auxiliary")
-    /// });
-    ///
-    /// // Combine multiple conditions
-    /// let specific_tensors = model.collect_with_predicate(|path| {
-    ///     let is_encoder = path.starts_with("encoder.");
-    ///     let is_weight = path.ends_with(".weight");
-    ///     let not_attention = !path.contains("attention");
-    ///     
-    ///     is_encoder && is_weight && not_attention
-    /// });
-    ///
-    /// // Use with closure capturing external state
-    /// let allowed_prefixes = vec!["encoder", "decoder", "head"];
-    /// let tensors = model.collect_with_predicate(|path| {
-    ///     allowed_prefixes.iter().any(|prefix| path.starts_with(prefix))
-    /// });
-    /// ```
-    fn collect_with_predicate<F>(&self, predicate: F) -> HashMap<String, TensorView>
-    where
-        F: Fn(&str) -> bool + 'static,
-    {
-        let mut collector = TensorViewCollector::with_predicate(predicate);
+    fn collect_with_filter(&self, filter: PathFilter) -> HashMap<String, TensorView> {
+        let mut collector = TensorViewCollector::with_filter(filter);
         self.visit(&mut collector);
         collector.tensors
     }
@@ -226,249 +139,90 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         applier.into_result()
     }
 
-    /// Apply filtered tensor views matching any of the regex patterns.
+    /// Apply tensor views with a PathFilter.
     ///
-    /// Multiple patterns work as an OR union - a tensor is applied if it matches ANY pattern.
-    /// This allows selective loading of specific parts of a model, useful for fine-tuning
-    /// or partial model updates.
+    /// This provides the most flexible filtering using PathFilter's capabilities.
     ///
     /// # Arguments
     ///
     /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `patterns` - An iterable of regex patterns
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(ImportResult)` - Import results
-    /// * `Err(ImportError)` - If any pattern is invalid regex
+    /// * `filter` - A PathFilter to determine which tensors to apply
     ///
     /// # Examples
     ///
     /// ```ignore
+    /// use burn::persist::PathFilter;
+    ///
     /// // Apply only encoder tensors
-    /// let result = model.apply_filtered(
-    ///     views,
-    ///     &[r"^encoder\..*"]
-    /// )?;
+    /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
+    /// let result = model.apply_with_filter(views, filter);
     ///
-    /// // Apply multiple specific parts
-    /// let result = model.apply_filtered(
-    ///     views,
-    ///     &[
-    ///         r"^encoder\..*",     // All encoder tensors
-    ///         r"^decoder\..*",     // All decoder tensors
-    ///         r"^head\.weight$",   // Specific head weight
-    ///     ]
-    /// )?;
-    ///
-    /// // Apply all weights and biases
-    /// let result = model.apply_filtered(
-    ///     views,
-    ///     &[r".*\.weight$", r".*\.bias$"]
-    /// )?;
+    /// // Apply with complex filter
+    /// let filter = PathFilter::new()
+    ///     .with_regex(r"^encoder\..*")
+    ///     .with_regex(r"^decoder\..*")
+    ///     .with_full_path("head.weight");
+    /// let result = model.apply_with_filter(views, filter);
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    fn apply_filtered<I, S>(
+    fn apply_with_filter(
         &mut self,
         views: HashMap<String, TensorView>,
-        patterns: I,
-    ) -> Result<ImportResult, ImportError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut applier = TensorApplier::with_filter(views, patterns)?;
-        *self = self.clone().map(&mut applier);
-        Ok(applier.into_result())
-    }
-
-    /// Apply tensor views filtered by a custom predicate function.
-    ///
-    /// This method allows you to provide a custom function to filter which tensors
-    /// are applied. The function receives the tensor path and should return `true`
-    /// to apply the tensor or `false` to skip it.
-    ///
-    /// # Arguments
-    ///
-    /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `predicate` - A function that takes a path (&str) and returns bool
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Apply only non-frozen layers
-    /// let result = model.apply_with_predicate(
-    ///     views,
-    ///     |path| !path.contains("frozen")
-    /// );
-    ///
-    /// // Apply specific tensors
-    /// let result = model.apply_with_predicate(
-    ///     views,
-    ///     |path| path == "encoder.weight" || path == "decoder.bias"
-    /// );
-    ///
-    /// // Apply based on complex logic
-    /// let allowed_layers = vec![3, 4, 5];
-    /// let result = model.apply_with_predicate(
-    ///     views,
-    ///     move |path| {
-    ///         if let Some(layer_num) = extract_layer_number(path) {
-    ///             allowed_layers.contains(&layer_num)
-    ///         } else {
-    ///             false
-    ///         }
-    ///     }
-    /// );
-    /// ```
-    fn apply_with_predicate<F>(
-        &mut self,
-        views: HashMap<String, TensorView>,
-        predicate: F,
-    ) -> ImportResult
-    where
-        F: Fn(&str) -> bool + 'static,
-    {
-        let mut applier = TensorApplier::with_predicate(views, predicate);
+        filter: PathFilter,
+    ) -> ImportResult {
+        let mut applier = TensorApplier::with_filter(views, filter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
 
-    /// Apply tensor views with key remapping using regex patterns.
+    /// Collect tensor views into a ModulePersister for saving.
     ///
-    /// This method allows you to transform tensor paths during apply, which is useful
-    /// when loading models that have different naming conventions or when adapting
-    /// models from other frameworks.
+    /// This method allows using a ModulePersister implementation to handle the
+    /// collection and writing logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
-    ///
-    /// # Returns
-    ///
-    /// * `Ok((ImportResult, remapped_names))` - Apply results and remapping information
-    /// * `Err(ImportError)` - If regex compilation fails
-    ///
-    /// The returned `remapped_names` is a vector of tuples (new_path, original_path)
-    /// showing how each path was transformed.
+    /// * `persister` - A mutable reference to a ModulePersister that will collect and save the tensors
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// // Rename all "layer" to "block"
-    /// let remaps = vec![
-    ///     (r"layer", "block"),
-    /// ];
-    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
+    /// let mut persister = SafetensorsPersisterConfig::new()
+    ///     .with_filter(&[r"^encoder\..*"])
+    ///     .build("model.safetensors")?;
     ///
-    /// // Add prefix to all tensors
-    /// let remaps = vec![
-    ///     (r"^", "model."),
-    /// ];
-    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
-    ///
-    /// // Rename specific components
-    /// let remaps = vec![
-    ///     (r"encoder", "enc"),
-    ///     (r"decoder", "dec"),
-    ///     (r"weight", "w"),
-    ///     (r"bias", "b"),
-    /// ];
-    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
-    ///
-    /// // Complex transformation - change layer numbering
-    /// let remaps = vec![
-    ///     (r"layers\.(\d+)", "blocks.$1"),
-    /// ];
-    /// let (result, remapped) = model.apply_remapped(views, remaps)?;
+    /// model.collect_to(&mut persister)?;
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    fn apply_remapped<S1, S2>(
-        &mut self,
-        views: HashMap<String, TensorView>,
-        key_remap: Vec<(S1, S2)>,
-    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    fn collect_to<P>(&self, persister: &mut P) -> Result<(), P::Error>
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
+        P: crate::persist::persister::ModulePersister,
     {
-        let compiled_remaps = compile_remap_patterns(key_remap)?;
-        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
-        let result = self.apply(remapped_views);
-        Ok((result, remapped_names))
+        persister.collect_from(self)
     }
 
-    /// Apply tensor views with key remapping and filtering.
+    /// Apply tensor data from a ModulePersister for loading.
     ///
-    /// Combines remapping and filtering - first remaps the paths, then applies filters
-    /// to the remapped paths.
+    /// This method allows using a ModulePersister implementation to handle the
+    /// loading and application logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to TensorViews
-    /// * `key_remap` - Vector of (pattern, replacement) string pairs for path transformation
-    /// * `patterns` - Regex patterns to filter which tensors to apply (applied after remapping)
+    /// * `persister` - A mutable reference to a ModulePersister that will load and apply tensors
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// // First rename layer to block, then only apply block 0 and 1
-    /// let remaps = vec![
-    ///     (r"layer", "block"),
-    /// ];
-    /// let (result, remapped) = model.apply_remapped_filtered(
-    ///     views,
-    ///     remaps,
-    ///     &[r"^block\.[01]\..*"]
-    /// )?;
+    /// let mut persister = SafetensorsPersisterConfig::new()
+    ///     .with_remapping([("old_name", "new_name")])
+    ///     .build("model.safetensors")?;
+    ///
+    /// model.apply_from(&mut persister)?;
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    fn apply_remapped_filtered<S1, S2, I, S3>(
-        &mut self,
-        views: HashMap<String, TensorView>,
-        key_remap: Vec<(S1, S2)>,
-        patterns: I,
-    ) -> Result<(ImportResult, Vec<(String, String)>), ImportError>
+    fn apply_from<P>(&mut self, persister: &mut P) -> Result<ImportResult, P::Error>
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
-        I: IntoIterator<Item = S3>,
-        S3: AsRef<str>,
+        P: crate::persist::persister::ModulePersister,
     {
-        let compiled_remaps = compile_remap_patterns(key_remap)?;
-        let (remapped_views, remapped_names) = remap_tensor_paths(views, compiled_remaps);
-        let result = self.apply_filtered(remapped_views, patterns)?;
-        Ok((result, remapped_names))
+        persister.apply_to(self)
     }
-}
-
-/// Compile string patterns into regex patterns for remapping.
-///
-/// # Arguments
-///
-/// * `patterns` - Vector of (pattern, replacement) string pairs
-///
-/// # Returns
-///
-/// * `Ok(Vec<(Regex, String)>)` - Compiled regex patterns with replacements
-/// * `Err(ImportError)` - If any pattern fails to compile
-#[cfg(target_has_atomic = "ptr")]
-fn compile_remap_patterns<S1, S2>(
-    patterns: Vec<(S1, S2)>,
-) -> Result<Vec<(Regex, String)>, ImportError>
-where
-    S1: AsRef<str>,
-    S2: AsRef<str>,
-{
-    patterns
-        .into_iter()
-        .map(|(pattern, replacement)| {
-            Regex::new(pattern.as_ref())
-                .map(|regex| (regex, replacement.as_ref().to_string()))
-                .map_err(ImportError::from)
-        })
-        .collect()
 }
 
 /// Remap tensor paths using regex patterns.
@@ -487,7 +241,7 @@ where
 /// * The remapped HashMap with transformed keys
 /// * A vector of (new_path, original_path) showing the transformations
 #[cfg(target_has_atomic = "ptr")]
-fn remap_tensor_paths(
+pub fn remap_tensor_paths(
     mut tensors: HashMap<String, TensorView>,
     key_remap: Vec<(Regex, String)>,
 ) -> (HashMap<String, TensorView>, Vec<(String, String)>) {
@@ -575,11 +329,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn test_collect_filtered() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        let views = module.collect_filtered(&[r"^encoder\..*"]).unwrap();
+        let filter = PathFilter::new().with_regex(r"^encoder\..*");
+        let views = module.collect_with_filter(filter);
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("encoder.weight"));
@@ -589,17 +345,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn test_collect_filtered_multiple_patterns() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
         // Collect tensors matching either pattern (OR union)
-        let views = module
-            .collect_filtered(&[
-                r"^encoder\.weight$", // Only encoder.weight
-                r".*\.bias$",         // Any .bias tensor
-            ])
-            .unwrap();
+        let filter = PathFilter::new()
+            .with_regex(r"^encoder\.weight$") // Only encoder.weight
+            .with_regex(r".*\.bias$"); // Any .bias tensor
+        let views = module.collect_with_filter(filter);
 
         assert_eq!(views.len(), 3);
         assert!(views.contains_key("encoder.weight")); // matches first pattern
@@ -724,29 +479,31 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn test_deep_nested_filtered_collect() {
         let device = Default::default();
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
         // Filter only level2_a branch
-        let level2_a_views = model.collect_filtered(&[r"^level1\.level2_a\..*"]).unwrap();
+        let filter = PathFilter::new().with_regex(r"^level1\.level2_a\..*");
+        let level2_a_views = model.collect_with_filter(filter);
         assert_eq!(level2_a_views.len(), 4);
 
         // Filter only main modules at any depth
-        let main_views = model.collect_filtered(&[r".*\.level4_main\..*"]).unwrap();
+        let filter = PathFilter::new().with_regex(r".*\.level4_main\..*");
+        let main_views = model.collect_with_filter(filter);
         assert_eq!(main_views.len(), 4);
 
         // Filter only conv tensors
-        let conv_views = model.collect_filtered(&[r".*\.conv$"]).unwrap();
+        let filter = PathFilter::new().with_regex(r".*\.conv$");
+        let conv_views = model.collect_with_filter(filter);
         assert_eq!(conv_views.len(), 4);
 
         // Complex multi-pattern filter
-        let complex_views = model
-            .collect_filtered(&[
-                r"^level1\.level2_a\..*\.norm$", // All norms in level2_a
-                r"^level1\.level2_b\..*\.conv$", // All convs in level2_b
-            ])
-            .unwrap();
+        let filter = PathFilter::new()
+            .with_regex(r"^level1\.level2_a\..*\.norm$") // All norms in level2_a
+            .with_regex(r"^level1\.level2_b\..*\.conv$"); // All convs in level2_b
+        let complex_views = model.collect_with_filter(filter);
         assert_eq!(complex_views.len(), 4);
         assert!(complex_views.contains_key("level1.level2_a.level3.level4_main.norm"));
         assert!(complex_views.contains_key("level1.level2_a.level3.level4_aux.norm"));
@@ -819,10 +576,14 @@ mod tests {
         assert!(views.contains_key("layer2.scale"));
 
         // Test filtering
-        let weight_only = composite.collect_filtered(&[r".*\.weight$"]).unwrap();
-        assert_eq!(weight_only.len(), 2);
-        assert!(weight_only.contains_key("layer1.weight"));
-        assert!(weight_only.contains_key("layer2.weight"));
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r".*\.weight$");
+            let weight_only = composite.collect_with_filter(filter);
+            assert_eq!(weight_only.len(), 2);
+            assert!(weight_only.contains_key("layer1.weight"));
+            assert!(weight_only.contains_key("layer2.weight"));
+        }
     }
 
     // Test module with Option fields
@@ -917,17 +678,25 @@ mod tests {
         }
 
         // Test filtering for specific layer
-        let layer1_only = module.collect_filtered(&[r"^layers\.1\..*"]).unwrap();
-        assert_eq!(layer1_only.len(), 2);
-        assert!(layer1_only.contains_key("layers.1.weight"));
-        assert!(layer1_only.contains_key("layers.1.scale"));
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r"^layers\.1\..*");
+            let layer1_only = module.collect_with_filter(filter);
+            assert_eq!(layer1_only.len(), 2);
+            assert!(layer1_only.contains_key("layers.1.weight"));
+            assert!(layer1_only.contains_key("layers.1.scale"));
+        }
 
         // Test filtering for all weights
-        let weights_only = module.collect_filtered(&[r".*\.weight$"]).unwrap();
-        assert_eq!(weights_only.len(), 3);
-        assert!(weights_only.contains_key("layers.0.weight"));
-        assert!(weights_only.contains_key("layers.1.weight"));
-        assert!(weights_only.contains_key("layers.2.weight"));
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r".*\.weight$");
+            let weights_only = module.collect_with_filter(filter);
+            assert_eq!(weights_only.len(), 3);
+            assert!(weights_only.contains_key("layers.0.weight"));
+            assert!(weights_only.contains_key("layers.1.weight"));
+            assert!(weights_only.contains_key("layers.2.weight"));
+        }
     }
 
     // Test array of modules
@@ -965,10 +734,14 @@ mod tests {
         }
 
         // Test filtering for specific index
-        let layer2_only = module.collect_filtered(&[r"^layers\.2\..*"]).unwrap();
-        assert_eq!(layer2_only.len(), 2);
-        assert!(layer2_only.contains_key("layers.2.weight"));
-        assert!(layer2_only.contains_key("layers.2.scale"));
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r"^layers\.2\..*");
+            let layer2_only = module.collect_with_filter(filter);
+            assert_eq!(layer2_only.len(), 2);
+            assert!(layer2_only.contains_key("layers.2.weight"));
+            assert!(layer2_only.contains_key("layers.2.scale"));
+        }
     }
 
     #[test]
@@ -977,24 +750,33 @@ mod tests {
         let module = TestModule::<TestBackend>::new(&device);
 
         // Test with simple predicate - only encoder tensors
-        let encoder_only = module.collect_with_predicate(|path| path.starts_with("encoder."));
+        fn starts_with_encoder(path: &str) -> bool {
+            path.starts_with("encoder.")
+        }
+        let filter = PathFilter::new().with_predicate(starts_with_encoder);
+        let encoder_only = module.collect_with_filter(filter);
         assert_eq!(encoder_only.len(), 2);
         assert!(encoder_only.contains_key("encoder.weight"));
         assert!(encoder_only.contains_key("encoder.bias"));
 
         // Test with specific names predicate
-        let specific = module
-            .collect_with_predicate(|path| path == "encoder.weight" || path == "decoder.bias");
+        fn specific_names(path: &str) -> bool {
+            path == "encoder.weight" || path == "decoder.bias"
+        }
+        let filter = PathFilter::new().with_predicate(specific_names);
+        let specific = module.collect_with_filter(filter);
         assert_eq!(specific.len(), 2);
         assert!(specific.contains_key("encoder.weight"));
         assert!(specific.contains_key("decoder.bias"));
 
         // Test with complex logic
-        let complex = module.collect_with_predicate(|path| {
+        fn complex_filter(path: &str) -> bool {
             let parts: Vec<&str> = path.split('.').collect();
             // Only collect if it's a weight OR if it's in the encoder
             (parts.len() == 2 && parts[1] == "weight") || parts[0] == "encoder"
-        });
+        }
+        let filter = PathFilter::new().with_predicate(complex_filter);
+        let complex = module.collect_with_filter(filter);
         assert_eq!(complex.len(), 3);
         assert!(complex.contains_key("encoder.weight"));
         assert!(complex.contains_key("encoder.bias"));
@@ -1007,19 +789,29 @@ mod tests {
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
         // Filter using predicate - only level2_a branch
-        let level2_a_only = model.collect_with_predicate(|path| path.contains("level2_a"));
+        fn contains_level2_a(path: &str) -> bool {
+            path.contains("level2_a")
+        }
+        let filter = PathFilter::new().with_predicate(contains_level2_a);
+        let level2_a_only = model.collect_with_filter(filter);
         assert_eq!(level2_a_only.len(), 4);
 
         // Filter by depth - only tensors at exactly 5 levels deep
-        let deep_only = model.collect_with_predicate(|path| path.split('.').count() == 5);
+        fn exactly_5_deep(path: &str) -> bool {
+            path.split('.').count() == 5
+        }
+        let filter = PathFilter::new().with_predicate(exactly_5_deep);
+        let deep_only = model.collect_with_filter(filter);
         assert_eq!(deep_only.len(), 8); // All conv and norm tensors are 5 levels deep
 
         // Complex predicate with multiple conditions
-        let complex = model.collect_with_predicate(|path| {
+        fn main_conv_filter(path: &str) -> bool {
             let is_main = path.contains("level4_main");
             let is_conv = path.ends_with(".conv");
             is_main && is_conv
-        });
+        }
+        let filter = PathFilter::new().with_predicate(main_conv_filter);
+        let complex = model.collect_with_filter(filter);
         assert_eq!(complex.len(), 2);
         assert!(complex.contains_key("level1.level2_a.level3.level4_main.conv"));
         assert!(complex.contains_key("level1.level2_b.level3.level4_main.conv"));
@@ -1031,44 +823,43 @@ mod tests {
         let module = VecModule::<TestBackend>::new(&device, 4);
 
         // Filter using predicate - only even indices
-        let even_only = module.collect_with_predicate(|path| {
+        fn even_indices(path: &str) -> bool {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index % 2 == 0;
                 }
             }
             false
-        });
+        }
+        let filter = PathFilter::new().with_predicate(even_indices);
+        let even_only = module.collect_with_filter(filter);
         assert_eq!(even_only.len(), 4); // layers.0 and layers.2, each with 2 tensors
 
         // Filter for specific range of indices
-        let range = module.collect_with_predicate(|path| {
+        fn range_filter(path: &str) -> bool {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index >= 1 && index <= 2;
                 }
             }
             false
-        });
+        }
+        let filter = PathFilter::new().with_predicate(range_filter);
+        let range = module.collect_with_filter(filter);
         assert_eq!(range.len(), 4); // layers.1 and layers.2, each with 2 tensors
     }
 
     #[test]
-    fn test_predicate_with_closure_capturing_state() {
+    fn test_predicate_with_exact_paths() {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        // Use closure that captures external state
-        let allowed_modules = vec!["encoder"];
-        let allowed_types = vec!["weight", "bias"];
+        // Use PathFilter with exact paths instead of closure
+        let filter = PathFilter::new()
+            .with_full_path("encoder.weight")
+            .with_full_path("encoder.bias");
 
-        let filtered = module.collect_with_predicate(move |path| {
-            let parts: Vec<&str> = path.split('.').collect();
-            if parts.len() != 2 {
-                return false;
-            }
-            allowed_modules.contains(&parts[0]) && allowed_types.contains(&parts[1])
-        });
+        let filtered = module.collect_with_filter(filter);
 
         assert_eq!(filtered.len(), 2);
         assert!(filtered.contains_key("encoder.weight"));
@@ -1118,9 +909,13 @@ mod tests {
         assert_eq!(weight_data.shape, vec![2, 3]);
 
         // Test filtering on enum module
-        let scale_only = module_a.collect_filtered(&[r".*\.scale$"]).unwrap();
-        assert_eq!(scale_only.len(), 1);
-        assert!(scale_only.contains_key("LayerA.scale"));
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r".*\.scale$");
+            let scale_only = module_a.collect_with_filter(filter);
+            assert_eq!(scale_only.len(), 1);
+            assert!(scale_only.contains_key("LayerA.scale"));
+        }
     }
 
     // Test enum module with built-in module types

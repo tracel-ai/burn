@@ -1,20 +1,13 @@
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use hashbrown::HashMap;
 
-#[cfg(target_has_atomic = "ptr")]
-use regex::Regex;
-
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use crate::module::{ModuleMapper, ParamId};
-use crate::persist::TensorView;
-
-/// Type alias for the predicate function used to filter tensor paths.
-type TensorPathPredicate = Box<dyn Fn(&str) -> bool>;
+use crate::persist::{PathFilter, TensorView};
 
 /// Error types for import operations
 #[derive(Debug)]
@@ -151,11 +144,8 @@ pub struct TensorApplier<B: Backend> {
     views: HashMap<String, TensorView>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
-    /// Regex filters for selective import
-    #[cfg(target_has_atomic = "ptr")]
-    filters: Option<Vec<Regex>>,
-    /// Custom predicate for filtering
-    predicate: Option<TensorPathPredicate>,
+    /// Path filter for selective import
+    filter: Option<PathFilter>,
     /// Successfully applied tensor paths
     applied: Vec<String>,
     /// Skipped tensor paths (due to filtering)
@@ -174,9 +164,7 @@ impl<B: Backend> TensorApplier<B> {
         Self {
             views,
             path_stack: Vec::new(),
-            #[cfg(target_has_atomic = "ptr")]
-            filters: None,
-            predicate: None,
+            filter: None,
             applied: Vec::new(),
             skipped: Vec::new(),
             errors: Vec::new(),
@@ -185,45 +173,12 @@ impl<B: Backend> TensorApplier<B> {
         }
     }
 
-    /// Create a new tensor applier with regex filtering
-    #[cfg(target_has_atomic = "ptr")]
-    pub fn with_filter<I, S>(
-        views: HashMap<String, TensorView>,
-        patterns: I,
-    ) -> Result<Self, ImportError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut filters = Vec::new();
-        for pattern in patterns {
-            filters.push(Regex::new(pattern.as_ref())?);
-        }
-
-        Ok(Self {
-            views,
-            path_stack: Vec::new(),
-            filters: Some(filters),
-            predicate: None,
-            applied: Vec::new(),
-            skipped: Vec::new(),
-            errors: Vec::new(),
-            visited_paths: Vec::new(),
-            _backend: core::marker::PhantomData,
-        })
-    }
-
-    /// Create a new tensor applier with a custom predicate
-    pub fn with_predicate<F>(views: HashMap<String, TensorView>, predicate: F) -> Self
-    where
-        F: Fn(&str) -> bool + 'static,
-    {
+    /// Create a new tensor applier with a PathFilter
+    pub fn with_filter(views: HashMap<String, TensorView>, filter: PathFilter) -> Self {
         Self {
             views,
             path_stack: Vec::new(),
-            #[cfg(target_has_atomic = "ptr")]
-            filters: None,
-            predicate: Some(Box::new(predicate)),
+            filter: Some(filter),
             applied: Vec::new(),
             skipped: Vec::new(),
             errors: Vec::new(),
@@ -239,27 +194,8 @@ impl<B: Backend> TensorApplier<B> {
 
     /// Check if a tensor at the given path should be imported
     fn should_import(&self, path: &str) -> bool {
-        // First check the predicate if one is provided
-        if let Some(ref predicate) = self.predicate {
-            return predicate(path);
-        }
-
-        // Otherwise check regex filters
-        #[cfg(target_has_atomic = "ptr")]
-        {
-            match &self.filters {
-                None => true, // No filters means import all
-                Some(filters) if filters.is_empty() => true,
-                Some(filters) => {
-                    // OR union - import if ANY filter matches
-                    filters.iter().any(|filter| filter.is_match(path))
-                }
-            }
-        }
-        #[cfg(not(target_has_atomic = "ptr"))]
-        {
-            true // Without regex support, import all tensors
-        }
+        // If filter is present, use it; otherwise import all
+        self.filter.as_ref().is_none_or(|f| f.matches(path))
     }
 
     /// Convert the applier into an ImportResult

@@ -1,18 +1,11 @@
-use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use hashbrown::HashMap;
 
-#[cfg(target_has_atomic = "ptr")]
-use regex::Regex;
-
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use crate::module::{ModuleVisitor, ParamId};
-use crate::persist::TensorView;
-
-/// Type alias for the predicate function used to filter tensor paths.
-type TensorPathPredicate = Box<dyn Fn(&str) -> bool>;
+use crate::persist::{PathFilter, TensorView};
 
 /// Collects tensor views from modules without copying data.
 ///
@@ -48,9 +41,7 @@ pub struct TensorViewCollector {
     /// Map of tensor paths to their views
     pub tensors: HashMap<String, TensorView>,
     path_stack: Vec<String>,
-    #[cfg(target_has_atomic = "ptr")]
-    filters: Option<Vec<Regex>>,
-    predicate: Option<TensorPathPredicate>,
+    filter: Option<PathFilter>,
 }
 
 impl Default for TensorViewCollector {
@@ -65,94 +56,30 @@ impl TensorViewCollector {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
-            #[cfg(target_has_atomic = "ptr")]
-            filters: None,
-            predicate: None,
+            filter: None,
         }
     }
 
-    /// Create a new tensor view collector that only collects tensors matching any of the regex patterns.
+    /// Create a new tensor view collector with a PathFilter.
     ///
-    /// Multiple patterns work as an OR union - a tensor is collected if it matches ANY pattern.
-    ///
-    /// # Arguments
-    ///
-    /// * `patterns` - An iterable of regex patterns. Can be a slice, Vec, or any IntoIterator.
+    /// This provides the most flexible filtering using the PathFilter's capabilities.
     ///
     /// # Examples
     ///
     /// ```ignore
-    /// // Single pattern
-    /// let collector = TensorViewCollector::with_filter(&[r"^model\.layer1\..*"])?;
+    /// use burn::persist::PathFilter;
     ///
-    /// // Multiple patterns (OR union)
-    /// let collector = TensorViewCollector::with_filter(&[
-    ///     r"^encoder\..*",     // All encoder tensors
-    ///     r"^decoder\..*",     // All decoder tensors
-    /// ])?;
-    ///
-    /// // Using Vec
-    /// let patterns = vec![r".*\.weight$", r".*\.bias$"];
-    /// let collector = TensorViewCollector::with_filter(patterns)?;
-    ///
-    /// // Complex patterns
-    /// let collector = TensorViewCollector::with_filter(&[
-    ///     r"^model\.layer[12]\..*",  // layer1 or layer2
-    ///     r".*\.(weight|bias)$",     // any weight or bias
-    ///     r"^attention\..*\.query",  // attention query tensors
-    /// ])?;
+    /// // Use PathFilter builder
+    /// let filter = PathFilter::new()
+    ///     .with_regex(r"^encoder\..*")
+    ///     .with_full_path("decoder.weight");
+    /// let collector = TensorViewCollector::with_path_filter(filter);
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
-    pub fn with_filter<I, S>(patterns: I) -> Result<Self, regex::Error>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut filters = Vec::new();
-        for pattern in patterns {
-            filters.push(Regex::new(pattern.as_ref())?);
-        }
-
-        Ok(Self {
-            tensors: HashMap::new(),
-            path_stack: Vec::new(),
-            filters: Some(filters),
-            predicate: None,
-        })
-    }
-
-    /// Create a new tensor view collector that uses a custom predicate function for filtering.
-    ///
-    /// The predicate function receives the tensor path and should return `true` to include
-    /// the tensor or `false` to exclude it.
-    ///
-    /// # Arguments
-    ///
-    /// * `predicate` - A function that takes a path (&str) and returns bool
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Collect only specific tensors
-    /// let collector = TensorViewCollector::with_predicate(|path| {
-    ///     path == "encoder.weight" || path == "decoder.bias"
-    /// });
-    ///
-    /// // Collect tensors based on complex logic
-    /// let collector = TensorViewCollector::with_predicate(|path| {
-    ///     path.starts_with("encoder.") && !path.contains("dropout")
-    /// });
-    /// ```
-    pub fn with_predicate<F>(predicate: F) -> Self
-    where
-        F: Fn(&str) -> bool + 'static,
-    {
+    pub fn with_filter(filter: PathFilter) -> Self {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
-            #[cfg(target_has_atomic = "ptr")]
-            filters: None,
-            predicate: Some(Box::new(predicate)),
+            filter: Some(filter),
         }
     }
 
@@ -161,28 +88,8 @@ impl TensorViewCollector {
     }
 
     fn should_collect(&self, path: &str) -> bool {
-        // First check the predicate if one is provided
-        if let Some(ref predicate) = self.predicate {
-            return predicate(path);
-        }
-
-        // Otherwise check regex filters
-        #[cfg(target_has_atomic = "ptr")]
-        {
-            match &self.filters {
-                None => true,                                // No filters means collect all
-                Some(filters) if filters.is_empty() => true, // Empty filters means collect all
-                Some(filters) => {
-                    // OR union - collect if ANY filter matches
-                    filters.iter().any(|filter| filter.is_match(path))
-                }
-            }
-        }
-        #[cfg(not(target_has_atomic = "ptr"))]
-        {
-            // Without regex support, collect all tensors
-            true
-        }
+        // If filter is present, use it; otherwise collect all
+        self.filter.as_ref().is_none_or(|f| f.matches(path))
     }
 }
 
@@ -286,11 +193,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn test_tensor_view_collector_with_filter() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = TensorViewCollector::with_filter(&[r"^encoder\..*"]).unwrap();
+        let filter = PathFilter::new().with_regex(r"^encoder\..*");
+        let mut collector = TensorViewCollector::with_filter(filter);
         let id = ParamId::new();
 
         // This should be collected
@@ -304,16 +213,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_has_atomic = "ptr")]
     fn test_tensor_view_collector_with_multiple_filters() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Multiple patterns - collect if matches ANY (OR union)
-        let mut collector = TensorViewCollector::with_filter(&[
-            r"^encoder\..*", // Match encoder.*
-            r".*\.bias$",    // Match *.bias
-        ])
-        .unwrap();
+        let filter = PathFilter::new()
+            .with_regex(r"^encoder\..*") // Match encoder.*
+            .with_regex(r".*\.bias$"); // Match *.bias
+        let mut collector = TensorViewCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -337,9 +246,11 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Use predicate function for filtering
-        let mut collector = TensorViewCollector::with_predicate(|path| {
+        fn filter_fn(path: &str) -> bool {
             path.starts_with("encoder.") || path == "decoder.bias"
-        });
+        }
+        let filter = PathFilter::new().with_predicate(filter_fn);
+        let mut collector = TensorViewCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -365,14 +276,16 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Complex predicate with multiple conditions
-        let mut collector = TensorViewCollector::with_predicate(|path| {
+        fn complex_filter(path: &str) -> bool {
             let parts: Vec<&str> = path.split('.').collect();
             if parts.len() != 3 {
                 return false;
             }
             // Only collect if it's layer1 or layer2, and it's a weight tensor
             (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
-        });
+        }
+        let filter = PathFilter::new().with_predicate(complex_filter);
+        let mut collector = TensorViewCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -643,50 +556,60 @@ mod tests {
         let model = DeepModel::<TestBackend>::new(&device);
 
         // Test filtering at different depths
-        let encoder_only = TensorViewCollector::with_filter(&[r"^backbone\.encoder\..*"]).unwrap();
-        let mut collector = encoder_only;
-        model.visit(&mut collector);
-        assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r"^backbone\.encoder\..*");
+            let mut collector = TensorViewCollector::with_filter(filter);
+            model.visit(&mut collector);
+            assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
+        }
 
         // Test filtering specific blocks
-        let block1_only = TensorViewCollector::with_filter(&[r".*\.block1\..*"]).unwrap();
-        let mut collector = block1_only;
-        model.visit(&mut collector);
-        assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r".*\.block1\..*");
+            let mut collector = TensorViewCollector::with_filter(filter);
+            model.visit(&mut collector);
+            assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
+        }
 
         // Test filtering by tensor type at any depth
-        let weights_only = TensorViewCollector::with_filter(&[r".*\.weight$"]).unwrap();
-        let mut collector = weights_only;
-        model.visit(&mut collector);
-        assert_eq!(collector.tensors.len(), 9); // All weight tensors
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new().with_regex(r".*\.weight$");
+            let mut collector = TensorViewCollector::with_filter(filter);
+            model.visit(&mut collector);
+            assert_eq!(collector.tensors.len(), 9); // All weight tensors
+        }
 
         // Test complex multi-pattern filtering
-        let complex_filter = TensorViewCollector::with_filter(&[
-            r"^backbone\.encoder\.block1\..*", // All encoder.block1 tensors
-            r"^backbone\.decoder\..*\.bias$",  // All decoder biases
-            r"^head\.weight$",                 // Head weight only
-        ])
-        .unwrap();
-        let mut collector = complex_filter;
-        model.visit(&mut collector);
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new()
+                .with_regex(r"^backbone\.encoder\.block1\..*") // All encoder.block1 tensors
+                .with_regex(r"^backbone\.decoder\..*\.bias$") // All decoder biases
+                .with_regex(r"^head\.weight$"); // Head weight only
+            let mut collector = TensorViewCollector::with_filter(filter);
+            model.visit(&mut collector);
 
-        // Should have:
-        // - 4 from encoder.block1 (2 weights + 2 biases)
-        // - 4 decoder biases
-        // - 1 head weight
-        assert_eq!(collector.tensors.len(), 9);
+            // Should have:
+            // - 4 from encoder.block1 (2 weights + 2 biases)
+            // - 4 decoder biases
+            // - 1 head weight
+            assert_eq!(collector.tensors.len(), 9);
 
-        assert!(
-            collector
-                .tensors
-                .contains_key("backbone.encoder.block1.layer.weight")
-        );
-        assert!(
-            collector
-                .tensors
-                .contains_key("backbone.decoder.block1.layer.bias")
-        );
-        assert!(collector.tensors.contains_key("head.weight"));
-        assert!(!collector.tensors.contains_key("head.bias")); // Not included
+            assert!(
+                collector
+                    .tensors
+                    .contains_key("backbone.encoder.block1.layer.weight")
+            );
+            assert!(
+                collector
+                    .tensors
+                    .contains_key("backbone.decoder.block1.layer.bias")
+            );
+            assert!(collector.tensors.contains_key("head.weight"));
+            assert!(!collector.tensors.contains_key("head.bias")); // Not included
+        }
     }
 }

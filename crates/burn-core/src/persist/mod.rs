@@ -30,6 +30,7 @@
 mod appliers;
 mod base;
 mod collectors;
+mod filter;
 mod tensor_view;
 
 pub use appliers::{ImportError, ImportResult, TensorApplier};
