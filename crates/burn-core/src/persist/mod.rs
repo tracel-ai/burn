@@ -36,4 +36,5 @@ mod tensor_view;
 pub use appliers::{ImportError, ImportResult, TensorApplier};
 pub use base::ModulePersist;
 pub use collectors::TensorViewCollector;
+pub use filter::PathFilter;
 pub use tensor_view::TensorView;
