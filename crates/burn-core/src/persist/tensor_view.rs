@@ -80,6 +80,11 @@ impl TensorView {
         self.path_stack.join(".")
     }
 
+    /// Get the full container path by joining the container stack
+    pub fn container_path(&self) -> String {
+        self.container_stack.join(".")
+    }
+
     /// Get the immediate container type (last in the container stack)
     pub fn container_type(&self) -> String {
         self.container_stack

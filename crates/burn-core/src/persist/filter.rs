@@ -34,9 +34,9 @@ pub struct PathFilter {
     /// Exact full paths to match
     exact_paths: Vec<String>,
 
-    /// Predicate functions for custom matching logic
+    /// Predicate functions for custom matching logic based on path and container path
     /// Note: These cannot be cloned, so we store them separately
-    predicates: Vec<fn(&str) -> bool>,
+    predicates: Vec<fn(&str, &str) -> bool>,
 
     /// If true, matches all paths (overrides other filters)
     match_all: bool,
@@ -102,8 +102,8 @@ impl PathFilter {
         self
     }
 
-    /// Add a predicate function for custom matching
-    pub fn with_predicate(mut self, predicate: fn(&str) -> bool) -> Self {
+    /// Add a predicate function for custom matching based on path and container path
+    pub fn with_predicate(mut self, predicate: fn(&str, &str) -> bool) -> Self {
         self.predicates.push(predicate);
         self
     }
@@ -111,7 +111,7 @@ impl PathFilter {
     /// Add multiple predicates
     pub fn with_predicates<I>(mut self, predicates: I) -> Self
     where
-        I: IntoIterator<Item = fn(&str) -> bool>,
+        I: IntoIterator<Item = fn(&str, &str) -> bool>,
     {
         self.predicates.extend(predicates);
         self
@@ -123,8 +123,19 @@ impl PathFilter {
         self
     }
 
-    /// Check if a path matches this filter
+    /// Check if a path matches this filter (assumes empty container path for backward compatibility)
     pub fn matches(&self, path: &str) -> bool {
+        self.matches_with_container_path(path, "")
+    }
+
+    /// Check if a path and container type match this filter (for backward compatibility)
+    pub fn matches_with_container(&self, path: &str, container_type: &str) -> bool {
+        // For backward compatibility, treat single container type as the full path
+        self.matches_with_container_path(path, container_type)
+    }
+
+    /// Check if a path and container path (dot-notated) match this filter
+    pub fn matches_with_container_path(&self, path: &str, container_path: &str) -> bool {
         // If match_all is set, always return true
         if self.match_all {
             return true;
@@ -140,7 +151,7 @@ impl PathFilter {
             return true;
         }
 
-        // Check regex patterns
+        // Check regex patterns (on the path)
         #[cfg(target_has_atomic = "ptr")]
         {
             for regex in &self.regex_patterns {
@@ -150,8 +161,12 @@ impl PathFilter {
             }
         }
 
-        // Check predicates
-        if self.predicates.iter().any(|pred| pred(path)) {
+        // Check predicates with container path
+        if self
+            .predicates
+            .iter()
+            .any(|pred| pred(path, container_path))
+        {
             return true;
         }
 
@@ -241,7 +256,7 @@ impl PathFilter {
     }
 
     /// Create a filter from a single predicate
-    pub fn from_predicate(predicate: fn(&str) -> bool) -> Self {
+    pub fn from_predicate(predicate: fn(&str, &str) -> bool) -> Self {
         Self::new().with_predicate(predicate)
     }
 
@@ -342,11 +357,11 @@ mod tests {
 
     #[test]
     fn test_predicates() {
-        fn contains_norm(path: &str) -> bool {
+        fn contains_norm(path: &str, _container_path: &str) -> bool {
             path.contains("norm")
         }
 
-        fn is_short(path: &str) -> bool {
+        fn is_short(path: &str, _container_path: &str) -> bool {
             path.len() < 10
         }
 
@@ -364,7 +379,7 @@ mod tests {
     fn test_combined_filters() {
         let filter = PathFilter::new()
             .with_full_path("special.tensor")
-            .with_predicate(|path| path.contains("attention"));
+            .with_predicate(|path, _container_path| path.contains("attention"));
 
         #[cfg(target_has_atomic = "ptr")]
         let filter = filter.with_regex(r"^encoder\..*");
@@ -419,7 +434,7 @@ mod tests {
         let filter = PathFilter::new()
             .with_full_path("path1")
             .with_full_path("path2")
-            .with_predicate(|_| true);
+            .with_predicate(|_, _| true);
 
         #[cfg(target_has_atomic = "ptr")]
         let filter = filter.with_regex(".*");
@@ -440,5 +455,158 @@ mod tests {
 
         filter.clear();
         assert!(filter.is_empty());
+    }
+
+    #[test]
+    fn test_container_predicates() {
+        // Filter that matches only Linear module weights
+        let linear_weights = PathFilter::new().with_predicate(|path, container_path| {
+            container_path.split('.').last() == Some("Linear") && path.ends_with(".weight")
+        });
+
+        assert!(linear_weights.matches_with_container("layer1.weight", "Linear"));
+        assert!(!linear_weights.matches_with_container("layer1.weight", "Conv2d"));
+        assert!(!linear_weights.matches_with_container("layer1.bias", "Linear"));
+
+        // Filter for specific container types
+        let conv_only = PathFilter::new().with_predicate(|_path, container_path| {
+            let last = container_path.split('.').last();
+            last == Some("Conv2d") || last == Some("ConvTranspose2d")
+        });
+
+        assert!(conv_only.matches_with_container("encoder.weight", "Conv2d"));
+        assert!(conv_only.matches_with_container("decoder.weight", "ConvTranspose2d"));
+        assert!(!conv_only.matches_with_container("fc.weight", "Linear"));
+
+        // Combine path and container predicates
+        let combined = PathFilter::new()
+            .with_predicate(|path, _container_path| path.starts_with("encoder."))
+            .with_predicate(|_path, container_path| {
+                container_path.split('.').last() == Some("BatchNorm2d")
+            });
+
+        // Should match either condition (OR logic)
+        assert!(combined.matches_with_container("encoder.layer1", "Linear"));
+        assert!(combined.matches_with_container("decoder.bn", "BatchNorm2d"));
+        assert!(!combined.matches_with_container("decoder.layer", "Linear"));
+    }
+
+    #[test]
+    fn test_container_predicate_with_regex() {
+        // Combine regex patterns with container predicates
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            let filter = PathFilter::new()
+                .with_regex(r"^encoder\..*")
+                .with_predicate(|path, container_path| {
+                    container_path.split('.').last() == Some("Linear") && path.contains(".bias")
+                });
+
+            // Matches due to regex
+            assert!(filter.matches_with_container("encoder.layer1.weight", "Conv2d"));
+            // Matches due to container predicate
+            assert!(filter.matches_with_container("decoder.fc.bias", "Linear"));
+            // Doesn't match either
+            assert!(!filter.matches_with_container("decoder.conv.weight", "Conv2d"));
+        }
+    }
+
+    #[test]
+    fn test_container_stack_predicates() {
+        // Filter using full container path - only tensors nested in a specific hierarchy
+        let nested_filter = PathFilter::new().with_predicate(|_path, container_path| {
+            // Check if tensor is nested within: Model -> TransformerBlock -> Linear
+            let parts: Vec<&str> = container_path.split('.').collect();
+            parts.len() >= 3
+                && parts[0] == "Model"
+                && parts[1] == "TransformerBlock"
+                && parts[2] == "Linear"
+        });
+
+        assert!(
+            nested_filter.matches_with_container_path(
+                "encoder.weight",
+                "Model.TransformerBlock.Linear.Param"
+            )
+        );
+        assert!(
+            !nested_filter
+                .matches_with_container_path("decoder.weight", "Model.Decoder.Linear.Param")
+        );
+        assert!(
+            !nested_filter.matches_with_container_path(
+                "encoder.weight",
+                "Model.TransformerBlock.Conv2d.Param"
+            )
+        );
+
+        // Filter that checks for specific depth in hierarchy
+        let depth_filter = PathFilter::new().with_predicate(|_path, container_path| {
+            let parts: Vec<&str> = container_path.split('.').collect();
+            parts.len() == 4 && parts.get(2) == Some(&"Linear")
+        });
+
+        assert!(depth_filter.matches_with_container_path(
+            "model.layer.weight",
+            "Model.TransformerBlock.Linear.Param"
+        ));
+        assert!(
+            !depth_filter
+                .matches_with_container_path("model.weight", "Model.TransformerBlock.Conv2d")
+        ); // Too shallow
+
+        // Filter that checks any Linear in the path (not just the last)
+        let any_linear = PathFilter::new()
+            .with_predicate(|_path, container_path| container_path.contains("Linear"));
+
+        assert!(
+            any_linear
+                .matches_with_container_path("some.path", "Model.TransformerBlock.Linear.Param")
+        );
+        assert!(any_linear.matches_with_container_path("other.path", "Model.Decoder.Linear.Param"));
+        assert!(
+            !any_linear
+                .matches_with_container_path("conv.path", "Model.TransformerBlock.Conv2d.Param")
+        );
+    }
+
+    #[test]
+    fn test_container_path_dot_notation() {
+        // Filter using dot-notated container path
+        let dot_filter = PathFilter::new().with_predicate(|_path, container_path| {
+            container_path.starts_with("Model.TransformerBlock")
+        });
+
+        // Test with matches_with_container_path
+        assert!(dot_filter.matches_with_container_path("weight", "Model.TransformerBlock.Linear"));
+        assert!(!dot_filter.matches_with_container_path("weight", "Model.Decoder.Linear"));
+
+        // Filter that checks for specific patterns in container path
+        let pattern_filter = PathFilter::new().with_predicate(|_path, container_path| {
+            // Match any path that has Linear after a block
+            container_path.contains("Block.Linear") || container_path.contains("Block.Conv")
+        });
+
+        assert!(
+            pattern_filter.matches_with_container_path("weight", "Model.TransformerBlock.Linear")
+        );
+        assert!(pattern_filter.matches_with_container_path("weight", "Model.ResBlock.Conv2d"));
+        assert!(!pattern_filter.matches_with_container_path("weight", "Model.Linear.Param"));
+
+        // Filter combining path and container path patterns
+        let combined = PathFilter::new().with_predicate(|path, container_path| {
+            // Only weights in Linear layers that are inside blocks
+            path.ends_with(".weight")
+                && container_path.contains("Block")
+                && container_path.split('.').last() == Some("Linear")
+        });
+
+        assert!(
+            combined.matches_with_container_path("layer.weight", "Model.TransformerBlock.Linear")
+        );
+        assert!(
+            !combined.matches_with_container_path("layer.bias", "Model.TransformerBlock.Linear")
+        );
+        assert!(!combined.matches_with_container_path("layer.weight", "Model.Decoder.Linear"));
     }
 }

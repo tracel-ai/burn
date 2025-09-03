@@ -663,7 +663,7 @@ mod tests {
         let module = TestModule::<TestBackend>::new(&device);
 
         // Test with simple predicate - only encoder tensors
-        fn starts_with_encoder(path: &str) -> bool {
+        fn starts_with_encoder(path: &str, _container_path: &str) -> bool {
             path.starts_with("encoder.")
         }
         let filter = PathFilter::new().with_predicate(starts_with_encoder);
@@ -672,8 +672,8 @@ mod tests {
         assert!(encoder_only.contains_key("encoder.weight"));
         assert!(encoder_only.contains_key("encoder.bias"));
 
-        // Test with specific names predicate
-        fn specific_names(path: &str) -> bool {
+        // Test with exact match predicate
+        fn specific_names(path: &str, _container_path: &str) -> bool {
             path == "encoder.weight" || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(specific_names);
@@ -682,10 +682,10 @@ mod tests {
         assert!(specific.contains_key("encoder.weight"));
         assert!(specific.contains_key("decoder.bias"));
 
-        // Test with complex logic
-        fn complex_filter(path: &str) -> bool {
+        // Test with complex logic predicate
+        fn complex_filter(path: &str, _container_path: &str) -> bool {
             let parts: Vec<&str> = path.split('.').collect();
-            // Only collect if it's a weight OR if it's in the encoder
+            // All weights OR all encoder tensors
             (parts.len() == 2 && parts[1] == "weight") || parts[0] == "encoder"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
@@ -701,8 +701,8 @@ mod tests {
         let device = Default::default();
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
-        // Filter using predicate - only level2_a branch
-        fn contains_level2_a(path: &str) -> bool {
+        // Filter with predicate - only level2_a tensors
+        fn contains_level2_a(path: &str, _container_path: &str) -> bool {
             path.contains("level2_a")
         }
         let filter = PathFilter::new().with_predicate(contains_level2_a);
@@ -710,7 +710,7 @@ mod tests {
         assert_eq!(level2_a_only.len(), 4);
 
         // Filter by depth - only tensors at exactly 5 levels deep
-        fn exactly_5_deep(path: &str) -> bool {
+        fn exactly_5_deep(path: &str, _container_path: &str) -> bool {
             path.split('.').count() == 5
         }
         let filter = PathFilter::new().with_predicate(exactly_5_deep);
@@ -718,7 +718,7 @@ mod tests {
         assert_eq!(deep_only.len(), 8); // All conv and norm tensors are 5 levels deep
 
         // Complex predicate with multiple conditions
-        fn main_conv_filter(path: &str) -> bool {
+        fn main_conv_filter(path: &str, _container_path: &str) -> bool {
             let is_main = path.contains("level4_main");
             let is_conv = path.ends_with(".conv");
             is_main && is_conv
@@ -735,8 +735,8 @@ mod tests {
         let device = Default::default();
         let module = VecModule::<TestBackend>::new(&device, 4);
 
-        // Filter using predicate - only even indices
-        fn even_indices(path: &str) -> bool {
+        // Filter with predicate - even indices only
+        fn even_indices(path: &str, _container_path: &str) -> bool {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index % 2 == 0;
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(even_only.len(), 4); // layers.0 and layers.2, each with 2 tensors
 
         // Filter for specific range of indices
-        fn range_filter(path: &str) -> bool {
+        fn range_filter(path: &str, _container_path: &str) -> bool {
             if let Some(captures) = path.split('.').nth(1) {
                 if let Ok(index) = captures.parse::<usize>() {
                     return index >= 1 && index <= 2;
@@ -1264,5 +1264,83 @@ mod tests {
         for (container, count) in by_container.iter() {
             println!("  {}: {} tensors", container, count);
         }
+    }
+
+    #[test]
+    fn test_collect_with_container_filter() {
+        let device = Default::default();
+        let model = ComplexModel::<TestBackend>::new(&device);
+
+        // Filter to only collect tensors from Linear modules
+        let filter = PathFilter::new().with_predicate(|_path, container_path| {
+            container_path.split('.').last() == Some("Linear")
+        });
+
+        let linear_views = model.collect_with_filter(filter);
+
+        // All collected tensors should be from Linear modules
+        for (_path, view) in linear_views.iter() {
+            assert_eq!(
+                view.container_type(),
+                "Linear",
+                "All tensors should be from Linear modules"
+            );
+        }
+
+        // Should have collected all Linear tensors (10 total: 5 Linear modules × 2 tensors each)
+        assert_eq!(
+            linear_views.len(),
+            10,
+            "Should have 10 tensors from 5 Linear modules"
+        );
+
+        // Filter to only collect weights from Linear modules
+        let weight_filter = PathFilter::new().with_predicate(|path, container_path| {
+            container_path.split('.').last() == Some("Linear") && path.ends_with(".weight")
+        });
+
+        let weight_views = model.collect_with_filter(weight_filter);
+
+        // Should have exactly 5 weight tensors
+        assert_eq!(
+            weight_views.len(),
+            5,
+            "Should have 5 weight tensors from 5 Linear modules"
+        );
+
+        for (path, view) in weight_views.iter() {
+            assert!(path.ends_with(".weight"), "Should only have weight tensors");
+            assert_eq!(
+                view.container_type(),
+                "Linear",
+                "Should be from Linear modules"
+            );
+        }
+
+        // Test using container_path() method
+        for (_path, view) in linear_views.iter() {
+            let container_path = view.container_path();
+            // Container path should end with Linear (e.g., "ComplexModel.Linear" or "ComplexModel.Array.Linear")
+            assert!(
+                container_path.ends_with("Linear") || container_path.ends_with("Linear.Param"),
+                "Container path {} should contain Linear",
+                container_path
+            );
+        }
+
+        // Filter using dot-notated container path
+        let dot_filter = PathFilter::new().with_predicate(|_path, container_path| {
+            // Match tensors that are in a Linear module directly under ComplexModel
+            container_path.starts_with("ComplexModel.Linear") ||
+            // Or in Linear modules inside arrays/vecs
+            container_path.contains(".Linear")
+        });
+
+        let dot_filtered = model.collect_with_filter(dot_filter);
+        assert_eq!(
+            dot_filtered.len(),
+            10,
+            "Should match all Linear module tensors"
+        );
     }
 }

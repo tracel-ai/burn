@@ -90,9 +90,12 @@ impl TensorViewCollector {
         self.path_stack.join(".")
     }
 
-    fn should_collect(&self, path: &str) -> bool {
+    fn should_collect(&self, path: &str, container_path: &str) -> bool {
         // If filter is present, use it; otherwise collect all
-        self.filter.as_ref().is_none_or(|f| f.matches(path))
+        match &self.filter {
+            None => true,
+            Some(f) => f.matches_with_container_path(path, container_path),
+        }
     }
 }
 
@@ -109,7 +112,8 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
 
     fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
         let path = self.current_path();
-        if !path.is_empty() && self.should_collect(&path) {
+        let container_path = self.container_stack.join(".");
+        if !path.is_empty() && self.should_collect(&path, &container_path) {
             self.tensors.insert(
                 path.clone(),
                 TensorView::from_float(
@@ -124,7 +128,8 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
 
     fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
         let path = self.current_path();
-        if !path.is_empty() && self.should_collect(&path) {
+        let container_path = self.container_stack.join(".");
+        if !path.is_empty() && self.should_collect(&path, &container_path) {
             self.tensors.insert(
                 path.clone(),
                 TensorView::from_int(
@@ -139,7 +144,8 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
 
     fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
         let path = self.current_path();
-        if !path.is_empty() && self.should_collect(&path) {
+        let container_path = self.container_stack.join(".");
+        if !path.is_empty() && self.should_collect(&path, &container_path) {
             self.tensors.insert(
                 path.clone(),
                 TensorView::from_bool(
@@ -158,7 +164,9 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         id: ParamId,
         tensor: &Tensor<B, D>,
     ) {
-        if self.should_collect(path) {
+        // For path-based visits, we use the current container stack for filtering
+        let container_path = self.container_stack.join(".");
+        if self.should_collect(path, &container_path) {
             // For path-based visits, we need to construct the path stack from the path string
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
@@ -174,7 +182,8 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         id: ParamId,
         tensor: &Tensor<B, D, Int>,
     ) {
-        if self.should_collect(path) {
+        let container_path = self.container_stack.join(".");
+        if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
                 path.to_string(),
@@ -189,7 +198,8 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         id: ParamId,
         tensor: &Tensor<B, D, Bool>,
     ) {
-        if self.should_collect(path) {
+        let container_path = self.container_stack.join(".");
+        if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
                 path.to_string(),
@@ -285,7 +295,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Use predicate function for filtering
-        fn filter_fn(path: &str) -> bool {
+        fn filter_fn(path: &str, _container_path: &str) -> bool {
             path.starts_with("encoder.") || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(filter_fn);
@@ -315,7 +325,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Complex predicate with multiple conditions
-        fn complex_filter(path: &str) -> bool {
+        fn complex_filter(path: &str, _container_path: &str) -> bool {
             let parts: Vec<&str> = path.split('.').collect();
             if parts.len() != 3 {
                 return false;

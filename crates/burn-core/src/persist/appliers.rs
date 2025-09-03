@@ -197,9 +197,12 @@ impl<B: Backend> TensorApplier<B> {
     }
 
     /// Check if a tensor at the given path should be applied
-    fn should_apply(&self, path: &str) -> bool {
+    fn should_apply(&self, path: &str, container_path: &str) -> bool {
         // If filter is present, use it; otherwise apply all
-        self.filter.as_ref().is_none_or(|f| f.matches(path))
+        match &self.filter {
+            None => true,
+            Some(f) => f.matches_with_container_path(path, container_path),
+        }
     }
 
     /// Convert the applier into an ApplyResult
@@ -248,9 +251,10 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         }
 
         self.visited_paths.push(path.clone());
+        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path) {
+            if !self.should_apply(&path, &container_path) {
                 self.skipped.push(path);
                 return tensor;
             }
@@ -288,9 +292,10 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         }
 
         self.visited_paths.push(path.clone());
+        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path) {
+            if !self.should_apply(&path, &container_path) {
                 self.skipped.push(path);
                 return tensor;
             }
@@ -328,9 +333,10 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         }
 
         self.visited_paths.push(path.clone());
+        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path) {
+            if !self.should_apply(&path, &container_path) {
                 self.skipped.push(path);
                 return tensor;
             }
