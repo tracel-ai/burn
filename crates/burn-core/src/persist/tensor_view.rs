@@ -14,11 +14,11 @@ pub struct TensorView {
     /// Function to get tensor data when needed
     data_fn: Box<dyn Fn() -> TensorData>,
     /// Path stack representing the module hierarchy
-    pub path_stack: Vec<String>,
+    pub path_stack: Option<Vec<String>>,
     /// Container stack representing the container types at each level
-    pub container_stack: Vec<String>,
+    pub container_stack: Option<Vec<String>>,
     /// Unique identifier for the tensor parameter
-    pub tensor_id: ParamId,
+    pub tensor_id: Option<ParamId>,
 }
 
 impl TensorView {
@@ -32,9 +32,9 @@ impl TensorView {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            path_stack,
-            container_stack,
-            tensor_id,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
         }
     }
 
@@ -48,9 +48,9 @@ impl TensorView {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            path_stack,
-            container_stack,
-            tensor_id,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
         }
     }
 
@@ -64,9 +64,9 @@ impl TensorView {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            path_stack,
-            container_stack,
-            tensor_id,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
         }
     }
 
@@ -77,18 +77,25 @@ impl TensorView {
 
     /// Get the full path by joining the path stack
     pub fn full_path(&self) -> String {
-        self.path_stack.join(".")
+        self.path_stack
+            .as_ref()
+            .map(|stack| stack.join("."))
+            .unwrap_or_default()
     }
 
     /// Get the full container path by joining the container stack
     pub fn container_path(&self) -> String {
-        self.container_stack.join(".")
+        self.container_stack
+            .as_ref()
+            .map(|stack| stack.join("."))
+            .unwrap_or_default()
     }
 
     /// Get the immediate container type (last in the container stack)
     pub fn container_type(&self) -> String {
         self.container_stack
-            .last()
+            .as_ref()
+            .and_then(|stack| stack.last())
             .cloned()
             .unwrap_or_else(|| "Unknown".to_string())
     }
