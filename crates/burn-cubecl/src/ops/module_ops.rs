@@ -213,17 +213,21 @@ where
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
         execute_with_dtype!(
-            float(x.dtype),
-            E,
-            MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward::<R, E, I>(
-                x,
-                output_grad,
-                indices,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-            ))
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(x.dtype),
+                E,
+                MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward::<R, E, I>(
+                    x,
+                    output_grad,
+                    indices,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                ))
+            )
         )
     }
 
