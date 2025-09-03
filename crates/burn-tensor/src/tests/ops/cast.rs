@@ -53,4 +53,16 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FT>(&data, Tolerance::default());
     }
+
+    #[test]
+    #[ignore]
+    fn cast_int_precision() {
+        let data = TensorData::from([[1, 2, 3], [4, 5, 6]]);
+        let tensor = TestTensorInt::<2>::from(data.clone());
+
+        let output = tensor.cast(DType::U8);
+
+        assert_eq!(output.dtype(), DType::U8);
+        output.into_data().assert_eq(&data, false);
+    }
 }

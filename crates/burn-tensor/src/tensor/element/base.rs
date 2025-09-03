@@ -395,6 +395,10 @@ impl DType {
     pub fn is_int(&self) -> bool {
         matches!(self, DType::I64 | DType::I32 | DType::I16 | DType::I8)
     }
+    /// Returns true if the data type is an unsigned integer type.
+    pub fn is_uint(&self) -> bool {
+        matches!(self, DType::U64 | DType::U32 | DType::U16 | DType::U8)
+    }
 
     /// Returns true if the data type is a boolean type
     pub fn is_bool(&self) -> bool {
@@ -454,6 +458,50 @@ impl From<FloatDType> for DType {
             FloatDType::Flex32 => DType::Flex32,
             FloatDType::F16 => DType::F16,
             FloatDType::BF16 => DType::BF16,
+        }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy)]
+pub enum IntDType {
+    I64,
+    I32,
+    I16,
+    I8,
+    U64,
+    U32,
+    U16,
+    U8,
+}
+
+impl From<DType> for IntDType {
+    fn from(value: DType) -> Self {
+        match value {
+            DType::I64 => IntDType::I64,
+            DType::I32 => IntDType::I32,
+            DType::I16 => IntDType::I16,
+            DType::I8 => IntDType::I8,
+            DType::U64 => IntDType::U64,
+            DType::U32 => IntDType::U32,
+            DType::U16 => IntDType::U16,
+            DType::U8 => IntDType::U8,
+            _ => panic!("Expected int data type, got {value:?}"),
+        }
+    }
+}
+
+impl From<IntDType> for DType {
+    fn from(value: IntDType) -> Self {
+        match value {
+            IntDType::I64 => DType::I64,
+            IntDType::I32 => DType::I32,
+            IntDType::I16 => DType::I16,
+            IntDType::I8 => DType::I8,
+            IntDType::U64 => DType::U64,
+            IntDType::U32 => DType::U32,
+            IntDType::U16 => DType::U16,
+            IntDType::U8 => DType::U8,
         }
     }
 }
