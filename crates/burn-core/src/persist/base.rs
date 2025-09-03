@@ -3,7 +3,7 @@ use hashbrown::HashMap;
 
 use super::{
     TensorViewCollector,
-    appliers::{ImportResult, TensorApplier},
+    appliers::{ApplyResult, TensorApplier},
 };
 use crate::module::Module;
 use crate::persist::{PathFilter, TensorView};
@@ -51,9 +51,9 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// # Returns
     ///
-    /// An [`ImportResult`] containing information about applied, skipped, missing,
+    /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    fn apply(&mut self, views: HashMap<String, TensorView>) -> ImportResult {
+    fn apply(&mut self, views: HashMap<String, TensorView>) -> ApplyResult {
         let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
@@ -88,7 +88,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         &mut self,
         views: HashMap<String, TensorView>,
         filter: PathFilter,
-    ) -> ImportResult {
+    ) -> ApplyResult {
         let mut applier = TensorApplier::with_filter(views, filter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
@@ -117,7 +117,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `persister` - A mutable reference to a [`ModulePersister`] that will load and apply tensors
-    fn apply_from<P>(&mut self, persister: &mut P) -> Result<ImportResult, P::Error>
+    fn apply_from<P>(&mut self, persister: &mut P) -> Result<ApplyResult, P::Error>
     where
         P: crate::persist::persister::ModulePersister,
     {

@@ -1,5 +1,5 @@
 use crate::persist::ModulePersist;
-use crate::persist::appliers::ImportResult;
+use crate::persist::appliers::ApplyResult;
 use crate::tensor::backend::Backend;
 
 /// A trait for handling module persistence operations.
@@ -48,14 +48,14 @@ pub trait ModulePersister {
     ///
     /// # Returns
     ///
-    /// * `Ok(ImportResult)` - Detailed information about the import operation:
+    /// * `Ok(ApplyResult)` - Detailed information about the apply operation:
     ///   - `applied`: List of successfully applied tensor names
     ///   - `missing`: Tensors expected by the module but not found in storage
     ///   - `skipped`: Tensors in storage that were not applied (filtered or not needed)
-    ///   - `errors`: Non-critical errors that occurred during import
-    /// * `Err(Self::Error)` - If a critical error prevented the import operation
+    ///   - `errors`: Non-critical errors that occurred during apply
+    /// * `Err(Self::Error)` - If a critical error prevented the apply operation
     fn apply_to<B: Backend, M: ModulePersist<B>>(
         &mut self,
         module: &mut M,
-    ) -> Result<ImportResult, Self::Error>;
+    ) -> Result<ApplyResult, Self::Error>;
 }

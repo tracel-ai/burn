@@ -9,9 +9,9 @@ use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 use crate::module::{ModuleMapper, ParamId};
 use crate::persist::{PathFilter, TensorView};
 
-/// Error types for import operations
+/// Error types for apply operations
 #[derive(Debug)]
-pub enum ImportError {
+pub enum ApplyError {
     /// Shape mismatch between source and target tensor
     ShapeMismatch {
         /// Path of the tensor
@@ -47,10 +47,10 @@ pub enum ImportError {
     Other(String),
 }
 
-impl fmt::Display for ImportError {
+impl fmt::Display for ApplyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ImportError::ShapeMismatch {
+            ApplyError::ShapeMismatch {
                 path,
                 expected,
                 found,
@@ -59,35 +59,35 @@ impl fmt::Display for ImportError {
                 "Shape mismatch for tensor '{}': expected {:?}, found {:?}",
                 path, expected, found
             ),
-            ImportError::TypeMismatch { path, message } => {
+            ApplyError::TypeMismatch { path, message } => {
                 write!(f, "Type mismatch for tensor '{}': {}", path, message)
             }
-            ImportError::PathNotFound { path } => {
+            ApplyError::PathNotFound { path } => {
                 write!(f, "Tensor path '{}' not found in module", path)
             }
-            ImportError::InvalidData { path, reason } => {
+            ApplyError::InvalidData { path, reason } => {
                 write!(f, "Invalid data for tensor '{}': {}", path, reason)
             }
             #[cfg(target_has_atomic = "ptr")]
-            ImportError::RegexError(e) => write!(f, "Regex error: {}", e),
-            ImportError::Other(msg) => write!(f, "{}", msg),
+            ApplyError::RegexError(e) => write!(f, "Regex error: {}", e),
+            ApplyError::Other(msg) => write!(f, "{}", msg),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for ImportError {}
+impl std::error::Error for ApplyError {}
 
 #[cfg(target_has_atomic = "ptr")]
-impl From<regex::Error> for ImportError {
+impl From<regex::Error> for ApplyError {
     fn from(err: regex::Error) -> Self {
-        ImportError::RegexError(err)
+        ApplyError::RegexError(err)
     }
 }
 
-/// Result of an import operation
+/// Result of an apply operation
 #[derive(Debug, Clone)]
-pub struct ImportResult {
+pub struct ApplyResult {
     /// Successfully applied tensor paths
     pub applied: Vec<String>,
     /// Paths that were filtered out (not attempted)
@@ -96,12 +96,12 @@ pub struct ImportResult {
     pub missing: Vec<String>,
     /// Paths in sources but not found in module
     pub unused: Vec<String>,
-    /// Errors encountered during import
+    /// Errors encountered during apply
     pub errors: Vec<String>,
 }
 
-impl ImportResult {
-    /// Check if the import was successful (no errors)
+impl ApplyResult {
+    /// Check if the apply was successful (no errors)
     pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
@@ -112,9 +112,9 @@ impl ImportResult {
     }
 }
 
-impl fmt::Display for ImportResult {
+impl fmt::Display for ApplyResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Import Result:")?;
+        writeln!(f, "Apply Result:")?;
         writeln!(f, "  Applied: {} tensors", self.applied.len())?;
         if !self.skipped.is_empty() {
             writeln!(f, "  Skipped: {} tensors (filtered)", self.skipped.len())?;
@@ -144,7 +144,7 @@ pub struct TensorApplier<B: Backend> {
     views: HashMap<String, TensorView>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
-    /// Path filter for selective import
+    /// Path filter for selective apply
     filter: Option<PathFilter>,
     /// Successfully applied tensor paths
     applied: Vec<String>,
@@ -192,14 +192,14 @@ impl<B: Backend> TensorApplier<B> {
         self.path_stack.join(".")
     }
 
-    /// Check if a tensor at the given path should be imported
-    fn should_import(&self, path: &str) -> bool {
-        // If filter is present, use it; otherwise import all
+    /// Check if a tensor at the given path should be applied
+    fn should_apply(&self, path: &str) -> bool {
+        // If filter is present, use it; otherwise apply all
         self.filter.as_ref().is_none_or(|f| f.matches(path))
     }
 
-    /// Convert the applier into an ImportResult
-    pub fn into_result(self) -> ImportResult {
+    /// Convert the applier into an ApplyResult
+    pub fn into_result(self) -> ApplyResult {
         // Find unused tensors (in views but not visited)
         let unused: Vec<String> = self
             .views
@@ -215,7 +215,7 @@ impl<B: Backend> TensorApplier<B> {
             .filter(|p| !self.views.contains_key(p) && !self.skipped.contains(p))
             .collect();
 
-        ImportResult {
+        ApplyResult {
             applied: self.applied,
             skipped: self.skipped,
             missing,
@@ -244,7 +244,7 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         self.visited_paths.push(path.clone());
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_import(&path) {
+            if !self.should_apply(&path) {
                 self.skipped.push(path);
                 return tensor;
             }
@@ -284,7 +284,7 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         self.visited_paths.push(path.clone());
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_import(&path) {
+            if !self.should_apply(&path) {
                 self.skipped.push(path);
                 return tensor;
             }
@@ -324,7 +324,7 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         self.visited_paths.push(path.clone());
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_import(&path) {
+            if !self.should_apply(&path) {
                 self.skipped.push(path);
                 return tensor;
             }
