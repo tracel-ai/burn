@@ -10,6 +10,9 @@ mod collectors;
 mod filter;
 mod tensor_view;
 
+#[cfg(test)]
+mod test;
+
 pub use appliers::{ApplyError, ApplyResult, TensorApplier};
 pub use base::{ModulePersist, ModulePersister};
 pub use collectors::TensorViewCollector;
