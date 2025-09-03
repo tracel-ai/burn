@@ -41,6 +41,7 @@ pub struct TensorViewCollector {
     /// Map of tensor paths to their views
     pub tensors: HashMap<String, TensorView>,
     path_stack: Vec<String>,
+    container_stack: Vec<String>,
     filter: Option<PathFilter>,
 }
 
@@ -56,6 +57,7 @@ impl TensorViewCollector {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
+            container_stack: Vec::new(),
             filter: None,
         }
     }
@@ -79,6 +81,7 @@ impl TensorViewCollector {
         Self {
             tensors: HashMap::new(),
             path_stack: Vec::new(),
+            container_stack: Vec::new(),
             filter: Some(filter),
         }
     }
@@ -94,35 +97,58 @@ impl TensorViewCollector {
 }
 
 impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
-    fn enter_module(&mut self, name: &str) {
+    fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
+        self.container_stack.push(container_type.to_string());
     }
 
-    fn exit_module(&mut self, _name: &str) {
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
         self.path_stack.pop();
+        self.container_stack.pop();
     }
 
     fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors
-                .insert(path.clone(), TensorView::from_float(tensor, path, id));
+            self.tensors.insert(
+                path.clone(),
+                TensorView::from_float(
+                    tensor,
+                    self.path_stack.clone(),
+                    self.container_stack.clone(),
+                    id,
+                ),
+            );
         }
     }
 
     fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors
-                .insert(path.clone(), TensorView::from_int(tensor, path, id));
+            self.tensors.insert(
+                path.clone(),
+                TensorView::from_int(
+                    tensor,
+                    self.path_stack.clone(),
+                    self.container_stack.clone(),
+                    id,
+                ),
+            );
         }
     }
 
     fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors
-                .insert(path.clone(), TensorView::from_bool(tensor, path, id));
+            self.tensors.insert(
+                path.clone(),
+                TensorView::from_bool(
+                    tensor,
+                    self.path_stack.clone(),
+                    self.container_stack.clone(),
+                    id,
+                ),
+            );
         }
     }
 
@@ -133,9 +159,11 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         tensor: &Tensor<B, D>,
     ) {
         if self.should_collect(path) {
+            // For path-based visits, we need to construct the path stack from the path string
+            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
                 path.to_string(),
-                TensorView::from_float(tensor, path.to_string(), id),
+                TensorView::from_float(tensor, path_parts, self.container_stack.clone(), id),
             );
         }
     }
@@ -147,9 +175,10 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         tensor: &Tensor<B, D, Int>,
     ) {
         if self.should_collect(path) {
+            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
                 path.to_string(),
-                TensorView::from_int(tensor, path.to_string(), id),
+                TensorView::from_int(tensor, path_parts, self.container_stack.clone(), id),
             );
         }
     }
@@ -161,9 +190,10 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         tensor: &Tensor<B, D, Bool>,
     ) {
         if self.should_collect(path) {
+            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
             self.tensors.insert(
                 path.to_string(),
-                TensorView::from_bool(tensor, path.to_string(), id),
+                TensorView::from_bool(tensor, path_parts, self.container_stack.clone(), id),
             );
         }
     }
@@ -334,11 +364,11 @@ mod tests {
     }
 
     impl<B: Backend> ModuleVisitor<B> for TensorPathCollector {
-        fn enter_module(&mut self, name: &str) {
+        fn enter_module(&mut self, name: &str, _container_type: &str) {
             self.path_stack.push(name.to_string());
         }
 
-        fn exit_module(&mut self, _name: &str) {
+        fn exit_module(&mut self, _name: &str, _container_type: &str) {
             self.path_stack.pop();
         }
 

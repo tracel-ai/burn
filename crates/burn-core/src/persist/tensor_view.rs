@@ -1,6 +1,7 @@
 use crate::module::ParamId;
 use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::vec::Vec;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
 /// A lightweight view of a tensor that can lazily produce TensorData.
@@ -11,8 +12,10 @@ use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 pub struct TensorView {
     /// Function to get tensor data when needed
     data_fn: Box<dyn Fn() -> TensorData>,
-    /// Full path to the tensor in the module hierarchy
-    pub full_path: String,
+    /// Path stack representing the module hierarchy
+    pub path_stack: Vec<String>,
+    /// Container stack representing the container types at each level
+    pub container_stack: Vec<String>,
     /// Unique identifier for the tensor parameter
     pub tensor_id: ParamId,
 }
@@ -21,13 +24,15 @@ impl TensorView {
     /// Create a new tensor view from a float tensor
     pub fn from_float<B: Backend, const D: usize>(
         tensor: &Tensor<B, D>,
-        full_path: String,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            full_path,
+            path_stack,
+            container_stack,
             tensor_id,
         }
     }
@@ -35,13 +40,15 @@ impl TensorView {
     /// Create a new tensor view from an int tensor
     pub fn from_int<B: Backend, const D: usize>(
         tensor: &Tensor<B, D, Int>,
-        full_path: String,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            full_path,
+            path_stack,
+            container_stack,
             tensor_id,
         }
     }
@@ -49,13 +56,15 @@ impl TensorView {
     /// Create a new tensor view from a bool tensor
     pub fn from_bool<B: Backend, const D: usize>(
         tensor: &Tensor<B, D, Bool>,
-        full_path: String,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
-            full_path,
+            path_stack,
+            container_stack,
             tensor_id,
         }
     }
@@ -63,6 +72,19 @@ impl TensorView {
     /// Convert to TensorData (this is where actual data copy happens)
     pub fn to_data(&self) -> TensorData {
         (self.data_fn)()
+    }
+
+    /// Get the full path by joining the path stack
+    pub fn full_path(&self) -> String {
+        self.path_stack.join(".")
+    }
+
+    /// Get the immediate container type (last in the container stack)
+    pub fn container_type(&self) -> String {
+        self.container_stack
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string())
     }
 }
 
@@ -77,7 +99,12 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let view = TensorView::from_float(&tensor, "test.weight".to_string(), ParamId::new());
+        let view = TensorView::from_float(
+            &tensor,
+            vec!["test".to_string(), "weight".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
         let data = view.to_data();
 
         assert_eq!(data.shape, vec![2, 2]);
@@ -88,7 +115,12 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
 
-        let view = TensorView::from_int(&tensor, "test.int".to_string(), ParamId::new());
+        let view = TensorView::from_int(
+            &tensor,
+            vec!["test".to_string(), "int".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
         let data = view.to_data();
 
         assert_eq!(data.shape, vec![2, 2]);
@@ -100,7 +132,12 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
 
-        let view = TensorView::from_bool(&tensor, "test.bool".to_string(), ParamId::new());
+        let view = TensorView::from_bool(
+            &tensor,
+            vec!["test".to_string(), "bool".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
         let data = view.to_data();
 
         assert_eq!(data.shape, vec![2, 2]);

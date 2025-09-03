@@ -193,7 +193,7 @@ mod tests {
     use crate::{
         TestBackend,
         module::{Module, Param},
-        nn::{self, LinearConfig},
+        nn::{self, Linear, LinearConfig},
     };
     use burn_tensor::Tensor;
 
@@ -887,5 +887,382 @@ mod tests {
 
         let weight_data = large_views.get("Large.weight").unwrap().to_data();
         assert_eq!(weight_data.shape, vec![50, 100]);
+    }
+
+    // Container type tracking tests
+
+    // Test module with Linear layer
+    #[derive(Module, Debug)]
+    struct ModelWithLinear<B: Backend> {
+        linear: Linear<B>,
+    }
+
+    impl<B: Backend> ModelWithLinear<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                linear: LinearConfig::new(10, 20).init(device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_linear_container_type() {
+        let device = Default::default();
+        let model = ModelWithLinear::<TestBackend>::new(&device);
+
+        let views = model.collect();
+
+        // Check that tensors inside Linear layers have "Linear" as their container type
+        // because they are directly contained by the Linear module, not ModelWithLinear
+        for (path, view) in views.iter() {
+            if path == "linear.weight" || path == "linear.bias" {
+                assert_eq!(
+                    view.container_type(),
+                    "Linear",
+                    "Tensor '{}' should have container type 'Linear' (its immediate parent)",
+                    path
+                );
+            }
+        }
+    }
+
+    // Test module with Vec of modules
+    #[derive(Module, Debug)]
+    struct ModelWithVec<B: Backend> {
+        layers: Vec<Linear<B>>,
+    }
+
+    impl<B: Backend> ModelWithVec<B> {
+        fn new(device: &B::Device, num_layers: usize) -> Self {
+            Self {
+                layers: (0..num_layers)
+                    .map(|_| LinearConfig::new(10, 10).init(device))
+                    .collect(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_vec_container_type() {
+        let device = Default::default();
+        let model = ModelWithVec::<TestBackend>::new(&device, 3);
+
+        let views = model.collect();
+
+        // Check that modules in Vec have "Vec" as their immediate container type
+        for (path, view) in views.iter() {
+            if path.starts_with("layers.0")
+                || path.starts_with("layers.1")
+                || path.starts_with("layers.2")
+            {
+                // The immediate parent of layers.0, layers.1, etc. should be Vec
+                // But the actual tensor (layers.0.weight) would have Linear as container
+                if path.contains(".weight") || path.contains(".bias") {
+                    assert_eq!(
+                        view.container_type(),
+                        "Linear",
+                        "Tensor '{}' should have container type 'Linear'",
+                        path
+                    );
+                }
+            }
+        }
+    }
+
+    // Test module with Array of modules
+    #[derive(Module, Debug)]
+    struct ModelWithArray<B: Backend> {
+        layers: [Linear<B>; 2],
+    }
+
+    impl<B: Backend> ModelWithArray<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layers: [
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                ],
+            }
+        }
+    }
+
+    #[test]
+    fn test_array_container_type() {
+        let device = Default::default();
+        let model = ModelWithArray::<TestBackend>::new(&device);
+
+        let views = model.collect();
+
+        // Check that modules in Array have proper container types
+        for (path, view) in views.iter() {
+            if path.starts_with("layers.0") || path.starts_with("layers.1") {
+                if path.contains(".weight") || path.contains(".bias") {
+                    assert_eq!(
+                        view.container_type(),
+                        "Linear",
+                        "Tensor '{}' should have container type 'Linear'",
+                        path
+                    );
+                }
+            }
+        }
+    }
+
+    // Test nested module structure
+    #[derive(Module, Debug)]
+    struct InnerModule<B: Backend> {
+        linear: Linear<B>,
+    }
+
+    #[derive(Module, Debug)]
+    struct OuterModule<B: Backend> {
+        inner: InnerModule<B>,
+        direct_linear: Linear<B>,
+    }
+
+    impl<B: Backend> InnerModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                linear: LinearConfig::new(5, 5).init(device),
+            }
+        }
+    }
+
+    impl<B: Backend> OuterModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                inner: InnerModule::new(device),
+                direct_linear: LinearConfig::new(5, 5).init(device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_nested_container_types() {
+        let device = Default::default();
+        let model = OuterModule::<TestBackend>::new(&device);
+
+        let views = model.collect();
+
+        // Check nested container types
+        for (path, view) in views.iter() {
+            if path.starts_with("inner.linear") {
+                assert_eq!(
+                    view.container_type(),
+                    "Linear",
+                    "Nested linear at '{}' should have container type 'Linear'",
+                    path
+                );
+            } else if path.starts_with("direct_linear") {
+                assert_eq!(
+                    view.container_type(),
+                    "Linear",
+                    "Direct linear at '{}' should have container type 'Linear'",
+                    path
+                );
+            }
+        }
+    }
+
+    // Test enum module
+    #[derive(Module, Debug)]
+    enum ModelEnum<B: Backend> {
+        VariantA(Linear<B>),
+        VariantB(Linear<B>),
+    }
+
+    #[test]
+    fn test_enum_container_type() {
+        let device = Default::default();
+        let model = ModelEnum::VariantA(LinearConfig::new(10, 20).init::<TestBackend>(&device));
+
+        let views = model.collect();
+
+        // Check that enum variant modules have proper container types
+        for (path, view) in views.iter() {
+            if path.starts_with("VariantA") {
+                assert_eq!(
+                    view.container_type(),
+                    "Linear",
+                    "Enum variant tensor '{}' should have container type 'Linear'",
+                    path
+                );
+            }
+        }
+    }
+
+    // Test custom visitor that tracks container types
+    struct ContainerTracker {
+        containers: Vec<(String, String)>, // (name, container_type)
+    }
+
+    impl ContainerTracker {
+        fn new() -> Self {
+            Self {
+                containers: Vec::new(),
+            }
+        }
+    }
+
+    impl<B: Backend> crate::module::ModuleVisitor<B> for ContainerTracker {
+        fn enter_module(&mut self, name: &str, container_type: &str) {
+            self.containers
+                .push((name.to_string(), container_type.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_visitor_receives_container_types() {
+        let device = Default::default();
+        let model = ModelWithLinear::<TestBackend>::new(&device);
+
+        let mut tracker = ContainerTracker::new();
+        model.visit(&mut tracker);
+
+        // Verify that the visitor received container type information
+        assert!(
+            !tracker.containers.is_empty(),
+            "Visitor should have received container information"
+        );
+
+        // The visitor should see "linear" field with "ModelWithLinear" as the container
+        // And then nested fields inside Linear with "Linear" as the container
+        let has_model_container = tracker
+            .containers
+            .iter()
+            .any(|(name, container)| name == "linear" && container == "ModelWithLinear");
+        assert!(
+            has_model_container,
+            "Should have ModelWithLinear container for linear field"
+        );
+
+        // There should also be entries for weight and bias with Linear as container
+        let has_linear_weight = tracker
+            .containers
+            .iter()
+            .any(|(name, container)| name == "weight" && container == "Linear");
+        let has_linear_bias = tracker
+            .containers
+            .iter()
+            .any(|(name, container)| name == "bias" && container == "Linear");
+
+        assert!(
+            has_linear_weight || has_linear_bias,
+            "Should have Linear container for weight/bias fields inside Linear module"
+        );
+    }
+
+    // Test mapper that uses container types
+    struct ContainerMapper {
+        processed: Vec<(String, String)>,
+        path_stack: Vec<String>,
+    }
+
+    impl ContainerMapper {
+        fn new() -> Self {
+            Self {
+                processed: Vec::new(),
+                path_stack: Vec::new(),
+            }
+        }
+
+        fn current_path(&self) -> String {
+            self.path_stack.join(".")
+        }
+    }
+
+    impl<B: Backend> crate::module::ModuleMapper<B> for ContainerMapper {
+        fn enter_module(&mut self, name: &str, container_type: &str) {
+            self.path_stack.push(name.to_string());
+            self.processed
+                .push((self.current_path(), container_type.to_string()));
+        }
+
+        fn exit_module(&mut self, _name: &str, _container_type: &str) {
+            self.path_stack.pop();
+        }
+    }
+
+    #[test]
+    fn test_mapper_receives_container_types() {
+        let device = Default::default();
+        let model = ModelWithLinear::<TestBackend>::new(&device);
+
+        let mut mapper = ContainerMapper::new();
+        let _ = model.clone().map(&mut mapper);
+
+        // Verify that the mapper received container type information
+        assert!(
+            !mapper.processed.is_empty(),
+            "Mapper should have received container information"
+        );
+
+        // Check that we have the expected container type
+        let has_model_container = mapper
+            .processed
+            .iter()
+            .any(|(path, container)| path == "linear" && container == "ModelWithLinear");
+        assert!(
+            has_model_container,
+            "Should have ModelWithLinear container for linear field"
+        );
+    }
+
+    // Test complex nested structure with multiple container types
+    #[derive(Module, Debug)]
+    struct ComplexModel<B: Backend> {
+        linear_layers: [Linear<B>; 2],
+        vec_layers: Vec<Linear<B>>,
+        single_linear: Linear<B>,
+    }
+
+    impl<B: Backend> ComplexModel<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                linear_layers: [
+                    LinearConfig::new(100, 50).init(device),
+                    LinearConfig::new(50, 10).init(device),
+                ],
+                vec_layers: vec![
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                ],
+                single_linear: LinearConfig::new(10, 1).init(device),
+            }
+        }
+    }
+
+    #[test]
+    fn test_complex_model_container_types() {
+        let device = Default::default();
+        let model = ComplexModel::<TestBackend>::new(&device);
+
+        let views = model.collect();
+
+        // Verify different container types in the complex model
+        let mut found_linear = false;
+
+        for (_path, view) in views.iter() {
+            match view.container_type().as_str() {
+                "Linear" => found_linear = true,
+                _ => {}
+            }
+        }
+
+        assert!(found_linear, "Should have found Linear container type");
+
+        // Print summary for debugging
+        println!("Complex model has {} total tensor views", views.len());
+
+        // Group by container type for analysis
+        let mut by_container: HashMap<String, usize> = HashMap::new();
+        for (_path, view) in views.iter() {
+            *by_container.entry(view.container_type()).or_insert(0) += 1;
+        }
+
+        println!("Tensors by container type:");
+        for (container, count) in by_container.iter() {
+            println!("  {}: {} tensors", container, count);
+        }
     }
 }

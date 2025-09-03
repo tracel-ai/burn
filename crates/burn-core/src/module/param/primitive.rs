@@ -102,9 +102,9 @@ where
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
             let index_str = alloc::format!("{}", i);
-            visitor.enter_module(&index_str);
+            visitor.enter_module(&index_str, "Vec");
             module.visit(visitor);
-            visitor.exit_module(&index_str);
+            visitor.exit_module(&index_str, "Vec");
         }
     }
 
@@ -113,9 +113,9 @@ where
             .enumerate()
             .map(|(i, module)| {
                 let index_str = alloc::format!("{}", i);
-                mapper.enter_module(&index_str);
+                mapper.enter_module(&index_str, "Vec");
                 let mapped = module.map(mapper);
-                mapper.exit_module(&index_str);
+                mapper.exit_module(&index_str, "Vec");
                 mapped
             })
             .collect()
@@ -213,9 +213,9 @@ where
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
             let index_str = alloc::format!("{}", i);
-            visitor.enter_module(&index_str);
+            visitor.enter_module(&index_str, "Vec");
             module.visit(visitor);
-            visitor.exit_module(&index_str);
+            visitor.exit_module(&index_str, "Vec");
         }
     }
 
@@ -223,9 +223,9 @@ where
         let mut result = Vec::with_capacity(N);
         for (i, module) in IntoIterator::into_iter(self).enumerate() {
             let index_str = alloc::format!("{}", i);
-            mapper.enter_module(&index_str);
+            mapper.enter_module(&index_str, "Array");
             let mapped = module.map(mapper);
-            mapper.exit_module(&index_str);
+            mapper.exit_module(&index_str, "Array");
             result.push(mapped);
         }
         result

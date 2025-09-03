@@ -144,6 +144,8 @@ pub struct TensorApplier<B: Backend> {
     views: HashMap<String, TensorView>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
+    /// Current container type stack in the module hierarchy
+    container_stack: Vec<String>,
     /// Path filter for selective apply
     filter: Option<PathFilter>,
     /// Successfully applied tensor paths
@@ -164,6 +166,7 @@ impl<B: Backend> TensorApplier<B> {
         Self {
             views,
             path_stack: Vec::new(),
+            container_stack: Vec::new(),
             filter: None,
             applied: Vec::new(),
             skipped: Vec::new(),
@@ -178,6 +181,7 @@ impl<B: Backend> TensorApplier<B> {
         Self {
             views,
             path_stack: Vec::new(),
+            container_stack: Vec::new(),
             filter: Some(filter),
             applied: Vec::new(),
             skipped: Vec::new(),
@@ -227,12 +231,14 @@ impl<B: Backend> TensorApplier<B> {
 
 // Implement ModuleMapper for applying the tensors
 impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
-    fn enter_module(&mut self, name: &str) {
+    fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
+        self.container_stack.push(container_type.to_string());
     }
 
-    fn exit_module(&mut self, _name: &str) {
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
         self.path_stack.pop();
+        self.container_stack.pop();
     }
 
     fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
