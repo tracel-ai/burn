@@ -102,60 +102,69 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         self.path_stack.pop();
     }
 
-    fn visit_float<const D: usize>(&mut self, _id: ParamId, tensor: &Tensor<B, D>) {
+    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors.insert(path, TensorView::from_float(tensor));
+            self.tensors
+                .insert(path.clone(), TensorView::from_float(tensor, path, id));
         }
     }
 
-    fn visit_int<const D: usize>(&mut self, _id: ParamId, tensor: &Tensor<B, D, Int>) {
+    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors.insert(path, TensorView::from_int(tensor));
+            self.tensors
+                .insert(path.clone(), TensorView::from_int(tensor, path, id));
         }
     }
 
-    fn visit_bool<const D: usize>(&mut self, _id: ParamId, tensor: &Tensor<B, D, Bool>) {
+    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
         let path = self.current_path();
         if !path.is_empty() && self.should_collect(&path) {
-            self.tensors.insert(path, TensorView::from_bool(tensor));
+            self.tensors
+                .insert(path.clone(), TensorView::from_bool(tensor, path, id));
         }
     }
 
     fn visit_float_with_path<const D: usize>(
         &mut self,
         path: &str,
-        _id: ParamId,
+        id: ParamId,
         tensor: &Tensor<B, D>,
     ) {
         if self.should_collect(path) {
-            self.tensors
-                .insert(path.to_string(), TensorView::from_float(tensor));
+            self.tensors.insert(
+                path.to_string(),
+                TensorView::from_float(tensor, path.to_string(), id),
+            );
         }
     }
 
     fn visit_int_with_path<const D: usize>(
         &mut self,
         path: &str,
-        _id: ParamId,
+        id: ParamId,
         tensor: &Tensor<B, D, Int>,
     ) {
         if self.should_collect(path) {
-            self.tensors
-                .insert(path.to_string(), TensorView::from_int(tensor));
+            self.tensors.insert(
+                path.to_string(),
+                TensorView::from_int(tensor, path.to_string(), id),
+            );
         }
     }
 
     fn visit_bool_with_path<const D: usize>(
         &mut self,
         path: &str,
-        _id: ParamId,
+        id: ParamId,
         tensor: &Tensor<B, D, Bool>,
     ) {
         if self.should_collect(path) {
-            self.tensors
-                .insert(path.to_string(), TensorView::from_bool(tensor));
+            self.tensors.insert(
+                path.to_string(),
+                TensorView::from_bool(tensor, path.to_string(), id),
+            );
         }
     }
 }
