@@ -45,8 +45,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
                 let input = scope.tensor_use_owned(input, node_position);
                 let output_name = &output.name;
                 let output_rank = output.rank.to_tokens();
+
+                // Generate the correct output type based on the tensor kind
+                let output_type = match &output.kind {
+                    crate::burn::TensorKind::Int => quote! { Tensor<B, #output_rank, Int> },
+                    crate::burn::TensorKind::Float => quote! { Tensor<B, #output_rank> },
+                    crate::burn::TensorKind::Bool => quote! { Tensor<B, #output_rank, Bool> },
+                };
+
                 quote! {
-                    let #output_name: Tensor<B, #output_rank> = #input.unsqueeze_dims(&#axes);
+                    let #output_name: #output_type = #input.unsqueeze_dims(&#axes);
                 }
             }
             (Type::Scalar(scalar), Type::Tensor(output)) => {

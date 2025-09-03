@@ -20,23 +20,19 @@ pub mod transformer;
 pub mod interpolate;
 
 pub mod activation;
+pub use activation::{
+    gelu::*, glu::*, hard_sigmoid::*, leaky_relu::*, prelu::*, relu::*, sigmoid::*, swiglu::*,
+    tanh::*,
+};
+
 mod dropout;
 mod embedding;
-mod gelu;
-mod glu;
-mod hard_sigmoid;
 mod initializer;
-mod leaky_relu;
 mod linear;
 mod padding;
 mod pos_encoding;
-mod prelu;
-mod relu;
 mod rnn;
 mod rope_encoding;
-mod sigmoid;
-mod swiglu;
-mod tanh;
 mod unfold;
 
 pub mod norm;
@@ -44,19 +40,10 @@ pub use norm::{batch::*, group::*, instance::*, layer::*, rms::*};
 
 pub use dropout::*;
 pub use embedding::*;
-pub use gelu::*;
-pub use glu::*;
-pub use hard_sigmoid::*;
 pub use initializer::*;
-pub use leaky_relu::*;
 pub use linear::*;
 pub use padding::*;
 pub use pos_encoding::*;
-pub use prelu::*;
-pub use relu::*;
 pub use rnn::*;
 pub use rope_encoding::*;
-pub use sigmoid::*;
-pub use swiglu::*;
-pub use tanh::*;
 pub use unfold::*;

@@ -19,7 +19,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 29] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -38,6 +38,7 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
     NodeType::OneHot,
     NodeType::PRelu,
     NodeType::Pad,
+    NodeType::Range,
     NodeType::ReduceSum,
     NodeType::Reshape,
     NodeType::Resize,
@@ -213,6 +214,8 @@ pub(crate) struct OnnxGraphBuilder {
     /// Node types that should be lifted to constants
     constants_types: HashSet<NodeType>,
     node_name_counter: HashMap<NodeType, usize>,
+    /// Track how many times each constant is used
+    constant_usage_count: HashMap<String, usize>,
 }
 
 impl OnnxGraphBuilder {
@@ -224,6 +227,9 @@ impl OnnxGraphBuilder {
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
+
+        // First pass: count constant usage
+        self.count_constant_usage(&model_proto.graph.node);
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
@@ -306,7 +312,7 @@ impl OnnxGraphBuilder {
         let mut constants_to_convert = HashMap::new();
 
         for node in nodes {
-            let shape_inputs = self.get_shape_compatible_inputs(node);
+            let shape_inputs = self.get_shape_compatible_inputs(node, nodes);
 
             for (input_name, expected_rank) in shape_inputs {
                 constants_to_convert.insert(input_name, expected_rank);
@@ -317,7 +323,7 @@ impl OnnxGraphBuilder {
     }
 
     /// Get inputs that should be converted to Shape type for a given node
-    fn get_shape_compatible_inputs(&self, node: &Node) -> Vec<(String, usize)> {
+    fn get_shape_compatible_inputs(&self, node: &Node, all_nodes: &[Node]) -> Vec<(String, usize)> {
         let mut shape_inputs = Vec::new();
 
         match node.node_type {
@@ -337,10 +343,21 @@ impl OnnxGraphBuilder {
                 });
 
                 if let Some(shape_rank) = shape_rank {
-                    // Mark rank-1 tensors for conversion
+                    // Mark rank-1 tensors for conversion ONLY if they are constants
+                    // Do not convert outputs from operations like Range
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
-                            shape_inputs.push((input.name.clone(), shape_rank));
+                            // Only consider constants for conversion
+                            // Check if this input is a constant (either has a value or comes from a Constant node)
+                            let is_constant = input.value.is_some()
+                                || all_nodes.iter().any(|n| {
+                                    n.node_type == NodeType::Constant
+                                        && n.outputs.iter().any(|o| o.name == input.name)
+                                });
+
+                            if is_constant {
+                                shape_inputs.push((input.name.clone(), shape_rank));
+                            }
                         }
                     }
                 }
@@ -355,8 +372,18 @@ impl OnnxGraphBuilder {
                 if has_shape {
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
-                            // Actual rank will be determined from tensor data
-                            shape_inputs.push((input.name.clone(), 0));
+                            // Only consider constants for conversion
+                            // Check if this input is a constant (either has a value or comes from a Constant node)
+                            let is_constant = input.value.is_some()
+                                || all_nodes.iter().any(|n| {
+                                    n.node_type == NodeType::Constant
+                                        && n.outputs.iter().any(|o| o.name == input.name)
+                                });
+
+                            if is_constant {
+                                // Actual rank will be determined from tensor data
+                                shape_inputs.push((input.name.clone(), 0));
+                            }
                         }
                     }
                 }
@@ -522,10 +549,33 @@ impl OnnxGraphBuilder {
             let current_outputs = outputs_to_update;
             outputs_to_update = HashSet::new();
 
+            // Check if any binary operations need constant conversions after type updates
+            let constants_to_convert =
+                self.find_constants_for_shape_conversion(nodes, &current_outputs, &output_type_map);
+
+            // Apply constant conversions if any were found
+            if !constants_to_convert.is_empty() {
+                for node in nodes.iter_mut() {
+                    if node.node_type == NodeType::Constant
+                        && let Some(output) = node.outputs.first_mut()
+                        && let Some(&shape_rank) = constants_to_convert.get(&output.name)
+                        && matches!(&output.ty, ArgType::Tensor(t) if t.rank == 1)
+                    {
+                        output.ty = ArgType::Shape(shape_rank);
+                        outputs_to_update.insert(output.name.clone());
+                        log::debug!(
+                            "Converted constant {} to Shape({}) during propagation",
+                            output.name,
+                            shape_rank
+                        );
+                    }
+                }
+            }
+
             // Process each node that uses the changed outputs
             for (idx, node) in nodes.iter_mut().enumerate() {
-                // Skip already processed nodes and Constants
-                if processed_nodes.contains(&idx) || node.node_type == NodeType::Constant {
+                // Skip Constants
+                if node.node_type == NodeType::Constant {
                     continue;
                 }
 
@@ -541,9 +591,12 @@ impl OnnxGraphBuilder {
                     // Re-run rank inference and check for changes
                     if self.reinfer_and_track_changes(node, &mut outputs_to_update) {
                         log::debug!("Node {} output changed, will propagate further", node.name);
+                        // Remove from processed set so it can be reprocessed if more inputs change
+                        processed_nodes.remove(&idx);
+                    } else {
+                        // Only mark as processed if output didn't change
+                        processed_nodes.insert(idx);
                     }
-
-                    processed_nodes.insert(idx);
                 }
             }
         }
@@ -583,6 +636,34 @@ impl OnnxGraphBuilder {
         }
     }
 
+    /// Count how many times each constant output is used by other nodes
+    fn count_constant_usage(&mut self, nodes: &[NodeProto]) {
+        // First, identify all constant output names
+        let mut constant_outputs = HashSet::new();
+        for node in nodes {
+            if node.op_type == "Constant" {
+                for output in &node.output {
+                    constant_outputs.insert(output.clone());
+                }
+            }
+        }
+
+        // Now count how many times each constant is used as an input
+        for node in nodes {
+            if node.op_type == "Constant" {
+                continue; // Skip constant nodes themselves
+            }
+
+            for input in &node.input {
+                if constant_outputs.contains(input) {
+                    *self.constant_usage_count.entry(input.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+
+        log::debug!("Constant usage counts: {:?}", self.constant_usage_count);
+    }
+
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant {
             self.constants_map.insert(
@@ -610,12 +691,23 @@ impl OnnxGraphBuilder {
                         input.value = arg.value;
                         input.ty = arg.ty;
                     }
-                    // The constant values are now embedded in the input, so we can remove the constant node
-                    self.nodes_to_remove.insert(*const_idx);
-                    log::debug!(
-                        "Lifted and removed constant node {} for ConstantOfShape",
-                        constant.name
-                    );
+
+                    // Check usage count to determine if we should remove this constant
+                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
+                    if *usage_count <= 1 {
+                        // This is the only usage, we can remove the constant
+                        self.nodes_to_remove.insert(*const_idx);
+                        log::debug!(
+                            "Lifted and removed constant node {} for ConstantOfShape (single use)",
+                            constant.name
+                        );
+                    } else {
+                        log::debug!(
+                            "Lifted constant node {} for ConstantOfShape (keeping, used {} times)",
+                            constant.name,
+                            usage_count
+                        );
+                    }
                 }
             }
         } else if self.constants_types.contains(&node.node_type) {
@@ -638,7 +730,25 @@ impl OnnxGraphBuilder {
                         input.value = arg.value;
                         input.ty = arg.ty;
                     }
-                    self.nodes_to_remove.insert(*const_idx);
+
+                    // Check usage count to determine if we should remove this constant
+                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
+                    if *usage_count <= 1 {
+                        // This is the only usage, we can remove the constant
+                        self.nodes_to_remove.insert(*const_idx);
+                        log::debug!(
+                            "Lifted and removed constant node {} for {} (single use)",
+                            constant.name,
+                            node.name
+                        );
+                    } else {
+                        log::debug!(
+                            "Lifted constant node {} for {} (keeping, used {} times)",
+                            constant.name,
+                            node.name,
+                            usage_count
+                        );
+                    }
                 }
             }
         }
@@ -775,6 +885,132 @@ impl OnnxGraphBuilder {
                     &node.name
                 );
             }
+        }
+    }
+
+    /// Find constants that need to be converted to Shape type during propagation
+    /// This handles the case where a binary operation has one Shape input after type updates
+    fn find_constants_for_shape_conversion(
+        &self,
+        nodes: &[Node],
+        current_outputs: &HashSet<String>,
+        output_type_map: &HashMap<String, ArgType>,
+    ) -> HashMap<String, usize> {
+        let mut constants_to_convert = HashMap::new();
+
+        for node in nodes {
+            // Only process binary operations that use changed outputs
+            if !self.is_binary_op_using_changed_outputs(node, current_outputs) {
+                continue;
+            }
+
+            // Get the inputs with updated types
+            let updated_inputs = self.apply_type_updates(&node.inputs, output_type_map);
+
+            // Check if we have a Shape input after updates
+            if !self.has_shape_input(&updated_inputs) {
+                continue;
+            }
+
+            // Find rank-1 constant tensors that should be converted
+            self.collect_constants_to_convert(
+                &updated_inputs,
+                nodes,
+                &mut constants_to_convert,
+                &node.name,
+            );
+        }
+
+        constants_to_convert
+    }
+
+    /// Check if a node is a binary operation that uses any changed outputs
+    fn is_binary_op_using_changed_outputs(
+        &self,
+        node: &Node,
+        changed_outputs: &HashSet<String>,
+    ) -> bool {
+        matches!(
+            node.node_type,
+            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div
+        ) && node.inputs.len() == 2
+            && node.node_type != NodeType::Constant
+            && node
+                .inputs
+                .iter()
+                .any(|input| changed_outputs.contains(&input.name))
+    }
+
+    /// Apply type updates to inputs based on the output type map
+    fn apply_type_updates(
+        &self,
+        inputs: &[Argument],
+        type_map: &HashMap<String, ArgType>,
+    ) -> Vec<Argument> {
+        let mut updated = inputs.to_vec();
+        for input in &mut updated {
+            if let Some(new_type) = type_map.get(&input.name) {
+                input.ty = new_type.clone();
+            }
+        }
+        updated
+    }
+
+    /// Check if any input is a Shape type
+    fn has_shape_input(&self, inputs: &[Argument]) -> bool {
+        inputs
+            .iter()
+            .any(|input| matches!(input.ty, ArgType::Shape(_)))
+    }
+
+    /// Collect constants that need to be converted to Shape
+    fn collect_constants_to_convert(
+        &self,
+        inputs: &[Argument],
+        all_nodes: &[Node],
+        constants_to_convert: &mut HashMap<String, usize>,
+        node_name: &str,
+    ) {
+        for input in inputs {
+            // Skip non-rank-1 tensors
+            if !matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
+                continue;
+            }
+
+            // Check if this is a constant
+            let is_constant = input.value.is_some()
+                || all_nodes.iter().any(|n| {
+                    n.node_type == NodeType::Constant
+                        && n.outputs.iter().any(|o| o.name == input.name)
+                });
+
+            if !is_constant {
+                continue;
+            }
+
+            // Get the shape rank from the other input
+            let shape_rank = inputs
+                .iter()
+                .find_map(|other| {
+                    if other.name != input.name {
+                        if let ArgType::Shape(rank) = other.ty {
+                            Some(rank)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(1);
+
+            constants_to_convert.insert(input.name.clone(), shape_rank);
+            log::debug!(
+                "During propagation, need to convert constant {} to Shape({}) for node {}",
+                input.name,
+                shape_rank,
+                node_name
+            );
         }
     }
 }

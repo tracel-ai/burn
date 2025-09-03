@@ -6,7 +6,8 @@ include_models!(
     constant_i32,
     constant_i64,
     constant_shape,
-    rank_inference_propagation
+    rank_inference_propagation,
+    shape_binary_ops_with_constant
 );
 
 #[cfg(test)]
@@ -144,5 +145,36 @@ mod tests {
             2 * 4 * 128,
             "Total elements should match concat output"
         );
+    }
+
+    #[test]
+    fn shape_binary_ops_with_constant() {
+        // Test that constant tensors are properly converted to Shape type
+        // when used in binary operations (add/sub/mul/div) with Shape inputs.
+        // This specifically tests the propagation case where a Shape type
+        // is propagated through the graph and constants need to be converted
+        // during propagation (not just during initial conversion).
+        //
+        // Without the fix, constants wouldn't be converted to Shape during
+        // propagation, causing type mismatches in binary operations.
+
+        let device = Default::default();
+        let model = shape_binary_ops_with_constant::Model::<TestBackend>::new(&device);
+
+        // Create input tensor with shape [2, 8, 3]
+        let input = Tensor::<TestBackend, 3>::ones(Shape::from([2, 8, 3]), &device);
+
+        // Run the model
+        let output = model.forward(input);
+
+        // The model performs on shape [2, 8, 3]:
+        // 1. Add [10, 20, 30]: [2+10, 8+20, 3+30] = [12, 28, 33]
+        // 2. Divide by [2, 2, 2]: [12/2, 28/2, 33/2] = [6, 14, 16]
+        // 3. Subtract [3, 4, 5]: [6-3, 14-4, 16-5] = [3, 10, 11]
+        // 4. Multiply by [4, 5, 6]: [3*4, 10*5, 11*6] = [12, 50, 66]
+
+        assert_eq!(output[0], 12, "First element should be 12");
+        assert_eq!(output[1], 50, "Second element should be 50");
+        assert_eq!(output[2], 66, "Third element should be 66");
     }
 }

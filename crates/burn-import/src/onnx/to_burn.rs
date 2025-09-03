@@ -6,7 +6,9 @@ use std::{
 
 use burn::{
     nn::PReluConfig,
-    record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
+    record::{
+        DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
+    },
     tensor::{Element, TensorData},
 };
 use log::warn;
@@ -127,6 +129,7 @@ use onnx_ir::{
         max_pool2d::max_pool2d_config,
         one_hot::one_hot_config,
         pad::pad_config,
+        range::range_config,
         reduce::reduce_config,
         reshape::reshape_config,
         resize::resize_config,
@@ -158,6 +161,7 @@ pub struct ModelGen {
     inputs: Vec<PathBuf>,
     development: bool,
     half_precision: bool,
+    double_precision: bool,
     record_type: RecordType,
     embed_states: bool,
 }
@@ -211,6 +215,15 @@ impl ModelGen {
     /// * `half_precision` - If true, half precision is saved. Otherwise, full precision is saved.
     pub fn half_precision(&mut self, half_precision: bool) -> &mut Self {
         self.half_precision = half_precision;
+        self
+    }
+
+    /// Set the precision to double floating point precision.
+    ///
+    /// This uses f64 for floats and i64 for integers, which is necessary for models
+    /// with large integer constants that don't fit in i32.
+    pub fn double_precision(&mut self, double_precision: bool) -> &mut Self {
+        self.double_precision = double_precision;
         self
     }
 
@@ -298,7 +311,14 @@ impl ModelGen {
         let blank_space = true;
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
-        let code = if self.half_precision {
+        let code = if self.double_precision {
+            graph
+                .into_burn::<DoublePrecisionSettings>()
+                .with_record(out_file.clone(), self.record_type, self.embed_states)
+                .with_blank_space(blank_space)
+                .with_top_comment(top_comment)
+                .codegen()
+        } else if self.half_precision {
             graph
                 .into_burn::<HalfPrecisionSettings>()
                 .with_record(out_file.clone(), self.record_type, self.embed_states)
@@ -722,9 +742,20 @@ impl ParsedOnnxGraph {
     }
 
     fn mul_conversion(node: Node) -> BinaryNode {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let lhs_arg = node.inputs.first().unwrap();
+        let rhs_arg = node.inputs.get(1).unwrap();
+        let output_arg = node.outputs.first().unwrap();
+
+        log::debug!(
+            "mul_conversion for {}: lhs={:?}, rhs={:?}",
+            node.name,
+            lhs_arg,
+            rhs_arg
+        );
+
+        let lhs = Type::from(lhs_arg);
+        let rhs = Type::from(rhs_arg);
+        let output = Type::from(output_arg);
 
         BinaryNode::mul(lhs, rhs, output)
     }
@@ -969,26 +1000,35 @@ impl ParsedOnnxGraph {
     }
 
     fn range_conversion(node: Node) -> RangeNode {
-        fn convert_arg_to_scalar(arg: &OnnxArgument) -> ScalarType {
-            match &arg.ty {
-                ArgType::Scalar(scalar) => {
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
-                }
-                ArgType::Tensor(tensor) => {
-                    if tensor.rank != 0 {
-                        panic!("Range node requires scalar inputs");
-                    }
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
-                }
-                _ => panic!("Range node requires scalar inputs"),
-            }
-        }
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
-        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
-        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+        use crate::burn::node::range::RangeParam;
+        use onnx_ir::node::range::RangeInput;
 
-        RangeNode::new(start, end, step, output)
+        let config = range_config(&node);
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        let start = match config.start {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let limit = match config.limit {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let delta = match config.delta {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        log::debug!(
+            "Range node conversion: start={:?}, limit={:?}, delta={:?}",
+            start,
+            limit,
+            delta
+        );
+
+        RangeNode::new(start, limit, delta, output)
     }
 
     fn reduce_max_conversion(node: Node) -> ReduceNode {
@@ -1581,7 +1621,6 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
-
         ExpandNode::new(input, output, shape)
     }
 

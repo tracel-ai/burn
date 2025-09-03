@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(matmul);
+include_models!(matmul, matmul_ranks);
 
 #[cfg(test)]
 mod tests {
@@ -62,5 +62,52 @@ mod tests {
         output_mm.to_data().assert_eq(&expected_mm, true);
         output_vm.to_data().assert_eq(&expected_vm, true);
         output_mv.to_data().assert_eq(&expected_mv, true);
+    }
+
+    #[test]
+    fn matmul_ranks() {
+        // Test various rank combinations for matmul broadcasting
+        let model: matmul_ranks::Model<TestBackend> = matmul_ranks::Model::default();
+
+        let device = Default::default();
+
+        // Create input tensors
+        let mat2d = Tensor::<TestBackend, 1, Int>::arange(0..12, &device)
+            .reshape([3, 4])
+            .float();
+        let mat3d = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+            .reshape([2, 3, 4])
+            .float();
+        let vec = Tensor::<TestBackend, 1, Int>::arange(0..4, &device).float();
+        let vec3 = Tensor::<TestBackend, 1, Int>::arange(0..3, &device).float();
+        let mat2d_square = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
+            .reshape([4, 4])
+            .float();
+        let mat3d_for_vec = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+            .reshape([2, 3, 4])
+            .float();
+
+        // Run the model
+        let (output_2d_1d, output_1d_2d, output_3d_1d, output_1d_3d, output_2d_2d) =
+            model.forward(mat2d, mat3d, vec, vec3, mat2d_square, mat3d_for_vec);
+
+        // Expected outputs from Python script
+        let expected_2d_1d = TensorData::from([14.0f32, 38.0, 62.0]);
+        let expected_1d_2d = TensorData::from([56.0f32, 62.0, 68.0, 74.0]);
+        let expected_3d_1d = TensorData::from([[14.0f32, 38.0, 62.0], [86.0, 110.0, 134.0]]);
+        let expected_1d_3d =
+            TensorData::from([[20.0f32, 23.0, 26.0, 29.0], [56.0, 59.0, 62.0, 65.0]]);
+        let expected_2d_2d = TensorData::from([
+            [56.0f32, 62.0, 68.0, 74.0],
+            [152.0, 174.0, 196.0, 218.0],
+            [248.0, 286.0, 324.0, 362.0],
+        ]);
+
+        // Assert outputs match expected
+        output_2d_1d.to_data().assert_eq(&expected_2d_1d, true);
+        output_1d_2d.to_data().assert_eq(&expected_1d_2d, true);
+        output_3d_1d.to_data().assert_eq(&expected_3d_1d, true);
+        output_1d_3d.to_data().assert_eq(&expected_1d_3d, true);
+        output_2d_2d.to_data().assert_eq(&expected_2d_2d, true);
     }
 }

@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(mul, mul_shape, mul_broadcast);
+include_models!(mul, mul_shape, mul_broadcast, mul_shape_tensor);
 
 #[cfg(test)]
 mod tests {
