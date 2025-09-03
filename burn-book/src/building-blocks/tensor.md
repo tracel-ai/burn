@@ -3,7 +3,7 @@
 As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
 generic arguments: the backend B, the dimensionality D, and the data type.
 
-```rust , ignore
+```rust, ignore
 Tensor<B, D>           // Float tensor (default)
 Tensor<B, D, Float>    // Explicit float tensor
 Tensor<B, D, Int>      // Int tensor
@@ -135,6 +135,9 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 |---------------------------------------------|---------------------------------------------------------------------------|
 | `Tensor::cat(tensors, dim)`                 | `torch.cat(tensors, dim)`                                                 |
 | `Tensor::empty(shape, device)`              | `torch.empty(shape, device=device)`                                       |
+| `Tensor::full(shape, fill_value, device)`   | `torch.full(shape, fill_value, device=device)`                            |
+| `tensor::full_like(fill_value)`             | `torch.full_like(tensor, fill_value)`                                     |
+| `Tensor::<D>::unit(fill_value, device)`     | `torch.full([1] * D, fill_value, device=device)`                          |
 | `Tensor::from_primitive(primitive)`         | N/A                                                                       |
 | `Tensor::stack(tensors, dim)`               | `torch.stack(tensors, dim)`                                               |
 | `tensor.all()`                              | `tensor.all()`                                                            |
@@ -185,7 +188,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | Burn                                                            | PyTorch Equivalent                             |
 | --------------------------------------------------------------- | ---------------------------------------------- |
 | `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
-| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
 | `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
 | `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
@@ -205,7 +207,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.dot()`                                                  | `torch.dot()`                                  |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
-| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)`          |
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
@@ -392,7 +393,7 @@ of detail and formatting to suit your needs.
 
 To display a detailed view of a tensor, you can simply use Rust's `println!` or `format!` macros:
 
-```rust
+```rust, ignore
 let tensor = Tensor::<Backend, 2>::full([2, 3], 0.123456789, &Default::default());
 println!("{}", tensor);
 ```
@@ -440,7 +441,7 @@ Tensor {
 For more fine-grained control over tensor printing, Burn provides a `PrintOptions` struct and a
 `set_print_options` function:
 
-```rust
+```rust, ignore
 use burn::tensor::{set_print_options, PrintOptions};
 
 let print_options = PrintOptions {
@@ -469,7 +470,7 @@ Options:
 
   Here's an example of how to use `check_closeness`:
 
-  ```rust
+  ```rust, ignore
   use burn::tensor::{check_closeness, Tensor};
   type B = burn::backend::NdArray;
 
