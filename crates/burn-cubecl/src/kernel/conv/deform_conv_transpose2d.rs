@@ -30,7 +30,7 @@ use crate::{
 use super::{bilinear_interpolate, deform_im2col, index};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-#[allow(clippy::single_range_in_vec_init)]
+#[allow(clippy::single_range_in_vec_init, clippy::type_complexity)]
 pub(crate) fn deform_conv2d_backward<
     R: CubeRuntime,
     E: FloatElement,
