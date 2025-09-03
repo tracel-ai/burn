@@ -1,6 +1,7 @@
 use crate::module::ParamId;
 use alloc::boxed::Box;
 use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
