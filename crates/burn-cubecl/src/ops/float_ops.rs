@@ -190,9 +190,13 @@ where
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::gather::<R, E, I>(dim, tensor, indices)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::gather::<R, E, I>(dim, tensor, indices)
+            )
         )
     }
 
@@ -203,9 +207,13 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::scatter::<R, E, I>(dim, tensor, indices, value)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype, value.dtype),
+                E,
+                kernel::scatter::<R, E, I>(dim, tensor, indices, value)
+            )
         )
     }
 
@@ -215,9 +223,13 @@ where
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::select::<R, E, I>(tensor, dim, indices)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::select::<R, E, I>(tensor, dim, indices)
+            )
         )
     }
 
@@ -228,9 +240,13 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype, value.dtype),
+                E,
+                kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+            )
         )
     }
 
