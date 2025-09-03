@@ -49,8 +49,8 @@ pub(crate) fn deform_conv2d_backward<
         CubeTensor<R>,
         CubeTensor<R>,
         CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        Option<CubeTensor<R>>,
     ),
     ConvSetupError,
 > {
