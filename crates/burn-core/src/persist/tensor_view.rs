@@ -175,19 +175,6 @@ impl TensorView {
         };
         self.shape.iter().product::<usize>() * elem_size
     }
-
-    /// Clone the TensorView (creates a new view with the same data function)
-    pub fn clone(&self) -> Self {
-        let data = self.to_data();
-        Self {
-            data_fn: Box::new(move || data.clone()),
-            dtype: self.dtype,
-            shape: self.shape.clone(),
-            path_stack: self.path_stack.clone(),
-            container_stack: self.container_stack.clone(),
-            tensor_id: self.tensor_id,
-        }
-    }
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -351,34 +338,6 @@ mod tests {
         // Test data materialization
         let materialized = view.to_data();
         assert_eq!(materialized.shape, original_shape);
-    }
-
-    #[test]
-    fn test_clone_preserves_lazy() {
-        let device = Default::default();
-        let tensor =
-            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-
-        let view = TensorView::from_float(
-            &tensor,
-            vec!["test".to_string()],
-            vec!["Module".to_string()],
-            ParamId::new(),
-        );
-
-        let cloned = view.clone();
-
-        // Verify clone has same metadata
-        assert_eq!(cloned.dtype, view.dtype);
-        assert_eq!(cloned.shape, view.shape);
-        assert_eq!(cloned.full_path(), view.full_path());
-        assert_eq!(cloned.data_len(), view.data_len());
-
-        // Verify data can be materialized from clone
-        let cloned_data = cloned.to_data();
-        let original_data = view.to_data();
-        assert_eq!(cloned_data.shape, original_data.shape);
-        assert_eq!(cloned_data.dtype, original_data.dtype);
     }
 
     #[test]
