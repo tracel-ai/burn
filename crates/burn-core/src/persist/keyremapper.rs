@@ -1,9 +1,12 @@
+#[cfg(target_has_atomic = "ptr")]
 use alloc::string::{String, ToString};
+#[cfg(target_has_atomic = "ptr")]
 use alloc::vec::Vec;
 
 #[cfg(target_has_atomic = "ptr")]
 use regex::{self, Regex};
 
+#[cfg(target_has_atomic = "ptr")]
 use super::TensorView;
 
 /// Key remapper for transforming tensor names.
@@ -119,7 +122,14 @@ impl KeyRemapper {
 
     /// Check if the remapping is empty
     pub fn is_empty(&self) -> bool {
-        self.patterns.is_empty()
+        #[cfg(target_has_atomic = "ptr")]
+        {
+            self.patterns.is_empty()
+        }
+        #[cfg(not(target_has_atomic = "ptr"))]
+        {
+            true
+        }
     }
 
     /// Convert to the format expected by remap_tensor_paths_with_patterns
