@@ -14,6 +14,3 @@ pub use persister::MemoryPersister as SafetensorsMemoryPersister;
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod integration_tests;

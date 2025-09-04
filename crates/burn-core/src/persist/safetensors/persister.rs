@@ -265,24 +265,31 @@ impl ModulePersister for SafetensorsPersister {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        use alloc::sync::Arc;
-
-        // Get data as Arc to avoid unnecessary cloning
-        let data_arc = match self {
+        // Convert to tensor views with lazy loading
+        let views = match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
-                // For files, we still need to read into memory for now
-                // TODO: Consider memory-mapped files for large models
-                Arc::new(std::fs::read(&p.path)?)
+                // Use memory-mapped file for efficient access without loading entire file
+                #[cfg(feature = "memmap2")]
+                {
+                    safetensors_to_views_lazy_mmap(&p.path)?
+                }
+                #[cfg(not(feature = "memmap2"))]
+                {
+                    // Fallback to reading entire file if memmap2 is not available
+                    use alloc::sync::Arc;
+                    let data_arc = Arc::new(std::fs::read(&p.path)?);
+                    safetensors_to_views_lazy(data_arc)?
+                }
             }
-            Self::Memory(p) => p
-                .data
-                .clone()
-                .ok_or_else(|| SafetensorsError::Other("No data loaded".to_string()))?,
+            Self::Memory(p) => {
+                let data_arc = p
+                    .data
+                    .clone()
+                    .ok_or_else(|| SafetensorsError::Other("No data loaded".to_string()))?;
+                safetensors_to_views_lazy(data_arc)?
+            }
         };
-
-        // Convert to tensor views with lazy loading
-        let views = safetensors_to_views_lazy(data_arc)?;
 
         // Apply to module
         let result = module.apply(views);
@@ -414,6 +421,64 @@ fn safetensors_to_views_lazy(
             let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
 
             // Now materialize just this tensor's data
+            let bytes = burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
+            TensorData {
+                bytes,
+                shape: tensor.shape().to_vec(),
+                dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
+            }
+        });
+
+        let view = TensorView::from_closure(
+            data_fn,
+            dtype,
+            shape,
+            path_parts,
+            vec!["SafeTensor".to_string()],
+            ParamId::new(),
+        );
+        views.push(view);
+    }
+
+    Ok(views)
+}
+
+/// Convert safetensors to TensorViews with lazy loading using memory-mapped files.
+#[cfg(all(feature = "std", feature = "memmap2"))]
+fn safetensors_to_views_lazy_mmap(
+    path: &std::path::Path,
+) -> Result<Vec<TensorView>, SafetensorsError> {
+    use alloc::sync::Arc;
+
+    // Open the file and create a memory map
+    let file = std::fs::File::open(path)?;
+    let mmap = unsafe { memmap2::MmapOptions::new().map(&file)? };
+
+    // Wrap the mmap in Arc so it can be shared
+    let mmap_arc = Arc::new(mmap);
+
+    // Parse to get metadata without loading data
+    let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
+    let mut views = Vec::new();
+
+    for (name, tensor_view) in tensors.tensors() {
+        // Extract metadata without materializing data
+        let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
+        let shape = tensor_view.shape().to_vec();
+        let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
+
+        // Create a lazy closure that will read from mmap when needed
+        let mmap_clone = Arc::clone(&mmap_arc);
+        let name_clone = name.to_string();
+        let data_fn = Box::new(move || {
+            // Re-parse the mmap to find our tensor (this is cheap)
+            let tensors = safetensors::SafeTensors::deserialize(&mmap_clone)
+                .expect("Failed to deserialize from mmap");
+
+            // Find our specific tensor
+            let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
+
+            // Copy just this tensor's data from the mmap
             let bytes = burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
             TensorData {
                 bytes,

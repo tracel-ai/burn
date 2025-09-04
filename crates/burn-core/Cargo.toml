@@ -42,6 +42,7 @@ std = [
     "flate2",
     "half/std",
     "log",
+    "memmap2",
     "rand/std",
     "rmp-serde",
     "serde/std",
@@ -112,10 +113,13 @@ bincode = { workspace = true }
 half = { workspace = true }
 num-traits = { workspace = true }
 rmp-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, features = ["alloc"] }      #Default enables std
-safetensors = { workspace = true, default-features = false, features = ["alloc"] }
-spin = { workspace = true }                                  # Using in place of use std::sync::Mutex when std is disabled
+serde_json = { workspace = true, features = ["alloc"] } #Default enables std
+safetensors = { workspace = true, default-features = false, features = [
+    "alloc",
+] }
+spin = { workspace = true } # Using in place of use std::sync::Mutex when std is disabled
 thiserror = { workspace = true, optional = true }
+memmap2 = { workspace = true, optional = true }
 
 [target.'cfg(target_has_atomic = "ptr")'.dependencies]
 regex = { workspace = true }
