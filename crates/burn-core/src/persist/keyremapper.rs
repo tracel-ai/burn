@@ -102,7 +102,7 @@ impl KeyRemapper {
     /// * `Ok(Self)` - New remapping configuration
     /// * `Err(regex::Error)` - If any regex compilation fails (atomic targets only)
     #[cfg(target_has_atomic = "ptr")]
-    pub fn from_iter<I, S1, S2>(iter: I) -> Result<Self, regex::Error>
+    pub fn from_pattern_iter<I, S1, S2>(iter: I) -> Result<Self, regex::Error>
     where
         I: IntoIterator<Item = (S1, S2)>,
         S1: AsRef<str>,
