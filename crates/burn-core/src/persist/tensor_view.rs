@@ -10,9 +10,16 @@ use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 /// TensorView stores a cloned tensor internally (which is cheap due to reference counting)
 /// and only materializes the actual data when `to_data()` is called. This allows
 /// efficient inspection of module structure without the overhead of copying all tensor data.
+///
+/// The dtype and shape are cached for efficient access without requiring data materialization,
+/// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorView {
     /// Function to get tensor data when needed
     data_fn: Box<dyn Fn() -> TensorData>,
+    /// Data type of the tensor (cached for efficient access)
+    pub dtype: burn_tensor::DType,
+    /// Shape of the tensor (cached for efficient access)
+    pub shape: Vec<usize>,
     /// Path stack representing the module hierarchy
     pub path_stack: Option<Vec<String>>,
     /// Container stack representing the container types at each level
@@ -29,9 +36,13 @@ impl TensorView {
         container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
+            dtype,
+            shape,
             path_stack: Some(path_stack),
             container_stack: Some(container_stack),
             tensor_id: Some(tensor_id),
@@ -45,9 +56,13 @@ impl TensorView {
         container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
+            dtype,
+            shape,
             path_stack: Some(path_stack),
             container_stack: Some(container_stack),
             tensor_id: Some(tensor_id),
@@ -61,9 +76,13 @@ impl TensorView {
         container_stack: Vec<String>,
         tensor_id: ParamId,
     ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Box::new(move || tensor.to_data()),
+            dtype,
+            shape,
             path_stack: Some(path_stack),
             container_stack: Some(container_stack),
             tensor_id: Some(tensor_id),
@@ -99,6 +118,76 @@ impl TensorView {
             .cloned()
             .unwrap_or_else(|| "Unknown".to_string())
     }
+
+    /// Create a TensorView from a closure that produces TensorData
+    /// This is used internally for lazy loading
+    pub fn from_closure(
+        data_fn: Box<dyn Fn() -> TensorData>,
+        dtype: burn_tensor::DType,
+        shape: Vec<usize>,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        Self {
+            data_fn,
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Create a TensorView from TensorData directly
+    pub fn from_data(
+        data: TensorData,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        let dtype = data.dtype;
+        let shape = data.shape.clone();
+        Self {
+            data_fn: Box::new(move || data.clone()),
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Get the size of the tensor data in bytes without materializing it
+    pub fn data_len(&self) -> usize {
+        let elem_size = match self.dtype {
+            burn_tensor::DType::F64 | burn_tensor::DType::I64 | burn_tensor::DType::U64 => 8,
+            burn_tensor::DType::F32
+            | burn_tensor::DType::I32
+            | burn_tensor::DType::U32
+            | burn_tensor::DType::Flex32 => 4,
+            burn_tensor::DType::F16
+            | burn_tensor::DType::BF16
+            | burn_tensor::DType::I16
+            | burn_tensor::DType::U16 => 2,
+            burn_tensor::DType::I8 | burn_tensor::DType::U8 | burn_tensor::DType::Bool => 1,
+            burn_tensor::DType::QFloat(_) => 1, // Simplified for quantized types
+        };
+        self.shape.iter().product::<usize>() * elem_size
+    }
+
+    /// Clone the TensorView (creates a new view with the same data function)
+    pub fn clone(&self) -> Self {
+        let data = self.to_data();
+        Self {
+            data_fn: Box::new(move || data.clone()),
+            dtype: self.dtype,
+            shape: self.shape.clone(),
+            path_stack: self.path_stack.clone(),
+            container_stack: self.container_stack.clone(),
+            tensor_id: self.tensor_id,
+        }
+    }
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -106,6 +195,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use alloc::string::ToString;
+    use burn_tensor::DType;
 
     #[test]
     fn test_tensor_view_float() {
@@ -118,9 +208,17 @@ mod tests {
             vec!["TestModule".to_string(), "Param".to_string()],
             ParamId::new(),
         );
-        let data = view.to_data();
 
+        // Test metadata access without materialization
+        assert_eq!(view.dtype, DType::F32);
+        assert_eq!(view.shape, vec![2, 2]);
+        assert_eq!(view.full_path(), "test.weight");
+        assert_eq!(view.container_path(), "TestModule.Param");
+
+        // Test data materialization
+        let data = view.to_data();
         assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.dtype, DType::F32);
     }
 
     #[test]
@@ -134,9 +232,15 @@ mod tests {
             vec!["TestModule".to_string(), "Param".to_string()],
             ParamId::new(),
         );
-        let data = view.to_data();
 
+        // Test metadata access without materialization
+        // TestBackend uses I64 for integers
+        assert_eq!(view.dtype, DType::I64);
+        assert_eq!(view.shape, vec![2, 2]);
+
+        let data = view.to_data();
         assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.dtype, DType::I64);
     }
 
     #[test]
@@ -151,8 +255,154 @@ mod tests {
             vec!["TestModule".to_string(), "Param".to_string()],
             ParamId::new(),
         );
-        let data = view.to_data();
 
+        // Test metadata access without materialization
+        assert_eq!(view.dtype, DType::Bool);
+        assert_eq!(view.shape, vec![2, 2]);
+
+        let data = view.to_data();
         assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.dtype, DType::Bool);
+    }
+
+    #[test]
+    fn test_data_len() {
+        let device = Default::default();
+
+        // Test F32 tensor (4 bytes per element)
+        let tensor_f32 = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let view_f32 = TensorView::from_float(
+            &tensor_f32,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        assert_eq!(view_f32.data_len(), 16); // 4 elements * 4 bytes
+
+        // Test I64 tensor (8 bytes per element) - TestBackend uses I64 for Int
+        let tensor_i64 =
+            Tensor::<TestBackend, 3, Int>::from_data([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], &device);
+        let view_i64 = TensorView::from_int(
+            &tensor_i64,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        assert_eq!(view_i64.data_len(), 64); // 8 elements * 8 bytes (I64)
+
+        // Test Bool tensor (1 byte per element)
+        let tensor_bool =
+            Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
+        let view_bool = TensorView::from_bool(
+            &tensor_bool,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        assert_eq!(view_bool.data_len(), 4); // 4 elements * 1 byte
+    }
+
+    #[test]
+    fn test_from_closure() {
+        let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
+        let dtype = data.dtype;
+        let shape = data.shape.clone();
+
+        let view = TensorView::from_closure(
+            Box::new(move || data.clone()),
+            dtype,
+            shape.clone(),
+            vec!["model".to_string(), "layer".to_string()],
+            vec!["Model".to_string(), "Layer".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata access
+        assert_eq!(view.dtype, DType::F32);
+        assert_eq!(view.shape, vec![4]);
+        assert_eq!(view.full_path(), "model.layer");
+        assert_eq!(view.data_len(), 16); // 4 * 4 bytes
+
+        // Test data materialization
+        let materialized = view.to_data();
+        assert_eq!(materialized.shape, vec![4]);
+    }
+
+    #[test]
+    fn test_from_data() {
+        let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let original_dtype = data.dtype;
+        let original_shape = data.shape.clone();
+
+        let view = TensorView::from_data(
+            data,
+            vec!["encoder".to_string(), "weight".to_string()],
+            vec!["Encoder".to_string(), "Dense".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata
+        assert_eq!(view.dtype, original_dtype);
+        assert_eq!(view.shape, original_shape);
+        assert_eq!(view.full_path(), "encoder.weight");
+        assert_eq!(view.container_type(), "Dense");
+        assert_eq!(view.data_len(), 24); // 6 * 4 bytes
+
+        // Test data materialization
+        let materialized = view.to_data();
+        assert_eq!(materialized.shape, original_shape);
+    }
+
+    #[test]
+    fn test_clone_preserves_lazy() {
+        let device = Default::default();
+        let tensor =
+            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+        let view = TensorView::from_float(
+            &tensor,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+
+        let cloned = view.clone();
+
+        // Verify clone has same metadata
+        assert_eq!(cloned.dtype, view.dtype);
+        assert_eq!(cloned.shape, view.shape);
+        assert_eq!(cloned.full_path(), view.full_path());
+        assert_eq!(cloned.data_len(), view.data_len());
+
+        // Verify data can be materialized from clone
+        let cloned_data = cloned.to_data();
+        let original_data = view.to_data();
+        assert_eq!(cloned_data.shape, original_data.shape);
+        assert_eq!(cloned_data.dtype, original_data.dtype);
+    }
+
+    #[test]
+    fn test_container_type_extraction() {
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);
+
+        let view = TensorView::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layer1".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Model".to_string(),
+                "Conv2d".to_string(),
+                "Param".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        assert_eq!(view.container_type(), "Param");
+        assert_eq!(view.container_path(), "Model.Conv2d.Param");
+        assert_eq!(view.full_path(), "model.layer1.weight");
     }
 }
