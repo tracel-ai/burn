@@ -45,7 +45,11 @@ mod tests {
         let device = Default::default();
         let module = TestModule::<TestBackend>::new(&device);
 
-        let views = module.collect();
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views.len(), 4);
         assert!(views.contains_key("encoder.weight"));
@@ -61,13 +65,19 @@ mod tests {
         let module = TestModule::<TestBackend>::new(&device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
-        let views = module.collect_with_filter(filter);
+        let views: Vec<TensorView> = module.collect_with_filter(filter);
 
         assert_eq!(views.len(), 2);
-        assert!(views.contains_key("encoder.weight"));
-        assert!(views.contains_key("encoder.bias"));
-        assert!(!views.contains_key("decoder.weight"));
-        assert!(!views.contains_key("decoder.bias"));
+        // Check that views are from encoder only
+        let paths_views: HashMap<String, TensorView> = module
+            .collect_with_filter(PathFilter::new().with_regex(r"^encoder\..*"))
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+        assert!(paths_views.contains_key("encoder.weight"));
+        assert!(paths_views.contains_key("encoder.bias"));
+        assert!(!paths_views.contains_key("decoder.weight"));
+        assert!(!paths_views.contains_key("decoder.bias"));
     }
 
     #[test]
@@ -80,13 +90,19 @@ mod tests {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\.weight$") // Only encoder.weight
             .with_regex(r".*\.bias$"); // Any .bias tensor
-        let views = module.collect_with_filter(filter);
-
+        let views: Vec<TensorView> = module.collect_with_filter(filter.clone());
         assert_eq!(views.len(), 3);
-        assert!(views.contains_key("encoder.weight")); // matches first pattern
-        assert!(views.contains_key("encoder.bias")); // matches second pattern
-        assert!(views.contains_key("decoder.bias")); // matches second pattern
-        assert!(!views.contains_key("decoder.weight")); // matches neither
+
+        // Check using paths for verification
+        let paths_views: HashMap<String, TensorView> = module
+            .collect_with_filter(filter)
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+        assert!(paths_views.contains_key("encoder.weight")); // matches first pattern
+        assert!(paths_views.contains_key("encoder.bias")); // matches second pattern
+        assert!(paths_views.contains_key("decoder.bias")); // matches second pattern
+        assert!(!paths_views.contains_key("decoder.weight")); // matches neither
     }
 
     #[test]
@@ -96,7 +112,11 @@ mod tests {
             .with_bias(true)
             .init::<TestBackend>(&device);
 
-        let views = linear.collect();
+        let views: HashMap<String, TensorView> = linear
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
         assert!(views.contains_key("weight"));
         assert!(views.contains_key("bias"));
 
@@ -188,7 +208,11 @@ mod tests {
         let model = DeepNestedModule::<TestBackend>::new(&device);
 
         // Test collecting all tensors from deeply nested structure
-        let all_views = model.collect();
+        let all_views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Should have 8 tensors total (2 tensors × 2 level4 modules × 2 level2 branches)
         assert_eq!(all_views.len(), 8);
@@ -212,29 +236,30 @@ mod tests {
 
         // Filter only level2_a branch
         let filter = PathFilter::new().with_regex(r"^level1\.level2_a\..*");
-        let level2_a_views = model.collect_with_filter(filter);
+        let level2_a_views: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(level2_a_views.len(), 4);
 
         // Filter only main modules at any depth
         let filter = PathFilter::new().with_regex(r".*\.level4_main\..*");
-        let main_views = model.collect_with_filter(filter);
+        let main_views: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(main_views.len(), 4);
 
         // Filter only conv tensors
         let filter = PathFilter::new().with_regex(r".*\.conv$");
-        let conv_views = model.collect_with_filter(filter);
+        let conv_views: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(conv_views.len(), 4);
 
         // Complex multi-pattern filter
         let filter = PathFilter::new()
             .with_regex(r"^level1\.level2_a\..*\.norm$") // All norms in level2_a
             .with_regex(r"^level1\.level2_b\..*\.conv$"); // All convs in level2_b
-        let complex_views = model.collect_with_filter(filter);
+        let complex_views: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(complex_views.len(), 4);
-        assert!(complex_views.contains_key("level1.level2_a.level3.level4_main.norm"));
-        assert!(complex_views.contains_key("level1.level2_a.level3.level4_aux.norm"));
-        assert!(complex_views.contains_key("level1.level2_b.level3.level4_main.conv"));
-        assert!(complex_views.contains_key("level1.level2_b.level3.level4_aux.conv"));
+        let paths: Vec<String> = complex_views.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"level1.level2_a.level3.level4_main.norm".to_string()));
+        assert!(paths.contains(&"level1.level2_a.level3.level4_aux.norm".to_string()));
+        assert!(paths.contains(&"level1.level2_b.level3.level4_main.conv".to_string()));
+        assert!(paths.contains(&"level1.level2_b.level3.level4_aux.conv".to_string()));
     }
 
     // Custom layer for testing various module configurations
@@ -258,7 +283,11 @@ mod tests {
         let device = Default::default();
         let custom = CustomLayer::<TestBackend>::new(&device);
 
-        let views = custom.collect();
+        let views: HashMap<String, TensorView> = custom
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("weight"));
@@ -293,7 +322,11 @@ mod tests {
         }
 
         let composite = CompositeModule::<TestBackend>::new(&device);
-        let views = composite.collect();
+        let views: HashMap<String, TensorView> = composite
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views.len(), 4);
         assert!(views.contains_key("layer1.weight"));
@@ -305,10 +338,11 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let weight_only = composite.collect_with_filter(filter);
+            let weight_only: Vec<TensorView> = composite.collect_with_filter(filter);
             assert_eq!(weight_only.len(), 2);
-            assert!(weight_only.contains_key("layer1.weight"));
-            assert!(weight_only.contains_key("layer2.weight"));
+            let paths: Vec<String> = weight_only.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"layer1.weight".to_string()));
+            assert!(paths.contains(&"layer2.weight".to_string()));
         }
     }
 
@@ -340,7 +374,11 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
 
-        let views = module.collect();
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views.len(), 2);
         assert!(views.contains_key("required"));
@@ -352,7 +390,11 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
 
-        let views = module.collect();
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views.len(), 1);
         assert!(views.contains_key("required"));
@@ -378,7 +420,11 @@ mod tests {
         let device = Default::default();
         let module = VecModule::<TestBackend>::new(&device, 3);
 
-        let views = module.collect();
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // With the fix, all Vec items should now be properly indexed and visited
         assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
@@ -407,21 +453,23 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^layers\.1\..*");
-            let layer1_only = module.collect_with_filter(filter);
+            let layer1_only: Vec<TensorView> = module.collect_with_filter(filter);
             assert_eq!(layer1_only.len(), 2);
-            assert!(layer1_only.contains_key("layers.1.weight"));
-            assert!(layer1_only.contains_key("layers.1.scale"));
+            let paths: Vec<String> = layer1_only.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"layers.1.weight".to_string()));
+            assert!(paths.contains(&"layers.1.scale".to_string()));
         }
 
         // Test filtering for all weights
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let weights_only = module.collect_with_filter(filter);
+            let weights_only: Vec<TensorView> = module.collect_with_filter(filter);
             assert_eq!(weights_only.len(), 3);
-            assert!(weights_only.contains_key("layers.0.weight"));
-            assert!(weights_only.contains_key("layers.1.weight"));
-            assert!(weights_only.contains_key("layers.2.weight"));
+            let paths: Vec<String> = weights_only.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"layers.0.weight".to_string()));
+            assert!(paths.contains(&"layers.1.weight".to_string()));
+            assert!(paths.contains(&"layers.2.weight".to_string()));
         }
     }
 
@@ -448,7 +496,11 @@ mod tests {
         let device = Default::default();
         let module = ArrayModule::<TestBackend>::new(&device);
 
-        let views = module.collect();
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // All array items should be properly indexed
         assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
@@ -463,10 +515,11 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^layers\.2\..*");
-            let layer2_only = module.collect_with_filter(filter);
+            let layer2_only: Vec<TensorView> = module.collect_with_filter(filter);
             assert_eq!(layer2_only.len(), 2);
-            assert!(layer2_only.contains_key("layers.2.weight"));
-            assert!(layer2_only.contains_key("layers.2.scale"));
+            let paths: Vec<String> = layer2_only.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"layers.2.weight".to_string()));
+            assert!(paths.contains(&"layers.2.scale".to_string()));
         }
     }
 
@@ -480,20 +533,22 @@ mod tests {
             path.starts_with("encoder.")
         }
         let filter = PathFilter::new().with_predicate(starts_with_encoder);
-        let encoder_only = module.collect_with_filter(filter);
+        let encoder_only: Vec<TensorView> = module.collect_with_filter(filter);
         assert_eq!(encoder_only.len(), 2);
-        assert!(encoder_only.contains_key("encoder.weight"));
-        assert!(encoder_only.contains_key("encoder.bias"));
+        let paths: Vec<String> = encoder_only.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"encoder.bias".to_string()));
 
         // Test with exact match predicate
         fn specific_names(path: &str, _container_path: &str) -> bool {
             path == "encoder.weight" || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(specific_names);
-        let specific = module.collect_with_filter(filter);
+        let specific: Vec<TensorView> = module.collect_with_filter(filter);
         assert_eq!(specific.len(), 2);
-        assert!(specific.contains_key("encoder.weight"));
-        assert!(specific.contains_key("decoder.bias"));
+        let paths: Vec<String> = specific.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"decoder.bias".to_string()));
 
         // Test with complex logic predicate
         fn complex_filter(path: &str, _container_path: &str) -> bool {
@@ -502,11 +557,12 @@ mod tests {
             (parts.len() == 2 && parts[1] == "weight") || parts[0] == "encoder"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
-        let complex = module.collect_with_filter(filter);
+        let complex: Vec<TensorView> = module.collect_with_filter(filter);
         assert_eq!(complex.len(), 3);
-        assert!(complex.contains_key("encoder.weight"));
-        assert!(complex.contains_key("encoder.bias"));
-        assert!(complex.contains_key("decoder.weight"));
+        let paths: Vec<String> = complex.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"encoder.bias".to_string()));
+        assert!(paths.contains(&"decoder.weight".to_string()));
     }
 
     #[test]
@@ -519,7 +575,7 @@ mod tests {
             path.contains("level2_a")
         }
         let filter = PathFilter::new().with_predicate(contains_level2_a);
-        let level2_a_only = model.collect_with_filter(filter);
+        let level2_a_only: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(level2_a_only.len(), 4);
 
         // Filter by depth - only tensors at exactly 5 levels deep
@@ -527,7 +583,7 @@ mod tests {
             path.split('.').count() == 5
         }
         let filter = PathFilter::new().with_predicate(exactly_5_deep);
-        let deep_only = model.collect_with_filter(filter);
+        let deep_only: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(deep_only.len(), 8); // All conv and norm tensors are 5 levels deep
 
         // Complex predicate with multiple conditions
@@ -537,10 +593,11 @@ mod tests {
             is_main && is_conv
         }
         let filter = PathFilter::new().with_predicate(main_conv_filter);
-        let complex = model.collect_with_filter(filter);
+        let complex: Vec<TensorView> = model.collect_with_filter(filter);
         assert_eq!(complex.len(), 2);
-        assert!(complex.contains_key("level1.level2_a.level3.level4_main.conv"));
-        assert!(complex.contains_key("level1.level2_b.level3.level4_main.conv"));
+        let paths: Vec<String> = complex.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"level1.level2_a.level3.level4_main.conv".to_string()));
+        assert!(paths.contains(&"level1.level2_b.level3.level4_main.conv".to_string()));
     }
 
     #[test]
@@ -558,7 +615,7 @@ mod tests {
             false
         }
         let filter = PathFilter::new().with_predicate(even_indices);
-        let even_only = module.collect_with_filter(filter);
+        let even_only: Vec<TensorView> = module.collect_with_filter(filter);
         assert_eq!(even_only.len(), 4); // layers.0 and layers.2, each with 2 tensors
 
         // Filter for specific range of indices
@@ -571,7 +628,7 @@ mod tests {
             false
         }
         let filter = PathFilter::new().with_predicate(range_filter);
-        let range = module.collect_with_filter(filter);
+        let range: Vec<TensorView> = module.collect_with_filter(filter);
         assert_eq!(range.len(), 4); // layers.1 and layers.2, each with 2 tensors
     }
 
@@ -585,11 +642,12 @@ mod tests {
             .with_full_path("encoder.weight")
             .with_full_path("encoder.bias");
 
-        let filtered = module.collect_with_filter(filter);
+        let filtered: Vec<TensorView> = module.collect_with_filter(filter);
 
         assert_eq!(filtered.len(), 2);
-        assert!(filtered.contains_key("encoder.weight"));
-        assert!(filtered.contains_key("encoder.bias"));
+        let paths: Vec<String> = filtered.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"encoder.bias".to_string()));
     }
 
     // Test enum modules - they ARE supported by Burn
@@ -607,7 +665,11 @@ mod tests {
 
         // Test variant A
         let module_a = EnumModule::<TestBackend>::LayerA(CustomLayer::new(&device));
-        let views_a = module_a.collect();
+        let views_a: HashMap<String, TensorView> = module_a
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Should have the variant name in the path
         assert_eq!(views_a.len(), 2);
@@ -616,7 +678,11 @@ mod tests {
 
         // Test variant B
         let module_b = EnumModule::<TestBackend>::LayerB(CustomLayer::new(&device));
-        let views_b = module_b.collect();
+        let views_b: HashMap<String, TensorView> = module_b
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views_b.len(), 2);
         assert!(views_b.contains_key("LayerB.weight"));
@@ -624,7 +690,11 @@ mod tests {
 
         // Test variant C
         let module_c = EnumModule::<TestBackend>::LayerC(CustomLayer::new(&device));
-        let views_c = module_c.collect();
+        let views_c: HashMap<String, TensorView> = module_c
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(views_c.len(), 2);
         assert!(views_c.contains_key("LayerC.weight"));
@@ -638,9 +708,10 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.scale$");
-            let scale_only = module_a.collect_with_filter(filter);
+            let scale_only: Vec<TensorView> = module_a.collect_with_filter(filter);
             assert_eq!(scale_only.len(), 1);
-            assert!(scale_only.contains_key("LayerA.scale"));
+            let paths: Vec<String> = scale_only.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"LayerA.scale".to_string()));
         }
     }
 
@@ -669,7 +740,11 @@ mod tests {
 
         // Test small variant
         let small_net = NetworkVariant::Small(small_linear);
-        let small_views = small_net.collect();
+        let small_views: HashMap<String, TensorView> = small_net
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(small_views.len(), 2);
         assert!(small_views.contains_key("Small.weight"));
@@ -681,7 +756,11 @@ mod tests {
 
         // Test medium variant
         let medium_net = NetworkVariant::Medium(medium_linear);
-        let medium_views = medium_net.collect();
+        let medium_views: HashMap<String, TensorView> = medium_net
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(medium_views.len(), 2);
         assert!(medium_views.contains_key("Medium.weight"));
@@ -692,7 +771,11 @@ mod tests {
 
         // Test large variant
         let large_net = NetworkVariant::Large(large_linear);
-        let large_views = large_net.collect();
+        let large_views: HashMap<String, TensorView> = large_net
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         assert_eq!(large_views.len(), 2);
         assert!(large_views.contains_key("Large.weight"));
@@ -723,7 +806,11 @@ mod tests {
         let device = Default::default();
         let model = ModelWithLinear::<TestBackend>::new(&device);
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Check that tensors inside Linear layers have "Linear" as their container type
         // because they are directly contained by the Linear module, not ModelWithLinear
@@ -760,7 +847,11 @@ mod tests {
         let device = Default::default();
         let model = ModelWithVec::<TestBackend>::new(&device, 3);
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Check that modules in Vec have "Vec" as their immediate container type
         for (path, view) in views.iter() {
@@ -804,7 +895,11 @@ mod tests {
         let device = Default::default();
         let model = ModelWithArray::<TestBackend>::new(&device);
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Check that modules in Array have proper container types
         for (path, view) in views.iter() {
@@ -855,7 +950,11 @@ mod tests {
         let device = Default::default();
         let model = OuterModule::<TestBackend>::new(&device);
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Check nested container types
         for (path, view) in views.iter() {
@@ -889,7 +988,11 @@ mod tests {
         let device = Default::default();
         let model = ModelEnum::VariantA(LinearConfig::new(10, 20).init::<TestBackend>(&device));
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Check that enum variant modules have proper container types
         for (path, view) in views.iter() {
@@ -1050,7 +1153,11 @@ mod tests {
         let device = Default::default();
         let model = ComplexModel::<TestBackend>::new(&device);
 
-        let views = model.collect();
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
 
         // Verify different container types in the complex model
         let mut found_linear = false;
@@ -1089,10 +1196,10 @@ mod tests {
             container_path.split('.').last() == Some("Linear")
         });
 
-        let linear_views = model.collect_with_filter(filter);
+        let linear_views: Vec<TensorView> = model.collect_with_filter(filter);
 
         // All collected tensors should be from Linear modules
-        for (_path, view) in linear_views.iter() {
+        for view in linear_views.iter() {
             assert_eq!(
                 view.container_type(),
                 "Linear",
@@ -1112,7 +1219,7 @@ mod tests {
             container_path.split('.').last() == Some("Linear") && path.ends_with(".weight")
         });
 
-        let weight_views = model.collect_with_filter(weight_filter);
+        let weight_views: Vec<TensorView> = model.collect_with_filter(weight_filter);
 
         // Should have exactly 5 weight tensors
         assert_eq!(
@@ -1121,8 +1228,11 @@ mod tests {
             "Should have 5 weight tensors from 5 Linear modules"
         );
 
-        for (path, view) in weight_views.iter() {
-            assert!(path.ends_with(".weight"), "Should only have weight tensors");
+        for view in weight_views.iter() {
+            assert!(
+                view.full_path().ends_with(".weight"),
+                "Should only have weight tensors"
+            );
             assert_eq!(
                 view.container_type(),
                 "Linear",
@@ -1131,7 +1241,7 @@ mod tests {
         }
 
         // Test using container_path() method
-        for (_path, view) in linear_views.iter() {
+        for view in linear_views.iter() {
             let container_path = view.container_path();
             // Container path should end with Linear (e.g., "ComplexModel.Linear" or "ComplexModel.Array.Linear")
             assert!(
@@ -1149,7 +1259,7 @@ mod tests {
             container_path.contains(".Linear")
         });
 
-        let dot_filtered = model.collect_with_filter(dot_filter);
+        let dot_filtered: Vec<TensorView> = model.collect_with_filter(dot_filter);
         assert_eq!(
             dot_filtered.len(),
             10,

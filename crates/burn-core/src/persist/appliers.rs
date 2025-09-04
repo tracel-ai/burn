@@ -2,7 +2,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
@@ -140,7 +140,7 @@ impl fmt::Display for ApplyResult {
 /// This applier traverses the module hierarchy and applies tensor data
 /// from TensorViews to the corresponding tensors in the module.
 pub struct TensorApplier<B: Backend> {
-    /// Map of tensor paths to their views
+    /// Map of tensor paths to their views for O(1) lookup
     views: HashMap<String, TensorView>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
@@ -148,45 +148,55 @@ pub struct TensorApplier<B: Backend> {
     container_stack: Vec<String>,
     /// Path filter for selective apply
     filter: Option<PathFilter>,
-    /// Successfully applied tensor paths
+    /// Successfully applied tensor paths (Vec for ordered output)
     applied: Vec<String>,
-    /// Skipped tensor paths (due to filtering)
-    skipped: Vec<String>,
-    /// Errors encountered during application
+    /// Skipped tensor paths (HashSet for O(1) lookup in into_result)
+    skipped: HashSet<String>,
+    /// Errors encountered during application (Vec for ordered output)
     errors: Vec<String>,
-    /// Track visited paths to find missing tensors
-    visited_paths: Vec<String>,
+    /// Track visited paths to find missing tensors (HashSet for O(1) lookup)
+    visited_paths: HashSet<String>,
     /// Phantom data for backend type
     _backend: core::marker::PhantomData<B>,
 }
 
 impl<B: Backend> TensorApplier<B> {
     /// Create a new tensor applier with all views
-    pub fn new(views: HashMap<String, TensorView>) -> Self {
+    pub fn new(views: Vec<TensorView>) -> Self {
+        let views_map: HashMap<String, TensorView> = views
+            .into_iter()
+            .map(|view| (view.full_path(), view))
+            .collect();
+
         Self {
-            views,
+            views: views_map,
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter: None,
             applied: Vec::new(),
-            skipped: Vec::new(),
+            skipped: HashSet::new(),
             errors: Vec::new(),
-            visited_paths: Vec::new(),
+            visited_paths: HashSet::new(),
             _backend: core::marker::PhantomData,
         }
     }
 
     /// Create a new tensor applier with a PathFilter
-    pub fn with_filter(views: HashMap<String, TensorView>, filter: PathFilter) -> Self {
+    pub fn with_filter(views: Vec<TensorView>, filter: PathFilter) -> Self {
+        let views_map: HashMap<String, TensorView> = views
+            .into_iter()
+            .map(|view| (view.full_path(), view))
+            .collect();
+
         Self {
-            views,
+            views: views_map,
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter: Some(filter),
             applied: Vec::new(),
-            skipped: Vec::new(),
+            skipped: HashSet::new(),
             errors: Vec::new(),
-            visited_paths: Vec::new(),
+            visited_paths: HashSet::new(),
             _backend: core::marker::PhantomData,
         }
     }
@@ -211,7 +221,7 @@ impl<B: Backend> TensorApplier<B> {
         let unused: Vec<String> = self
             .views
             .keys()
-            .filter(|k| !self.visited_paths.contains(k) && !self.skipped.contains(k))
+            .filter(|path| !self.visited_paths.contains(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
 
@@ -222,9 +232,12 @@ impl<B: Backend> TensorApplier<B> {
             .filter(|p| !self.views.contains_key(p) && !self.skipped.contains(p))
             .collect();
 
+        // Convert skipped HashSet to Vec for the result
+        let skipped: Vec<String> = self.skipped.into_iter().collect();
+
         ApplyResult {
             applied: self.applied,
-            skipped: self.skipped,
+            skipped,
             missing,
             unused,
             errors: self.errors,
@@ -250,12 +263,12 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
             return tensor;
         }
 
-        self.visited_paths.push(path.clone());
+        self.visited_paths.insert(path.clone());
         let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
             if !self.should_apply(&path, &container_path) {
-                self.skipped.push(path);
+                self.skipped.insert(path);
                 return tensor;
             }
 
@@ -291,12 +304,12 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
             return tensor;
         }
 
-        self.visited_paths.push(path.clone());
+        self.visited_paths.insert(path.clone());
         let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
             if !self.should_apply(&path, &container_path) {
-                self.skipped.push(path);
+                self.skipped.insert(path);
                 return tensor;
             }
 
@@ -332,12 +345,12 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
             return tensor;
         }
 
-        self.visited_paths.push(path.clone());
+        self.visited_paths.insert(path.clone());
         let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
             if !self.should_apply(&path, &container_path) {
-                self.skipped.push(path);
+                self.skipped.insert(path);
                 return tensor;
             }
 

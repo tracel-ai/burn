@@ -1,6 +1,5 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use hashbrown::HashMap;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
@@ -23,23 +22,23 @@ use crate::persist::{PathFilter, TensorView};
 ///
 /// ## Filter with single pattern
 /// ```ignore
-/// let collector = TensorViewCollector::with_filter(&[r"^encoder\..*"]).unwrap();
+/// let collector = TensorViewCollector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
 /// module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
 ///
 /// ## Filter with multiple patterns (OR union)
 /// ```ignore
-/// let collector = TensorViewCollector::with_filter(&[
-///     r"^encoder\..*",  // Match all encoder tensors
-///     r".*\.bias$",     // OR match any bias tensors
-/// ]).unwrap();
+/// let filter = PathFilter::new()
+///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
+///     .with_regex(r".*\.bias$");    // OR match any bias tensors
+/// let collector = TensorViewCollector::with_filter(filter);
 /// module.visit(&mut collector);
 /// // Collects tensors matching ANY of the patterns
 /// ```
 pub struct TensorViewCollector {
-    /// Map of tensor paths to their views
-    pub tensors: HashMap<String, TensorView>,
+    /// Collection of tensor views
+    pub tensors: Vec<TensorView>,
     path_stack: Vec<String>,
     container_stack: Vec<String>,
     filter: Option<PathFilter>,
@@ -55,7 +54,7 @@ impl TensorViewCollector {
     /// Create a new tensor view collector that collects all tensors.
     pub fn new() -> Self {
         Self {
-            tensors: HashMap::new(),
+            tensors: Vec::new(),
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter: None,
@@ -75,11 +74,11 @@ impl TensorViewCollector {
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = TensorViewCollector::with_path_filter(filter);
+    /// let collector = TensorViewCollector::with_filter(filter);
     /// ```
     pub fn with_filter(filter: PathFilter) -> Self {
         Self {
-            tensors: HashMap::new(),
+            tensors: Vec::new(),
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter: Some(filter),
@@ -114,15 +113,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.insert(
-                path.clone(),
-                TensorView::from_float(
-                    tensor,
-                    self.path_stack.clone(),
-                    self.container_stack.clone(),
-                    id,
-                ),
-            );
+            self.tensors.push(TensorView::from_float(
+                tensor,
+                self.path_stack.clone(),
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 
@@ -130,15 +126,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.insert(
-                path.clone(),
-                TensorView::from_int(
-                    tensor,
-                    self.path_stack.clone(),
-                    self.container_stack.clone(),
-                    id,
-                ),
-            );
+            self.tensors.push(TensorView::from_int(
+                tensor,
+                self.path_stack.clone(),
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 
@@ -146,15 +139,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.insert(
-                path.clone(),
-                TensorView::from_bool(
-                    tensor,
-                    self.path_stack.clone(),
-                    self.container_stack.clone(),
-                    id,
-                ),
-            );
+            self.tensors.push(TensorView::from_bool(
+                tensor,
+                self.path_stack.clone(),
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 
@@ -169,10 +159,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         if self.should_collect(path, &container_path) {
             // For path-based visits, we need to construct the path stack from the path string
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.insert(
-                path.to_string(),
-                TensorView::from_float(tensor, path_parts, self.container_stack.clone(), id),
-            );
+            self.tensors.push(TensorView::from_float(
+                tensor,
+                path_parts,
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 
@@ -185,10 +177,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let container_path = self.container_stack.join(".");
         if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.insert(
-                path.to_string(),
-                TensorView::from_int(tensor, path_parts, self.container_stack.clone(), id),
-            );
+            self.tensors.push(TensorView::from_int(
+                tensor,
+                path_parts,
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 
@@ -201,10 +195,12 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let container_path = self.container_stack.join(".");
         if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.insert(
-                path.to_string(),
-                TensorView::from_bool(tensor, path_parts, self.container_stack.clone(), id),
-            );
+            self.tensors.push(TensorView::from_bool(
+                tensor,
+                path_parts,
+                self.container_stack.clone(),
+                id,
+            ));
         }
     }
 }
@@ -233,10 +229,10 @@ mod tests {
         collector.visit_float_with_path("model.weight", id, &tensor);
 
         assert_eq!(collector.tensors.len(), 1);
-        assert!(collector.tensors.contains_key("model.weight"));
+        assert_eq!(collector.tensors[0].full_path(), "model.weight");
 
         // Verify the tensor can be converted to data
-        let view = collector.tensors.get("model.weight").unwrap();
+        let view = &collector.tensors[0];
         let data = view.to_data();
         assert_eq!(data.shape, vec![2, 2]);
     }
@@ -257,8 +253,7 @@ mod tests {
         collector.visit_float_with_path("decoder.weight", id, &tensor);
 
         assert_eq!(collector.tensors.len(), 1);
-        assert!(collector.tensors.contains_key("encoder.weight"));
-        assert!(!collector.tensors.contains_key("decoder.weight"));
+        assert_eq!(collector.tensors[0].full_path(), "encoder.weight");
     }
 
     #[test]
@@ -283,10 +278,11 @@ mod tests {
         collector.visit_float_with_path("decoder.weight", id, &tensor); // matches neither
 
         assert_eq!(collector.tensors.len(), 3);
-        assert!(collector.tensors.contains_key("encoder.weight"));
-        assert!(collector.tensors.contains_key("decoder.bias"));
-        assert!(collector.tensors.contains_key("encoder.bias"));
-        assert!(!collector.tensors.contains_key("decoder.weight"));
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"decoder.bias".to_string()));
+        assert!(paths.contains(&"encoder.bias".to_string()));
+        assert!(!paths.contains(&"decoder.weight".to_string()));
     }
 
     #[test]
@@ -312,11 +308,12 @@ mod tests {
         collector.visit_float_with_path("other.tensor", id, &tensor);
 
         assert_eq!(collector.tensors.len(), 3);
-        assert!(collector.tensors.contains_key("encoder.weight"));
-        assert!(collector.tensors.contains_key("encoder.bias"));
-        assert!(collector.tensors.contains_key("decoder.bias"));
-        assert!(!collector.tensors.contains_key("decoder.weight"));
-        assert!(!collector.tensors.contains_key("other.tensor"));
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"encoder.weight".to_string()));
+        assert!(paths.contains(&"encoder.bias".to_string()));
+        assert!(paths.contains(&"decoder.bias".to_string()));
+        assert!(!paths.contains(&"decoder.weight".to_string()));
+        assert!(!paths.contains(&"other.tensor".to_string()));
     }
 
     #[test]
@@ -347,11 +344,12 @@ mod tests {
         collector.visit_float_with_path("encoder.weight", id, &tensor); // wrong structure
 
         assert_eq!(collector.tensors.len(), 2);
-        assert!(collector.tensors.contains_key("model.layer1.weight"));
-        assert!(collector.tensors.contains_key("model.layer2.weight"));
-        assert!(!collector.tensors.contains_key("model.layer1.bias"));
-        assert!(!collector.tensors.contains_key("model.layer3.weight"));
-        assert!(!collector.tensors.contains_key("encoder.weight"));
+        let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+        assert!(paths.contains(&"model.layer1.weight".to_string()));
+        assert!(paths.contains(&"model.layer2.weight".to_string()));
+        assert!(!paths.contains(&"model.layer1.bias".to_string()));
+        assert!(!paths.contains(&"model.layer3.weight".to_string()));
+        assert!(!paths.contains(&"encoder.weight".to_string()));
     }
 
     // Test visitor that collects tensor paths
@@ -563,38 +561,42 @@ mod tests {
         let mut collector = TensorViewCollector::new();
         model.visit(&mut collector);
 
-        let paths = collector.tensors;
+        let views = collector.tensors;
+        let paths: Vec<String> = views.iter().map(|v| v.full_path()).collect();
 
         // Test 5-level deep paths
-        assert!(paths.contains_key("backbone.encoder.block1.layer.weight"));
-        assert!(paths.contains_key("backbone.encoder.block1.layer.bias"));
-        assert!(paths.contains_key("backbone.encoder.block1.extra.weight"));
-        assert!(paths.contains_key("backbone.encoder.block1.extra.bias"));
+        assert!(paths.contains(&"backbone.encoder.block1.layer.weight".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block1.layer.bias".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block1.extra.weight".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block1.extra.bias".to_string()));
 
-        assert!(paths.contains_key("backbone.encoder.block2.layer.weight"));
-        assert!(paths.contains_key("backbone.encoder.block2.layer.bias"));
-        assert!(paths.contains_key("backbone.encoder.block2.extra.weight"));
-        assert!(paths.contains_key("backbone.encoder.block2.extra.bias"));
+        assert!(paths.contains(&"backbone.encoder.block2.layer.weight".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block2.layer.bias".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block2.extra.weight".to_string()));
+        assert!(paths.contains(&"backbone.encoder.block2.extra.bias".to_string()));
 
-        assert!(paths.contains_key("backbone.decoder.block1.layer.weight"));
-        assert!(paths.contains_key("backbone.decoder.block1.layer.bias"));
-        assert!(paths.contains_key("backbone.decoder.block1.extra.weight"));
-        assert!(paths.contains_key("backbone.decoder.block1.extra.bias"));
+        assert!(paths.contains(&"backbone.decoder.block1.layer.weight".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block1.layer.bias".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block1.extra.weight".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block1.extra.bias".to_string()));
 
-        assert!(paths.contains_key("backbone.decoder.block2.layer.weight"));
-        assert!(paths.contains_key("backbone.decoder.block2.layer.bias"));
-        assert!(paths.contains_key("backbone.decoder.block2.extra.weight"));
-        assert!(paths.contains_key("backbone.decoder.block2.extra.bias"));
+        assert!(paths.contains(&"backbone.decoder.block2.layer.weight".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block2.layer.bias".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block2.extra.weight".to_string()));
+        assert!(paths.contains(&"backbone.decoder.block2.extra.bias".to_string()));
 
         // Test 2-level paths
-        assert!(paths.contains_key("head.weight"));
-        assert!(paths.contains_key("head.bias"));
+        assert!(paths.contains(&"head.weight".to_string()));
+        assert!(paths.contains(&"head.bias".to_string()));
 
         // Total should be 18 tensors (16 from backbone + 2 from head)
-        assert_eq!(paths.len(), 18);
+        assert_eq!(views.len(), 18);
 
         // Verify data can be materialized
-        let view = paths.get("backbone.encoder.block1.layer.weight").unwrap();
+        let view = views
+            .iter()
+            .find(|v| v.full_path() == "backbone.encoder.block1.layer.weight")
+            .unwrap();
         let data = view.to_data();
         assert_eq!(data.shape, vec![2, 2]);
     }
@@ -647,18 +649,11 @@ mod tests {
             // - 1 head weight
             assert_eq!(collector.tensors.len(), 9);
 
-            assert!(
-                collector
-                    .tensors
-                    .contains_key("backbone.encoder.block1.layer.weight")
-            );
-            assert!(
-                collector
-                    .tensors
-                    .contains_key("backbone.decoder.block1.layer.bias")
-            );
-            assert!(collector.tensors.contains_key("head.weight"));
-            assert!(!collector.tensors.contains_key("head.bias")); // Not included
+            let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
+            assert!(paths.contains(&"backbone.encoder.block1.layer.weight".to_string()));
+            assert!(paths.contains(&"backbone.decoder.block1.layer.bias".to_string()));
+            assert!(paths.contains(&"head.weight".to_string()));
+            assert!(!paths.contains(&"head.bias".to_string())); // Not included
         }
     }
 }

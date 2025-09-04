@@ -1,5 +1,4 @@
-use alloc::string::String;
-use hashbrown::HashMap;
+use alloc::vec::Vec;
 
 use super::{
     TensorViewCollector,
@@ -17,9 +16,9 @@ use crate::tensor::backend::Backend;
 pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Collects tensor views for inspection without copying data.
     ///
-    /// Returns a `HashMap` where keys are the full module paths (e.g., "encoder.layer1.weight")
-    /// and values are `TensorView` objects that can lazily materialize the tensor data.
-    fn collect(&self) -> HashMap<String, TensorView> {
+    /// Returns a vector of `TensorView` objects that can lazily materialize the tensor data.
+    /// Each `TensorView` contains the full path accessible via `view.full_path()`.
+    fn collect(&self) -> Vec<TensorView> {
         let mut collector = TensorViewCollector::new();
         self.visit(&mut collector);
         collector.tensors
@@ -33,7 +32,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `filter` - A [`PathFilter`] to determine which tensors to collect
-    fn collect_with_filter(&self, filter: PathFilter) -> HashMap<String, TensorView> {
+    fn collect_with_filter(&self, filter: PathFilter) -> Vec<TensorView> {
         let mut collector = TensorViewCollector::with_filter(filter);
         self.visit(&mut collector);
         collector.tensors
@@ -47,13 +46,13 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to `TensorView`s
+    /// * `views` - A vector of TensorView objects
     ///
     /// # Returns
     ///
     /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    fn apply(&mut self, views: HashMap<String, TensorView>) -> ApplyResult {
+    fn apply(&mut self, views: Vec<TensorView>) -> ApplyResult {
         let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
@@ -65,7 +64,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// # Arguments
     ///
-    /// * `views` - HashMap of tensor paths to `TensorView`s
+    /// * `views` - A vector of TensorView objects
     /// * `filter` - A [`PathFilter`] to determine which tensors to apply
     ///
     /// # Examples
@@ -84,11 +83,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     .with_full_path("head.weight");
     /// let result = model.apply_with_filter(views, filter);
     /// ```
-    fn apply_with_filter(
-        &mut self,
-        views: HashMap<String, TensorView>,
-        filter: PathFilter,
-    ) -> ApplyResult {
+    fn apply_with_filter(&mut self, views: Vec<TensorView>, filter: PathFilter) -> ApplyResult {
         let mut applier = TensorApplier::with_filter(views, filter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
