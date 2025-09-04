@@ -140,10 +140,7 @@ impl KeyRemapper {
     /// * The remapped Vec of TensorViews with updated paths
     /// * A vector of (new_path, original_path) showing the transformations
     #[cfg(target_has_atomic = "ptr")]
-    pub fn remap(
-        &self,
-        mut tensors: Vec<TensorView>,
-    ) -> (Vec<TensorView>, Vec<(String, String)>) {
+    pub fn remap(&self, mut tensors: Vec<TensorView>) -> (Vec<TensorView>, Vec<(String, String)>) {
         if self.patterns.is_empty() {
             let remapped_names = tensors
                 .iter()
@@ -161,7 +158,7 @@ impl KeyRemapper {
         for mut view in tensors.drain(..) {
             let original_path = view.full_path();
             let mut new_path = original_path.clone();
-            
+
             // Apply all patterns to get the new path
             for (pattern, replacement) in &self.patterns {
                 if pattern.is_match(&new_path) {
@@ -172,10 +169,10 @@ impl KeyRemapper {
             }
 
             // Update the view's internal path_stack if the path changed
-            if new_path != original_path {
-                if let Some(ref mut path_stack) = view.path_stack {
-                    *path_stack = new_path.split('.').map(|s| s.to_string()).collect();
-                }
+            if new_path != original_path
+                && let Some(ref mut path_stack) = view.path_stack
+            {
+                *path_stack = new_path.split('.').map(|s| s.to_string()).collect();
             }
 
             remapped_names.push((new_path.clone(), original_path));
@@ -217,8 +214,16 @@ mod tests {
         let (remapped, transformations) = remapper.remap(tensors);
 
         // Check that remapped views exist with correct paths
-        assert!(remapped.iter().any(|v| v.full_path() == "transformer.encoder.layer1.weight"));
-        assert!(remapped.iter().any(|v| v.full_path() == "decoder.layer1.weight"));
+        assert!(
+            remapped
+                .iter()
+                .any(|v| v.full_path() == "transformer.encoder.layer1.weight")
+        );
+        assert!(
+            remapped
+                .iter()
+                .any(|v| v.full_path() == "decoder.layer1.weight")
+        );
         assert_eq!(remapped.len(), 2);
 
         // Check transformations
@@ -238,13 +243,15 @@ mod tests {
             .add_pattern(r"\.gamma$", ".weight")
             .expect("valid regex");
 
-        let tensors = vec![
-            create_test_tensor_view("encoder.layer1.gamma"),
-        ];
+        let tensors = vec![create_test_tensor_view("encoder.layer1.gamma")];
 
         let (remapped, _) = remapper.remap(tensors);
 
-        assert!(remapped.iter().any(|v| v.full_path() == "transformer.encoder.layer1.weight"));
+        assert!(
+            remapped
+                .iter()
+                .any(|v| v.full_path() == "transformer.encoder.layer1.weight")
+        );
         assert_eq!(remapped.len(), 1);
     }
 
@@ -254,13 +261,15 @@ mod tests {
         let patterns = vec![(r"^pytorch\.", "burn."), (r"\.bias$", ".bias_param")];
         let remapper = KeyRemapper::from_patterns(patterns).expect("valid patterns");
 
-        let tensors = vec![
-            create_test_tensor_view("pytorch.linear.bias"),
-        ];
+        let tensors = vec![create_test_tensor_view("pytorch.linear.bias")];
 
         let (remapped, _) = remapper.remap(tensors);
 
-        assert!(remapped.iter().any(|v| v.full_path() == "burn.linear.bias_param"));
+        assert!(
+            remapped
+                .iter()
+                .any(|v| v.full_path() == "burn.linear.bias_param")
+        );
     }
 
     #[test]
@@ -268,9 +277,7 @@ mod tests {
         let remapper = KeyRemapper::new();
         assert!(remapper.is_empty());
 
-        let tensors = vec![
-            create_test_tensor_view("test.weight"),
-        ];
+        let tensors = vec![create_test_tensor_view("test.weight")];
 
         let (remapped, transformations) = remapper.remap(tensors);
 
@@ -282,5 +289,4 @@ mod tests {
             ("test.weight".to_string(), "test.weight".to_string())
         );
     }
-
 }

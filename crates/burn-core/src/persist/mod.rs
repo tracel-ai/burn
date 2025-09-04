@@ -11,11 +11,16 @@ mod filter;
 mod keyremapper;
 mod tensor_view;
 
+#[cfg(feature = "std")]
+pub mod safetensors;
+
 #[cfg(test)]
 mod test;
 
 pub use appliers::{ApplyError, ApplyResult, TensorApplier};
-pub use base::{ModulePersist, ModulePersister};
+pub use base::ModulePersist;
+pub use base::ModulePersister;
 pub use collectors::TensorViewCollector;
 pub use filter::PathFilter;
+pub use keyremapper::KeyRemapper;
 pub use tensor_view::TensorView;

@@ -717,6 +717,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.5",
  "log",
+ "memmap2",
  "num-traits",
  "portable-atomic",
  "portable-atomic-util",
