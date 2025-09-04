@@ -102,6 +102,11 @@
 
 pub use burn_core::*;
 
+/// Persistence module
+pub mod persist {
+    pub use burn_persist::*;
+}
+
 /// Train module
 #[cfg(feature = "train")]
 pub mod train {

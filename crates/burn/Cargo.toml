@@ -18,6 +18,7 @@ workspace = true
 [features]
 default = [
     "burn-core/default",
+    "burn-persist/default",
     "burn-train?/default",
     "burn-collective?/default",
     "std",
@@ -53,6 +54,7 @@ doc = [
 ]
 std = [
     "burn-core/std",
+    "burn-persist/std",
     # Backends
     "burn-candle?/std",
     "burn-ndarray?/std",
@@ -135,6 +137,7 @@ compilation-cache = [
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
+burn-persist = { path = "../burn-persist", version = "0.19.0", default-features = false }
 burn-train = { path = "../burn-train", version = "0.19.0", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "0.19.0", optional = true, default-features = false }
 

@@ -1,12 +1,13 @@
 //! SafeTensors persister implementation using the official safetensors crate.
 
-use crate::module::ParamId;
-use crate::persist::{
-    ApplyResult, KeyRemapper, ModulePersist, ModulePersister, PathFilter, TensorView,
-};
-use crate::tensor::backend::Backend;
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use burn_core::module::ParamId;
+use burn_core::persist::{
+    ApplyResult, KeyRemapper, ModulePersist, ModulePersister, PathFilter, TensorView,
+};
+use burn_core::tensor::backend::Backend;
 use burn_tensor::{DType, TensorData};
 use core::fmt;
 use core::ops::Deref;
@@ -270,11 +271,11 @@ impl ModulePersister for SafetensorsPersister {
             #[cfg(feature = "std")]
             Self::File(p) => {
                 // Use memory-mapped file for efficient access without loading entire file
-                #[cfg(feature = "memmap2")]
+                #[cfg(feature = "memory-mapped")]
                 {
                     safetensors_to_views_lazy_mmap(&p.path)?
                 }
-                #[cfg(not(feature = "memmap2"))]
+                #[cfg(not(feature = "memory-mapped"))]
                 {
                     // Fallback to reading entire file if memmap2 is not available
                     use alloc::sync::Arc;
@@ -444,7 +445,7 @@ fn safetensors_to_views_lazy(
 }
 
 /// Convert safetensors to TensorViews with lazy loading using memory-mapped files.
-#[cfg(all(feature = "std", feature = "memmap2"))]
+#[cfg(all(feature = "std", feature = "memory-mapped"))]
 fn safetensors_to_views_lazy_mmap(
     path: &std::path::Path,
 ) -> Result<Vec<TensorView>, SafetensorsError> {

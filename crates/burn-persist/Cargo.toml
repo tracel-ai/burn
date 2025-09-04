@@ -1,0 +1,31 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+categories = ["science", "mathematics", "deep-learning", "machine-learning"]
+description = "Persistence library for the Burn deep learning framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data", "persist"]
+license.workspace = true
+name = "burn-persist"
+readme.workspace = true
+repository = "https://github.com/Tracel-AI/burn/tree/main/crates/burn-persist"
+documentation = "https://burn.dev"
+version.workspace = true
+
+[features]
+default = ["std"]
+std = ["burn-core/std", "burn-tensor/std"]
+memory-mapped = ["dep:memmap2"]
+
+[dependencies]
+burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
+
+# External dependencies
+hashbrown = { workspace = true }
+memmap2 = { workspace = true, optional = true }
+safetensors = { workspace = true }
+
+
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
+tempfile = { workspace = true }

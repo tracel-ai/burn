@@ -1,11 +1,12 @@
 use super::*;
-use crate as burn;
-use crate::TestBackend;
-use crate::module::{Module, Param};
-use crate::nn::{Linear, LinearConfig};
-use crate::persist::{ModulePersist, PathFilter};
-use crate::tensor::backend::Backend;
+use burn_core as burn;
+use burn_core::module::{Module, Param};
+use burn_core::nn::{Linear, LinearConfig};
+use burn_core::persist::{ModulePersist, PathFilter};
+use burn_core::tensor::backend::Backend;
 use burn_tensor::Tensor;
+
+type TestBackend = burn_ndarray::NdArray;
 
 #[derive(Module, Debug)]
 struct ComplexModule<B: Backend> {

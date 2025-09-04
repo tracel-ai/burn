@@ -11,9 +11,6 @@ mod filter;
 mod keyremapper;
 mod tensor_view;
 
-#[cfg(feature = "std")]
-pub mod safetensors;
-
 #[cfg(test)]
 mod test;
 

@@ -581,6 +581,7 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
+ "burn-persist",
  "burn-remote",
  "burn-rocm",
  "burn-router",
@@ -934,6 +935,19 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "serde",
+]
+
+[[package]]
+name = "burn-persist"
+version = "0.19.0"
+dependencies = [
+ "burn-core",
+ "burn-ndarray",
+ "burn-tensor",
+ "hashbrown 0.15.5",
+ "memmap2",
+ "safetensors 0.6.2",
+ "tempfile",
 ]
 
 [[package]]
