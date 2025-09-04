@@ -197,6 +197,7 @@ impl PathFilter {
             return 1;
         }
 
+        #[allow(unused_mut)]
         let mut count = self.exact_paths.len() + self.predicates.len();
 
         #[cfg(target_has_atomic = "ptr")]
