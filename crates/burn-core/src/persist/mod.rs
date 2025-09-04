@@ -8,6 +8,7 @@ mod appliers;
 mod base;
 mod collectors;
 mod filter;
+mod keyremapper;
 mod tensor_view;
 
 #[cfg(test)]
