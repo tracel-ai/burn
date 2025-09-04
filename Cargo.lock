@@ -717,7 +717,6 @@ dependencies = [
  "half",
  "hashbrown 0.15.5",
  "log",
- "memmap2",
  "num-traits",
  "portable-atomic",
  "portable-atomic-util",
@@ -725,6 +724,7 @@ dependencies = [
  "regex",
  "rmp-serde",
  "rstest",
+ "safetensors 0.6.2",
  "serde",
  "serde_json",
  "spin",
@@ -6908,6 +6908,17 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
 dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "safetensors"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "172dd94c5a87b5c79f945c863da53b2ebc7ccef4eca24ac63cca66a41aab2178"
+dependencies = [
+ "hashbrown 0.15.5",
  "serde",
  "serde_json",
 ]
