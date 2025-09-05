@@ -278,25 +278,39 @@ impl ModulePersister for SafetensorsPersister {
             views = apply_remapping(views, self.get_remapper());
         }
 
-        // Convert to safetensors format
-        let tensors = views_to_safetensors(views)?;
-
-        // Add metadata
+        // Prepare metadata - convert from hashbrown to std HashMap for safetensors
         let mut metadata = self.get_metadata().clone();
         metadata.insert("framework".to_string(), "burn".to_string());
 
-        // Serialize using safetensors crate
-        // safetensors always uses hashbrown::HashMap for metadata
-        let data = safetensors::serialize(tensors, Some(metadata))?;
+        #[cfg(feature = "std")]
+        let std_metadata: std::collections::HashMap<String, String> = metadata
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
 
         // Write to storage
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
-                std::fs::write(&p.path, data)?;
+                // Convert to safetensors format
+                let tensors = views_to_safetensors(views)?;
+
+                // Use serialize_to_file which streams directly to disk
+                // This calls the lazy closures on-demand without buffering everything
+                safetensors::serialize_to_file(tensors, Some(std_metadata), &p.path)?;
                 Ok(())
             }
             Self::Memory(p) => {
+                // For memory, we need to serialize to bytes
+                let tensors = views_to_safetensors(views)?;
+                // For no-std, serialize still needs std HashMap when std feature is enabled
+                #[cfg(feature = "std")]
+                let data = safetensors::serialize(tensors, Some(std_metadata))?;
+
+                // TODO waiting for https://github.com/huggingface/safetensors/issues/650 fix to support no_std
+                // for now we are no saving metadata Some(metadata)
+                #[cfg(not(feature = "std"))]
+                let data = safetensors::serialize(tensors, None)?;
                 p.data = Some(alloc::sync::Arc::new(data));
                 Ok(())
             }
@@ -483,103 +497,53 @@ fn safetensors_to_views_lazy_file(
 ) -> Result<Vec<TensorView>, SafetensorsError> {
     use alloc::sync::Arc;
 
-    // Use memory mapping if available for the most efficient access
-    #[cfg(feature = "memmap2")]
-    {
-        use memmap2::MmapOptions;
+    // Always use memory mapping for the most efficient access
+    use memmap2::MmapOptions;
 
-        // Memory map the file for efficient access
-        let file = std::fs::File::open(path)?;
-        let mmap = unsafe { MmapOptions::new().map(&file)? };
-        let mmap_arc = Arc::new(mmap);
+    // Memory map the file for efficient access
+    let file = std::fs::File::open(path)?;
+    let mmap = unsafe { MmapOptions::new().map(&file)? };
+    let mmap_arc = Arc::new(mmap);
 
-        // Parse just to get metadata (safetensors won't copy data with mmap)
-        let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
-        let mut views = Vec::new();
+    // Parse just to get metadata (safetensors won't copy data with mmap)
+    let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
+    let mut views = Vec::new();
 
-        for (name, tensor_view) in tensors.tensors() {
-            let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
-            let shape = tensor_view.shape().to_vec();
-            let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
+    for (name, tensor_view) in tensors.tensors() {
+        let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
+        let shape = tensor_view.shape().to_vec();
+        let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
-            // Create a lazy closure that accesses the mmap'd data
-            let mmap_clone = Arc::clone(&mmap_arc);
-            let name_clone = name.to_string();
+        // Create a lazy closure that accesses the mmap'd data
+        let mmap_clone = Arc::clone(&mmap_arc);
+        let name_clone = name.to_string();
 
-            let data_fn = Box::new(move || {
-                // Re-parse to get the tensor view (this is cheap with mmap)
-                let tensors = safetensors::SafeTensors::deserialize(&mmap_clone)
-                    .expect("Failed to deserialize");
-                let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
+        let data_fn = Box::new(move || {
+            // Re-parse to get the tensor view (this is cheap with mmap)
+            let tensors =
+                safetensors::SafeTensors::deserialize(&mmap_clone).expect("Failed to deserialize");
+            let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
 
-                // Only now do we actually copy the tensor data
-                TensorData {
-                    bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                    shape: tensor.shape().to_vec(),
-                    dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
-                }
-            });
+            // Only now do we actually copy the tensor data
+            TensorData {
+                bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
+                shape: tensor.shape().to_vec(),
+                dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
+            }
+        });
 
-            let view = TensorView::from_closure(
-                data_fn,
-                dtype,
-                shape,
-                path_parts,
-                vec!["SafeTensor".to_string()],
-                ParamId::new(),
-            );
-            views.push(view);
-        }
-
-        Ok(views)
+        let view = TensorView::from_closure(
+            data_fn,
+            dtype,
+            shape,
+            path_parts,
+            vec!["SafeTensor".to_string()],
+            ParamId::new(),
+        );
+        views.push(view);
     }
-    #[cfg(not(feature = "memmap2"))]
-    {
-        // Without mmap, we still want on-demand loading
-        // Read the entire file but create closures that defer tensor data copying
-        let buffer = std::fs::read(path)?;
-        let buffer_arc = Arc::new(buffer);
 
-        // Parse with safetensors (this doesn't copy tensor data, just creates views)
-        let tensors = safetensors::SafeTensors::deserialize(&buffer_arc)?;
-        let mut views = Vec::new();
-
-        for (name, tensor_view) in tensors.tensors() {
-            let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
-            let shape = tensor_view.shape().to_vec();
-            let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
-
-            // Create a lazy closure that copies data only when accessed
-            let buffer_clone = Arc::clone(&buffer_arc);
-            let name_clone = name.to_string();
-
-            let data_fn = Box::new(move || {
-                // Re-parse to get the tensor view
-                let tensors = safetensors::SafeTensors::deserialize(&buffer_clone)
-                    .expect("Failed to deserialize");
-                let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
-
-                // Copy tensor data only when this closure is called
-                TensorData {
-                    bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                    shape: tensor.shape().to_vec(),
-                    dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
-                }
-            });
-
-            let view = TensorView::from_closure(
-                data_fn,
-                dtype,
-                shape,
-                path_parts,
-                vec!["SafeTensor".to_string()],
-                ParamId::new(),
-            );
-            views.push(view);
-        }
-
-        Ok(views)
-    }
+    Ok(views)
 }
 
 /// Helper to convert safetensors Dtype to burn DType.
