@@ -44,7 +44,6 @@ fn round_ties_even_wrapper(x: f64) -> f64 {
     }
 }
 
-
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorOps<Self>
     for NdArray<E, I, Q>
 where

@@ -11,6 +11,9 @@ pub type NdArrayRng = StdRng;
 #[cfg(not(feature = "std"))]
 pub type NdArrayRng = SmallRng;
 
+#[cfg(not(feature = "std"))]
+use rand::SeedableRng;
+
 /// Get a seeded random number generator
 ///
 /// For std builds, uses OS entropy.

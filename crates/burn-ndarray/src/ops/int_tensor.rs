@@ -1,6 +1,6 @@
 // Language
-use alloc::vec::Vec;
 use crate::rand::get_seeded_rng;
+use alloc::vec::Vec;
 use burn_tensor::{Distribution, ops::IntTensor};
 use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};

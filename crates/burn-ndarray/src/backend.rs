@@ -1,3 +1,4 @@
+use crate::rand::NdArrayRng;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use crate::{
     SharedArray,
@@ -9,7 +10,6 @@ use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
-use crate::rand::NdArrayRng;
 use rand::SeedableRng;
 
 pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
