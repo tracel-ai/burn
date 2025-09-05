@@ -1,5 +1,5 @@
 use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
+    DType, Element, FloatDType, IntDType, Shape, TensorData, TensorMetadata,
     quantization::{QTensorPrimitive, QuantScheme},
 };
 
@@ -59,5 +59,32 @@ impl CandleTensor {
             &device.into(),
         );
         Self::new(tensor.unwrap())
+    }
+}
+
+pub(crate) trait IntoDType {
+    fn into_dtype(self) -> candle_core::DType;
+}
+
+impl IntoDType for IntDType {
+    fn into_dtype(self) -> candle_core::DType {
+        match self {
+            IntDType::I64 => candle_core::DType::I64,
+            IntDType::U32 => candle_core::DType::U32,
+            IntDType::U8 => candle_core::DType::U8,
+            other => panic!("Unsupported dtype {other:?}"),
+        }
+    }
+}
+
+impl IntoDType for FloatDType {
+    fn into_dtype(self) -> candle_core::DType {
+        match self {
+            FloatDType::F64 => candle_core::DType::F64,
+            FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::Flex32 => candle_core::DType::F32,
+            FloatDType::F16 => candle_core::DType::F16,
+            FloatDType::BF16 => candle_core::DType::BF16,
+        }
     }
 }

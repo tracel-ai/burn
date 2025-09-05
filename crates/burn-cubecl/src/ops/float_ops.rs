@@ -68,8 +68,9 @@ where
         super::to_device(tensor, device)
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::empty::<R, F>(shape, device)
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, super::empty::<R, E>(shape, device))
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -88,20 +89,28 @@ where
         )
     }
 
-    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::zeros::<R, F>(shape, device)
+    fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, numeric::zeros::<R, E>(shape, device))
     }
 
     fn float_full(
         shape: Shape,
         fill_value: FloatElem<Self>,
         device: &R::Device,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        numeric::full::<R, F>(shape, device, fill_value)
+        let dtype = dtype.into();
+        execute_with_dtype!(
+            float(dtype),
+            E,
+            numeric::full::<R, E>(shape, device, fill_value.elem())
+        )
     }
 
-    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::ones::<R, F>(shape, device)
+    fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, numeric::ones::<R, E>(shape, device))
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

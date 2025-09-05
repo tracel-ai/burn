@@ -35,8 +35,9 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        super::empty::<R, I>(shape, device)
+    fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(int(dtype), I, super::empty::<R, I>(shape, device))
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -308,12 +309,28 @@ where
         )
     }
 
-    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::zeros::<R, I>(shape, device)
+    fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(int(dtype), I, numeric::zeros::<R, I>(shape, device))
     }
 
-    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::ones::<R, I>(shape, device)
+    fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(int(dtype), I, numeric::ones::<R, I>(shape, device))
+    }
+
+    fn int_full(
+        shape: Shape,
+        fill_value: IntElem<Self>,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(
+            int(dtype),
+            I,
+            numeric::full::<R, I>(shape, device, fill_value.elem())
+        )
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {

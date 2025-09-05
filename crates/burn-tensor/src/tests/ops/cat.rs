@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::{Bool, DType, Int, Tensor, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -100,5 +100,21 @@ mod tests {
         let tensor_2 = TestTensor::from_data([[[4.0, 5.0, 6.0]]], &device);
 
         TestTensor::cat(vec![tensor_1, tensor_2], 3).into_data();
+    }
+
+    #[test]
+    fn should_support_cat_ops_cast_dtype() {
+        let device = Default::default();
+        // ok for f32 backends, casts dtype for f16 tests
+        let tensor_1 = TestTensor::<3>::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device)
+            .cast(DType::F32);
+        let tensor_2 = TestTensor::from_data([[[4.0, 5.0, 6.0]]], &device).cast(DType::F32);
+
+        let output = TestTensor::cat(vec![tensor_1, tensor_2], 0);
+        let expected = TensorData::from([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]], [[4.0, 5.0, 6.0]]]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 }

@@ -50,6 +50,7 @@ serde_bytes = { workspace = true }
 [dev-dependencies]
 bincode = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] } # Default enables std
+paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

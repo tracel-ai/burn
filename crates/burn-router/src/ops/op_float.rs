@@ -12,7 +12,7 @@ use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
 };
 use burn_tensor::{
-    Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
@@ -51,10 +51,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
@@ -65,10 +65,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
@@ -83,10 +83,11 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         shape: Shape,
         fill_value: FloatElem<Self>,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
@@ -131,10 +132,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), FloatElem::<Self>::dtype());
+        let out = client.register_empty_tensor(shape.into(), dtype.into());
 
         client.register(OperationIr::BaseFloat(BaseOperationIr::Empty(
             out.to_ir_out(),

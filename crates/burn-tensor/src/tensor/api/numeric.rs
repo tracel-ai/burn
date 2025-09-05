@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
-use crate::TensorPrimitive;
 use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
@@ -12,6 +11,7 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
+use crate::{DType, TensorPrimitive};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -338,7 +338,7 @@ where
     pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
-        Self::new(K::zeros(shape, device))
+        Self::new(K::zeros(shape, device, K::Elem::dtype()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
@@ -379,7 +379,7 @@ where
     pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
-        Self::new(K::ones(shape, device))
+        Self::new(K::ones(shape, device, K::Elem::dtype()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
@@ -2125,9 +2125,10 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn eye(size: usize, device: &B::Device) -> Self {
+        let dtype = K::Elem::dtype();
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
-        let ones = K::ones([1, size].into(), device);
-        let zeros = K::zeros([size, size].into(), device);
+        let ones = K::ones([1, size].into(), device, dtype);
+        let zeros = K::zeros([size, size].into(), device, dtype);
 
         Self::new(K::scatter(0, zeros, indices.primitive, ones))
     }
@@ -2400,6 +2401,7 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2413,7 +2415,7 @@ where
     ///
     /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
     /// which is more high-level and designed for public use.
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive;
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Creates a tensor filled with ones.
     ///
@@ -2421,6 +2423,7 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2434,7 +2437,7 @@ where
     ///
     /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
     /// which is more high-level and designed for public use.
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive;
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Sums all the elements of the tensor.
     ///
@@ -3433,11 +3436,11 @@ impl<B: Backend> Numeric<B> for Int {
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_zeros(shape, device)
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_zeros(shape, device, dtype.into())
     }
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_ones(shape, device)
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_ones(shape, device, dtype.into())
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
@@ -3751,11 +3754,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
         }
     }
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_zeros(shape, device))
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_zeros(shape, device, dtype.into()))
     }
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_ones(shape, device))
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {

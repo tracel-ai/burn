@@ -1,5 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
+use burn_tensor::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -76,7 +76,6 @@ impl TensorMetadata for TchTensor {
             tch::Kind::Float => DType::F32,
             tch::Kind::Double => DType::F64,
             tch::Kind::Bool => DType::Bool,
-            tch::Kind::QUInt8 => DType::U8,
             tch::Kind::BFloat16 => DType::BF16,
             // Complex and quantization types are not valid/implemented.
             _ => unimplemented!(),
@@ -91,6 +90,35 @@ impl TensorMetadata for TchTensor {
 impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
     fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
         unimplemented!("Quantization is not supported")
+    }
+}
+
+pub(crate) trait IntoKind {
+    fn into_kind(self) -> tch::Kind;
+}
+
+impl IntoKind for FloatDType {
+    fn into_kind(self) -> tch::Kind {
+        match self {
+            FloatDType::F64 => tch::Kind::Double,
+            FloatDType::F32 => tch::Kind::Float,
+            FloatDType::Flex32 => tch::Kind::Float,
+            FloatDType::F16 => tch::Kind::Half,
+            FloatDType::BF16 => tch::Kind::BFloat16,
+        }
+    }
+}
+
+impl IntoKind for IntDType {
+    fn into_kind(self) -> tch::Kind {
+        match self {
+            IntDType::I64 => tch::Kind::Int64,
+            IntDType::I32 => tch::Kind::Int,
+            IntDType::I16 => tch::Kind::Int16,
+            IntDType::I8 => tch::Kind::Int8,
+            IntDType::U64 => tch::Kind::Uint8,
+            other => panic!("Unsupported dtype {other:?}"),
+        }
     }
 }
 

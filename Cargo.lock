@@ -1019,6 +1019,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.5",
  "num-traits",
+ "paste",
  "rand 0.9.2",
  "rand_distr 0.5.1",
  "serde",

@@ -138,6 +138,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
                     [1].into(),
                     device,
+                    E::dtype().into(),
                 ))
                 .into_data();
             }

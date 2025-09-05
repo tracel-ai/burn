@@ -8,11 +8,12 @@ pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B
 ) -> K::Primitive {
     let mut shape = tensor.shape();
     let device = K::device(&tensor);
+    let dtype = tensor.dtype();
 
     let original_dim_length = shape.dims[dim];
     shape.dims[dim] *= times;
 
-    let mut tensor_output = K::empty(shape.clone(), &device);
+    let mut tensor_output = K::empty(shape.clone(), &device, dtype);
 
     let indices_select_all = shape.dims.iter().map(|d| 0..*d).collect::<Vec<_>>();
 

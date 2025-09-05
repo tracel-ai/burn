@@ -85,8 +85,12 @@ where
         tensor
     }
 
-    fn float_empty(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> FloatTensor<Self> {
-        NdArray::<E>::float_zeros(shape, device)
+    fn float_empty(
+        shape: Shape,
+        device: &<NdArray<E> as Backend>::Device,
+        dtype: FloatDType,
+    ) -> FloatTensor<Self> {
+        Self::float_zeros(shape, device, dtype)
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
