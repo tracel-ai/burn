@@ -32,8 +32,12 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_slice(tensor, ranges)
     }
 
-    fn int_empty(shape: Shape, device: &<Autodiff<B> as Backend>::Device) -> IntTensor<B> {
-        B::int_empty(shape, device)
+    fn int_empty(
+        shape: Shape,
+        device: &<Autodiff<B> as Backend>::Device,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        B::int_empty(shape, device, dtype)
     }
 
     fn int_slice_assign(
@@ -116,16 +120,21 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_neg(tensor)
     }
 
-    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
-        B::int_zeros(shape, device)
+    fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<B> {
+        B::int_zeros(shape, device, dtype)
     }
 
-    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
-        B::int_ones(shape, device)
+    fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<B> {
+        B::int_ones(shape, device, dtype)
     }
 
-    fn int_full(shape: Shape, fill_value: B::IntElem, device: &Device<Self>) -> IntTensor<B> {
-        B::int_full(shape, fill_value, device)
+    fn int_full(
+        shape: Shape,
+        fill_value: B::IntElem,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        B::int_full(shape, fill_value, device, dtype)
     }
 
     fn int_sum(tensor: IntTensor<B>) -> IntTensor<B> {

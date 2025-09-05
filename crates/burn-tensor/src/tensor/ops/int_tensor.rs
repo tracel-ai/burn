@@ -17,11 +17,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The integer tensor with the given shape.
-    fn int_empty(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_empty(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B>;
 
     /// Converts the tensor to a data structure.
     ///
@@ -634,11 +635,14 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor of zeros.
-    fn int_zeros(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_zeros(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B> {
+        Self::int_from_data(TensorData::full_dtype(shape, 0, dtype.into()), device)
+    }
 
     /// Creates a tensor of ones.
     ///
@@ -646,11 +650,14 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor of ones.
-    fn int_ones(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_ones(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B> {
+        Self::int_from_data(TensorData::full_dtype(shape, 1, dtype.into()), device)
+    }
 
     /// Creates a tensor filled with given value.
     ///
@@ -659,12 +666,21 @@ pub trait IntTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor filled with given value
-    fn int_full(shape: Shape, fill_value: IntElem<B>, device: &Device<B>) -> IntTensor<B> {
-        Self::int_add_scalar(Self::int_zeros(shape, device), fill_value)
+    fn int_full(
+        shape: Shape,
+        fill_value: IntElem<B>,
+        device: &Device<B>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        Self::int_from_data(
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
+            device,
+        )
     }
 
     /// Sums all elements in the tensor.
@@ -1081,7 +1097,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
-        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor));
+        let dtype = tensor.dtype();
+        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor), dtype.into());
         let less_than_zero = B::int_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::int_greater_elem(tensor, 0.0f32.elem());
 
