@@ -80,12 +80,6 @@ impl Default for SafetensorsPersister {
 
 impl SafetensorsPersister {
     /// Create a persister for loading from or saving to a file.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors");
-    /// model.save_with(&persister)?;
-    /// ```
     #[cfg(feature = "std")]
     pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
         Self::File(FilePersister {
@@ -99,18 +93,6 @@ impl SafetensorsPersister {
     }
 
     /// Create a persister for working with bytes in memory.
-    ///
-    /// # Example
-    /// ```ignore
-    /// // Create empty persister for saving
-    /// let persister = SafetensorsPersister::from_bytes(None);
-    /// model.collect_to(&mut persister)?;
-    /// let bytes = persister.get_bytes()?;
-    ///
-    /// // Create persister with bytes for loading
-    /// let persister = SafetensorsPersister::from_bytes(Some(bytes));
-    /// let model = Model::apply_from(&mut persister)?;
-    /// ```
     pub fn from_bytes(bytes: Option<Vec<u8>>) -> Self {
         Self::Memory(MemoryPersister {
             data: bytes.map(alloc::sync::Arc::new),
@@ -121,7 +103,6 @@ impl SafetensorsPersister {
             allow_partial: false,
         })
     }
-
 
     /// Filter which tensors to load/save.
     pub fn filter(mut self, filter: PathFilter) -> Self {
@@ -179,9 +160,6 @@ impl SafetensorsPersister {
         }
         self
     }
-
-
-
 
     /// Get saved bytes from memory-based persister.
     ///
@@ -244,12 +222,12 @@ impl MemoryPersister {
     pub(crate) fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
         self.data.clone()
     }
-    
+
     #[cfg(not(test))]
     fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
         self.data.clone()
     }
-    
+
     #[cfg(test)]
     pub(crate) fn set_data(&mut self, data: Vec<u8>) {
         self.data = Some(alloc::sync::Arc::new(data));
@@ -309,7 +287,6 @@ impl ModulePersister for SafetensorsPersister {
 
         // Serialize using safetensors crate
         // safetensors always uses hashbrown::HashMap for metadata
-        // FIXME copies data!!!
         let data = safetensors::serialize(tensors, Some(metadata))?;
 
         // Write to storage
