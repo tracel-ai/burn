@@ -61,95 +61,6 @@ impl From<std::io::Error> for SafetensorsError {
     }
 }
 
-/// Builder for creating SafeTensors persisters with configuration.
-pub struct SafetensorsPersisterConfig {
-    filter: PathFilter,
-    remapper: KeyRemapper,
-    metadata: HashMap<String, String>,
-    validate: bool,
-    allow_partial: bool,
-}
-
-impl Default for SafetensorsPersisterConfig {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SafetensorsPersisterConfig {
-    /// Create a new builder with default settings.
-    pub fn new() -> Self {
-        Self {
-            filter: PathFilter::new(),
-            remapper: KeyRemapper::new(),
-            metadata: HashMap::new(),
-            validate: true,
-            allow_partial: false,
-        }
-    }
-
-    /// Add a path filter.
-    pub fn with_filter(mut self, filter: PathFilter) -> Self {
-        self.filter = filter;
-        self
-    }
-
-    /// Add key remapping.
-    #[cfg(target_has_atomic = "ptr")]
-    pub fn with_remapper(mut self, remapper: KeyRemapper) -> Self {
-        self.remapper = remapper;
-        self
-    }
-
-    /// Add metadata.
-    pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
-    }
-
-    /// Enable or disable validation.
-    pub fn with_validation(mut self, validate: bool) -> Self {
-        self.validate = validate;
-        self
-    }
-
-    /// Allow partial loading.
-    pub fn allow_partial(mut self, allow: bool) -> Self {
-        self.allow_partial = allow;
-        self
-    }
-
-    /// Build a file-based persister.
-    #[cfg(feature = "std")]
-    pub fn build_file(self, path: impl Into<std::path::PathBuf>) -> SafetensorsPersister {
-        SafetensorsPersister::File(FilePersister {
-            path: path.into(),
-            filter: self.filter,
-            remapper: self.remapper,
-            metadata: self.metadata,
-            validate: self.validate,
-            allow_partial: self.allow_partial,
-        })
-    }
-
-    /// Build a memory-based persister.
-    pub fn build_memory(self) -> SafetensorsPersister {
-        SafetensorsPersister::Memory(MemoryPersister {
-            data: None,
-            filter: self.filter,
-            remapper: self.remapper,
-            metadata: self.metadata,
-            validate: self.validate,
-            allow_partial: self.allow_partial,
-        })
-    }
-
-    /// Build a memory-based persister (alias for compatibility).
-    pub fn build_in_memory(self) -> SafetensorsPersister {
-        self.build_memory()
-    }
-}
-
 /// SafeTensors persister supporting both file and memory storage.
 pub enum SafetensorsPersister {
     /// File-based storage.
@@ -158,6 +69,156 @@ pub enum SafetensorsPersister {
 
     /// Memory-based storage.
     Memory(MemoryPersister),
+}
+
+impl Default for SafetensorsPersister {
+    /// Create a default memory-based persister.
+    fn default() -> Self {
+        Self::from_bytes(None)
+    }
+}
+
+impl SafetensorsPersister {
+    /// Create a persister for loading from or saving to a file.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let persister = SafetensorsPersister::from_file("model.safetensors");
+    /// model.save_with(&persister)?;
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
+        Self::File(FilePersister {
+            path: path.into(),
+            filter: PathFilter::new(),
+            remapper: KeyRemapper::new(),
+            metadata: HashMap::new(),
+            validate: true,
+            allow_partial: false,
+        })
+    }
+
+    /// Create a persister for working with bytes in memory.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Create empty persister for saving
+    /// let persister = SafetensorsPersister::from_bytes(None);
+    /// model.collect_to(&mut persister)?;
+    /// let bytes = persister.get_bytes()?;
+    ///
+    /// // Create persister with bytes for loading
+    /// let persister = SafetensorsPersister::from_bytes(Some(bytes));
+    /// let model = Model::apply_from(&mut persister)?;
+    /// ```
+    pub fn from_bytes(bytes: Option<Vec<u8>>) -> Self {
+        Self::Memory(MemoryPersister {
+            data: bytes.map(alloc::sync::Arc::new),
+            filter: PathFilter::new(),
+            remapper: KeyRemapper::new(),
+            metadata: HashMap::new(),
+            validate: true,
+            allow_partial: false,
+        })
+    }
+
+    /// Convenience constructor - same as `from_file` (for backwards compatibility).
+    #[cfg(feature = "std")]
+    #[deprecated(since = "0.19.0", note = "Use `from_file` instead")]
+    pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
+        Self::from_file(path)
+    }
+
+    /// Convenience constructor - same as `from_file`.
+    #[cfg(feature = "std")]
+    #[deprecated(since = "0.19.0", note = "Use `from_file` instead")]
+    pub fn file(path: impl Into<std::path::PathBuf>) -> Self {
+        Self::from_file(path)
+    }
+
+    /// Convenience constructor - same as `from_bytes(None)`.
+    #[deprecated(since = "0.19.0", note = "Use `from_bytes(None)` instead")]
+    pub fn memory() -> Self {
+        Self::from_bytes(None)
+    }
+
+    /// Filter which tensors to load/save.
+    pub fn filter(mut self, filter: PathFilter) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = filter,
+            Self::Memory(p) => p.filter = filter,
+        }
+        self
+    }
+
+    /// Remap tensor names during load/save.
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn remap(mut self, remapper: KeyRemapper) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.remapper = remapper,
+            Self::Memory(p) => p.remapper = remapper,
+        }
+        self
+    }
+
+    /// Add metadata to be saved with the tensors.
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        let key = key.into();
+        let value = value.into();
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => {
+                p.metadata.insert(key, value);
+            }
+            Self::Memory(p) => {
+                p.metadata.insert(key, value);
+            }
+        }
+        self
+    }
+
+    /// Set whether to validate tensors during loading (default: true).
+    pub fn validate(mut self, validate: bool) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.validate = validate,
+            Self::Memory(p) => p.validate = validate,
+        }
+        self
+    }
+
+    /// Allow partial loading of tensors (continue even if some tensors are missing).
+    pub fn allow_partial(mut self, allow: bool) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.allow_partial = allow,
+            Self::Memory(p) => p.allow_partial = allow,
+        }
+        self
+    }
+
+    /// Get saved bytes from memory-based persister.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let mut persister = SafetensorsPersister::from_bytes(None);
+    /// model.collect_to(&mut persister)?;
+    /// let bytes = persister.get_bytes()?;
+    /// ```
+    pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsError> {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(_) => Err(SafetensorsError::Other(
+                "Cannot get bytes from file-based persister".to_string(),
+            )),
+            Self::Memory(p) => p
+                .data()
+                .map(|arc| arc.as_ref().clone())
+                .ok_or_else(|| SafetensorsError::Other("No data available".to_string())),
+        }
+    }
 }
 
 /// File-based persister.
@@ -181,7 +242,25 @@ pub struct MemoryPersister {
     allow_partial: bool,
 }
 
+impl Default for MemoryPersister {
+    fn default() -> Self {
+        Self {
+            data: None,
+            filter: PathFilter::new(),
+            remapper: KeyRemapper::new(),
+            metadata: HashMap::new(),
+            validate: true,
+            allow_partial: false,
+        }
+    }
+}
+
 impl MemoryPersister {
+    /// Create a new memory-based persister.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Get the stored data.
     pub fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
         self.data.clone()
@@ -229,19 +308,19 @@ impl ModulePersister for SafetensorsPersister {
         let mut views = module.collect();
 
         // Apply filtering
-        views = apply_filter(views, self.filter());
+        views = apply_filter(views, self.get_filter());
 
         // Apply remapping
         #[cfg(target_has_atomic = "ptr")]
         {
-            views = apply_remapping(views, self.remapper());
+            views = apply_remapping(views, self.get_remapper());
         }
 
         // Convert to safetensors format
         let tensors = views_to_safetensors(views)?;
 
         // Add metadata
-        let mut metadata = self.metadata().clone();
+        let mut metadata = self.get_metadata().clone();
         metadata.insert("framework".to_string(), "burn".to_string());
 
         // Serialize using safetensors crate
@@ -296,14 +375,14 @@ impl ModulePersister for SafetensorsPersister {
         let result = module.apply(views);
 
         // Validate if needed
-        if self.validate() && !result.errors.is_empty() {
+        if self.get_validate() && !result.errors.is_empty() {
             return Err(SafetensorsError::ValidationFailed(format!(
                 "Import errors: {:?}",
                 result.errors
             )));
         }
 
-        if !self.allow_partial() && !result.missing.is_empty() {
+        if !self.get_allow_partial() && !result.missing.is_empty() {
             return Err(SafetensorsError::TensorNotFound(format!(
                 "Missing tensors: {:?}",
                 result.missing
@@ -315,7 +394,7 @@ impl ModulePersister for SafetensorsPersister {
 }
 
 impl SafetensorsPersister {
-    fn filter(&self) -> &PathFilter {
+    fn get_filter(&self) -> &PathFilter {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => &p.filter,
@@ -323,7 +402,7 @@ impl SafetensorsPersister {
         }
     }
 
-    fn remapper(&self) -> &KeyRemapper {
+    fn get_remapper(&self) -> &KeyRemapper {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => &p.remapper,
@@ -331,7 +410,7 @@ impl SafetensorsPersister {
         }
     }
 
-    fn metadata(&self) -> &HashMap<String, String> {
+    fn get_metadata(&self) -> &HashMap<String, String> {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => &p.metadata,
@@ -339,7 +418,7 @@ impl SafetensorsPersister {
         }
     }
 
-    fn validate(&self) -> bool {
+    fn get_validate(&self) -> bool {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => p.validate,
@@ -347,7 +426,7 @@ impl SafetensorsPersister {
         }
     }
 
-    fn allow_partial(&self) -> bool {
+    fn get_allow_partial(&self) -> bool {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => p.allow_partial,

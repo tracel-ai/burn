@@ -76,11 +76,11 @@ fn test_complex_module_round_trip() {
     let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
 
     // Save module1 using new persister API
-    let mut save_persister = SafetensorsPersisterConfig::new().build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None);
     module1.collect_to(&mut save_persister).unwrap();
 
     // Load into module2
-    let mut load_persister = SafetensorsPersisterConfig::new().build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
@@ -112,15 +112,12 @@ fn test_filtered_export_import() {
     let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
 
     // Export only encoder tensors
-    let mut save_persister = SafetensorsPersisterConfig::new()
-        .with_filter(PathFilter::new().with_regex(r"^encoder\..*"))
-        .build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None)
+        .filter(PathFilter::new().with_regex(r"^encoder\..*"));
     module1.collect_to(&mut save_persister).unwrap();
 
     // Import filtered tensors - need to allow partial since we only saved encoder tensors
-    let mut load_persister = SafetensorsPersisterConfig::new()
-        .allow_partial(true)
-        .build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None).allow_partial(true);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
@@ -143,17 +140,16 @@ fn test_metadata_preservation() {
         .init::<TestBackend>(&device);
 
     // Write with metadata
-    let mut save_persister = SafetensorsPersisterConfig::new()
-        .with_metadata("framework", "burn")
-        .with_metadata("version", "0.14.0")
-        .with_metadata("model_type", "linear")
-        .build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None)
+        .metadata("framework", "burn")
+        .metadata("version", "0.14.0")
+        .metadata("model_type", "linear");
 
     module.collect_to(&mut save_persister).unwrap();
 
     // Verify metadata was saved (would need to add a method to check metadata)
     // For now, just verify the round trip works
-    let mut load_persister = SafetensorsPersisterConfig::new().build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
@@ -180,7 +176,7 @@ fn test_error_handling() {
         .init::<TestBackend>(&device);
 
     // Save module
-    let mut save_persister = SafetensorsPersisterConfig::new().build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None);
     module.collect_to(&mut save_persister).unwrap();
 
     // Try to load into incompatible module (different dimensions)
@@ -189,9 +185,7 @@ fn test_error_handling() {
         .init::<TestBackend>(&device);
 
     // Load without validation - should return errors in the result
-    let mut load_persister = SafetensorsPersisterConfig::new()
-        .with_validation(false) // Disable validation to get errors in result
-        .build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None).validate(false); // Disable validation to get errors in result
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
@@ -206,9 +200,7 @@ fn test_error_handling() {
     assert!(!result.errors.is_empty());
 
     // Try again with validation enabled - should return Err
-    let mut load_persister_with_validation = SafetensorsPersisterConfig::new()
-        .with_validation(true)
-        .build_memory();
+    let mut load_persister_with_validation = SafetensorsPersister::from_bytes(None).validate(true);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister_with_validation {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
@@ -330,16 +322,15 @@ fn test_integration_basic_usage() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save using new API
-    let mut save_persister = SafetensorsPersisterConfig::new()
-        .with_metadata("framework", "burn")
-        .with_metadata("version", "0.19.0")
-        .build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None)
+        .metadata("framework", "burn")
+        .metadata("version", "0.19.0");
 
     // Use collect_to method
     model.collect_to(&mut save_persister).unwrap();
 
     // Load using new API
-    let mut load_persister = SafetensorsPersisterConfig::new().build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
@@ -362,17 +353,14 @@ fn test_integration_with_filtering() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save only encoder tensors
-    let mut save_persister = SafetensorsPersisterConfig::new()
-        .with_filter(PathFilter::new().with_regex(r"^encoder\..*"))
-        .with_metadata("subset", "encoder_only")
-        .build_memory();
+    let mut save_persister = SafetensorsPersister::from_bytes(None)
+        .filter(PathFilter::new().with_regex(r"^encoder\..*"))
+        .metadata("subset", "encoder_only");
 
     model.collect_to(&mut save_persister).unwrap();
 
     // Load into new model - need to allow partial loading since we only saved encoder tensors
-    let mut load_persister = SafetensorsPersisterConfig::new()
-        .allow_partial(true)
-        .build_memory();
+    let mut load_persister = SafetensorsPersister::from_bytes(None).allow_partial(true);
     if let SafetensorsPersister::Memory(ref mut p) = load_persister {
         if let SafetensorsPersister::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
@@ -406,9 +394,8 @@ fn test_file_based_loading() {
     let file_path = temp_dir.join("test_safetensors.st");
 
     // Save to file
-    let mut save_persister = SafetensorsPersisterConfig::new()
-        .with_metadata("test", "file_loading")
-        .build_file(&file_path);
+    let mut save_persister =
+        SafetensorsPersister::from_file(&file_path).metadata("test", "file_loading");
 
     module.collect_to(&mut save_persister).unwrap();
 
@@ -416,7 +403,7 @@ fn test_file_based_loading() {
     assert!(file_path.exists());
 
     // Load from file (will use memory-mapped loading if available)
-    let mut load_persister = SafetensorsPersisterConfig::new().build_file(&file_path);
+    let mut load_persister = SafetensorsPersister::from_file(&file_path);
 
     let mut loaded_module = LinearConfig::new(4, 2)
         .with_bias(true)
