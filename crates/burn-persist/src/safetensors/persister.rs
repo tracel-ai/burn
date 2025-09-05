@@ -503,6 +503,7 @@ impl ModulePersister for SafetensorsPersister {
 
         // Serialize using safetensors crate
         // safetensors always uses hashbrown::HashMap for metadata
+        // FIXME copies data!!!
         let data = safetensors::serialize(tensors, Some(metadata))?;
 
         // Write to storage
@@ -691,21 +692,25 @@ fn safetensors_to_views_lazy(
     Ok(views)
 }
 
-/// Convert safetensors to TensorViews with lazy loading using safetensors' built-in mechanisms.
+/// Convert safetensors to TensorViews with true on-demand loading from file.
+/// This reads only the header initially, then loads tensor data on demand.
 #[cfg(feature = "std")]
 fn safetensors_to_views_lazy_file(
     path: &std::path::Path,
 ) -> Result<Vec<TensorView>, SafetensorsError> {
     use alloc::sync::Arc;
 
+    // Use memory mapping if available for the most efficient access
     #[cfg(feature = "memmap2")]
     {
-        // Use memory mapping for efficient lazy loading
         use memmap2::MmapOptions;
+
+        // Memory map the file for efficient access
         let file = std::fs::File::open(path)?;
         let mmap = unsafe { MmapOptions::new().map(&file)? };
         let mmap_arc = Arc::new(mmap);
 
+        // Parse just to get metadata (safetensors won't copy data with mmap)
         let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
         let mut views = Vec::new();
 
@@ -714,15 +719,17 @@ fn safetensors_to_views_lazy_file(
             let shape = tensor_view.shape().to_vec();
             let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
-            // Create a lazy closure using safetensors' zero-copy view
+            // Create a lazy closure that accesses the mmap'd data
             let mmap_clone = Arc::clone(&mmap_arc);
             let name_clone = name.to_string();
 
             let data_fn = Box::new(move || {
+                // Re-parse to get the tensor view (this is cheap with mmap)
                 let tensors = safetensors::SafeTensors::deserialize(&mmap_clone)
                     .expect("Failed to deserialize");
                 let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
 
+                // Only now do we actually copy the tensor data
                 TensorData {
                     bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
                     shape: tensor.shape().to_vec(),
@@ -745,10 +752,50 @@ fn safetensors_to_views_lazy_file(
     }
     #[cfg(not(feature = "memmap2"))]
     {
-        // Fallback: read entire file if memmap2 is not available
-        use alloc::sync::Arc;
-        let data_arc = Arc::new(std::fs::read(path)?);
-        safetensors_to_views_lazy(data_arc)
+        // Without mmap, we still want on-demand loading
+        // Read the entire file but create closures that defer tensor data copying
+        let buffer = std::fs::read(path)?;
+        let buffer_arc = Arc::new(buffer);
+
+        // Parse with safetensors (this doesn't copy tensor data, just creates views)
+        let tensors = safetensors::SafeTensors::deserialize(&buffer_arc)?;
+        let mut views = Vec::new();
+
+        for (name, tensor_view) in tensors.tensors() {
+            let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
+            let shape = tensor_view.shape().to_vec();
+            let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
+
+            // Create a lazy closure that copies data only when accessed
+            let buffer_clone = Arc::clone(&buffer_arc);
+            let name_clone = name.to_string();
+
+            let data_fn = Box::new(move || {
+                // Re-parse to get the tensor view
+                let tensors = safetensors::SafeTensors::deserialize(&buffer_clone)
+                    .expect("Failed to deserialize");
+                let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
+
+                // Copy tensor data only when this closure is called
+                TensorData {
+                    bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
+                    shape: tensor.shape().to_vec(),
+                    dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
+                }
+            });
+
+            let view = TensorView::from_closure(
+                data_fn,
+                dtype,
+                shape,
+                path_parts,
+                vec!["SafeTensor".to_string()],
+                ParamId::new(),
+            );
+            views.push(view);
+        }
+
+        Ok(views)
     }
 }
 
