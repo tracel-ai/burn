@@ -392,7 +392,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_arange(range: Range<i64>, device: &LibTorchDevice) -> TchTensor {
         let device: tch::Device = (*device).into();
-        let mut tensor = tch::Tensor::arange(range.end - range.start, (E::KIND, device));
+        let mut tensor = tch::Tensor::arange(range.end - range.start, (tch::Kind::Int64, device));
 
         if range.start != 0 {
             tensor = tensor.f_add_scalar_(range.start).unwrap();
