@@ -69,3 +69,4 @@ pub mod transpose;
 pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
+pub mod matmulinteger;
