@@ -122,25 +122,6 @@ impl SafetensorsPersister {
         })
     }
 
-    /// Convenience constructor - same as `from_file` (for backwards compatibility).
-    #[cfg(feature = "std")]
-    #[deprecated(since = "0.19.0", note = "Use `from_file` instead")]
-    pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
-        Self::from_file(path)
-    }
-
-    /// Convenience constructor - same as `from_file`.
-    #[cfg(feature = "std")]
-    #[deprecated(since = "0.19.0", note = "Use `from_file` instead")]
-    pub fn file(path: impl Into<std::path::PathBuf>) -> Self {
-        Self::from_file(path)
-    }
-
-    /// Convenience constructor - same as `from_bytes(None)`.
-    #[deprecated(since = "0.19.0", note = "Use `from_bytes(None)` instead")]
-    pub fn memory() -> Self {
-        Self::from_bytes(None)
-    }
 
     /// Filter which tensors to load/save.
     pub fn filter(mut self, filter: PathFilter) -> Self {
@@ -199,183 +180,8 @@ impl SafetensorsPersister {
         self
     }
 
-    /// List all tensor names in the file without loading any data.
-    ///
-    /// This only reads the header which contains tensor metadata.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors");
-    /// let tensor_names = persister.list_tensors()?;
-    /// println!("Model contains {} tensors", tensor_names.len());
-    /// ```
-    pub fn list_tensors(&self) -> Result<Vec<String>, SafetensorsError> {
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                #[cfg(feature = "memmap2")]
-                {
-                    use memmap2::MmapOptions;
-                    let file = std::fs::File::open(&p.path)?;
-                    let mmap = unsafe { MmapOptions::new().map(&file)? };
-                    let tensors = safetensors::SafeTensors::deserialize(&mmap)?;
-                    Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
-                }
-                #[cfg(not(feature = "memmap2"))]
-                {
-                    let buffer = std::fs::read(&p.path)?;
-                    let tensors = safetensors::SafeTensors::deserialize(&buffer)?;
-                    Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
-                }
-            }
-            Self::Memory(p) => {
-                let data = p
-                    .data()
-                    .ok_or_else(|| SafetensorsError::Other("No data available".to_string()))?;
-                let tensors = safetensors::SafeTensors::deserialize(&data)?;
-                Ok(tensors.names().into_iter().map(|s| s.to_string()).collect())
-            }
-        }
-    }
 
-    /// Get tensor metadata (shape, dtype) without loading the data.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors");
-    /// if let Some((shape, dtype)) = persister.tensor_info("encoder.weight")? {
-    ///     println!("Tensor shape: {:?}, dtype: {:?}", shape, dtype);
-    /// }
-    /// ```
-    pub fn tensor_info(
-        &self,
-        name: &str,
-    ) -> Result<Option<(Vec<usize>, burn_tensor::DType)>, SafetensorsError> {
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                #[cfg(feature = "memmap2")]
-                {
-                    use memmap2::MmapOptions;
-                    let file = std::fs::File::open(&p.path)?;
-                    let mmap = unsafe { MmapOptions::new().map(&file)? };
-                    let tensors = safetensors::SafeTensors::deserialize(&mmap)?;
-                    if let Ok(tensor) = tensors.tensor(name) {
-                        let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                        Ok(Some((tensor.shape().to_vec(), dtype)))
-                    } else {
-                        Ok(None)
-                    }
-                }
-                #[cfg(not(feature = "memmap2"))]
-                {
-                    let buffer = std::fs::read(&p.path)?;
-                    let tensors = safetensors::SafeTensors::deserialize(&buffer)?;
-                    if let Ok(tensor) = tensors.tensor(name) {
-                        let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                        Ok(Some((tensor.shape().to_vec(), dtype)))
-                    } else {
-                        Ok(None)
-                    }
-                }
-            }
-            Self::Memory(p) => {
-                let data = p
-                    .data()
-                    .ok_or_else(|| SafetensorsError::Other("No data available".to_string()))?;
-                let tensors = safetensors::SafeTensors::deserialize(&data)?;
-                if let Ok(tensor) = tensors.tensor(name) {
-                    let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                    Ok(Some((tensor.shape().to_vec(), dtype)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-    }
 
-    /// Load only specific tensors by name.
-    ///
-    /// This is useful in distributed settings where different nodes need different tensors.
-    /// Only the requested tensors are loaded into memory.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors");
-    /// let tensors = persister.load_tensors(&["encoder.weight", "encoder.bias"])?;
-    /// ```
-    pub fn load_tensors(
-        &self,
-        names: &[&str],
-    ) -> Result<Vec<(String, burn_tensor::TensorData)>, SafetensorsError> {
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => {
-                #[cfg(feature = "memmap2")]
-                {
-                    // Use memory mapping for efficient access - safetensors' recommended approach
-                    use memmap2::MmapOptions;
-                    let file = std::fs::File::open(&p.path)?;
-                    let mmap = unsafe { MmapOptions::new().map(&file)? };
-                    let tensors = safetensors::SafeTensors::deserialize(&mmap)?;
-
-                    let mut result = Vec::new();
-                    for name in names {
-                        if let Ok(tensor) = tensors.tensor(name) {
-                            let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                            let data = burn_tensor::TensorData {
-                                bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                                shape: tensor.shape().to_vec(),
-                                dtype,
-                            };
-                            result.push((name.to_string(), data));
-                        }
-                    }
-                    Ok(result)
-                }
-                #[cfg(not(feature = "memmap2"))]
-                {
-                    // Fallback: read entire file if memmap2 is not available
-                    let buffer = std::fs::read(&p.path)?;
-                    let tensors = safetensors::SafeTensors::deserialize(&buffer)?;
-
-                    let mut result = Vec::new();
-                    for name in names {
-                        if let Ok(tensor) = tensors.tensor(name) {
-                            let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                            let data = burn_tensor::TensorData {
-                                bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                                shape: tensor.shape().to_vec(),
-                                dtype,
-                            };
-                            result.push((name.to_string(), data));
-                        }
-                    }
-                    Ok(result)
-                }
-            }
-            Self::Memory(p) => {
-                let data = p
-                    .data()
-                    .ok_or_else(|| SafetensorsError::Other("No data available".to_string()))?;
-                let tensors = safetensors::SafeTensors::deserialize(&data)?;
-
-                let mut result = Vec::new();
-                for name in names {
-                    if let Ok(tensor) = tensors.tensor(name) {
-                        let dtype = safetensor_dtype_to_burn(tensor.dtype())?;
-                        let data = burn_tensor::TensorData {
-                            bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                            shape: tensor.shape().to_vec(),
-                            dtype,
-                        };
-                        result.push((name.to_string(), data));
-                    }
-                }
-                Ok(result)
-            }
-        }
-    }
 
     /// Get saved bytes from memory-based persister.
     ///
@@ -434,18 +240,18 @@ impl Default for MemoryPersister {
 }
 
 impl MemoryPersister {
-    /// Create a new memory-based persister.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the stored data.
-    pub fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
+    #[cfg(test)]
+    pub(crate) fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
         self.data.clone()
     }
-
-    /// Set data for loading.
-    pub fn set_data(&mut self, data: Vec<u8>) {
+    
+    #[cfg(not(test))]
+    fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
+        self.data.clone()
+    }
+    
+    #[cfg(test)]
+    pub(crate) fn set_data(&mut self, data: Vec<u8>) {
         self.data = Some(alloc::sync::Arc::new(data));
     }
 }
