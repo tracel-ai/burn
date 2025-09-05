@@ -22,7 +22,7 @@ derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
 protobuf = { workspace = true, features = ["with-bytes"] }
-regex = { workspace = true }
+regex = { workspace = true, features = ["default"] }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true }
 

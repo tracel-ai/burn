@@ -68,7 +68,10 @@ quote = "1.0.40"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = "1.11.2"
+regex = { version = "1.11.2", default-features = false, features = [
+    "perf",
+    "unicode",
+] }
 reqwest = { version = "0.12.23", default-features = false, features = [
     "rustls-tls",
 ] }
