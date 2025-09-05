@@ -13,8 +13,7 @@ version.workspace = true
 
 [features]
 default = ["std"]
-std = ["burn-core/std", "burn-tensor/std"]
-memory-mapped = ["dep:memmap2"]
+std = ["burn-core/std", "burn-tensor/std", "memmap2"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }

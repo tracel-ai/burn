@@ -6,9 +6,9 @@
 //!
 //! # Features
 //!
-//! - **Fast Loading**: Zero-copy memory-mapped file support for instant tensor access
+//! - **Fast Loading**: Zero-copy tensor access using safetensors' built-in mechanisms
 //! - **Safety**: Prevents arbitrary code execution during model loading
-//! - **Efficiency**: Lazy deserialization only loads tensors when accessed
+//! - **Efficiency**: Memory-mapped files enable lazy loading without reading entire file
 //! - **Filtering**: Load only specific tensors using path filters
 //! - **Remapping**: Transform tensor names during load/save operations
 //! - **Metadata**: Store and retrieve custom metadata alongside tensors
@@ -76,23 +76,60 @@
 //! model.apply_from(&mut persister)?;   // For loading
 //! ```
 //!
-//! # Memory Mapping
+//! # Efficient Loading with SafeTensors
 //!
-//! When the `memory-mapped` feature is enabled, SafeTensors automatically uses memory-mapped
-//! files for extremely fast loading of large models:
+//! SafeTensors provides efficient tensor loading through its zero-copy design:
 //!
 //! ```rust,ignore
-//! // With the memory-mapped feature enabled, this automatically uses mmap
 //! let mut persister = SafetensorsPersister::from_file("large_model.safetensors");
-//! // Tensors are loaded lazily from the memory-mapped file
+//! // Uses memory mapping (when available) for zero-copy access
+//! // Falls back to buffered reading when mmap is not available
 //! let mut model = Model::new(&device);
 //! model.apply_from(&mut persister)?;
 //! ```
 //!
-//! The memory-mapped feature provides:
-//! - Zero-copy loading - tensors are read directly from disk
-//! - Lazy loading - only accessed tensors are loaded into memory
-//! - Shared memory - multiple processes can share the same mapped file
+//! The safetensors approach provides:
+//! - Zero-copy views - tensors are accessed directly from the mapped file
+//! - Lazy loading - only accessed tensors are materialized
+//! - Efficient memory usage - no unnecessary data duplication
+//!
+//! # Lazy Loading and Inspection
+//!
+//! SafeTensors provides efficient inspection and selective loading through its
+//! zero-copy design and built-in metadata handling:
+//!
+//! ```rust,ignore
+//! use burn::persist::safetensors::SafetensorsPersister;
+//!
+//! // Open a file - uses safetensors' efficient header reading
+//! let persister = SafetensorsPersister::from_file("large_model.safetensors");
+//!
+//! // List all tensor names from the metadata
+//! let tensor_names = persister.list_tensors()?;
+//! println!("Model contains {} tensors", tensor_names.len());
+//!
+//! // Get tensor metadata without loading tensor data
+//! if let Some((shape, dtype)) = persister.tensor_info("encoder.weight")? {
+//!     println!("Encoder weight shape: {:?}, dtype: {:?}", shape, dtype);
+//! }
+//!
+//! // Selectively load tensors - safetensors handles efficient access
+//! let encoder_tensors = persister.load_tensors(&[
+//!     "encoder.weight",
+//!     "encoder.bias",
+//!     "encoder.norm"
+//! ])?;
+//!
+//! // Distributed loading: each worker loads only its assigned layers
+//! // SafeTensors' zero-copy views ensure minimal memory usage
+//! let worker_layers = match worker_id {
+//!     0 => vec!["encoder.layer1", "encoder.layer2"],
+//!     1 => vec!["encoder.layer3", "encoder.layer4"],
+//!     2 => vec!["decoder.layer1", "decoder.layer2"],
+//!     _ => vec!["head.weight", "head.bias"],
+//! };
+//! let worker_tensors = persister.load_tensors(&worker_layers)?;
+//! ```
 //!
 //! # Working with Bytes
 //!
@@ -114,15 +151,17 @@
 //!
 //! # Format Details
 //!
-//! SafeTensors stores tensors in a simple binary format with:
-//! - A JSON header containing tensor metadata and offsets
-//! - Raw tensor data in little-endian byte order
-//! - Optional user-defined metadata
+//! SafeTensors uses a simple binary format:
+//! - **8 bytes**: Header size (unsigned little-endian 64-bit integer)
+//! - **N bytes**: JSON header with tensor metadata
+//!   - Contains: `{"tensor_name": {"dtype": "F32", "shape": [1, 2, 3], "data_offsets": [start, end]}, ...}`
+//!   - Special key `__metadata__` for user-defined string metadata
+//! - **Rest**: Raw tensor data (referenced by offsets in header)
 //!
-//! The format is designed to be:
-//! - **Secure**: No pickle/unpickle, preventing code injection
-//! - **Fast**: Direct memory mapping and zero-copy deserialization
-//! - **Simple**: Minimal dependencies and straightforward implementation
+//! The format enables:
+//! - **Secure loading**: No code execution, just data
+//! - **Efficient access**: Use offsets to read only needed tensors
+//! - **Simple parsing**: Standard JSON header with fixed structure
 
 mod persister;
 
