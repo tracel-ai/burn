@@ -3192,7 +3192,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     type Elem = B::BoolElem;
 
     fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        if !dtype.is_bool() {
+        if dtype != Self::Elem::dtype() {
             panic!("Expected bool data type, got {dtype:?}");
         }
         B::bool_empty(shape, device)
@@ -3204,7 +3204,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         device: &B::Device,
         dtype: DType,
     ) -> Self::Primitive {
-        if !dtype.is_bool() {
+        if dtype != Self::Elem::dtype() {
             panic!("Expected bool data type, got {dtype:?}");
         }
         if fill_value.elem() {
