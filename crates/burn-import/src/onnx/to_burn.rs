@@ -82,6 +82,7 @@ use crate::{
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
             where_op::WhereNode,
+            matmul_integer::MatMulIntegerNode,
         },
     },
     format_tokens,
@@ -387,6 +388,7 @@ impl ParsedOnnxGraph {
                 NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
+                NodeType::MatMulInteger => graph.register( Self::matmul_integer_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
                 NodeType::And => graph.register(Self::and_conversion(node)),
@@ -775,7 +777,23 @@ impl ParsedOnnxGraph {
 
         MatmulNode::new(lhs, rhs, output)
     }
+    fn matmul_integer_conversion(node: Node) -> MatMulIntegerNode {
+    use crate::burn::TensorType;
 
+    // A, B
+    let lhs = TensorType::from(node.inputs.first().unwrap());   // u8|i8
+    let rhs = TensorType::from(node.inputs.get(1).unwrap());    // u8|i8
+
+    // optional zero-points
+    let lhs_zp = node.inputs.get(2).map(TensorType::from);      // may be None
+    let rhs_zp = node.inputs.get(3).map(TensorType::from);      // may be None
+
+    // output: must be i32; if TensorType::from already yields i32, you can keep it,
+    // otherwise force it using your constructor that picks dtype/int kind.
+    let output = TensorType::from(node.outputs.first().unwrap());
+
+    MatMulIntegerNode::new(lhs, rhs, lhs_zp, rhs_zp, output)
+}
     fn equal_conversion(node: Node) -> BinaryNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
