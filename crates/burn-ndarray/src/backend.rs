@@ -9,9 +9,10 @@ use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
-use rand::{SeedableRng, rngs::StdRng};
+use crate::rand::NdArrayRng;
+use rand::SeedableRng;
 
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,7 +77,7 @@ where
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
+        let rng = NdArrayRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }

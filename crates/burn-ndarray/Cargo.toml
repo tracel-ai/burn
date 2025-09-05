@@ -42,6 +42,7 @@ std = [
     "ndarray/std",
     "matrixmultiply/std",
     "rand/std",
+    "rand/std_rng",
     "num-traits/std",
     "macerator/std",
 ]
@@ -59,7 +60,7 @@ burn-ir = { path = "../burn-ir", version = "0.19.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
 
 atomic_float = { workspace = true }
-blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
+blas-src = { workspace = true, default-features = false, optional = true }      # no-std compatible
 derive-new = { workspace = true }
 libm = { workspace = true }
 matrixmultiply = { workspace = true, default-features = false }
@@ -67,7 +68,8 @@ ndarray = { workspace = true }
 num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, default-features = false, features = ["small_rng"] }
+const-random = { workspace = true }
 spin = { workspace = true }
 
 # SIMD

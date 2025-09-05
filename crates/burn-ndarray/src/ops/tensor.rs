@@ -18,7 +18,7 @@ use crate::{
 use crate::{execute_with_float_dtype, ops::grid_sample::grid_sample_2d};
 
 // Workspace crates
-use burn_common::rand::get_seeded_rng;
+use crate::rand::get_seeded_rng;
 use burn_tensor::{Distribution, FloatDType};
 use burn_tensor::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
 
@@ -43,6 +43,7 @@ fn round_ties_even_wrapper(x: f64) -> f64 {
         x.round()
     }
 }
+
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorOps<Self>
     for NdArray<E, I, Q>
