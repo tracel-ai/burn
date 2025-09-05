@@ -5,6 +5,7 @@ use quote::quote;
 use syn::Visibility;
 
 pub(crate) struct EnumModuleCodegen {
+    pub name: Ident,
     pub variants: Vec<EnumVariant>,
     pub vis: Visibility,
 }
@@ -27,9 +28,15 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_visit(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|_| {
+        let enum_name = self.name.to_string();
+        let match_body = self.gen_variants_match_fn(|variant_name| {
+            let variant_str = variant_name.to_string();
             quote! {
-                burn::module::Module::visit(module, visitor)
+                {
+                    visitor.enter_module(#variant_str, #enum_name);
+                    burn::module::Module::visit(module, visitor);
+                    visitor.exit_module(#variant_str, #enum_name);
+                }
             }
         });
 
@@ -86,9 +93,16 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_map(&self) -> TokenStream {
+        let enum_name = self.name.to_string();
         let match_body = self.gen_variants_match_fn(|variant| {
+            let variant_str = variant.to_string();
             quote! {
-                Self::#variant(burn::module::Module::<B>::map(module, mapper))
+                {
+                    mapper.enter_module(#variant_str, #enum_name);
+                    let result = burn::module::Module::<B>::map(module, mapper);
+                    mapper.exit_module(#variant_str, #enum_name);
+                    Self::#variant(result)
+                }
             }
         });
 
@@ -166,6 +180,7 @@ impl ModuleCodegen for EnumModuleCodegen {
 impl EnumModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
+            name: ast.ident.clone(),
             variants: parse_variants(ast),
             vis: ast.vis.clone(),
         }

@@ -581,6 +581,7 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
+ "burn-persist",
  "burn-remote",
  "burn-rocm",
  "burn-router",
@@ -718,6 +719,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "log",
  "num-traits",
+ "portable-atomic",
  "portable-atomic-util",
  "rand 0.9.2",
  "regex",
@@ -931,6 +933,19 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "serde",
+]
+
+[[package]]
+name = "burn-persist"
+version = "0.19.0"
+dependencies = [
+ "burn-core",
+ "burn-ndarray",
+ "burn-tensor",
+ "hashbrown 0.15.5",
+ "memmap2",
+ "safetensors 0.6.2",
+ "tempfile",
 ]
 
 [[package]]
@@ -6917,6 +6932,16 @@ name = "safetensors"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "safetensors"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "172dd94c5a87b5c79f945c863da53b2ebc7ccef4eca24ac63cca66a41aab2178"
 dependencies = [
  "serde",
  "serde_json",
