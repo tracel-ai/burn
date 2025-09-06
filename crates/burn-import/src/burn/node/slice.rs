@@ -60,8 +60,16 @@ impl SliceNode {
                             let axis_idx = axis as usize;
                             if axis_idx < rank {
                                 let start = start.to_tokens();
-                                let end = end.to_tokens();
-                                ranges[axis_idx] = quote! { #start..#end };
+                                // Check for i64::MAX which means "to the end"
+                                // Slice indices are i32
+                                if *end == i64::MAX {
+                                    ranges[axis_idx] = quote! { #start.. };
+                                } else if *end > i32::MAX as i64 {
+                                    panic!("Slice end index {} exceeds i32::MAX", end);
+                                } else {
+                                    let end = end.to_tokens();
+                                    ranges[axis_idx] = quote! { #start..#end };
+                                }
                             }
                         }
                     }
@@ -70,8 +78,16 @@ impl SliceNode {
                     let limit = starts.len().min(ends.len()).min(rank);
                     for (i, range) in ranges.iter_mut().enumerate().take(limit) {
                         let start = starts[i].to_tokens();
-                        let end = ends[i].to_tokens();
-                        *range = quote! { #start..#end };
+                        // Check for i64::MAX which means "to the end"
+                        // Slice indices are i32
+                        if ends[i] == i64::MAX {
+                            *range = quote! { #start.. };
+                        } else if ends[i] > i32::MAX as i64 {
+                            panic!("Slice end index {} exceeds i32::MAX", ends[i]);
+                        } else {
+                            let end = ends[i].to_tokens();
+                            *range = quote! { #start..#end };
+                        }
                     }
                 }
             }

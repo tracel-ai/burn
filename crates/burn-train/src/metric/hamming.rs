@@ -1,12 +1,15 @@
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid, backend::Backend};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
+#[derive(Clone)]
 pub struct HammingScore<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     threshold: f32,
     sigmoid: bool,
@@ -26,15 +29,21 @@ impl<B: Backend> HammingScore<B> {
         Self::default()
     }
 
+    fn update_name(&mut self) {
+        self.name = Arc::new(format!("Hamming Score @ Threshold({})", self.threshold));
+    }
+
     /// Sets the threshold.
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
+        self.update_name();
         self
     }
 
     /// Sets the sigmoid activation function usage.
     pub fn with_sigmoid(mut self, sigmoid: bool) -> Self {
         self.sigmoid = sigmoid;
+        self.update_name();
         self
     }
 }
@@ -42,9 +51,13 @@ impl<B: Backend> HammingScore<B> {
 impl<B: Backend> Default for HammingScore<B> {
     /// Creates a new metric instance with default values.
     fn default() -> Self {
+        let threshold = 0.5;
+        let name = Arc::new(format!("Hamming Score @ Threshold({})", threshold));
+
         Self {
+            name,
             state: NumericMetricState::default(),
-            threshold: 0.5,
+            threshold,
             sigmoid: false,
             _b: PhantomData,
         }
@@ -84,13 +97,13 @@ impl<B: Backend> Metric for HammingScore<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        format!("Hamming Score @ Threshold({})", self.threshold)
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl<B: Backend> Numeric for HammingScore<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -128,7 +141,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y.clone()),
             &MetricMetadata::fake(),
         );
-        assert_eq!(100.0, metric.value());
+        assert_eq!(100.0, metric.value().current());
 
         // Invert all targets: y = (1 - y)
         let y = y.neg().add_scalar(1);
@@ -136,7 +149,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(0.0, metric.value());
+        assert_eq!(0.0, metric.value().current());
 
         // Invert 5 target values -> 1 - (5/20) = 0.75
         let y = Tensor::from_data(
@@ -152,7 +165,7 @@ mod tests {
             &HammingScoreInput::new(x, y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(75.0, metric.value());
+        assert_eq!(75.0, metric.value().current());
     }
 
     #[test]

@@ -216,6 +216,43 @@ macro_rules! execute_with_dtype {
         }
         execute_with_dtype!(float($lhs_dtype), $element, $op)
     }};
+    (int($dtype:expr), $element:ident, $op:expr) => {{
+        match $dtype {
+            burn_tensor::DType::U64 => {
+                type $element = u64;
+                $op
+            }
+            burn_tensor::DType::U32 => {
+                type $element = u32;
+                $op
+            }
+            burn_tensor::DType::U16 => {
+                type $element = u16;
+                $op
+            }
+            burn_tensor::DType::U8 => {
+                type $element = u8;
+                $op
+            }
+            burn_tensor::DType::I64 => {
+                type $element = i64;
+                $op
+            }
+            burn_tensor::DType::I32 => {
+                type $element = i32;
+                $op
+            }
+            burn_tensor::DType::I16 => {
+                type $element = i16;
+                $op
+            }
+            burn_tensor::DType::I8 => {
+                type $element = i8;
+                $op
+            }
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
+        }
+    }};
     ($dtype:expr, $element:ident, $op:expr) => {{
         match $dtype {
             burn_tensor::DType::F64 => {
@@ -376,7 +413,8 @@ where
         }
     }
 
-    fn elem_size(&self) -> usize {
+    /// Returns the element size of this tensor
+    pub fn elem_size(&self) -> usize {
         if let DType::QFloat(_) = self.dtype {
             // Encoded as u32
             core::mem::size_of::<u32>()

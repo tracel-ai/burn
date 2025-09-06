@@ -1,6 +1,6 @@
-use crate::{element::FloatNdArrayElement, sharing::UnsafeSharedRef, tensor::NdArrayTensor};
+use crate::{SharedArray, element::FloatNdArrayElement, sharing::UnsafeSharedRef};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{ElementConversion, TensorMetadata};
+use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
 #[cfg(not(feature = "std"))]
@@ -8,12 +8,11 @@ use ndarray::Array4;
 use num_traits::Float;
 
 pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
-    let [batch_size, channels, input_height, input_width] = x.shape().dims();
+) -> SharedArray<E> {
+    let [batch_size, channels, input_height, input_width] = x.shape().try_into().unwrap();
 
-    let x = x.array;
     let mut output = Array4::from_elem(
         (batch_size, channels, output_size[0], output_size[1]),
         0.elem(),
@@ -48,15 +47,15 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
         })
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    grad: NdArrayTensor<E>,
-) -> NdArrayTensor<E> {
-    let [_, _, input_height, input_width] = x.shape().dims();
-    let [batch_size, channels, output_height, output_width] = grad.shape().dims();
+    x: SharedArray<E>,
+    grad: SharedArray<E>,
+) -> SharedArray<E> {
+    let [_, _, input_height, input_width] = x.shape().try_into().unwrap();
+    let [batch_size, channels, output_height, output_width] = grad.shape().try_into().unwrap();
 
     let mut output_grad =
         Array4::from_elem((batch_size, channels, input_height, input_width), 0.elem());
@@ -80,8 +79,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
 
                     for ih in ih_start..ih_end {
                         for iw in iw_start..iw_end {
-                            output_grad[[b, c, ih, iw]] +=
-                                grad.array[[b, c, oh, ow]] / count.elem();
+                            output_grad[[b, c, ih, iw]] += grad[[b, c, oh, ow]] / count.elem();
                         }
                     }
                 }
@@ -89,7 +87,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
         })
     });
 
-    NdArrayTensor::new(output_grad.into_dyn().into_shared())
+    output_grad.into_dyn().into_shared()
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {

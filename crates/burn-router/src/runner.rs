@@ -1286,6 +1286,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
     }
 
     fn seed(&self, seed: u64) {
-        B::seed(seed)
+        let device = self.device.clone();
+        B::seed(&device, seed)
     }
 }

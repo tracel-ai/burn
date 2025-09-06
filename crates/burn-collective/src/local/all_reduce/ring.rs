@@ -80,12 +80,11 @@ pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
 
 /// Get the shape of the tensors. They should have all the same shape, otherwise None is returned.
 fn get_shape<B: Backend>(tensors: &HashMap<PeerId, B::FloatTensorPrimitive>) -> Option<Shape> {
-    let mut shape = None;
+    let mut shape: Option<Shape> = None;
 
     for tensor in tensors.values() {
-        if shape.is_none() {
-            shape = Some(tensor.shape());
-        } else if tensor.shape() != *shape.as_ref().unwrap() {
+        let shape = shape.get_or_insert_with(|| tensor.shape());
+        if tensor.shape() != *shape {
             return None;
         }
     }

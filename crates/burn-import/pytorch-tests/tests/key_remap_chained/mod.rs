@@ -18,7 +18,7 @@ pub trait ForwardModule<B: Backend> {
 #[derive(Module, Debug)]
 pub struct ConvBlock<B: Backend> {
     conv: Conv2d<B>,
-    bn: BatchNorm<B, 2>,
+    bn: BatchNorm<B>,
 }
 
 impl<B: Backend> ForwardModule<B> for ConvBlock<B> {
@@ -70,7 +70,7 @@ impl<B: Backend> ModuleBlock<B, ConvBlock<B>> {
 #[derive(Module, Debug)]
 pub struct Model<B: Backend, M> {
     conv: Conv2d<B>,
-    bn: BatchNorm<B, 2>,
+    bn: BatchNorm<B>,
     layer: ModuleBlock<B, M>,
 }
 

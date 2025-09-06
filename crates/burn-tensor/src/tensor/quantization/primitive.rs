@@ -14,4 +14,10 @@ pub trait QTensorPrimitive {
     fn propagation(&self) -> QuantPropagation {
         QuantPropagation::Inhibit
     }
+
+    #[cfg(feature = "export_tests")]
+    /// Returns the default quantization scheme.
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default()
+    }
 }

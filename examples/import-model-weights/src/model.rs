@@ -12,10 +12,10 @@ pub struct Model<B: Backend> {
     conv1: Conv2d<B>,
     conv2: Conv2d<B>,
     conv3: Conv2d<B>,
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
     fc1: Linear<B>,
     fc2: Linear<B>,
-    norm2: BatchNorm<B, 0>,
+    norm2: BatchNorm<B>,
 }
 
 impl<B: Backend> Model<B> {

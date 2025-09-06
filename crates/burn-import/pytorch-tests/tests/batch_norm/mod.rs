@@ -6,7 +6,7 @@ use burn::{
 
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
 }
 
 impl<B: Backend> Net<B> {

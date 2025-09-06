@@ -383,7 +383,11 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use crate::{Tensor, TensorData, backend::Backend, quantization::QuantScheme};
+    use crate::{
+        Tensor, TensorData,
+        backend::Backend,
+        quantization::{QTensorPrimitive, QuantValue},
+    };
 
     pub struct QTensor<B: Backend, const D: usize> {
         b: PhantomData<B>,
@@ -398,8 +402,10 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default())
-                .quantize_dynamic(&QuantScheme::default())
+            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+                    .with_value(QuantValue::Q8S),
+            )
         }
     }
 }

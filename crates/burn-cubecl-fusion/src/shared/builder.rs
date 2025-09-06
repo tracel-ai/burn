@@ -11,7 +11,7 @@ use burn_ir::{
     TensorIr, UnaryOpIr,
 };
 use burn_tensor::{DType, Element};
-use cubecl::ir::Elem;
+use cubecl::ir::ElemType;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
 ///
@@ -460,7 +460,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(1, precision);
 
@@ -477,7 +477,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(0, precision);
 

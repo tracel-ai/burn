@@ -9,14 +9,16 @@ mod tests {
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    fn should_quantize_dequantize_symmetric_arange(store: QuantStore) {
-        let scheme = QuantScheme::default().with_store(store);
+    fn should_quantize_dequantize_symmetric_arange(value: QuantValue, store: QuantStore) {
+        let scheme = QuantScheme::default().with_value(value).with_store(store);
+        let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+
         let input = Tensor::<TestBackend, 1, Int>::arange(0..128, &Default::default()).float();
         let input_ref =
             Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
-        let output_ref = input_ref.quantize_dynamic(&scheme);
+        let output_ref = input_ref.quantize_dynamic(&scheme_ref);
 
         output.to_data().assert_eq(&output_ref.to_data(), false);
 
@@ -28,10 +30,16 @@ mod tests {
             .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
     }
 
-    fn should_quantize_dequantize_symmetric_per_block(store: QuantStore) {
+    fn should_quantize_dequantize_symmetric_per_block(
+        value: QuantValue,
+        block_size: usize,
+        store: QuantStore,
+    ) {
         let scheme = QuantScheme::default()
-            .with_level(QuantLevel::Block(8))
+            .with_value(value)
+            .with_level(QuantLevel::Block(block_size))
             .with_store(store);
+        let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
         let input = Tensor::<TestBackend, 2>::from_floats(
             [
@@ -50,7 +58,7 @@ mod tests {
             Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
-        let output_ref = input_ref.quantize_dynamic(&scheme);
+        let output_ref = input_ref.quantize_dynamic(&scheme_ref);
 
         output.to_data().assert_eq(&output_ref.to_data(), false);
 
@@ -75,26 +83,68 @@ mod tests {
     }
 
     #[test]
-    fn should_quantize_dequantize_symmetric_arange_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantStore::U32)
+    fn should_quantize_dequantize_symmetric_arange_q8s_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32)
     }
 
     #[test]
-    fn should_quantize_dequantize_symmetric_per_block_packed() {
-        should_quantize_dequantize_symmetric_per_block(QuantStore::U32)
+    fn should_quantize_dequantize_symmetric_arange_q8f_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32)
     }
 
     #[test]
-    fn should_quantize_dequantize_symmetric_arange_native() {
+    fn should_quantize_dequantize_symmetric_arange_q4s_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_q4f_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_q2s_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_q2f_packed() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_q8s_packed() {
+        should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_q4s_packed() {
+        should_quantize_dequantize_symmetric_per_block(QuantValue::Q4S, 8, QuantStore::U32)
+    }
+
+    #[test]
+    #[should_panic = "Block size must be divisible by 16"]
+    fn should_panic_when_block_size_cannot_store_num_quants() {
+        // num_quants in u32 = 32 bits / 2 bits = 16
+        should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 8, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_q2s_packed() {
+        should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 16, QuantStore::U32)
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_q8s_native() {
         if supports_native() {
-            should_quantize_dequantize_symmetric_arange(QuantStore::Native)
+            should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native)
         }
     }
 
     #[test]
-    fn should_quantize_dequantize_symmetric_per_block_native() {
+    fn should_quantize_dequantize_symmetric_per_block_q8s_native() {
         if supports_native() {
-            should_quantize_dequantize_symmetric_per_block(QuantStore::Native)
+            should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
         }
     }
 

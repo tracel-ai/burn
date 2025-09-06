@@ -85,7 +85,8 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = EmbeddingConfig::new(5, 5).with_initializer(Initializer::Zeros);
         let embed = config.init::<TestBackend>(&Default::default());

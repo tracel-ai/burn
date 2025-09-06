@@ -90,6 +90,7 @@ pub(crate) fn handle_command(
                 CiTestType::GithubRunner => {
                     // Exclude crates that are not supported on CI
                     args.exclude.extend(vec![
+                        "burn-cpu".to_string(),
                         "burn-cuda".to_string(),
                         "burn-rocm".to_string(),
                         // "burn-router" uses "burn-wgpu" for the tests.

@@ -2,13 +2,14 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The accuracy metric.
-#[derive(Default)]
+#[derive(Clone)]
 pub struct AccuracyMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
@@ -21,10 +22,21 @@ pub struct AccuracyInput<B: Backend> {
     targets: Tensor<B, 1, Int>,
 }
 
+impl<B: Backend> Default for AccuracyMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> AccuracyMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: MetricName::new("Accuracy".to_string()),
+            state: Default::default(),
+            pad_token: Default::default(),
+            _b: PhantomData,
+        }
     }
 
     /// Sets the pad token.
@@ -77,13 +89,13 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "Accuracy".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl<B: Backend> Numeric for AccuracyMetric<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -111,7 +123,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     #[test]
@@ -135,6 +147,6 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 }

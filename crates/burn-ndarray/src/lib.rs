@@ -4,9 +4,6 @@
 
 //! Burn ndarray backend.
 
-#[macro_use]
-extern crate derive_new;
-
 #[cfg(any(
     feature = "blas-netlib",
     feature = "blas-openblas",
@@ -41,4 +38,10 @@ mod tests {
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();
+
+    // Quantization
+    burn_tensor::testgen_calibration!();
+    burn_tensor::testgen_scheme!();
+    burn_tensor::testgen_quantize!();
+    burn_tensor::testgen_q_data!();
 }

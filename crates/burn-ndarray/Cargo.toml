@@ -15,24 +15,6 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "simd", "multi-threads"]
-std = [
-    "burn-autodiff",
-    "burn-common/std",
-    "burn-tensor/std",
-    "burn-ir/std",
-    "ndarray/std",
-    "matrixmultiply/std",
-    "rand/std",
-    "num-traits/std",
-    "macerator/std",
-]
-doc = ["default"]
-multi-threads = [
-    "ndarray/rayon",
-    "burn-common/rayon",
-    "matrixmultiply/threading",
-]
 blas-accelerate = [
     "blas-src/accelerate", # Accelerate framework (macOS only)
     "ndarray/blas",
@@ -44,7 +26,28 @@ blas-openblas-system = [
     "ndarray/blas",
     "openblas-src/system",
 ]
+default = ["std", "simd", "multi-threads"]
+doc = ["default"]
+multi-threads = [
+    "ndarray/rayon",
+    "burn-common/rayon",
+    "matrixmultiply/threading",
+]
 simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
+std = [
+    "burn-autodiff",
+    "burn-common/std",
+    "burn-tensor/std",
+    "burn-ir/std",
+    "ndarray/std",
+    "matrixmultiply/std",
+    "rand/std",
+    "num-traits/std",
+    "macerator/std",
+]
+
+# Serves as a ref impl for some burn-cubecl kernels
+export_tests = []
 
 [dependencies]
 
@@ -65,7 +68,7 @@ num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
 rand = { workspace = true }
-spin = { workspace = true }                                                # using in place of use std::sync::Mutex;
+spin = { workspace = true }
 
 # SIMD
 bytemuck = { workspace = true, optional = true }

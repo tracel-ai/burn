@@ -1,6 +1,6 @@
 // Include the models for this node type
 use crate::include_models;
-include_models!(sub, sub_int, sub_shape, sub_broadcast);
+include_models!(sub, sub_int, sub_shape, sub_broadcast, sub_shape_tensor);
 
 #[cfg(test)]
 mod tests {

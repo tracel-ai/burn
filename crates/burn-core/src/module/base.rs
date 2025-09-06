@@ -68,15 +68,15 @@ macro_rules! module {
 /// use burn_core as burn;
 ///
 /// use burn::{
-///     nn,
 ///     module::Module,
+///     nn::Linear,
 ///     tensor::Tensor,
 ///     tensor::backend::Backend,
 /// };
 ///
 /// #[derive(Module, Debug)]
 /// struct MyModule<B: Backend> {
-///   my_param: nn::Linear<B>,
+///   my_param: Linear<B>,
 ///   my_other_field: usize,
 /// }
 /// ```

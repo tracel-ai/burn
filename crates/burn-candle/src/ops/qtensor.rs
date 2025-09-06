@@ -8,13 +8,13 @@ use burn_tensor::{
 };
 
 use crate::{
-    Candle, CandleQTensor,
+    Candle,
     element::{FloatCandleElement, IntCandleElement},
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, I> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        unimplemented!() // no i8 support
+        unimplemented!()
     }
 
     fn quantize(
@@ -29,8 +29,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        super::base::device(&tensor.qtensor)
+    fn q_device(_tensor: &QuantizedTensor<Self>) -> Device<Self> {
+        unimplemented!()
     }
 
     fn q_to_device(
@@ -40,11 +40,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        CandleQTensor {
-            qtensor: super::base::reshape(tensor.qtensor, shape),
-            scheme: tensor.scheme,
-        }
+    fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
+        unimplemented!()
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {

@@ -8,7 +8,7 @@ use burn_tensor::{
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    CandleQTensor, CandleTensor,
+    CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -170,11 +170,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type BoolTensorPrimitive = CandleTensor;
     type BoolElem = u8;
 
-    // type ComplexTensorPrimitive = CandleTensor;
-    // type ComplexElem = burn_tensor::Complex32;
+    type QuantizedTensorPrimitive = CandleTensor;
 
-    type QuantizedTensorPrimitive = CandleQTensor;
-    type QuantizedEncoding = u8;
 
     fn ad_enabled() -> bool {
         false
@@ -189,7 +186,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         .to_string()
     }
 
-    fn seed(seed: u64) {
+    fn seed(device: &CandleDevice, seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
     }

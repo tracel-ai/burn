@@ -1,16 +1,16 @@
 use std::ops::Range;
 
 use burn_tensor::{
-    Distribution, Shape, TensorData, TensorMetadata,
+    Distribution, IntDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
     ops::{FloatTensorOps, IntTensor, IntTensorOps},
 };
 
-use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
+use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 
-impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
+impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_tensor::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
@@ -464,5 +464,26 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         rhs: burn_tensor::ops::IntElem<Self>,
     ) -> IntTensor<Self> {
         TchOps::bitwise_right_shift_scalar(lhs, rhs)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        // NOTE: when dtypes of inputs to an arithmetic operation differ, tch handles type
+        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
+
+        // Type promotion is not automatic on all backends so this behavior might differ
+        let kind = match dtype {
+            IntDType::I64 => tch::Kind::Int64,
+            IntDType::I32 => tch::Kind::Int,
+            IntDType::I16 => tch::Kind::Int16,
+            IntDType::I8 => tch::Kind::Int8,
+            IntDType::U8 => tch::Kind::Uint8,
+            _ => panic!("Unsupported dtype: {dtype:?}"),
+        };
+
+        if tensor.tensor.kind() == kind {
+            tensor
+        } else {
+            TchTensor::new(tensor.tensor.to_kind(kind))
+        }
     }
 }
