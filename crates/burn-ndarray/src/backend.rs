@@ -8,7 +8,8 @@ use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
 use rand::{SeedableRng, rngs::StdRng};
 
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+/// The seed for the ndarray backend.
+pub static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

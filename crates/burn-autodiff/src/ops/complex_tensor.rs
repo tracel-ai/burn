@@ -1,4 +1,3 @@
-
 // impl<B: Backend, C: CheckpointStrategy> ComplexTensorOps<Self> for Autodiff<B, C> {
 //     fn complex_from_data(data: TensorData, device: &Device<Self>) -> ComplexTensor<Self> {
 //         B::complex_from_data(data, device)

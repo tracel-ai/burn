@@ -198,7 +198,8 @@ mod utils {
     where
         E: Element,
     {
-        pub(crate) fn into_data(self) -> TensorData {
+        /// Converts the tensor into a `TensorData` object.
+        pub fn into_data(self) -> TensorData {
             let shape = self.shape();
 
             let vec = if self.is_contiguous() {

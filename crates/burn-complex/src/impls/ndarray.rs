@@ -1,7 +1,13 @@
-use burn_ndarray::{FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement};
-use ndarray::Array;
+use burn_ndarray::{
+    FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, QuantElement,
+    SEED as NDSEED,
+};
+use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensor};
+use ndarray::{Array, IxDyn};
 
-use crate::base::{Complex32, ComplexElementLayout, ComplexTensor, ComplexTensorBackend};
+use crate::base::{
+    ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout, element::Complex32,
+};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTensorBackend
     for NdArray<E, I, Q>
@@ -11,7 +17,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTenso
     type ComplexTensorPrimitive = NdArrayTensor<Complex32>;
     type ComplexElem = Complex32;
 
-    type Layout = ComplexElementLayout;
+    type Layout = InterleavedLayout;
 
     fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend> {
         ndarray::Array::from_shape_vec(
@@ -54,7 +60,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
         distribution: Distribution,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<Complex32> {
-        let mut seed = SEED.lock().unwrap();
+        let mut seed = NDSEED.lock().unwrap();
         let mut rng = if let Some(rng_seeded) = seed.as_ref() {
             rng_seeded.clone()
         } else {

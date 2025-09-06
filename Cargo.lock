@@ -694,15 +694,18 @@ name = "burn-complex"
 version = "0.19.0"
 dependencies = [
  "bon",
+ "burn-common",
  "burn-ndarray",
  "burn-tensor",
  "bytemuck",
+ "cubecl",
  "derive-new",
  "half",
  "macerator",
  "ndarray",
  "num-complex",
  "num-traits",
+ "rand 0.9.2",
 ]
 
 [[package]]

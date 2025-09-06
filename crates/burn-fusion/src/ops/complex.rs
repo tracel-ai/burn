@@ -1,4 +1,3 @@
-
 // impl<B: FusionBackend> ComplexTensorOps<Self> for Fusion<B> {
 //     fn complex_from_data(
 //         _data: TensorData,
