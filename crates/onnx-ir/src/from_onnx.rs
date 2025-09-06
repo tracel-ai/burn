@@ -55,16 +55,16 @@ use protobuf::Enum;
 
 pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
     match DT::from_i32(dt_i32).ok_or_else(|| format!("unknown dtype {}", dt_i32))? {
-        DT::FLOAT    => Ok(ElementType::Float32),
-        DT::DOUBLE   => Ok(ElementType::Float64),
-        DT::FLOAT16  => Ok(ElementType::Float16),
-        DT::INT64    => Ok(ElementType::Int64),
-        DT::INT32    => Ok(ElementType::Int32),
-        DT::UINT8    => Ok(ElementType::Uint8),
-        DT::INT8     => Ok(ElementType::Int8),
-        DT::BOOL     => Ok(ElementType::Bool),
-        DT::STRING   => Ok(ElementType::String),
-        other        => Err(format!("unsupported dtype {:?}", other)),
+        DT::FLOAT => Ok(ElementType::Float32),
+        DT::DOUBLE => Ok(ElementType::Float64),
+        DT::FLOAT16 => Ok(ElementType::Float16),
+        DT::INT64 => Ok(ElementType::Int64),
+        DT::INT32 => Ok(ElementType::Int32),
+        DT::UINT8 => Ok(ElementType::Uint8),
+        DT::INT8 => Ok(ElementType::Int8),
+        DT::BOOL => Ok(ElementType::Bool),
+        DT::STRING => Ok(ElementType::String),
+        other => Err(format!("unsupported dtype {:?}", other)),
     }
 }
 /// Minimum required ONNX opset version
@@ -241,23 +241,21 @@ impl OnnxGraphBuilder {
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
-            
             &model_proto.graph.initializer,
-            
         );
         for t in &model_proto.graph.initializer {
-    log::debug!(
-        "init name={:?} dtype={:?} dims={:?} raw_len={} i32={} i64={} f32={} f64={}",
-        t.name,
-        crate::protos::tensor_proto::DataType::from_i32(t.data_type),
-        t.dims,
-        t.raw_data.len(),
-        t.int32_data.len(),
-        t.int64_data.len(),
-        t.float_data.len(),
-        t.double_data.len(),
-    );
-}
+            log::debug!(
+                "init name={:?} dtype={:?} dims={:?} raw_len={} i32={} i64={} f32={} f64={}",
+                t.name,
+                crate::protos::tensor_proto::DataType::from_i32(t.data_type),
+                t.dims,
+                t.raw_data.len(),
+                t.int32_data.len(),
+                t.int64_data.len(),
+                t.float_data.len(),
+                t.double_data.len(),
+            );
+        }
         // First pass: count constant usage
         self.count_constant_usage(&model_proto.graph.node);
 

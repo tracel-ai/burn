@@ -37,7 +37,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                         ScalarKind::Float32
                     }
                     ElementType::Int64 => ScalarKind::Int64,
-                    ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => ScalarKind::Int32,
+                    ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => {
+                        ScalarKind::Int32
+                    }
                     ElementType::Bool => ScalarKind::Bool,
                     ElementType::String => panic!("Cast: String type not supported"),
                 };
@@ -50,13 +52,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 } else {
                     // Cast to the target type specified by ONNX
                     let ty = match self.target_elem_type {
-                    ElementType::Float16 | ElementType::Float32 => quote! { f32 },
-                    ElementType::Float64 => quote! { f64 },
-                    ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => quote! { i32 },
-                    ElementType::Int64 => quote! { i64 },
-                    ElementType::Bool => quote! { bool },
-                    ElementType::String => panic!("Cast: String type not supported"),
-};
+                        ElementType::Float16 | ElementType::Float32 => quote! { f32 },
+                        ElementType::Float64 => quote! { f64 },
+                        ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => {
+                            quote! { i32 }
+                        }
+                        ElementType::Int64 => quote! { i64 },
+                        ElementType::Bool => quote! { bool },
+                        ElementType::String => panic!("Cast: String type not supported"),
+                    };
                     quote! {
                         let #output = #input as #ty;
                     }
@@ -137,7 +141,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                             };
                         }
                     }
-                    ElementType::Int8|ElementType::Uint8|ElementType::Int32 | ElementType::Int64 => {
+                    ElementType::Int8
+                    | ElementType::Uint8
+                    | ElementType::Int32
+                    | ElementType::Int64 => {
                         // This shouldn't happen - onnx-ir should keep Shape as Shape for int casts
                         panic!(
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"

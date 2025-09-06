@@ -91,10 +91,7 @@ use crate::{
 
 use onnx_ir::{
     convert_constant_value,
-    ir::{
-        ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph,
-      
-    },
+    ir::{ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph},
     node::{
         argmax::argmax_config,
         argmin::argmin_config,
@@ -525,117 +522,126 @@ impl ParsedOnnxGraph {
         graph
     }
 
-   fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
-    let output = node.outputs.first().unwrap();
-    let attr = convert_constant_value(&node);
+    fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
+        let output = node.outputs.first().unwrap();
+        let attr = convert_constant_value(&node);
 
-    // Helper to map elem type to ConstantValue (single scalar)
-    fn scalar_from_data(elem: ElementType, data: onnx_ir::ir::Data) -> ConstantValue {
-        match elem {
-            ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
-            ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
-            ElementType::Int64   => ConstantValue::Int64(data.into_i64()),
-            ElementType::Int32   => ConstantValue::Int32(data.into_i32()),
-            ElementType::Bool    => ConstantValue::Bool(data.into_bool()),
-            // If you want to allow 8-bit scalars too:
-            ElementType::Uint8   => ConstantValue::Int32(data.into_i32()), // or define UInt8 variant if you have one
-            ElementType::Int8    => ConstantValue::Int32(data.into_i32()),
-            _ => panic!("Unsupported scalar type: {elem:?}"),
-        }
-    }
-
-    let const_value = match &output.ty {
-        // Shape constants already handled
-        ArgType::Shape(rank) => {
-            let shape_data = attr.value.expect("Shape constant should have value");
-            let shape_values: Vec<usize> = shape_data
-                .data
-                .into_i64s()
-                .into_iter()
-                .map(|v| v as usize)
-                .collect();
-            assert_eq!(shape_values.len(), *rank, "Shape constant rank mismatch");
-            ConstantValue::Shape(shape_values)
+        // Helper to map elem type to ConstantValue (single scalar)
+        fn scalar_from_data(elem: ElementType, data: onnx_ir::ir::Data) -> ConstantValue {
+            match elem {
+                ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
+                ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
+                ElementType::Int64 => ConstantValue::Int64(data.into_i64()),
+                ElementType::Int32 => ConstantValue::Int32(data.into_i32()),
+                ElementType::Bool => ConstantValue::Bool(data.into_bool()),
+                // If you want to allow 8-bit scalars too:
+                ElementType::Uint8 => ConstantValue::Int32(data.into_i32()), // or define UInt8 variant if you have one
+                ElementType::Int8 => ConstantValue::Int32(data.into_i32()),
+                _ => panic!("Unsupported scalar type: {elem:?}"),
+            }
         }
 
-        ArgType::Tensor(tensor) => {
-            // Accept rank-0 tensor constants as SCALARS instead of panicking.
-            if tensor.rank == 0 {
-                let v = attr.value.as_ref().expect("Scalar constant should have value");
-                scalar_from_data(tensor.elem_type.clone(), v.data.clone())
-            } else {
-                let kind: TensorKind = tensor.elem_type.clone().into();
-                let rank = tensor.rank;
-                let name = node.name.clone();
-                let tensor_data = attr.value.expect("Constant tensor should have value");
+        let const_value = match &output.ty {
+            // Shape constants already handled
+            ArgType::Shape(rank) => {
+                let shape_data = attr.value.expect("Shape constant should have value");
+                let shape_values: Vec<usize> = shape_data
+                    .data
+                    .into_i64s()
+                    .into_iter()
+                    .map(|v| v as usize)
+                    .collect();
+                assert_eq!(shape_values.len(), *rank, "Shape constant rank mismatch");
+                ConstantValue::Shape(shape_values)
+            }
 
-                let tensor_data = match &tensor.elem_type {
-                    // Floats
-                    ElementType::Float32 | ElementType::Float64 => {
-                        serialize_data::<PS::FloatElem>(tensor_data.data, tensor_data.shape)
+            ArgType::Tensor(tensor) => {
+                // Accept rank-0 tensor constants as SCALARS instead of panicking.
+                if tensor.rank == 0 {
+                    let v = attr
+                        .value
+                        .as_ref()
+                        .expect("Scalar constant should have value");
+                    scalar_from_data(tensor.elem_type.clone(), v.data.clone())
+                } else {
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let rank = tensor.rank;
+                    let name = node.name.clone();
+                    let tensor_data = attr.value.expect("Constant tensor should have value");
+
+                    let tensor_data = match &tensor.elem_type {
+                        // Floats
+                        ElementType::Float32 | ElementType::Float64 => {
+                            serialize_data::<PS::FloatElem>(tensor_data.data, tensor_data.shape)
+                        }
+                        // Ints (32/64)
+                        ElementType::Int32 | ElementType::Int64 => {
+                            serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
+                        }
+                        // (Optional) allow 8-bit constants if serialize_data supports them.
+                        // If your PS::IntElem can't represent u8/i8 directly, either upcast to i32
+                        // in serialize_data or add a separate path.
+                        ElementType::Uint8 | ElementType::Int8 => {
+                            serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
+                        }
+                        // TODO: support Bool tensor when Burn supports it
+                        other => panic!("Unsupported constant tensor type: {:?} ", other),
+                    };
+
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
+                }
+            }
+
+            ArgType::Scalar(elem_type) => {
+                // Scalar output already typed as scalar → just map from Data.
+                let v = attr.value.unwrap();
+                match elem_type {
+                    ElementType::Float64 => ConstantValue::Float64(v.data.into_f64()),
+                    ElementType::Float32 => ConstantValue::Float32(v.data.into_f32()),
+                    ElementType::Int32 => ConstantValue::Int32(v.data.into_i32()),
+                    ElementType::Int64 => ConstantValue::Int64(v.data.into_i64()),
+                    ElementType::Bool => ConstantValue::Bool(v.data.into_bool()),
+                    other => panic!("Unsupported constant scalar type: {other:?} "),
+                }
+            }
+        };
+
+        // IMPORTANT:
+        // If you hit a rank-0 tensor but output.ty is still ArgType::Tensor(rank=0),
+        // ConstantValue above is a Scalar. ConstantNode::new expects a Type for the output.
+        // Ensure Type::from(output) can represent scalars. If it can't, override here:
+        let out_ty = match (&output.ty, &const_value) {
+            (
+                ArgType::Tensor(t),
+                ConstantValue::Float32(_)
+                | ConstantValue::Float64(_)
+                | ConstantValue::Int32(_)
+                | ConstantValue::Int64(_)
+                | ConstantValue::Bool(_),
+            ) if t.rank == 0 => {
+                // Convert to scalar Type explicitly
+                // (Adjust constructors to your Type/ScalarType API)
+                let scalar_kind = match t.elem_type {
+                    ElementType::Float32 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float32)
                     }
-                    // Ints (32/64)
-                    ElementType::Int32 | ElementType::Int64 => {
-                        serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
+                    ElementType::Float64 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float64)
                     }
-                    // (Optional) allow 8-bit constants if serialize_data supports them.
-                    // If your PS::IntElem can't represent u8/i8 directly, either upcast to i32
-                    // in serialize_data or add a separate path.
-                    ElementType::Uint8 | ElementType::Int8 => {
-                        serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
-                    }
-                    // TODO: support Bool tensor when Burn supports it
-                    other => panic!("Unsupported constant tensor type: {:?} ", other),
+                    ElementType::Int32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    ElementType::Int64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
+                    ElementType::Uint8 => ScalarType::new(output.name.clone(), ScalarKind::Int32), // or define UInt8 variant if you have one
+                    ElementType::Int8 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    ElementType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),
+                    _ => panic!("Unsupported scalar type for output: {:?}", t.elem_type),
                 };
-
-                ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
+                Type::Scalar(scalar_kind)
             }
-        }
+            _ => Type::from(output),
+        };
 
-        ArgType::Scalar(elem_type) => {
-            // Scalar output already typed as scalar → just map from Data.
-            let v = attr.value.unwrap();
-            match elem_type {
-                ElementType::Float64 => ConstantValue::Float64(v.data.into_f64()),
-                ElementType::Float32 => ConstantValue::Float32(v.data.into_f32()),
-                ElementType::Int32   => ConstantValue::Int32(v.data.into_i32()),
-                ElementType::Int64   => ConstantValue::Int64(v.data.into_i64()),
-                ElementType::Bool    => ConstantValue::Bool(v.data.into_bool()),
-                other => panic!("Unsupported constant scalar type: {other:?} "),
-            }
-        }
-    };
-
-    // IMPORTANT:
-    // If you hit a rank-0 tensor but output.ty is still ArgType::Tensor(rank=0),
-    // ConstantValue above is a Scalar. ConstantNode::new expects a Type for the output.
-    // Ensure Type::from(output) can represent scalars. If it can't, override here:
-    let out_ty = match (&output.ty, &const_value) {
-        (ArgType::Tensor(t), ConstantValue::Float32(_)
-          | ConstantValue::Float64(_)
-          | ConstantValue::Int32(_)
-          | ConstantValue::Int64(_)
-          | ConstantValue::Bool(_)) if t.rank == 0 =>
-        {
-            // Convert to scalar Type explicitly
-            // (Adjust constructors to your Type/ScalarType API)
-            let scalar_kind = match t.elem_type {
-                ElementType::Float32 => ScalarType::new(output.name.clone(), ScalarKind::Float32),
-                ElementType::Float64 => ScalarType::new(output.name.clone(), ScalarKind::Float64),
-                ElementType::Int32   => ScalarType::new(output.name.clone(), ScalarKind::Int32),
-                ElementType::Int64   => ScalarType::new(output.name.clone(), ScalarKind::Int64),
-                ElementType::Uint8   => ScalarType::new(output.name.clone(), ScalarKind::Int32), // or define UInt8 variant if you have one
-                ElementType::Int8    => ScalarType::new(output.name.clone(), ScalarKind::Int32),
-                ElementType::Bool    => ScalarType::new(output.name.clone(), ScalarKind::Bool),
-                _ => panic!("Unsupported scalar type for output: {:?}", t.elem_type),
-            };
-            Type::Scalar(scalar_kind)
-        }
-        _ => Type::from(output),
-    };
-
-    ConstantNode::new(node.name.clone(), const_value, out_ty)
-}
+        ConstantNode::new(node.name.clone(), const_value, out_ty)
+    }
     fn random_uniform_conversion(node: Node) -> RandomUniformNode {
         let output = node.outputs.first().unwrap();
         let output_type = TensorType::from(output);
@@ -834,79 +840,92 @@ impl ParsedOnnxGraph {
         MatmulNode::new(lhs, rhs, output)
     }
     fn matmul_integer_conversion(node: Node) -> MatMulIntegerNode {
-    use crate::burn::{TensorKind, TensorType};
-    use onnx_ir::ir::{ArgType as OnnxArgType, TensorType as OnnxTensorType};
+        use crate::burn::{TensorKind, TensorType};
+        use onnx_ir::ir::{ArgType as OnnxArgType, TensorType as OnnxTensorType};
 
-    // Burn-side types for codegen
-    let lhs = TensorType::from(node.inputs.first().unwrap());      // u8 or i8
-    let rhs = TensorType::from(node.inputs.get(1).unwrap());       // u8 or i8
-    let lhs_zp = node.inputs.get(2).map(TensorType::from);         // scalar or [K]
-    let rhs_zp = node.inputs.get(3).map(TensorType::from);         // scalar or [N]
+        // Burn-side types for codegen
+        let lhs = TensorType::from(node.inputs.first().unwrap()); // u8 or i8
+        let rhs = TensorType::from(node.inputs.get(1).unwrap()); // u8 or i8
+        let lhs_zp = node.inputs.get(2).map(TensorType::from); // scalar or [K]
+        let rhs_zp = node.inputs.get(3).map(TensorType::from); // scalar or [N]
 
-    // Output must be i32
-    let mut output = TensorType::from(node.outputs.first().unwrap());
-    output.kind = TensorKind::Int;
-    // If you track width, set it here (e.g., output.d = 32);
+        // Output must be i32
+        let mut output = TensorType::from(node.outputs.first().unwrap());
+        output.kind = TensorKind::Int;
+        // If you track width, set it here (e.g., output.d = 32);
 
-    // ---- Validate zero-point vector lengths using IR shapes (if available) ----
-    // Get IR view of A and B to read static_shape
-    let a_ir = node.inputs.first().unwrap();
-    let b_ir = node.inputs.get(1).unwrap();
+        // ---- Validate zero-point vector lengths using IR shapes (if available) ----
+        // Get IR view of A and B to read static_shape
+        let a_ir = node.inputs.first().unwrap();
+        let b_ir = node.inputs.get(1).unwrap();
 
-    let a_shape = match &a_ir.ty {
-        OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
-        _ => None,
-    };
-    let b_shape = match &b_ir.ty {
-        OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
-        _ => None,
-    };
+        let a_shape = match &a_ir.ty {
+            OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
+            _ => None,
+        };
+        let b_shape = match &b_ir.ty {
+            OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
+            _ => None,
+        };
 
-    // K = last dim of A (when viewed as 2-D), N = first dim of B
-    let k_dim = a_shape.and_then(|s| if !s.is_empty() { s.last().copied() } else { None });
-    let n_dim = b_shape.and_then(|s| if !s.is_empty() { s.first().copied() } else { None });
+        // K = last dim of A (when viewed as 2-D), N = first dim of B
+        let k_dim = a_shape.and_then(|s| {
+            if !s.is_empty() {
+                s.last().copied()
+            } else {
+                None
+            }
+        });
+        let n_dim = b_shape.and_then(|s| {
+            if !s.is_empty() {
+                s.first().copied()
+            } else {
+                None
+            }
+        });
 
-    // Helper: read 1-D length from IR argument if it’s a 1-D tensor with known shape
-    fn vec_len_if_1d_ir(arg: &onnx_ir::ir::Argument) -> Option<usize> {
-        if let OnnxArgType::Tensor(OnnxTensorType { rank, static_shape, .. }) = &arg.ty {
-            if *rank == 1 {
+        // Collapse vec_len_if_1d_ir
+        fn vec_len_if_1d_ir(arg: &onnx_ir::ir::Argument) -> Option<usize> {
+            if let OnnxArgType::Tensor(OnnxTensorType {
+                rank, static_shape, ..
+            }) = &arg.ty
+                && *rank == 1
+            {
                 return static_shape.as_ref().and_then(|s| s.first().copied());
             }
+            None
         }
-        None
-    }
 
-    // Check a_zero_point if provided
-    if let Some(a_zp_ir) = node.inputs.get(2) {
-        if let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir) {
-            if let Some(k) = k_dim {
-                assert!(
-                    zp_len == k,
-                    "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
-                    zp_len, k
-                );
-            }
-        }
-        // Scalars are fine; no check needed.
-    }
-
-    // Check b_zero_point if provided
-    if let Some(b_zp_ir) = node.inputs.get(3) {
-        if let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir) {
-            if let Some(n) = n_dim {
-                assert!(
-                    zp_len == n,
-                    "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
-                    zp_len, n
-                );
-            }
+        // Collapse a_zero_point check
+        if let Some(a_zp_ir) = node.inputs.get(2)
+            && let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir)
+            && let Some(k) = k_dim
+        {
+            assert!(
+                zp_len == k,
+                "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
+                zp_len,
+                k
+            );
         }
         // Scalars are fine; no check needed.
+
+        // Collapse b_zero_point check
+        if let Some(b_zp_ir) = node.inputs.get(3)
+            && let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir)
+            && let Some(n) = n_dim
+        {
+            assert!(
+                zp_len == n,
+                "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
+                zp_len,
+                n
+            );
+        }
+        // Scalars are fine; no check needed.
+
+        MatMulIntegerNode::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
-
-    MatMulIntegerNode::new(lhs, rhs, lhs_zp, rhs_zp, output)
-}
-
 
     fn equal_conversion(node: Node) -> BinaryNode {
         let lhs = Type::from(node.inputs.first().unwrap());
@@ -2014,9 +2033,9 @@ impl From<&onnx_ir::ir::Argument> for TensorType {
         use onnx_ir::ir::{ArgType, TensorType as OnnxTensorType};
 
         match &arg.ty {
-            ArgType::Tensor(OnnxTensorType { elem_type, rank, .. }) => {
-                tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, *rank)
-            }
+            ArgType::Tensor(OnnxTensorType {
+                elem_type, rank, ..
+            }) => tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, *rank),
             ArgType::Scalar(elem_type) => {
                 // Represent scalar as rank-0 tensor type of the appropriate kind
                 tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, 0)
@@ -2080,20 +2099,13 @@ impl From<ElementType> for TensorKind {
     }
 }
 
-fn tensor_type_from_elem_and_rank(
-    name: String,
-    elem: &ElementType,
-    rank: usize,
-) -> TensorType {
+fn tensor_type_from_elem_and_rank(name: String, elem: &ElementType, rank: usize) -> TensorType {
     match elem {
-        ElementType::Uint8
-        | ElementType::Int8
-        | ElementType::Int32
-        | ElementType::Int64 => TensorType::new(name, rank, TensorKind::Int),
+        ElementType::Uint8 | ElementType::Int8 | ElementType::Int32 | ElementType::Int64 => {
+            TensorType::new(name, rank, TensorKind::Int)
+        }
 
-        ElementType::Float16
-        | ElementType::Float32
-        | ElementType::Float64 => {
+        ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
             // If you have TensorType::new_float, use that; otherwise:
             // TensorType::new(name, rank, TensorKind::Float)
             TensorType::new(name, rank, TensorKind::Float)

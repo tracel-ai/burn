@@ -152,24 +152,24 @@ mod tests {
         g.register_input_output(vec!["a".into(), "b".into()], vec!["y".into()]);
 
         let expected = quote! {
-    use burn::prelude::*;
-    #[derive(Module, Debug)]
-    pub struct Model<B: Backend> {
-        phantom: core::marker::PhantomData<B>,
-        device: burn::module::Ignored<B::Device>,
+            use burn::prelude::*;
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> Model<B> {
+                pub fn new(device: &B::Device) -> Self {
+                    Self { phantom: core::marker::PhantomData, device: burn::module::Ignored(device.clone()) }
+                }
+                pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let y = a
+                        .to_int32()
+                        .sub(Tensor::<B, 2>::zeros_like(&a).to_int32())
+                        .matmul(b.to_int32().sub(Tensor::<B, 2>::zeros_like(&b).to_int32()));
+                    y
+                }
+            }
+        };
     }
-    impl<B: Backend> Model<B> {
-        pub fn new(device: &B::Device) -> Self {
-            Self { phantom: core::marker::PhantomData, device: burn::module::Ignored(device.clone()) }
-        }
-        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
-            let y = a
-                .to_int32()
-                .sub(Tensor::<B, 2>::zeros_like(&a).to_int32())
-                .matmul(b.to_int32().sub(Tensor::<B, 2>::zeros_like(&b).to_int32()));
-            y
-        }
-    }
-};
-}
 }

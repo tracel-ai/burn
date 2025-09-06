@@ -14,11 +14,11 @@ pub fn matmulinteger_update_outputs(node: &mut Node) {
 
             // ONNX spec: output is always int32
             // ONNX spec: MatMulInteger output is always int32
-node.outputs[0].ty = ArgType::Tensor(TensorType {
-    elem_type: ElementType::Int32,
-    rank: out_rank,
-    static_shape: None, // or Some(...) if you’ve inferred it
-});
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int32,
+                rank: out_rank,
+                static_shape: None, // or Some(...) if you’ve inferred it
+            });
         }
         _ => panic!("MatMulInteger expects tensor inputs"),
     }

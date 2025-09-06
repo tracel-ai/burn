@@ -1,7 +1,5 @@
-use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
-use crate::protos::tensor_proto::DataType;
-use protobuf::Enum;
 use crate::from_onnx::element_type_from_proto;
+use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
 pub struct CastConfig {
@@ -49,10 +47,10 @@ pub fn cast_update_outputs(node: &mut Node) {
             } else {
                 // Cast input and output are the same shape, but possibly different types
                 output.ty = ArgType::Tensor(TensorType {
-                elem_type,
-                rank: tensor.rank,
-                static_shape: tensor.static_shape, // keep it
-});
+                    elem_type,
+                    rank: tensor.rank,
+                    static_shape: tensor.static_shape, // keep it
+                });
             }
         }
         ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),

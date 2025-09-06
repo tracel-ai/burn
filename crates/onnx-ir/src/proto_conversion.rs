@@ -1,8 +1,7 @@
 use std::str::{FromStr, from_utf8};
 
-use crate::ir::TensorType;
-use super::from_onnx::element_type_from_proto;
 use super::from_onnx::GraphData;
+use super::from_onnx::element_type_from_proto;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, TensorData,
 };
@@ -10,9 +9,9 @@ use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
     attribute_proto::AttributeType, tensor_shape_proto::dimension::Value,
 };
+use crate::ir::TensorType;
 
 use bytemuck::{cast_slice, try_cast_vec};
-
 
 fn cast_vec_with_fallback<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
     // Zero-copy `try_cast_vec` with fallback when alignment and size are not compatible
@@ -31,48 +30,65 @@ impl TryFrom<TensorProto> for TensorData {
 
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
         let shape = convert_shape(tensor.dims);
-        let elem = element_type_from_proto(tensor.data_type)
-            .map_err(ParseError::VariantNotFound)?;
+        let elem =
+            element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
         let data = if !tensor.raw_data.is_empty() {
-    match elem {
-        ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
-        ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
-        ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
-        ElementType::Int32   => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
-        ElementType::Int64   => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
-        ElementType::Uint8   => Data::Uint8s(tensor.raw_data),                          // keep bytes
-        ElementType::Int8    => Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect()),
-        ElementType::Bool    => Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect()),
-        ElementType::String  => panic!("String initializers unsupported"),
-    }
-} else {
-    match elem {
-        ElementType::Float32 if !tensor.float_data.is_empty()  => Data::Float32s(tensor.float_data),
-        ElementType::Float64 if !tensor.double_data.is_empty() => Data::Float64s(tensor.double_data),
-        ElementType::Int32   if !tensor.int32_data.is_empty()  => Data::Int32s(tensor.int32_data),
-        ElementType::Int64   if !tensor.int64_data.is_empty()  => Data::Int64s(tensor.int64_data),
-        ElementType::Bool    if !tensor.int32_data.is_empty()  => {
-            Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
-        }
-        ElementType::Uint8 => {
-            // accept weird exporters that stuff zp as int32_data
-            if !tensor.int32_data.is_empty() {
-                Data::Uint8s(tensor.int32_data.into_iter().map(|x| x as u8).collect())
-            } else {
-                return Err(ParseError::VariantNotFound("no data for UINT8".into()));
+            match elem {
+                ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Uint8 => Data::Uint8s(tensor.raw_data), // keep bytes
+                ElementType::Int8 => {
+                    Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
+                }
+                ElementType::Bool => {
+                    Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect())
+                }
+                ElementType::String => panic!("String initializers unsupported"),
             }
-        }
-        ElementType::Int8 => {
-            if !tensor.int32_data.is_empty() {
-                Data::Int8s(tensor.int32_data.into_iter().map(|x| x as i8).collect())
-            } else {
-                return Err(ParseError::VariantNotFound("no data for INT8".into()));
+        } else {
+            match elem {
+                ElementType::Float32 if !tensor.float_data.is_empty() => {
+                    Data::Float32s(tensor.float_data)
+                }
+                ElementType::Float64 if !tensor.double_data.is_empty() => {
+                    Data::Float64s(tensor.double_data)
+                }
+                ElementType::Int32 if !tensor.int32_data.is_empty() => {
+                    Data::Int32s(tensor.int32_data)
+                }
+                ElementType::Int64 if !tensor.int64_data.is_empty() => {
+                    Data::Int64s(tensor.int64_data)
+                }
+                ElementType::Bool if !tensor.int32_data.is_empty() => {
+                    Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
+                }
+                ElementType::Uint8 => {
+                    // accept weird exporters that stuff zp as int32_data
+                    if !tensor.int32_data.is_empty() {
+                        Data::Uint8s(tensor.int32_data.into_iter().map(|x| x as u8).collect())
+                    } else {
+                        return Err(ParseError::VariantNotFound("no data for UINT8".into()));
+                    }
+                }
+                ElementType::Int8 => {
+                    if !tensor.int32_data.is_empty() {
+                        Data::Int8s(tensor.int32_data.into_iter().map(|x| x as i8).collect())
+                    } else {
+                        return Err(ParseError::VariantNotFound("no data for INT8".into()));
+                    }
+                }
+                _ => {
+                    return Err(ParseError::VariantNotFound(format!(
+                        "empty/unsupported payload for {:?}",
+                        elem
+                    )));
+                }
             }
-        }
-        _ => return Err(ParseError::VariantNotFound(format!("empty/unsupported payload for {:?}", elem))),
-    }
-};
+        };
         Ok(TensorData { shape, data })
     }
 }
@@ -184,32 +200,42 @@ impl TryFrom<ValueInfoProto> for Argument {
 
     fn try_from(value: ValueInfoProto) -> Result<Argument, Self::Error> {
         let name = value.name.clone();
-        let proto_type = value.type_.as_ref().ok_or(ParseError::VariantNotFound("missing type".into()))?;
+        let proto_type = value
+            .type_
+            .as_ref()
+            .ok_or(ParseError::VariantNotFound("missing type".into()))?;
 
         if !proto_type.has_tensor_type() {
             panic!("Unsupported argument type {proto_type:?}");
         }
 
         let tensor_proto = proto_type.tensor_type();
-        let elem_type = element_type_from_proto(tensor_proto.elem_type)
-            .map_err(|e| ParseError::VariantNotFound(e))?;
+        let elem_type =
+            element_type_from_proto(tensor_proto.elem_type).map_err(ParseError::VariantNotFound)?;
 
         let ty = if tensor_proto.shape.dim.is_empty() {
             ArgType::Scalar(elem_type)
         } else {
-            let has_unknown_dim = tensor_proto.shape.dim.iter().any(|dim| {
-                match &dim.value {
-                    None | Some(Value::DimParam(_)) => true,
-                    Some(Value::DimValue(_)) => false,
-                }
+            let has_unknown_dim = tensor_proto.shape.dim.iter().any(|dim| match &dim.value {
+                None | Some(Value::DimParam(_)) => true,
+                Some(Value::DimValue(_)) => false,
             });
 
             let static_shape = if has_unknown_dim {
                 None
             } else {
-                let shape: Vec<usize> = tensor_proto.shape.dim.iter().filter_map(|d| {
-                    if let Some(Value::DimValue(v)) = &d.value { Some(*v as usize) } else { None }
-                }).collect();
+                let shape: Vec<usize> = tensor_proto
+                    .shape
+                    .dim
+                    .iter()
+                    .filter_map(|d| {
+                        if let Some(Value::DimValue(v)) = &d.value {
+                            Some(*v as usize)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 Some(shape)
             };
 
@@ -220,6 +246,11 @@ impl TryFrom<ValueInfoProto> for Argument {
             })
         };
 
-        Ok(Argument { ty, name, value: None, passed: false })
+        Ok(Argument {
+            ty,
+            name,
+            value: None,
+            passed: false,
+        })
     }
 }

@@ -8,8 +8,8 @@ include_models!(matmulinteger, matmulinteger_ranks);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{Int, Tensor, TensorData};
     use crate::backend::TestBackend;
+    use burn::tensor::{Int, Tensor, TensorData};
 
     // Simple no-zero-point case: check integer matmul → int32 result
     #[test]
@@ -36,7 +36,8 @@ mod tests {
     #[test]
     fn matmulinteger_ranks() {
         let device = Default::default();
-        let model: matmulinteger_ranks::Model<TestBackend> = matmulinteger_ranks::Model::new(&device);
+        let model: matmulinteger_ranks::Model<TestBackend> =
+            matmulinteger_ranks::Model::new(&device);
         // or .default() depending on how your codegen emits the constructor
 
         // 2D @ 1D → 1D
@@ -45,10 +46,14 @@ mod tests {
         // 1D @ 2D → 1D
         let vec1d_b = Tensor::<TestBackend, 1, Int>::from_ints([1, 2, 3, 4], &device);
         let mat2d_square = Tensor::<TestBackend, 2, Int>::from_ints(
-            [[1, 2, 3, 4],
-             [5, 6, 7, 8],
-             [9,10,11,12],
-             [13,14,15,16]], &device);
+            [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                [9, 10, 11, 12],
+                [13, 14, 15, 16],
+            ],
+            &device,
+        );
 
         // 3D shapes similar to your matmul test (adjust to the exact inputs your generated forward expects)
         // If your generated model takes multiple inputs, pass them in order:
