@@ -8,6 +8,10 @@ use crate::tensor::Tensor;
 use crate::tensor::backend::Backend;
 use alloc::vec;
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 /// Configuration to create a [RotaryEncoding](RotaryEncoding) layer using the [init function](RotaryEncodingConfig::init).
 #[derive(Config, Debug)]
 pub struct RotaryEncodingConfig {

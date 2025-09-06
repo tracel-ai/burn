@@ -8,6 +8,10 @@ use crate::tensor::Tensor;
 use crate::tensor::TensorData;
 use crate::tensor::backend::Backend;
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 /// Configuration to create a [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
 #[derive(Config)]
 pub struct PositionalEncodingConfig {

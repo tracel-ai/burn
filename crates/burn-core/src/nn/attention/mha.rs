@@ -10,6 +10,9 @@ use crate::{
 };
 
 use burn_tensor::activation::{quiet_softmax, softmax};
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer using the [init function](MultiHeadAttentionConfig::init).
 #[derive(Config)]

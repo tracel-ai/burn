@@ -12,6 +12,10 @@ use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{Tensor, backend::AutodiffBackend};
 use burn_tensor::{backend::Backend, ops::Device};
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float as _;
+
 /// Adam configuration.
 #[derive(Config)]
 pub struct AdamConfig {
