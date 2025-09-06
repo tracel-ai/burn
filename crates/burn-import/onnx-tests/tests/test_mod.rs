@@ -66,6 +66,7 @@ pub mod linear;
 pub mod log;
 pub mod log_softmax;
 pub mod matmul;
+pub mod matmulinteger;
 pub mod max;
 pub mod maxpool;
 pub mod mean;
@@ -111,7 +112,6 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
 pub mod xor;
-
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]
 macro_rules! include_models {
