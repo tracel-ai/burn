@@ -127,13 +127,12 @@ def generate_test_data(model_path, output_dir):
     # Save in a format that's easier to load in Rust
     # For CLIP vision, we expect:
     # - Inputs: pixel_values
-    # - Outputs: image_embeds (2D), last_hidden_state (3D)
+    # - Outputs: image_embeds (2D)
     
     # Create a more structured format for Rust
     test_data = {
         'pixel_values': torch.from_numpy(test_inputs.get('pixel_values', list(test_inputs.values())[0])),
-        'image_embeds': torch.from_numpy(outputs[0]),
-        'last_hidden_state': torch.from_numpy(outputs[1]) if len(outputs) > 1 else torch.zeros(1, 50, 768)
+        'image_embeds': torch.from_numpy(outputs[0])
     }
 
     test_data_path = Path(output_dir) / "test_data.pt"
@@ -144,7 +143,6 @@ def generate_test_data(model_path, output_dir):
     print(f"      pixel_values: {test_data['pixel_values'].shape}")
     print(f"    Output shapes:")
     print(f"      image_embeds: {test_data['image_embeds'].shape}")
-    print(f"      last_hidden_state: {test_data['last_hidden_state'].shape}")
 
 
 def save_model_info(model_path, output_dir):
