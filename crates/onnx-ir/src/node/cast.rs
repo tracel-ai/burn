@@ -1,7 +1,7 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
-
+use crate::from_onnx::element_type_from_proto;
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
 pub struct CastConfig {
@@ -19,22 +19,11 @@ impl CastConfig {
 /// Create a CastConfig from the node attributes
 pub fn cast_config(node: &Node) -> CastConfig {
     let elem_type = match node.attrs.get("to") {
-        Some(value) => match &value {
-            AttributeValue::Int64(type_id) => match DataType::from_i32(*type_id as i32).unwrap() {
-                DataType::FLOAT => ElementType::Float32,
-                DataType::INT32 => ElementType::Int32,
-                DataType::INT64 => ElementType::Int64,
-                DataType::DOUBLE => ElementType::Float64,
-                DataType::BOOL => ElementType::Bool,
-                DataType::FLOAT16 => ElementType::Float16,
-                DataType::STRING => ElementType::String,
-                _ => panic!("Cast: unsupported type"),
-            },
-            _ => panic!("'to' attribute must be an Int64"),
-        },
-        None => panic!("Cast node must have a 'to' attribute"),
+        Some(AttributeValue::Int64(type_id)) => {
+            element_type_from_proto(*type_id as i32).expect("Cast: unsupported 'to' dtype")
+        }
+        _ => panic!("Cast node must have an Int64 'to' attribute"),
     };
-
     CastConfig::new(elem_type)
 }
 
@@ -60,10 +49,10 @@ pub fn cast_update_outputs(node: &mut Node) {
             } else {
                 // Cast input and output are the same shape, but possibly different types
                 output.ty = ArgType::Tensor(TensorType {
-                    elem_type,
-                    rank: tensor.rank,
-                    static_shape: None,
-                });
+                elem_type,
+                rank: tensor.rank,
+                static_shape: tensor.static_shape, // keep it
+});
             }
         }
         ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),

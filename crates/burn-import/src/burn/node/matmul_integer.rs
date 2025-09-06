@@ -9,11 +9,11 @@ use quote::quote;
 /// ONNX MatMulInteger: (A - a_zp) @ (B - b_zp) -> int32
 #[derive(Debug, Clone)]
 pub struct MatMulIntegerNode {
-    pub lhs: TensorType,                   // u8 or i8
-    pub rhs: TensorType,                   // u8 or i8
-    pub lhs_zero_point: Option<TensorType>,// optional zp
-    pub rhs_zero_point: Option<TensorType>,// optional zp
-    pub output: TensorType,                // i32
+    pub lhs: TensorType,                    // u8 or i8
+    pub rhs: TensorType,                    // u8 or i8
+    pub lhs_zero_point: Option<TensorType>, // optional zp
+    pub rhs_zero_point: Option<TensorType>, // optional zp
+    pub output: TensorType,                 // i32
 }
 
 impl MatMulIntegerNode {
@@ -30,7 +30,13 @@ impl MatMulIntegerNode {
         if output.kind != TensorKind::Int {
             panic!("MatMulInteger output must be int32");
         }
-        Self { lhs, rhs, lhs_zero_point, rhs_zero_point, output }
+        Self {
+            lhs,
+            rhs,
+            lhs_zero_point,
+            rhs_zero_point,
+            output,
+        }
     }
 }
 
@@ -40,9 +46,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        let mut v = vec![Type::Tensor(self.lhs.clone()), Type::Tensor(self.rhs.clone())];
-        if let Some(zp) = &self.lhs_zero_point { v.push(Type::Tensor(zp.clone())); }
-        if let Some(zp) = &self.rhs_zero_point { v.push(Type::Tensor(zp.clone())); }
+        let mut v = vec![
+            Type::Tensor(self.lhs.clone()),
+            Type::Tensor(self.rhs.clone()),
+        ];
+        if let Some(zp) = &self.lhs_zero_point {
+            v.push(Type::Tensor(zp.clone()));
+        }
+        if let Some(zp) = &self.rhs_zero_point {
+            v.push(Type::Tensor(zp.clone()));
+        }
         v
     }
 
@@ -117,4 +130,46 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
     fn into_node(self) -> Node<PS> {
         Node::MatmulInteger(self)
     }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::burn::node::test::assert_tokens;
+    use crate::burn::{TensorType, graph::BurnGraph};
+    use burn::record::FullPrecisionSettings;
+    use quote::quote;
+
+    #[test]
+    fn codegen_basic_no_zp() {
+        let mut g = BurnGraph::<FullPrecisionSettings>::default();
+        g.register(MatMulIntegerNode::new(
+            TensorType::new_int("a", 2),
+            TensorType::new_int("b", 2),
+            None,
+            None,
+            TensorType::new_int("y", 2),
+        ));
+        g.register_input_output(vec!["a".into(), "b".into()], vec!["y".into()]);
+
+        let expected = quote! {
+    use burn::prelude::*;
+    #[derive(Module, Debug)]
+    pub struct Model<B: Backend> {
+        phantom: core::marker::PhantomData<B>,
+        device: burn::module::Ignored<B::Device>,
+    }
+    impl<B: Backend> Model<B> {
+        pub fn new(device: &B::Device) -> Self {
+            Self { phantom: core::marker::PhantomData, device: burn::module::Ignored(device.clone()) }
+        }
+        pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
+            let y = a
+                .to_int32()
+                .sub(Tensor::<B, 2>::zeros_like(&a).to_int32())
+                .matmul(b.to_int32().sub(Tensor::<B, 2>::zeros_like(&b).to_int32()));
+            y
+        }
+    }
+};
+}
 }
