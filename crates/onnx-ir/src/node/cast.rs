@@ -1,5 +1,5 @@
 use crate::from_onnx::element_type_from_proto;
-use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType}; 
+use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 /// Configuration for Cast operations
