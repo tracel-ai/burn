@@ -224,7 +224,7 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
     }
 }
 
-/// Legacy function that returns shape as Vec<i64> - kept for backward compatibility
+/// Legacy function that returns shape as `Vec<i64>` - kept for backward compatibility
 pub fn reshape_config_vec(node: &Node) -> Vec<i64> {
     let config = reshape_config(node);
     match config.shape {
