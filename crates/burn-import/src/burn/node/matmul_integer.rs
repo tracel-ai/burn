@@ -79,8 +79,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
             quote! { Tensor::<B, #rhs_dim>::zeros_like(&#rhs) }
         };
 
-        let lhs_c = quote! { (#lhs).to_int32().sub((#a_zp).to_int32()) };
-        let rhs_c = quote! { (#rhs).to_int32().sub((#b_zp).to_int32()) };
+        let lhs_c = quote! { (#lhs).to_dtype(DType::Int32).sub((#a_zp).to_dtype(DType::Int32)) };
+        let rhs_c = quote! { (#rhs).to_dtype(DType::Int32).sub((#b_zp).to_dtype(DType::Int32)) };
 
         match lhs_dim.cmp(&rhs_dim) {
             Ordering::Greater => {
@@ -164,9 +164,9 @@ mod tests {
                 }
                 pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
                     let y = a
-                        .to_int32()
-                        .sub(Tensor::<B, 2>::zeros_like(&a).to_int32())
-                        .matmul(b.to_int32().sub(Tensor::<B, 2>::zeros_like(&b).to_int32()));
+                        .to_dtype(DType::Int32)
+                        .sub(Tensor::<B, 2>::zeros_like(&a).to_dtype(DType::Int32))
+                        .matmul(b.to_dtype(DType::Int32).sub(Tensor::<B, 2>::zeros_like(&b).to_dtype(DType::Int32)));
                     y
                 }
             }
