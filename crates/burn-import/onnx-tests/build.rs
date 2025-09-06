@@ -113,6 +113,8 @@ fn main() {
         .input("tests/gather/gather_1d_idx.onnx")
         .input("tests/gather/gather_2d_idx.onnx")
         .input("tests/gather/gather_scalar.onnx")
+        .input("tests/gather/gather_constant_2d_indices.onnx")
+        .input("tests/gather/gather_static_shape_indices.onnx")
         .input("tests/gather/gather_shape.onnx")
         .input("tests/gather/gather_with_shape_indices.onnx")
         .input("tests/gather/gather_scalar_out.onnx")
