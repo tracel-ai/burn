@@ -20,7 +20,7 @@ std = []
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
 
 half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
