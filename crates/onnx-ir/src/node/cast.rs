@@ -1,7 +1,5 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
-use crate::protos::tensor_proto::DataType;
-use protobuf::Enum;
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
 pub struct CastConfig {
@@ -90,7 +88,8 @@ mod tests {
     use super::*;
     use crate::ir::{Argument, NodeType, TensorType};
     use crate::node::test_utils::NodeBuilder;
-
+    use crate::protos::tensor_proto::DataType;
+    use protobuf::Enum;
     fn create_test_node(input_rank: usize, to_type: i64) -> Node {
         NodeBuilder::new(NodeType::Cast, "test_cast")
             .input_tensor_f32("X", input_rank, None)
