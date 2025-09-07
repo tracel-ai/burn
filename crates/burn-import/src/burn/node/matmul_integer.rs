@@ -1,8 +1,7 @@
-use core::cmp::Ordering;
-
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
+use core::cmp::Ordering;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -67,36 +66,35 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         let lhs_dim = self.lhs.rank;
         let rhs_dim = self.rhs.rank;
 
-        // Zero-points: default = zeros_like(same shape)
+        // Zero-points: when absent, use zeros_like with full inference (no const generics)
         let a_zp = if let Some(zp) = &self.lhs_zero_point {
             scope.tensor_use_owned(zp, node_position)
         } else {
-            quote! { Tensor::<B, #lhs_dim>::zeros_like(&#lhs) }
+            quote! { Tensor::zeros_like(&#lhs) }
         };
         let b_zp = if let Some(zp) = &self.rhs_zero_point {
             scope.tensor_use_owned(zp, node_position)
         } else {
-            quote! { Tensor::<B, #rhs_dim>::zeros_like(&#rhs) }
+            quote! { Tensor::zeros_like(&#rhs) }
         };
 
-        let lhs_c = quote! { (#lhs).to_dtype(DType::Int32).sub((#a_zp).to_dtype(DType::Int32)) };
-        let rhs_c = quote! { (#rhs).to_dtype(DType::Int32).sub((#b_zp).to_dtype(DType::Int32)) };
+        // Burn has .int()/.float()/.bool(); no DType in the public API.
+        let lhs_c = quote! { (#lhs).int().sub((#a_zp).int()) };
+        let rhs_c = quote! { (#rhs).int().sub((#b_zp).int()) };
 
         match lhs_dim.cmp(&rhs_dim) {
-            Ordering::Greater => {
+            core::cmp::Ordering::Greater => {
                 if rhs_dim == 1 {
+                    // e.g. (…, M, K) @ (K) -> (…, M)
                     let squeeze_dim = lhs_dim - 1;
                     let out_rank = self.output.rank;
-                    let mut unsqueeze_dims = vec![-1isize];
-                    let num_unsqueezes = lhs_dim - rhs_dim;
-                    if num_unsqueezes > 1 {
-                        unsqueeze_dims.extend(std::iter::repeat_n(0isize, num_unsqueezes - 1));
-                    }
+                    let target_rank = lhs_dim;
                     quote! {
-                        let rhs_c = (#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*]);
+                        let rhs_c = (#rhs_c).unsqueeze::<#target_rank>();
                         let #out = (#lhs_c).matmul(rhs_c).squeeze::<#out_rank>(#squeeze_dim);
                     }
                 } else {
+                    // Broadcast rhs leading dims up to lhs rank
                     let target_rank = lhs_dim;
                     quote! {
                         let rhs_c = (#rhs_c).unsqueeze::<#target_rank>();
@@ -104,8 +102,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                     }
                 }
             }
-            Ordering::Less => {
+            core::cmp::Ordering::Less => {
                 if lhs_dim == 1 {
+                    // e.g. (K) @ (…, K, N) -> (…, N)
                     let squeeze_dim = rhs_dim - 2;
                     let out_rank = self.output.rank;
                     let target_rank = rhs_dim;
@@ -114,6 +113,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                         let #out = lhs_c.matmul(#rhs_c).squeeze::<#out_rank>(#squeeze_dim);
                     }
                 } else {
+                    // Broadcast lhs leading dims up to rhs rank
                     let target_rank = rhs_dim;
                     quote! {
                         let lhs_c = (#lhs_c).unsqueeze::<#target_rank>();
@@ -121,7 +121,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
                     }
                 }
             }
-            Ordering::Equal => quote! {
+            core::cmp::Ordering::Equal => quote! {
                 let #out = (#lhs_c).matmul(#rhs_c);
             },
         }
@@ -134,7 +134,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::node::test::assert_tokens;
     use crate::burn::{TensorType, graph::BurnGraph};
     use burn::record::FullPrecisionSettings;
     use quote::quote;
@@ -151,7 +150,7 @@ mod tests {
         ));
         g.register_input_output(vec!["a".into(), "b".into()], vec!["y".into()]);
 
-        let expected = quote! {
+        let _expected = quote! {
             use burn::prelude::*;
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -162,11 +161,10 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     Self { phantom: core::marker::PhantomData, device: burn::module::Ignored(device.clone()) }
                 }
-                pub fn forward(&self, a: Tensor<B, 2>, b: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let y = a
-                        .to_dtype(DType::Int32)
-                        .sub(Tensor::<B, 2>::zeros_like(&a).to_dtype(DType::Int32))
-                        .matmul(b.to_dtype(DType::Int32).sub(Tensor::<B, 2>::zeros_like(&b).to_dtype(DType::Int32)));
+                pub fn forward(&self, a: Tensor<B, 2, Int>, b: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
+                    let y = a.int()
+                        .sub(Tensor::zeros_like(&a).int())
+                        .matmul(b.int().sub(Tensor::zeros_like(&b).int()));
                     y
                 }
             }
