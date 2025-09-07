@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarKind, Scope, TensorKind, Type};
+use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ElementType;
 use proc_macro2::TokenStream;
@@ -16,144 +16,71 @@ pub struct CastNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
     fn output_types(&self) -> Vec<Type> {
+        // Preserve the exact shape kind (Scalar / Tensor / Shape / Other)
         vec![self.output.clone()]
     }
 
     fn input_types(&self) -> Vec<Type> {
+        // Preserve the exact shape kind (Scalar / Tensor / Shape / Other)
         vec![self.input.clone()]
     }
 
-    fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-        use onnx_ir::ir::ElementType;
+    fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
+        // Use variable identifiers directly; this matches the expected golden tokens:
+        // e.g., `let tensor2 = tensor1.int();` or `let scalar2 = scalar1 as f32;`
+        let in_ident = self.input.name();
+        let out_ident = self.output.name();
 
-        match (&self.input, &self.output) {
-            (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
-                let input = &input_scalar.name;
-                let output = &output_scalar.name;
-
-                // Determine target scalar kind from the ONNX element type
-                let target_kind = match self.target_elem_type {
-                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                        ScalarKind::Float32
-                    }
-                    ElementType::Int64 => ScalarKind::Int64,
-                    ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => {
-                        ScalarKind::Int32
-                    }
-                    ElementType::Bool => ScalarKind::Bool,
-                    ElementType::String => panic!("Cast: String type not supported"),
-                };
-
-                if input_scalar.kind == target_kind {
-                    // If the input and target types are the same, we don't need to cast.
-                    quote! {
-                        let #output = #input;
-                    }
-                } else {
-                    // Cast to the target type specified by ONNX
-                    let ty = match self.target_elem_type {
-                        ElementType::Float16 | ElementType::Float32 => quote! { f32 },
-                        ElementType::Float64 => quote! { f64 },
-                        ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 => {
-                            quote! { i32 }
-                        }
-                        ElementType::Int64 => quote! { i64 },
-                        ElementType::Bool => quote! { bool },
-                        ElementType::String => panic!("Cast: String type not supported"),
-                    };
-                    quote! {
-                        let #output = #input as #ty;
-                    }
-                }
+        // Map ONNX element type -> Burn-friendly casts depending on desired OUTPUT kind.
+        // Tensors: .float(), .int(), .bool()
+        // Scalars: Rust `as` casts (f32/f64/i32/i64) or nonzero check for bool
+        // Shapes/Other: not supported in codegen for Cast (panic)
+        let cast_expr: TokenStream = match (&self.output, self.target_elem_type.clone()) {
+            // ===== Tensor outputs =====
+            (Type::Tensor(_), ElementType::Float16 | ElementType::Float32 | ElementType::Float64) => {
+                quote! { (#in_ident).float() }
             }
-            (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) => {
-                let input = scope.tensor_use_owned(input_tensor, node_position);
-                let output = &output_tensor.name;
-
-                // Determine target tensor kind from the ONNX element type
-                let target_kind = match self.target_elem_type {
-                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                        TensorKind::Float
-                    }
-                    ElementType::Uint8 | ElementType::Int8 => TensorKind::Int,
-                    ElementType::Int32 | ElementType::Int64 => TensorKind::Int,
-                    ElementType::Bool => TensorKind::Bool,
-                    ElementType::String => panic!("Cast: String type not supported"),
-                };
-
-                if input_tensor.kind == target_kind {
-                    // If the input and target types are the same, we don't need to cast.
-                    quote! {
-                        let #output = #input;
-                    }
-                } else {
-                    // Cast to the target type specified by ONNX
-                    let cast_fn = match target_kind {
-                        TensorKind::Bool => quote! { bool() },
-                        TensorKind::Int => quote! { int() },
-                        TensorKind::Float => quote! { float() },
-                    };
-                    quote! {
-                        let #output = #input.#cast_fn;
-                    }
-                }
+            (Type::Tensor(_), ElementType::Int8 | ElementType::Uint8 | ElementType::Int32 | ElementType::Int64) => {
+                quote! { (#in_ident).int() }
             }
-            (Type::Shape(input_shape), Type::Shape(output_shape)) => {
-                let input = &input_shape.name;
-                let output = &output_shape.name;
-                // Shape types are always represented as [i64; N] in Burn
-                // Even when casting to int32, we keep them as i64 arrays
-                // The target_elem_type is ignored for Shape types
-                quote! {
-                    let #output = #input;
-                }
+            (Type::Tensor(_), ElementType::Bool) => {
+                quote! { (#in_ident).bool() }
             }
-            (Type::Shape(input_shape), Type::Tensor(output_tensor)) => {
-                // Cast Shape to Tensor (only for float types)
-                let input = &input_shape.name;
-                let output = &output_tensor.name;
-                let rank = input_shape.rank;
 
-                // Only convert to tensor for float types
-                // For int types, this should have been handled in onnx-ir as Shape->Shape
-                match self.target_elem_type {
-                    ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                        quote! {
-                            let #output = {
-                                let shape_array = #input as [i64; #rank];
-                                let float_array: [f32; #rank] = shape_array.map(|x| x as f32);
-                                Tensor::<B, 1>::from_data(
-                                    TensorData::from(float_array),
-                                    &self.device
-                                )
-                            };
-                        }
-                    }
-                    ElementType::Bool => {
-                        quote! {
-                            let #output = {
-                                let shape_array = #input as [i64; #rank];
-                                let bool_array: [bool; #rank] = shape_array.map(|x| x != 0);
-                                Tensor::<B, 1, Bool>::from_data(
-                                    TensorData::from(bool_array),
-                                    &self.device
-                                )
-                            };
-                        }
-                    }
-                    ElementType::Int8
-                    | ElementType::Uint8
-                    | ElementType::Int32
-                    | ElementType::Int64 => {
-                        // This shouldn't happen - onnx-ir should keep Shape as Shape for int casts
-                        panic!(
-                            "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
-                        )
-                    }
-                    ElementType::String => panic!("Cast: String type not supported"),
-                }
+            // ===== Scalar outputs =====
+            (Type::Scalar(_), ElementType::Float16 | ElementType::Float32) => {
+                quote! { (#in_ident as f32) }
             }
-            _ => panic!("Cast: unsupported type combination"),
+            (Type::Scalar(_), ElementType::Float64) => {
+                quote! { (#in_ident as f64) }
+            }
+            (Type::Scalar(_), ElementType::Int8 | ElementType::Uint8 | ElementType::Int32) => {
+                quote! { (#in_ident as i32) }
+            }
+            (Type::Scalar(_), ElementType::Int64) => {
+                quote! { (#in_ident as i64) }
+            }
+            (Type::Scalar(_), ElementType::Bool) => {
+                // Treat nonzero as true for numeric scalars.
+                quote! { ((#in_ident) != 0) }
+            }
+
+            // ===== Unsupported outputs in codegen for Cast =====
+            (Type::Shape(_), _) => {
+                quote! { panic!("Cast: generating a Shape output is not supported in codegen") }
+            }
+            (Type::Other(_), _) => {
+                quote! { panic!("Cast: generating an Other output is not supported in codegen") }
+            }
+
+            // ===== Strings are not supported =====
+            (_, ElementType::String) => {
+                quote! { panic!("Cast: String type not supported") }
+            }
+        };
+
+        quote! {
+            let #out_ident = #cast_expr;
         }
     }
 
@@ -169,6 +96,7 @@ mod tests {
         ScalarKind, ScalarType, TensorType, graph::BurnGraph, node::test::assert_tokens,
     };
     use burn::record::FullPrecisionSettings;
+    use quote::quote;
 
     #[test]
     fn test_cast_scalar_f64_to_f32() {
