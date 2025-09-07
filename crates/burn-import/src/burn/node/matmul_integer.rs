@@ -1,9 +1,10 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
-use core::cmp::Ordering;
+use proc_macro2::Ident;
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::parse_str;
 
 /// ONNX MatMulInteger: (A - a_zp) @ (B - b_zp) -> int32
 #[derive(Debug, Clone)]
@@ -61,7 +62,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let lhs = scope.tensor_use_owned(&self.lhs, node_position);
         let rhs = scope.tensor_use_owned(&self.rhs, node_position);
-        let out = &self.output.name;
+
+        let out: Ident = parse_str(&self.output.name.to_string()).expect("Valid Rust identifier");
 
         let lhs_dim = self.lhs.rank;
         let rhs_dim = self.rhs.rank;
