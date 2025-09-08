@@ -30,6 +30,7 @@ Because we believe the goal of a deep learning framework is to convert computati
 intelligence, we have made performance a core pillar of Burn. We strive to achieve top efficiency by
 leveraging multiple optimization techniques described below.
 
+
 **Click on each section for more details** 👇
 
 </div>
