@@ -5,7 +5,7 @@
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
 [![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
-[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://githujjjjb.com/tracel-ai/burn/actions/workflows/test.yml)
+[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tracel-ai/burn)
 
