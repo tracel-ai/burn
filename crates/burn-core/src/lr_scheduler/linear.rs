@@ -9,7 +9,7 @@ use burn_tensor::backend::Backend;
 /// constant amount on each iteration until reaching a final learning rate `final_lr`. The
 /// `num_iters` parameter controls how many iterations are needed to go from `initial_lr` to
 /// `final_lr`.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct LinearLrSchedulerConfig {
     // The initial learning rate.
     initial_lr: LearningRate,

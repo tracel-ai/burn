@@ -10,7 +10,7 @@ use crate::tensor::activation;
 use crate::tensor::backend::Backend;
 
 /// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct GruConfig {
     /// The size of the input features.
     pub d_input: usize,

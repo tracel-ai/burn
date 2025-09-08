@@ -13,7 +13,7 @@ use crate::tensor::{Tensor, backend::AutodiffBackend, ops::Device};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create the [RmsProp](RmsProp) optimizer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct RmsPropConfig {
     /// Smoothing constant.
     #[config(default = 0.99)]
