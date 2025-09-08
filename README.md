@@ -13,7 +13,7 @@
 
 ---
 
-**Burn is a next generation Deep Learning Framework that doesn't compromise on <br /> flexibility,
+**Burn is a next generation Tensor Library and Deep Learning Framework that doesn't compromise on <br /> flexibility,
 efficiency and portability.**
 
 <br/>
@@ -21,166 +21,8 @@ efficiency and portability.**
 
 <div align="left">
 
-## Performance
-
-<div align="left">
-<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-blazingly-fast.png" height="96px"/>
-
-Because we believe the goal of a deep learning framework is to convert computation into useful
-intelligence, we have made performance a core pillar of Burn. We strive to achieve top efficiency by
-leveraging multiple optimization techniques described below.
-
-**Click on each section for more details** 👇
-
-</div>
-
-<br />
-
-<details>
-<summary>
-Automatic kernel fusion 💥
-</summary>
-<br />
-
-Using Burn means having your models optimized on any backend. When possible, we provide a way to
-automatically and dynamically create custom kernels that minimize data relocation between different
-memory spaces, extremely useful when moving memory is the bottleneck.
-
-As an example, you could write your own GELU activation function with the high level tensor api (see
-Rust code snippet below).
-
-```rust
-fn gelu_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
-    let x = x.clone() * ((x / SQRT_2).erf() + 1);
-    x / 2
-}
-```
-
-Then, at runtime, a custom low-level kernel will be automatically created for your specific
-implementation and will rival a handcrafted GPU implementation. The kernel consists of about 60
-lines of WGSL [WebGPU Shading Language]("https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/"),
-an extremely verbose lower level shader language you probably don't want to program your deep
-learning models in!
-
-</details>
-
-<details>
-<summary>
-Asynchronous execution ❤️‍🔥
-</summary>
-<br />
-
-For [first-party backends](#backends), an asynchronous execution style is used, which allows to
-perform various optimizations, such as the previously mentioned automatic kernel fusion.
-
-Asynchronous execution also ensures that the normal execution of the framework does not block the
-model computations, which implies that the framework overhead won't impact the speed of execution
-significantly. Conversely, the intense computations in the model do not interfere with the
-responsiveness of the framework. For more information about our asynchronous backends, see
-[this blog post](https://burn.dev/blog/creating-high-performance-asynchronous-backends-with-burn-compute).
-
-</details>
-
-<details>
-<summary>
-Thread-safe building blocks 🦞
-</summary>
-<br />
-
-Burn emphasizes thread safety by leveraging the
-[ownership system of Rust](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
-With Burn, each module is the owner of its weights. It is therefore possible to send a module to
-another thread for computing the gradients, then send the gradients to the main thread that can
-aggregate them, and _voilà_, you get multi-device training.
-
-This is a very different approach from what PyTorch does, where backpropagation actually mutates the
-_grad_ attribute of each tensor parameter. This is not a thread-safe operation and therefore
-requires lower level synchronization primitives, see
-[distributed training](https://pytorch.org/docs/stable/distributed.html) for reference. Note that
-this is still very fast, but not compatible across different backends and quite hard to implement.
-
-</details>
-
-<details>
-<summary>
-Intelligent memory management 🦀
-</summary>
-<br />
-
-One of the main roles of a deep learning framework is to reduce the amount of memory necessary to
-run models. The naive way of handling memory is that each tensor has its own memory space, which is
-allocated when the tensor is created then deallocated as the tensor gets out of scope. However,
-allocating and deallocating data is very costly, so a memory pool is often required to achieve good
-throughput. Burn offers an infrastructure that allows for easily creating and selecting memory
-management strategies for backends. For more details on memory management in Burn, see
-[this blog post](https://burn.dev/blog/creating-high-performance-asynchronous-backends-with-burn-compute).
-
-Another very important memory optimization of Burn is that we keep track of when a tensor can be
-mutated in-place just by using the ownership system well. Even though it is a rather small memory
-optimization on its own, it adds up considerably when training or running inference with larger
-models and contributes to reduce the memory usage even more. For more information, see
-[this blog post about tensor handling](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).
-
-</details>
-
-<details>
-<summary>
-Automatic kernel selection 🎯
-</summary>
-<br />
-
-A good deep learning framework should ensure that models run smoothly on all hardware. However, not
-all hardware share the same behavior in terms of execution speed. For instance, a matrix
-multiplication kernel can be launched with many different parameters, which are highly sensitive to
-the size of the matrices and the hardware. Using the wrong configuration could reduce the speed of
-execution by a large factor (10 times or even more in extreme cases), so choosing the right kernels
-becomes a priority.
-
-With our home-made backends, we run benchmarks automatically and choose the best configuration for
-the current hardware and matrix sizes with a reasonable caching strategy.
-
-This adds a small overhead by increasing the warmup execution time, but stabilizes quickly after a
-few forward and backward passes, saving lots of time in the long run. Note that this feature isn't
-mandatory, and can be disabled when cold starts are a priority over optimized throughput.
-
-</details>
-
-<details>
-<summary>
-Hardware specific features 🔥
-</summary>
-<br />
-
-It is no secret that deep learning is mostly relying on matrix multiplication as its core operation,
-since this is how fully-connected neural networks are modeled.
-
-More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
-workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
-chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA, Metal and
-WGPU/SPIR-V backends, but not other accelerators yet. We hope
-[this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets resolved at some point to bring
-support to our WGPU backend.
-
-</details>
-
-<details>
-<summary>
-Custom Backend Extension 🎒
-</summary>
-<br />
-
-Burn aims to be the most flexible deep learning framework. While it's crucial to maintain
-compatibility with a wide variety of backends, Burn also provides the ability to extend the
-functionalities of a backend implementation to suit your personal modeling requirements.
-
-This versatility is advantageous in numerous ways, such as supporting custom operations like flash
-attention or manually writing your own kernel for a specific backend to enhance performance. See
-[this section](https://burn.dev/books/burn/advanced/backend-extension/index.html) in the Burn Book
-🔥 for more details.
-
-</details>
-
-<br />
+Burn is both a tensor library and a deep learning framework optimized for numerical computing, model inference and model training.
+Burn leverages Rust to perform optimizations normally only available in static-graph frameworks, offering optimal speed without impacting flexibility.
 
 ## Backend
 
@@ -193,20 +35,29 @@ models in the cloud, then deploy on customer hardwares, which vary from user to 
 
 </div>
 
-<br />
+### Supported Backends
 
-**Supported Backends**
+Most backends support all operating systems, so we don't mentioned them in the tables below.
 
-| Backend  | Devices                      | Class       |
-| -------- | ---------------------------- | ----------- |
-| CUDA     | NVIDIA GPUs                  | First-Party |
-| ROCm     | AMD GPUs                     | First-Party |
-| Metal    | Apple GPUs                   | First-Party |
-| Vulkan   | Most GPUs on Linux & Windows | First-Party |
-| Wgpu     | Most GPUs                    | First-Party |
-| NdArray  | Most CPUs                    | Third-Party |
-| LibTorch | Most GPUs & CPUs             | Third-Party |
-| Candle   | Nvidia, Apple GPUs & CPUs    | Third-Party |
+**GPU Backends:**
+
+|         | CUDA | ROCm | Metal | Vulkan | WgbGPU | Candle | LibTorch |
+| ------- | ---- | ---- | ----- | ------ | ------ | ------ | -------- |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️     | ☑️       |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | -      | ☑️       |
+| Apple   | -    | -    | ☑️    | -      | ☑️     | -      | ☑️       |
+| Intel   | -    | -    | -     | ☑️     | ☑️     | -      | -        |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     | -      | -        |
+| Wasm    | -    | -    | -     | -      | ☑️     | -      | -        |
+
+**CPU Backends:**
+
+|        | Cpu (CubeCL) | NdArray | Candle | LibTorch |
+| ------ | ------------ | ------- | ------ | -------- |
+| X86    | ☑️           | ☑️      | ☑️     | ☑️       |
+| Arm    | ☑️           | ☑️      | ☑️     | ☑️       |
+| Wasm   | -            | ☑️      | ☑️     | -        |
+| no-std | -            | ☑️      | -      | -        |
 
 <br />
 
