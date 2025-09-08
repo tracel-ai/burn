@@ -6,7 +6,7 @@ use burn_tensor::{
     ops::{FloatTensorOps, IntTensor, IntTensorOps},
 };
 
-use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 
@@ -41,10 +41,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         tensor.tensor.device().into()
     }
 
-    fn int_empty(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn int_empty(
+        shape: Shape,
+        device: &<LibTorch<E> as Backend>::Device,
+        dtype: IntDType,
+    ) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
-            (tch::Kind::Int64, (*device).into()),
+            (dtype.into_kind(), (*device).into()),
         );
 
         TchTensor::new(tensor)
@@ -143,6 +147,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     }
 
     fn int_div(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        let dtype = lhs.tensor.kind();
         let copy = false;
         let non_blocking = true;
         let lhs: TchTensor =
@@ -152,10 +157,11 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
         let out = TchOps::div(lhs, rhs);
 
-        TchTensor::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
+        TchTensor::new(out.tensor.to_dtype(dtype, non_blocking, copy))
     }
 
     fn int_div_scalar(lhs: TchTensor, rhs: i64) -> TchTensor {
+        let dtype = lhs.tensor.kind();
         let copy = false;
         let non_blocking = true;
         let lhs: TchTensor =
@@ -166,10 +172,11 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
         );
 
-        TchTensor::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
+        TchTensor::new(out.tensor.to_dtype(dtype, non_blocking, copy))
     }
 
     fn int_remainder(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        let dtype = lhs.tensor.kind();
         let copy = false;
         let non_blocking = true;
         let lhs: TchTensor =
@@ -179,7 +186,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
         let out = TchOps::remainder(lhs, rhs);
 
-        TchTensor::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
+        TchTensor::new(out.tensor.to_dtype(dtype, non_blocking, copy))
     }
 
     fn int_remainder_scalar(lhs: TchTensor, rhs: i64) -> TchTensor {
@@ -193,24 +200,33 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         Self::int_mul_scalar(tensor, -1)
     }
 
-    fn int_zeros(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn int_zeros(
+        shape: Shape,
+        device: &<LibTorch<E> as Backend>::Device,
+        dtype: IntDType,
+    ) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::zeros(shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::zeros(shape.dims, (dtype.into_kind(), device)))
     }
 
-    fn int_ones(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn int_ones(
+        shape: Shape,
+        device: &<LibTorch<E> as Backend>::Device,
+        dtype: IntDType,
+    ) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::ones(shape.dims, (tch::Kind::Int64, device)))
+        TchTensor::new(tch::Tensor::ones(shape.dims, (dtype.into_kind(), device)))
     }
 
     fn int_full(
         shape: Shape,
         fill_value: i64,
         device: &<LibTorch<E> as Backend>::Device,
+        dtype: IntDType,
     ) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
@@ -218,7 +234,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tch::Tensor::full(
             shape.dims,
             fill_value,
-            (tch::Kind::Int64, device),
+            (dtype.into_kind(), device),
         ))
     }
 
@@ -239,20 +255,22 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     }
 
     fn int_mean(tensor: TchTensor) -> TchTensor {
+        let dtype = tensor.tensor.kind();
         let tensor: TchTensor =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
         let output: TchTensor = TchTensor::new(TchOps::mean(tensor).tensor);
 
-        TchTensor::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
+        TchTensor::new(output.tensor.to_dtype(dtype, true, false))
     }
 
     fn int_mean_dim(tensor: TchTensor, dim: usize) -> TchTensor {
+        let dtype = tensor.tensor.kind();
         let tensor: TchTensor =
             TchTensor::new(tensor.tensor.to_dtype(tch::Kind::Float, true, false));
 
         let output: TchTensor = TchTensor::new(TchOps::mean_dim(tensor, dim).tensor);
 
-        TchTensor::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
+        TchTensor::new(output.tensor.to_dtype(dtype, true, false))
     }
 
     fn int_gather(dim: usize, tensor: TchTensor, indices: TchTensor) -> TchTensor {
@@ -473,14 +491,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
 
         // Type promotion is not automatic on all backends so this behavior might differ
-        let kind = match dtype {
-            IntDType::I64 => tch::Kind::Int64,
-            IntDType::I32 => tch::Kind::Int,
-            IntDType::I16 => tch::Kind::Int16,
-            IntDType::I8 => tch::Kind::Int8,
-            IntDType::U8 => tch::Kind::Uint8,
-            _ => panic!("Unsupported dtype: {dtype:?}"),
-        };
+        let kind = dtype.into_kind();
 
         if tensor.tensor.kind() == kind {
             tensor
