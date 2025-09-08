@@ -2,7 +2,7 @@ use burn_import::onnx::ModelGen;
 use std::path::Path;
 
 fn main() {
-    let onnx_path = "artifacts/clip-vit-b-32-text_opset16.onnx";
+    let onnx_path = "artifacts/clip-vit-b-32-vision_opset16.onnx";
     let test_data_path = "artifacts/test_data.pt";
 
     // Tell Cargo to only rebuild if these files change
@@ -20,7 +20,9 @@ fn main() {
         eprintln!("Or if you prefer using uv:");
         eprintln!("  uv run get_model.py");
         eprintln!();
-        eprintln!("This will download the CLIP ViT-B-32-text model and convert it to ONNX format.");
+        eprintln!(
+            "This will download the CLIP ViT-B-32-vision model and convert it to ONNX format."
+        );
         std::process::exit(1);
     }
 
