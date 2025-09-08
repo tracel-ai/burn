@@ -56,7 +56,7 @@ image = "0.25.6"
 indicatif = "0.18.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
-log = { default-features = false, version = "0.4.27" }
+log = { default-features = false, version = "0.4.28" }
 paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.49.1", features = ["lazy"] }
