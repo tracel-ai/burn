@@ -1020,6 +1020,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.5",
  "num-traits",
+ "paste",
  "rand 0.9.2",
  "rand_distr 0.5.1",
  "serde",
@@ -6221,9 +6222,9 @@ dependencies = [
 
 [[package]]
 name = "pxfm"
-version = "0.1.22"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "376f733579ac4d3b9fbf0afca99bf8f6b698d541118affca554d0b86f73c2470"
+checksum = "f55f4fedc84ed39cb7a489322318976425e42a147e2be79d8f878e2884f94e84"
 dependencies = [
  "num-traits",
 ]

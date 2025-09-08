@@ -8,7 +8,7 @@ use candle_core::{Tensor, backend::BackendStorage, shape};
 use half::{bf16, f16};
 
 use crate::{
-    Candle, CandleTensor,
+    Candle, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -75,8 +75,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::base::empty(shape, device, F::DTYPE)
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        super::base::empty(shape, device, dtype.into_dtype())
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -468,13 +468,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        let dtype = match dtype {
-            FloatDType::F64 => candle_core::DType::F64,
-            FloatDType::F32 => candle_core::DType::F32,
-            FloatDType::Flex32 => candle_core::DType::F32,
-            FloatDType::F16 => candle_core::DType::F16,
-            FloatDType::BF16 => candle_core::DType::BF16,
-        };
+        let dtype = dtype.into_dtype();
 
         if tensor.tensor.dtype() == dtype {
             tensor
