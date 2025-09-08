@@ -41,7 +41,7 @@ Most backends support all operating systems, so we don't mentioned them in the t
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | WgbGPU | Candle | LibTorch |
+|         | CUDA | ROCm | Metal | Vulkan | WebGPU | Candle | LibTorch |
 | ------- | ---- | ---- | ----- | ------ | ------ | ------ | -------- |
 | Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️     | ☑️       |
 | AMD     | -    | ☑️   | -     | ☑️     | ☑️     | -      | ☑️       |
