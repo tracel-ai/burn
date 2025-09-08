@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::{BasicOps, Int, Tensor, backend::Backend, check, check::TensorCheck};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
