@@ -70,6 +70,48 @@ impl NormalizationConfig {
             NormalizationConfig::Rms(config) => Normalization::Rms(config.init(device)),
         }
     }
+
+    /// Set the number of features.
+    pub fn with_num_features(self, features: usize) -> Self {
+        match self {
+            NormalizationConfig::Batch(config) => {
+                let mut config = config;
+                config.num_features = features;
+                config.into()
+            }
+            NormalizationConfig::Group(config) => {
+                let mut config = config;
+                config.num_channels = features;
+                config.into()
+            }
+            NormalizationConfig::Instance(config) => {
+                let mut config = config;
+                config.num_channels = features;
+                config.into()
+            }
+            NormalizationConfig::Layer(config) => {
+                let mut config = config;
+                config.d_model = features;
+                config.into()
+            }
+            NormalizationConfig::Rms(config) => {
+                let mut config = config;
+                config.d_model = features;
+                config.into()
+            }
+        }
+    }
+
+    /// Get the number of features.
+    pub fn num_features(&self) -> usize {
+        match self {
+            NormalizationConfig::Batch(config) => config.num_features,
+            NormalizationConfig::Group(config) => config.num_channels,
+            NormalizationConfig::Instance(config) => config.num_channels,
+            NormalizationConfig::Layer(config) => config.d_model,
+            NormalizationConfig::Rms(config) => config.d_model,
+        }
+    }
 }
 
 /// Normalization Layer Wrapper
@@ -109,11 +151,22 @@ impl<B: Backend> Normalization<B> {
     /// and produce an output of the same rank and shape.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         match self {
-            Normalization::Batch(batch_norm) => batch_norm.forward(input),
-            Normalization::Group(group_norm) => group_norm.forward(input),
-            Normalization::Instance(instance_norm) => instance_norm.forward(input),
-            Normalization::Layer(layer_norm) => layer_norm.forward(input),
-            Normalization::Rms(rms_norm) => rms_norm.forward(input),
+            Normalization::Batch(norm) => norm.forward(input),
+            Normalization::Group(norm) => norm.forward(input),
+            Normalization::Instance(norm) => norm.forward(input),
+            Normalization::Layer(norm) => norm.forward(input),
+            Normalization::Rms(norm) => norm.forward(input),
+        }
+    }
+
+    /// Get the number of features.
+    pub fn num_features(&self) -> usize {
+        match self {
+            Normalization::Batch(norm) => norm.gamma.shape().dims[0],
+            Normalization::Group(norm) => norm.num_channels,
+            Normalization::Instance(norm) => norm.num_channels,
+            Normalization::Layer(norm) => norm.gamma.shape().dims[0],
+            Normalization::Rms(norm) => norm.gamma.shape().dims[0],
         }
     }
 }
@@ -123,6 +176,34 @@ impl<B: Backend> Normalization<B> {
 mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
+
+    #[test]
+    fn test_match_feature_size() {
+        let config: NormalizationConfig = BatchNormConfig::new(0).into();
+        assert_eq!(config.num_features(), 0);
+        let config = config.with_num_features(12);
+        assert_eq!(config.num_features(), 12);
+
+        let config: NormalizationConfig = GroupNormConfig::new(4, 0).into();
+        assert_eq!(config.num_features(), 0);
+        let config = config.with_num_features(12);
+        assert_eq!(config.num_features(), 12);
+
+        let config: NormalizationConfig = InstanceNormConfig::new(0).into();
+        assert_eq!(config.num_features(), 0);
+        let config = config.with_num_features(12);
+        assert_eq!(config.num_features(), 12);
+
+        let config: NormalizationConfig = LayerNormConfig::new(0).into();
+        assert_eq!(config.num_features(), 0);
+        let config = config.with_num_features(12);
+        assert_eq!(config.num_features(), 12);
+
+        let config: NormalizationConfig = RmsNormConfig::new(0).into();
+        assert_eq!(config.num_features(), 0);
+        let config = config.with_num_features(12);
+        assert_eq!(config.num_features(), 12);
+    }
 
     #[test]
     fn test_batch_norm() {
@@ -135,6 +216,7 @@ mod tests {
         let config: NormalizationConfig = BatchNormConfig::new(12).into();
 
         let layer: Normalization<B> = config.init(&device);
+        assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
             Normalization::Batch(inner) => inner.forward(input.clone()),
@@ -157,6 +239,7 @@ mod tests {
         let config: NormalizationConfig = GroupNormConfig::new(3, num_features).into();
 
         let layer: Normalization<B> = config.init(&device);
+        assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
             Normalization::Group(inner) => inner.forward(input.clone()),
@@ -179,6 +262,7 @@ mod tests {
         let config: NormalizationConfig = InstanceNormConfig::new(num_features).into();
 
         let layer: Normalization<B> = config.init(&device);
+        assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
             Normalization::Instance(inner) => inner.forward(input.clone()),
@@ -201,6 +285,7 @@ mod tests {
         let config: NormalizationConfig = LayerNormConfig::new(num_features).into();
 
         let layer: Normalization<B> = config.init(&device);
+        assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
             Normalization::Layer(inner) => inner.forward(input.clone()),
@@ -223,6 +308,7 @@ mod tests {
         let config: NormalizationConfig = RmsNormConfig::new(num_features).into();
 
         let layer: Normalization<B> = config.init(&device);
+        assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
             Normalization::Rms(inner) => inner.forward(input.clone()),
