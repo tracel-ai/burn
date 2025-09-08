@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-std = []
+std = ["burn-tensor/std"]
 doc = ["tch/doc-only"]
 
 [dependencies]
