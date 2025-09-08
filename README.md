@@ -13,7 +13,7 @@
 
 ---
 
-**Burn is a next generation Deep Learning Framework that doesn't compromise on <br /> flexibility,
+**Burn is a next generation Tensor Library and Deep Learning Framework that doesn't compromise on <br /> flexibility,
 efficiency and portability.**
 
 <br/>
@@ -23,38 +23,6 @@ efficiency and portability.**
 
 Burn is both a tensor library and a deep learning framework optimized for numerical computing, model inference and model training.
 Burn leverages Rust to perform optimizations normally only available in static-graph frameworks, offering optimal speed without impacting flexibility.
-
-# Portability
-
-Burn is based on CubeCL, which supports a huge variaty of targets.
-We strides to be as portable as possible with minimal added complexity.
-
-**Supported Backends**
-
-| Backend  | Devices                      | Targets                                                 |
-| -------- | ---------------------------- | ------------------------------------------------------- |
-| CUDA     | NVIDIA GPUs                  | `linux`, `windows`                                      |
-| ROCm     | AMD GPUs                     | `linux`                                                 |
-| Metal    | Apple GPUs                   | `macos`, `ios`                                          |
-| Vulkan   | Most GPUs on Linux & Windows | `linux`, `windows`, `android`                           |
-| Wgpu     | Most GPUs                    | `linux`, `windows`, `macos`, `wasm`, `mobile`           |
-| Cpu      | Most CPUs                    | `linux`, `windows`                                      |
-| NdArray  | Most CPUs                    | `linux`, `windows`, `macos`, `wasm`, `mobile`, `no-std` |
-| Candle   | Nvidia, Apple GPUs & CPUs    | `linux`, `windows`, `macos`, `wasm`                     |
-| LibTorch | Most GPUs & CPUs             | `linux`, `windows`, `macos`                             |
-
-| Hardware/Backend | CUDA | ROCm      | Metal     | Vulkan    | Wgpu      | Cpu | NdArray |
-| ---------------- | ---- | --------- | --------- | --------- | --------- | --- | ------- |
-| GPU Nvidia       | ✅   | -         | -         | ☑️        | ☑️        | -   | -       |
-| GPU AMD          | -    | ⭐️⭐️⭐️ | -         | ⭐️⭐️⭐️ | ⭐️⭐️⭐️ | -   | -       |
-| GPU Apple        | -    | -         | ⭐️⭐️⭐️ | -         | ⭐️⭐️    | -   | -       |
-| GPU Intel        | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| GPU Qualcom      | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| GPU Wasm         | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| CPU X86          | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| CPU Arm          | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| CPU Wasm         | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
-| CPU no-std       | ✅   | ❌        | ❌        | ✅        | ✅        | ❌  | ❌      |
 
 ## Backend
 
@@ -67,20 +35,29 @@ models in the cloud, then deploy on customer hardwares, which vary from user to 
 
 </div>
 
-<br />
+### Supported Backends
 
-**Supported Backends**
+Most backends support all operating systems, so we don't mentionned them in the tables bellow.
 
-| Backend  | Devices                      | Class       |
-| -------- | ---------------------------- | ----------- |
-| CUDA     | NVIDIA GPUs                  | First-Party |
-| ROCm     | AMD GPUs                     | First-Party |
-| Metal    | Apple GPUs                   | First-Party |
-| Vulkan   | Most GPUs on Linux & Windows | First-Party |
-| Wgpu     | Most GPUs                    | First-Party |
-| NdArray  | Most CPUs                    | Third-Party |
-| LibTorch | Most GPUs & CPUs             | Third-Party |
-| Candle   | Nvidia, Apple GPUs & CPUs    | Third-Party |
+**GPU Backends:**
+
+|         | CUDA | ROCm | Metal | Vulkan | Wgpu | Candle | LibTorch |
+| ------- | ---- | ---- | ----- | ------ | ---- | ------ | -------- |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️   | ☑️     | ☑️       |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️   | -      | ☑️       |
+| Apple   | -    | -    | ☑️    | -      | ☑️   | -      | ☑️       |
+| Intel   | -    | -    | -     | ☑️     | ☑️   | -      | -        |
+| Qualcom | -    | -    | -     | ☑️     | ☑️   | -      | -        |
+| Wasm    | -    | -    | -     | -      | ☑️   | -      | -        |
+
+**CPU Backends:**
+
+|        | Cpu (CubeCL) | NdArray | Candle | LibTorch |
+| ------ | ------------ | ------- | ------ | -------- |
+| X86    | ☑️           | ☑️      | ☑️     | ☑️       |
+| Arm    | ☑️           | ☑️      | ☑️     | ☑️       |
+| Wasm   | -            | ☑️      | ☑️     | -        |
+| no-std | -            | ☑️      | -      | -        |
 
 <br />
 
