@@ -62,6 +62,8 @@ mod cube {
                     },
                     QuantStore::U32 => Self::UInt(UIntKind::U32),
                 },
+                crate::DType::Complex32 => panic!("Complex32 type is not supported in CubeCL."),
+                crate::DType::Complex64 => panic!("Complex64 type is not supported in CubeCL."),
             }
         }
     }
