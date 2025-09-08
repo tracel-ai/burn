@@ -37,18 +37,18 @@ models in the cloud, then deploy on customer hardwares, which vary from user to 
 
 ### Supported Backends
 
-Most backends support all operating systems, so we don't mentionned them in the tables bellow.
+Most backends support all operating systems, so we don't mentioned them in the tables below.
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | Wgpu | Candle | LibTorch |
-| ------- | ---- | ---- | ----- | ------ | ---- | ------ | -------- |
-| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️   | ☑️     | ☑️       |
-| AMD     | -    | ☑️   | -     | ☑️     | ☑️   | -      | ☑️       |
-| Apple   | -    | -    | ☑️    | -      | ☑️   | -      | ☑️       |
-| Intel   | -    | -    | -     | ☑️     | ☑️   | -      | -        |
-| Qualcom | -    | -    | -     | ☑️     | ☑️   | -      | -        |
-| Wasm    | -    | -    | -     | -      | ☑️   | -      | -        |
+|         | CUDA | ROCm | Metal | Vulkan | WgbGPU | Candle | LibTorch |
+| ------- | ---- | ---- | ----- | ------ | ------ | ------ | -------- |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️     | ☑️       |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | -      | ☑️       |
+| Apple   | -    | -    | ☑️    | -      | ☑️     | -      | ☑️       |
+| Intel   | -    | -    | -     | ☑️     | ☑️     | -      | -        |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     | -      | -        |
+| Wasm    | -    | -    | -     | -      | ☑️     | -      | -        |
 
 **CPU Backends:**
 
