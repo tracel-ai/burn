@@ -10,6 +10,11 @@ use burn_tensor::backend::Backend;
 /// ['Normalization'] Configuration.
 ///
 /// The enum is non-exhaustive to prepare for future additions.
+///
+/// Can be used as a generic configuration for normalization layers:
+/// * Construct a config with arbitrary input features (we suggest `0`).
+/// * Clone and match that config to the target input layer,
+///   using the [`NormalizationConfig::num_features()`] method.
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum NormalizationConfig {
