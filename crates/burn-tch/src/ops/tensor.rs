@@ -1,5 +1,5 @@
 use super::TchOps;
-use crate::{LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor, element::TchElement};
+use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_tensor::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
@@ -8,7 +8,7 @@ use burn_tensor::{
 use half::{bf16, f16};
 use std::ops::Range;
 
-impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
+impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
@@ -52,18 +52,18 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
-    fn float_zeros(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+    fn float_zeros(shape: Shape, device: &LibTorchDevice, dtype: FloatDType) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::zeros(shape.dims, (E::KIND, device)))
+        TchTensor::new(tch::Tensor::zeros(shape.dims, (dtype.into_kind(), device)))
     }
 
-    fn float_ones(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+    fn float_ones(shape: Shape, device: &LibTorchDevice, dtype: FloatDType) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
-        TchTensor::new(tch::Tensor::ones(shape.dims, (E::KIND, device)))
+        TchTensor::new(tch::Tensor::ones(shape.dims, (dtype.into_kind(), device)))
     }
 
     async fn float_into_data(tensor: TchTensor) -> TensorData {
@@ -98,8 +98,15 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchOps::to_device(tensor, device)
     }
 
-    fn float_empty(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
-        let tensor = tch::Tensor::empty(TchShape::from(shape).dims, (E::KIND, (*device).into()));
+    fn float_empty(
+        shape: Shape,
+        device: &<LibTorch<E> as Backend>::Device,
+        dtype: FloatDType,
+    ) -> TchTensor {
+        let tensor = tch::Tensor::empty(
+            TchShape::from(shape).dims,
+            (dtype.into_kind(), (*device).into()),
+        );
 
         TchTensor::new(tensor)
     }

@@ -42,8 +42,6 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
-    type QuantizedEncoding = B::QuantizedEncoding;
-
     fn name(device: &Self::Device) -> String {
         format!("fusion<{}>", B::name(device))
     }

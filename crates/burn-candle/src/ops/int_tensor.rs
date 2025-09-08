@@ -1,19 +1,19 @@
 use burn_common::future::DynFut;
 use burn_tensor::{
-    Bool, Device, Distribution, ElementConversion, Shape, TensorData,
+    Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
     ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
 };
 
 use crate::{
-    Candle, CandleTensor,
+    Candle, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
-    fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::empty(shape, device, I::DTYPE)
+    fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
+        super::base::empty(shape, device, dtype.into_dtype())
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -131,7 +131,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
@@ -143,7 +145,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.gt(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
@@ -155,7 +159,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.ge(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
@@ -167,7 +173,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.lt(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
@@ -179,7 +187,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.le(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
@@ -241,15 +251,17 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         panic!("Not supported by Candle")
     }
 
-    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::zeros(shape.dims, I::DTYPE, &(device.clone()).into()).unwrap(),
+            candle_core::Tensor::zeros(shape.dims, dtype.into_dtype(), &(device.clone()).into())
+                .unwrap(),
         )
     }
 
-    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::ones(shape.dims, I::DTYPE, &(device.clone()).into()).unwrap(),
+            candle_core::Tensor::ones(shape.dims, dtype.into_dtype(), &(device.clone()).into())
+                .unwrap(),
         )
     }
 
@@ -306,16 +318,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         // Ugly type conversion here as Candle does not support unary ops on ints
-        CandleTensor::new(
-            tensor
-                .tensor
-                .to_dtype(F::DTYPE)
-                .unwrap()
-                .abs()
-                .unwrap()
-                .to_dtype(I::DTYPE)
-                .unwrap(),
-        )
+        match tensor.tensor.dtype() {
+            candle_core::DType::U8 | candle_core::DType::U32 => tensor,
+            candle_core::DType::I64 => CandleTensor::new(
+                tensor
+                    .tensor
+                    .to_dtype(F::DTYPE)
+                    .unwrap()
+                    .abs()
+                    .unwrap()
+                    .to_dtype(candle_core::DType::I64)
+                    .unwrap(),
+            ),
+            _ => unreachable!(),
+        }
     }
 
     fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
@@ -421,5 +437,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
         let out = Self::float_matmul(lhs, rhs);
         Self::float_into_int(out)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = dtype.into_dtype();
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
     }
 }

@@ -319,21 +319,16 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
 
 #[cfg(test)]
 mod tests {
-
-    use burn_tensor::backend::Backend;
-
     use super::*;
+    use crate as burn;
     use crate::{
         TestBackend,
         module::Module,
-        nn::{
-            Linear, LinearConfig,
-            conv::{Conv2d, Conv2dConfig},
-        },
+        nn::conv::{Conv2d, Conv2dConfig},
+        nn::{Linear, LinearConfig},
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
-
-    use crate as burn;
+    use burn_tensor::backend::Backend;
 
     #[inline(always)]
     fn file_path() -> PathBuf {
@@ -398,7 +393,7 @@ mod tests {
     pub struct Model<B: Backend> {
         conv2d1: Conv2d<B>,
         linear1: Linear<B>,
-        phantom: core::marker::PhantomData<B>,
+        phantom: PhantomData<B>,
     }
 
     pub fn create_model(device: &<TestBackend as Backend>::Device) -> Model<TestBackend> {
@@ -409,7 +404,7 @@ mod tests {
         Model {
             conv2d1,
             linear1,
-            phantom: core::marker::PhantomData,
+            phantom: PhantomData,
         }
     }
 }
