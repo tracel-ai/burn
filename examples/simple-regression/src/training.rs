@@ -10,7 +10,7 @@ use burn::{
     train::{LearnerBuilder, metric::LossMetric},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExpConfig {
     #[config(default = 100)]
     pub num_epochs: usize,

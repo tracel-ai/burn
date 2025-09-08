@@ -20,7 +20,7 @@ use burn::{
 };
 use std::sync::Arc;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: AdamConfig,

@@ -45,6 +45,7 @@ pub mod tensor;
 pub mod vision;
 
 extern crate alloc;
+extern crate core;
 
 /// Backend for test cases
 #[cfg(all(

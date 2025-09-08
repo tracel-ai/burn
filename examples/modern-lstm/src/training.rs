@@ -12,7 +12,7 @@ use burn::{
     tensor::backend::AutodiffBackend,
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: LstmNetworkConfig,
     pub optimizer: AdamConfig,
