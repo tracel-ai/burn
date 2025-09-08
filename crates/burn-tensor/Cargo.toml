@@ -15,11 +15,12 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "burn-common/rayon"]
 cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
+cubecl-cpu = ["cubecl", "cubecl/cpu"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
@@ -49,6 +50,7 @@ serde_bytes = { workspace = true }
 [dev-dependencies]
 bincode = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] } # Default enables std
+paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

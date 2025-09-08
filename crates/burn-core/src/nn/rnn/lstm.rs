@@ -365,7 +365,8 @@ mod tests {
 
     #[test]
     fn test_with_uniform_initializer() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
@@ -390,7 +391,9 @@ mod tests {
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
     #[test]
     fn test_forward_single_input_single_feature() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let config = LstmConfig::new(1, 1, false);
         let device = Default::default();
         let mut lstm = config.init::<TestBackend>(&device);
@@ -534,20 +537,22 @@ mod tests {
             .unwrap();
 
         // Asserts that the gradients exist and are non-zero
-        assert!(
+        assert_ne!(
             some_gradient
                 .any()
                 .into_data()
                 .iter::<f32>()
                 .next()
-                .unwrap()
-                != 0.0
+                .unwrap(),
+            0.0
         );
     }
 
     #[test]
     fn test_bidirectional() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let config = BiLstmConfig::new(2, 3, true);
         let device = Default::default();
         let mut lstm = config.init(&device);

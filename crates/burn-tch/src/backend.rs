@@ -1,5 +1,3 @@
-use crate::{QuantElement, TchQTensor};
-
 use super::TchTensor;
 use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
@@ -93,12 +91,11 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32, Q = i8> {
+pub struct LibTorch<E = f32> {
     _e: E,
-    _q: Q,
 }
 
-impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
+impl<E: TchElement> Backend for LibTorch<E> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
@@ -110,10 +107,9 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 
-    type QuantizedTensorPrimitive = TchQTensor;
-    type QuantizedEncoding = Q;
+    type QuantizedTensorPrimitive = TchTensor;
 
-    fn seed(seed: u64) {
+    fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }
 
@@ -142,6 +138,7 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
                 Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
                     [1].into(),
                     device,
+                    E::dtype().into(),
                 ))
                 .into_data();
             }

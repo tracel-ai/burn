@@ -1,20 +1,19 @@
 use crate as burn;
 use burn_derive::{Config, Module};
 
-use crate::nn::{
-    Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, Linear, LinearConfig, PRelu,
-    PReluConfig, Relu, Sigmoid, SwiGlu, SwiGluConfig, Tanh,
+use crate::nn::activation::{
+    Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu,
+    Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };
-use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
+use burn_tensor::{AsIndex, Tensor};
 
 /// [`Activation`] Configuration.
-// TODO: GLU's dim-select interaction with DimSelectActivation needs thought.
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
-    GeLu,
+    Gelu,
 
     /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
@@ -36,9 +35,30 @@ pub enum ActivationConfig {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoidConfig),
+}
 
-    /// [`Linear`] activation layer.
-    Linear(LinearConfig),
+impl From<PReluConfig> for ActivationConfig {
+    fn from(config: PReluConfig) -> Self {
+        Self::PRelu(config)
+    }
+}
+
+impl From<LeakyReluConfig> for ActivationConfig {
+    fn from(config: LeakyReluConfig) -> Self {
+        Self::LeakyRelu(config)
+    }
+}
+
+impl From<SwiGluConfig> for ActivationConfig {
+    fn from(config: SwiGluConfig) -> Self {
+        Self::SwiGlu(config)
+    }
+}
+
+impl From<HardSigmoidConfig> for ActivationConfig {
+    fn from(config: HardSigmoidConfig) -> Self {
+        Self::HardSigmoid(config)
+    }
 }
 
 impl ActivationConfig {
@@ -47,13 +67,12 @@ impl ActivationConfig {
         match self {
             ActivationConfig::Relu => Activation::Relu(Relu),
             ActivationConfig::LeakyRelu(conf) => Activation::LeakyRelu(conf.init()),
-            ActivationConfig::GeLu => Activation::Gelu(Gelu),
+            ActivationConfig::Gelu => Activation::Gelu(Gelu),
             ActivationConfig::PRelu(conf) => Activation::PRelu(conf.init(device)),
             ActivationConfig::SwiGlu(conf) => Activation::SwiGlu(conf.init(device)),
             ActivationConfig::HardSigmoid(conf) => Activation::HardSigmoid(conf.init()),
             ActivationConfig::Sigmoid => Activation::Sigmoid(Sigmoid),
             ActivationConfig::Tanh => Activation::Tanh(Tanh),
-            ActivationConfig::Linear(conf) => Activation::Linear(conf.init(device)),
         }
     }
 }
@@ -87,9 +106,6 @@ pub enum Activation<B: Backend> {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoid),
-
-    /// [`Linear`] activation layer.
-    Linear(Linear<B>),
 }
 
 impl<B: Backend> Activation<B> {
@@ -104,7 +120,6 @@ impl<B: Backend> Activation<B> {
             Activation::HardSigmoid(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
-            Activation::Linear(layer) => layer.forward(input),
         }
     }
 }
@@ -119,6 +134,12 @@ pub struct DimSelectActivationConfig {
     /// Supports negative indexing.
     #[config(default = "-1")]
     pub dim: isize,
+}
+
+impl From<ActivationConfig> for DimSelectActivationConfig {
+    fn from(config: ActivationConfig) -> Self {
+        Self::new(config)
+    }
 }
 
 impl DimSelectActivationConfig {
@@ -145,31 +166,40 @@ pub struct DimSelectActivation<B: Backend> {
 }
 
 impl<B: Backend> DimSelectActivation<B> {
-    /// Canonicalize the activation dim to the given rank.
-    #[inline(always)]
-    pub fn canonicalize_dim(&self, rank: usize) -> usize {
-        burn_tensor::indexing::canonicalize_dim(self.dim, rank, false)
-    }
-
     /// Forward pass.
+    ///
+    /// Swaps the input dims for the selected activation dim,
+    /// applies the inner activation wrapper,
+    /// then swaps the result dims back.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let dim = self.canonicalize_dim(D);
-        let last = D - 1;
-
-        let input = if dim == last {
-            input
-        } else {
-            input.swap_dims(dim, last)
-        };
-
-        let output = self.layer.forward(input);
-
-        if dim == last {
-            output
-        } else {
-            output.swap_dims(dim, last)
-        }
+        apply_swapped(input, self.dim, |input| self.layer.forward(input))
     }
+}
+
+/// Swap the specified `dim` to the last dimension, apply the activation, then swap back.
+///
+/// # Arguments
+///
+/// - `input`: the tensor to operate on.
+/// - `dim`: the dim to make the "last" dim.
+/// - `f`: the function to apply.
+///
+/// # Returns
+///
+/// The result tensor.
+fn apply_swapped<B: Backend, const D: usize, Dim, F>(
+    input: Tensor<B, D>,
+    dim: Dim,
+    f: F,
+) -> Tensor<B, D>
+where
+    Dim: AsIndex,
+    F: FnOnce(Tensor<B, D>) -> Tensor<B, D>,
+{
+    let dim = burn_tensor::indexing::canonicalize_dim(dim, D, false);
+    let last = D - 1;
+    // swap_dims(x, x) is a guaranteed no-op.
+    f(input.swap_dims(dim, last)).swap_dims(dim, last)
 }
 
 #[cfg(test)]
@@ -177,7 +207,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use crate::prelude::Module;
-    use burn_tensor::Distribution;
+    use burn_tensor::{Distribution, TensorData};
 
     fn make_input<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
         Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], device)
@@ -203,9 +233,9 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Gelu::default().forward(input.clone());
+        let expected = Gelu.forward(input.clone());
 
-        check_stateless_config_output(ActivationConfig::GeLu, input, expected, &device)
+        check_stateless_config_output(ActivationConfig::Gelu, input, expected, &device)
     }
 
     #[test]
@@ -216,12 +246,7 @@ mod tests {
         let inner_config = PReluConfig::new();
         let expected = inner_config.init(&device).forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::PRelu(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
@@ -229,7 +254,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Relu::default().forward(input.clone());
+        let expected = Relu.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Relu, input, expected, &device)
     }
@@ -242,12 +267,7 @@ mod tests {
         let inner_config = LeakyReluConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::LeakyRelu(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
@@ -261,7 +281,7 @@ mod tests {
         let inner_config = SwiGluConfig::new(d_input, d_output);
         let mut reference: SwiGlu<TestBackend> = inner_config.init(&device);
 
-        let config = ActivationConfig::SwiGlu(inner_config);
+        let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
 
         match &layer {
@@ -284,7 +304,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Sigmoid::default().forward(input.clone());
+        let expected = Sigmoid.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Sigmoid, input, expected, &device)
     }
@@ -294,7 +314,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Tanh::default().forward(input.clone());
+        let expected = Tanh.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Tanh, input, expected, &device)
     }
@@ -307,41 +327,44 @@ mod tests {
         let inner_config = HardSigmoidConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
-        check_stateless_config_output(
-            ActivationConfig::HardSigmoid(inner_config),
-            input,
-            expected,
-            &device,
-        )
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
     }
 
     #[test]
-    fn test_linear() {
+    fn test_apply_swapped() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input: Tensor<TestBackend, 2> =
+            Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], &device);
 
-        let d_input = input.shape().dims[1];
-        let d_output = 2 * d_input;
+        let output = apply_swapped(input.clone(), 1, |t| {
+            t + Tensor::from_data([[2.0, 4.0, 6.0]], &device)
+        });
+        output.clone().to_data().assert_eq(
+            &TensorData::from([
+                [2.0 - 1.0, 4.0 - 0.5, 6.0 - 0.0],
+                [2.0 + 1.0, 4.0 + 0.5, 6.0 + 0.0],
+            ]),
+            false,
+        );
+        // Test negative dim.
+        output.clone().to_data().assert_eq(
+            &apply_swapped(input.clone(), -1, |t| {
+                t + Tensor::from_data([[2.0, 4.0, 6.0]], &device)
+            })
+            .to_data(),
+            true,
+        );
 
-        let inner_config = LinearConfig::new(d_input, d_output);
-        let mut reference: Linear<TestBackend> = inner_config.init(&device);
-
-        let config = ActivationConfig::Linear(inner_config);
-        let layer = config.init(&device);
-
-        match &layer {
-            Activation::Linear(inner) => {
-                // Clone the initialized weights.
-                let state = inner.clone().into_record();
-                reference = reference.load_record(state);
-            }
-            _ => unreachable!(),
-        };
-
-        expect_tensor(
-            layer.forward(input.clone()),
-            reference.forward(input.clone()),
-        )
+        let output = apply_swapped(input.clone(), 0, |t| {
+            t + Tensor::from_data([[2.0, 4.0]], &device)
+        });
+        output.to_data().assert_eq(
+            &TensorData::from([
+                [2.0 - 1.0, 2.0 - 0.5, 2.0 - 0.0],
+                [4.0 + 1.0, 4.0 + 0.5, 4.0 + 0.0],
+            ]),
+            false,
+        );
     }
 
     #[test]
@@ -351,9 +374,9 @@ mod tests {
         let input: Tensor<TestBackend, 3> =
             Tensor::random([2, 4, 3], Distribution::Normal(0.0, 1.0), &device);
 
-        let expected = Relu::default().forward(input.clone());
+        let expected = Relu.forward(input.clone());
 
-        let config = DimSelectActivationConfig::new(ActivationConfig::Relu);
+        let config: DimSelectActivationConfig = ActivationConfig::Relu.into();
         let act = config.init(&device);
         let output = act.forward(input);
         expect_tensor(output, expected);
@@ -367,13 +390,10 @@ mod tests {
         let input: Tensor<TestBackend, 3> =
             Tensor::random([2, 5, 4], Distribution::Normal(0.0, 1.0), &device);
 
-        let expected = Relu::default()
-            .forward(input.clone().swap_dims(1, 2))
-            .swap_dims(1, 2);
+        let expected = Relu.forward(input.clone().swap_dims(1, 2)).swap_dims(1, 2);
 
-        let config = DimSelectActivationConfig::new(ActivationConfig::Relu).with_dim(1);
+        let config = DimSelectActivationConfig::from(ActivationConfig::Relu).with_dim(1);
         let act = config.init(&device);
-        assert_eq!(act.canonicalize_dim(3), 1);
 
         let result = act.forward(input);
         expect_tensor(result, expected);

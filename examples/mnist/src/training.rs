@@ -63,7 +63,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
 
     let config = MnistTrainingConfig::new(config_optimizer);
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     let model = Model::<B>::new(&device);
 

@@ -168,7 +168,8 @@ mod tests {
 
     #[test]
     fn initializer_default() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = ConvTranspose3dConfig::new([5, 1], [5, 5, 5]);
         let k = (config.channels[1]
@@ -183,7 +184,8 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config =
             ConvTranspose3dConfig::new([5, 2], [5, 5, 5]).with_initializer(Initializer::Zeros);

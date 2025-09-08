@@ -78,7 +78,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Dataloaders
     let batcher_train = ClassificationBatcher::<B>::new(device.clone());

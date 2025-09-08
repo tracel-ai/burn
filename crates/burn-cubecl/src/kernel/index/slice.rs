@@ -18,13 +18,13 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
         dims[i] = indices[i].end - indices[i].start;
     }
 
-    let offset_start = offset_start * E::cube_elem().size() as u64;
-    let offset_end = offset_end * E::cube_elem().size() as u64;
+    let offset_start = offset_start * E::cube_type().size() as u64;
+    let offset_end = offset_end * E::cube_type().size() as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory.alignment;
 
-    if offset_start % memory_offset_alignment == 0u64
-        && offset_end % memory_offset_alignment == 0u64
+    if offset_start.is_multiple_of(memory_offset_alignment)
+        && offset_end.is_multiple_of(memory_offset_alignment)
     {
         CubeTensor::new(
             tensor.client,

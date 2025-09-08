@@ -2,7 +2,7 @@ use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, resh
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
-use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
+use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 use crate::{
     CubeFusionHandle, elem_dtype,
@@ -436,7 +436,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
-        let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
+        let size = tensor_global.shape.iter().product::<usize>() * StorageType::from(dtype).size();
 
         let handle = CubeFusionHandle {
             client: client.clone(),

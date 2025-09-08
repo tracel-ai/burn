@@ -1,9 +1,9 @@
 #[burn_tensor_testgen::testgen(module_bilinear_interpolate)]
 mod tests {
     use super::*;
-    use burn_tensor::Shape;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+    use burn_tensor::{DType, Shape};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -172,6 +172,45 @@ mod tests {
             [103.3043, 106.3043],
             [108.0, 111.0],
         ]]]));
+    }
+
+    #[test]
+    fn should_interpolate_cast() {
+        let device = Default::default();
+        let shape_x = Shape::new([1, 1, 4, 4]);
+        let x = TestTensor::from(
+            TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
+                .reshape::<4, _>(shape_x)
+                .into_data(),
+        )
+        .cast(DType::F32); // ok for f32 backends, casts dtype for f16 tests
+        let output = interpolate(
+            x,
+            [8, 8],
+            InterpolateOptions::new(InterpolateMode::Bilinear),
+        );
+
+        let expected = TestTensor::<4>::from([[[
+            [0.0, 0.42857, 0.8571, 1.2857, 1.7142, 2.1428, 2.5714, 3.0],
+            [1.7142, 2.1428, 2.5714, 3.0, 3.4285, 3.8571, 4.2857, 4.7142],
+            [3.4285, 3.8571, 4.2857, 4.7142, 5.1428, 5.5714, 6.0, 6.4285],
+            [5.1428, 5.5714, 6.0, 6.4285, 6.8571, 7.2857, 7.7142, 8.1428],
+            [6.8571, 7.2857, 7.7142, 8.1428, 8.5714, 9.0, 9.4285, 9.8571],
+            [
+                8.5714, 9.0, 9.4285, 9.8571, 10.2857, 10.7142, 11.1428, 11.5714,
+            ],
+            [
+                10.2857, 10.7142, 11.1428, 11.5714, 12.0, 12.4285, 12.8571, 13.2857,
+            ],
+            [
+                12.0, 12.4285, 12.8571, 13.2857, 13.7142, 14.1428, 14.5714, 15.0,
+            ],
+        ]]]);
+
+        let tolerance = Tolerance::permissive();
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), tolerance);
     }
 
     struct InterpolateTestCase {
