@@ -53,7 +53,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     }
 
     fn bool_ones(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
-        let tensor = tch::Tensor::zeros(
+        let tensor = tch::Tensor::ones(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
         );
