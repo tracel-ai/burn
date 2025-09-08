@@ -68,42 +68,42 @@ impl NormalizationConfig {
     /// Initialize a ['Norm'] layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Normalization<B> {
         match self {
-            NormalizationConfig::Batch(config) => Normalization::Batch(config.init(device)),
-            NormalizationConfig::Group(config) => Normalization::Group(config.init(device)),
-            NormalizationConfig::Instance(config) => Normalization::Instance(config.init(device)),
-            NormalizationConfig::Layer(config) => Normalization::Layer(config.init(device)),
-            NormalizationConfig::Rms(config) => Normalization::Rms(config.init(device)),
+            NormalizationConfig::Batch(config) => config.init(device).into(),
+            NormalizationConfig::Group(config) => config.init(device).into(),
+            NormalizationConfig::Instance(config) => config.init(device).into(),
+            NormalizationConfig::Layer(config) => config.init(device).into(),
+            NormalizationConfig::Rms(config) => config.init(device).into(),
         }
     }
 
     /// Set the number of features.
-    pub fn with_num_features(self, features: usize) -> Self {
+    pub fn with_num_features(self, num_features: usize) -> Self {
         match self {
-            NormalizationConfig::Batch(config) => {
-                let mut config = config;
-                config.num_features = features;
-                config.into()
+            NormalizationConfig::Batch(config) => BatchNormConfig {
+                num_features,
+                ..config
             }
-            NormalizationConfig::Group(config) => {
-                let mut config = config;
-                config.num_channels = features;
-                config.into()
+            .into(),
+            NormalizationConfig::Group(config) => GroupNormConfig {
+                num_channels: num_features,
+                ..config
             }
-            NormalizationConfig::Instance(config) => {
-                let mut config = config;
-                config.num_channels = features;
-                config.into()
+            .into(),
+            NormalizationConfig::Instance(config) => InstanceNormConfig {
+                num_channels: num_features,
+                ..config
             }
-            NormalizationConfig::Layer(config) => {
-                let mut config = config;
-                config.d_model = features;
-                config.into()
+            .into(),
+            NormalizationConfig::Layer(config) => LayerNormConfig {
+                d_model: num_features,
+                ..config
             }
-            NormalizationConfig::Rms(config) => {
-                let mut config = config;
-                config.d_model = features;
-                config.into()
+            .into(),
+            NormalizationConfig::Rms(config) => RmsNormConfig {
+                d_model: num_features,
+                ..config
             }
+            .into(),
         }
     }
 
@@ -146,6 +146,36 @@ pub enum Normalization<B: Backend> {
 
     /// ['RmsNorm'] layer.
     Rms(RmsNorm<B>),
+}
+
+impl<B: Backend> From<BatchNorm<B>> for Normalization<B> {
+    fn from(layer: BatchNorm<B>) -> Self {
+        Self::Batch(layer)
+    }
+}
+
+impl<B: Backend> From<GroupNorm<B>> for Normalization<B> {
+    fn from(layer: GroupNorm<B>) -> Self {
+        Self::Group(layer)
+    }
+}
+
+impl<B: Backend> From<InstanceNorm<B>> for Normalization<B> {
+    fn from(layer: InstanceNorm<B>) -> Self {
+        Self::Instance(layer)
+    }
+}
+
+impl<B: Backend> From<LayerNorm<B>> for Normalization<B> {
+    fn from(layer: LayerNorm<B>) -> Self {
+        Self::Layer(layer)
+    }
+}
+
+impl<B: Backend> From<RmsNorm<B>> for Normalization<B> {
+    fn from(layer: RmsNorm<B>) -> Self {
+        Self::Rms(layer)
+    }
 }
 
 impl<B: Backend> Normalization<B> {
