@@ -186,8 +186,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
         module_op!(inp(x), opt(), E, |x| {
             let (output, indices) =
-                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation); 
-            MaxPool2dWithIndices::new(output.into(), indices)
+                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
+            MaxPool2dWithIndices::new(output.into(), crate::new_tensor_int!(indices, I))
         })
     }
 

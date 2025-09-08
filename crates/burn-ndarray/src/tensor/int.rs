@@ -36,14 +36,17 @@ impl TensorMetadata for NdArrayTensorInt {
     }
 }
 
-/// Macro to create a new [int tensor](NdArrayIntTensor) based on the element type.
 #[macro_export]
 macro_rules! new_tensor_int {
-    // Op executed with default dtype
-    ($tensor:expr) => {{
-        match E::dtype() {
-            burn_tensor::DType::I64 => $crate::NdArrayTensorInt::I64($tensor),
-            burn_tensor::DType::U8 => $crate::NdArrayTensorInt::U8($tensor),
+    ($tensor:expr, $I:ty) => {{
+        let data = $tensor.into_data();
+        match <$I as burn_tensor::Element>::dtype() {
+            burn_tensor::DType::I64 => {
+                $crate::NdArrayTensorInt::I64($crate::NdArrayTensor::from_data(data))
+            }
+            burn_tensor::DType::U8 => {
+                $crate::NdArrayTensorInt::U8($crate::NdArrayTensor::from_data(data))
+            }
             _ => unimplemented!("Unsupported dtype"),
         }
     }};
