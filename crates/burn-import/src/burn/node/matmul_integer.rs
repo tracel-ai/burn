@@ -68,26 +68,41 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         let lhs_dim = self.lhs.rank;
         let rhs_dim = self.rhs.rank;
 
-        // Zero-points: when absent, use zeros_like with full inference (no const generics)
-        let a_zp = if let Some(zp) = &self.lhs_zero_point {
+        // ---- Zero-points: synthesize when missing, otherwise lift to input rank ----
+        let a_zp_raw: TokenStream = if let Some(zp) = &self.lhs_zero_point {
             scope.tensor_use_owned(zp, node_position)
         } else {
             quote! { Tensor::zeros_like(&#lhs) }
         };
-        let b_zp = if let Some(zp) = &self.rhs_zero_point {
+        let b_zp_raw: TokenStream = if let Some(zp) = &self.rhs_zero_point {
             scope.tensor_use_owned(zp, node_position)
         } else {
             quote! { Tensor::zeros_like(&#rhs) }
         };
 
-        // Burn has .int()/.float()/.bool(); no DType in the public API.
-        let lhs_c = quote! { (#lhs).int().sub((#a_zp).int()) };
-        let rhs_c = quote! { (#rhs).int().sub((#b_zp).int()) };
+        // If a ZP is provided (scalar or 1-D), unsqueeze it to the input rank so `sub` has matching rank.
+        let a_zp = if self.lhs_zero_point.is_some() && lhs_dim > 1 {
+            let tr = lhs_dim;
+            quote! { (#a_zp_raw).unsqueeze::<#tr>() }
+        } else {
+            quote! { #a_zp_raw }
+        };
+        let b_zp = if self.rhs_zero_point.is_some() && rhs_dim > 1 {
+            let tr = rhs_dim;
+            quote! { (#b_zp_raw).unsqueeze::<#tr>() }
+        } else {
+            quote! { #b_zp_raw }
+        };
 
+        // Centered inputs (already Int tensors)
+        let lhs_c = quote! { ((#lhs).sub(#a_zp)) };
+        let rhs_c = quote! { ((#rhs).sub(#b_zp)) };
+
+        // ---- Rank handling for matmul broadcasting ----
         match lhs_dim.cmp(&rhs_dim) {
             core::cmp::Ordering::Greater => {
                 if rhs_dim == 1 {
-                    // e.g. (…, M, K) @ (K) -> (…, M)
+                    // (…, M, K) @ (K) -> (…, M)
                     let squeeze_dim = lhs_dim - 1;
                     let out_rank = self.output.rank;
                     let target_rank = lhs_dim;
@@ -106,7 +121,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
             }
             core::cmp::Ordering::Less => {
                 if lhs_dim == 1 {
-                    // e.g. (K) @ (…, K, N) -> (…, N)
+                    // (K) @ (…, K, N) -> (…, N)
                     let squeeze_dim = rhs_dim - 2;
                     let out_rank = self.output.rank;
                     let target_rank = rhs_dim;
@@ -128,7 +143,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
             },
         }
     }
-
     fn into_node(self) -> Node<PS> {
         Node::MatmulInteger(self)
     }

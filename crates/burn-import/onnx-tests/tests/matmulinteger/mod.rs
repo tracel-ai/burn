@@ -9,27 +9,34 @@ include_models!(matmulinteger, matmulinteger_ranks);
 mod tests {
     use super::*;
     use crate::backend::TestBackend;
-    use burn::tensor::{Int, Tensor, TensorData};
+    use burn::tensor::{Int, Tensor};
 
     // Simple no-zero-point case: check integer matmul → int32 result
     #[test]
     fn matmulinteger_basic() {
         let device = Default::default();
-        // If your generated model uses `new(&device)` like maxpool:
         let model: matmulinteger::Model<TestBackend> = matmulinteger::Model::new(&device);
-        // If it uses `default()` like matmul, swap the constructor accordingly:
-        // let model: matmulinteger::Model<TestBackend> = matmulinteger::Model::default();
 
-        // A: [2,3], B: [3,2] with small ints; zero-points are constants in the model (usually 0)
-        let a = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6]], &device);
-        let b = Tensor::<TestBackend, 2, Int>::from_ints([[7, 8], [9, 10], [11, 12]], &device);
+        // Build inputs for A,B,C,D,E,F matching your ONNX shapes/dtypes
+        let a = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2, 3, 4], [10, 20, 30, 40]], &device);
+        let b = Tensor::<TestBackend, 2, Int>::from_ints(
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]],
+            &device,
+        );
 
-        let out = model.forward(a, b);
-        // Expected matmul in int32:
-        // [[ 58,  64],
-        //  [139, 154]]
-        let expected = TensorData::from([[58i32, 64], [139, 154]]);
-        out.to_data().assert_eq(&expected, true);
+        let c = a.clone();
+        let d = b.clone();
+
+        let e = Tensor::<TestBackend, 2, Int>::from_ints([[1, -1, 2, -2], [3, -3, 4, -4]], &device);
+        let f = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2], [3, 4], [5, 6], [7, 8]], &device);
+
+        // Forward now takes 6 args and returns 3 outputs (YA, YB, YC)
+        let (ya, yb, yc) = model.forward(a, b, c, d, e, f);
+
+        // NdArray backend: Int => i64, so build i64 expected
+        use burn::tensor::TensorData;
+        let expected_ya = TensorData::from([[70i64, 80, 90], [700, 800, 900]]);
+        ya.to_data().assert_eq(&expected_ya, true);
     }
 
     // Rank/broadcast shapes: mirror your matmul_ranks style but with integer inputs
