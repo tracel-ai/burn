@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_tensor::{
     Shape,
-    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
+    ops::{DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
     AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
@@ -30,7 +30,7 @@ use crate::{
 use super::{bilinear_interpolate, deform_im2col, index};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-#[allow(clippy::single_range_in_vec_init)]
+#[allow(clippy::single_range_in_vec_init, clippy::type_complexity)]
 pub(crate) fn deform_conv2d_backward<
     R: CubeRuntime,
     E: FloatElement,
@@ -44,7 +44,16 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<CubeTensor<R>>,
     out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
-) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvSetupError> {
+) -> Result<
+    (
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        Option<CubeTensor<R>>,
+    ),
+    ConvSetupError,
+> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -80,7 +89,7 @@ pub(crate) fn deform_conv2d_backward<
         (out_h, out_w),
     )?;
 
-    Ok(DeformConv2dBackward::new(
+    Ok((
         input_gradient,
         offset_gradient,
         weight_grad,

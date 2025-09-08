@@ -8,7 +8,7 @@ use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::tensor::{index_offset_with_layout, layout::linear::LinearView, r#virtual::ReadWrite},
+    std::tensor::{index_offset_with_layout, layout::linear::LinearView},
     tensor_line_size_parallel,
 };
 

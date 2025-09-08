@@ -1,5 +1,6 @@
 use crate::{
-    Float, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend, cartesian_grid,
+    Float, Int, IntDType, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
+    cartesian_grid,
 };
 
 use core::ops::Range;
@@ -153,5 +154,14 @@ where
     /// Applies the bitwise right shift operation with the scalar.
     pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
+    }
+
+    /// Converts a tensor to the specified integer data type.
+    ///
+    /// # Warning
+    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
+    /// have the same integer data type for operations multiple input tensors (e.g., binary ops).
+    pub fn cast<F: Into<IntDType>>(self, dtype: F) -> Tensor<B, D, Int> {
+        Tensor::new(B::int_cast(self.primitive, dtype.into()))
     }
 }

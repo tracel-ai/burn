@@ -1,8 +1,6 @@
 use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::tensor::{layout::linear::LinearView, r#virtual::ReadWrite},
+    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
 };
 use cubecl::{

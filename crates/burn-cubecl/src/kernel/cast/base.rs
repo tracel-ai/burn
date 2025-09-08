@@ -4,7 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
-use cubecl::std::tensor::{layout::linear::LinearView, r#virtual::ReadWrite};
+use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::any::TypeId;
 

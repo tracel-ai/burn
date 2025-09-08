@@ -2,7 +2,7 @@ use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::Autodiff
 use alloc::vec::Vec;
 
 use burn_tensor::{
-    Device, Distribution, Shape, TensorData,
+    Device, Distribution, IntDType, Shape, TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
 };
@@ -32,8 +32,12 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_slice(tensor, ranges)
     }
 
-    fn int_empty(shape: Shape, device: &<Autodiff<B> as Backend>::Device) -> IntTensor<B> {
-        B::int_empty(shape, device)
+    fn int_empty(
+        shape: Shape,
+        device: &<Autodiff<B> as Backend>::Device,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        B::int_empty(shape, device, dtype)
     }
 
     fn int_slice_assign(
@@ -116,16 +120,21 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_neg(tensor)
     }
 
-    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
-        B::int_zeros(shape, device)
+    fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<B> {
+        B::int_zeros(shape, device, dtype)
     }
 
-    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
-        B::int_ones(shape, device)
+    fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<B> {
+        B::int_ones(shape, device, dtype)
     }
 
-    fn int_full(shape: Shape, fill_value: B::IntElem, device: &Device<Self>) -> IntTensor<B> {
-        B::int_full(shape, fill_value, device)
+    fn int_full(
+        shape: Shape,
+        fill_value: B::IntElem,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        B::int_full(shape, fill_value, device, dtype)
     }
 
     fn int_sum(tensor: IntTensor<B>) -> IntTensor<B> {
@@ -363,5 +372,9 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
         B::bitwise_right_shift_scalar(lhs, rhs)
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        B::int_cast(tensor, dtype)
     }
 }
