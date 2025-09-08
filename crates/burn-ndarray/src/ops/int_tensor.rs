@@ -31,6 +31,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> IntTensor<Self> {
         match data.dtype {
             DType::I64 => NdArrayTensorInt::I64(NdArrayTensor::from_data(data)),
+            DType::I32 => NdArrayTensorInt::I32(NdArrayTensor::from_data(data)),
             DType::U8 => NdArrayTensorInt::U8(NdArrayTensor::from_data(data)),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
@@ -39,6 +40,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         match tensor {
             NdArrayTensorInt::I64(tensor) => NdArrayOps::into_data(tensor),
+            NdArrayTensorInt::I32(tensor) => NdArrayOps::into_data(tensor),
             NdArrayTensorInt::U8(tensor) => NdArrayOps::into_data(tensor),
         }
     }
@@ -110,6 +112,22 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
                     })
                     .collect::<Vec<_>>();
                 NdArrayTensorInt::U8(NdArrayOps::concatenate(&tensors, dim))
+            }
+            NdArrayTensorInt::I32(_) => {
+                let tensors = tensors
+                    .iter()
+                    .map(|t| {
+                        if let NdArrayTensorInt::I32(tensor) = t {
+                            tensor.array.view()
+                        } else {
+                            panic!(
+                                "Concatenate data type mismatch (expected i46, got {:?})",
+                                t.dtype()
+                            )
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                NdArrayTensorInt::I32(NdArrayOps::concatenate(&tensors, dim))
             }
             NdArrayTensorInt::I64(_) => {
                 let tensors = tensors
@@ -463,13 +481,18 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 
         match (&tensor, dtype) {
             // No cast
-            (NdArrayTensorInt::I64(_), IntDType::I64) | (NdArrayTensorInt::U8(_), IntDType::U8) => {
+            (NdArrayTensorInt::I64(_), IntDType::I64) | (NdArrayTensorInt::I32(_), IntDType::I32) | (NdArrayTensorInt::U8(_), IntDType::U8) => {
                 tensor
             }
-            // I64 to U8
+            // I64 to x
             (NdArrayTensorInt::I64(tensor), IntDType::U8) => NdArrayTensorInt::U8(cast(tensor)),
-            // U8 to I64
+            (NdArrayTensorInt::I64(tensor), IntDType::I32) => NdArrayTensorInt::I32(cast(tensor)),
+            // I32 to x
+            (NdArrayTensorInt::I32(tensor), IntDType::U8) => NdArrayTensorInt::U8(cast(tensor)),
+            (NdArrayTensorInt::I32(tensor), IntDType::U8) => NdArrayTensorInt::U8(cast(tensor)),
+            // U8 to x
             (NdArrayTensorInt::U8(tensor), IntDType::I64) => NdArrayTensorInt::I64(cast(tensor)),
+            (NdArrayTensorInt::U8(tensor), IntDType::I32) => NdArrayTensorInt::I32(cast(tensor)),
             _ => panic!("Invalid cast types"),
         }
     }

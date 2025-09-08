@@ -4,13 +4,23 @@ use burn_tensor::{DType, Shape, TensorMetadata};
 /// Int tensor primitive.
 #[derive(Debug, Clone)]
 pub enum NdArrayTensorInt {
+    /// 64 bit signed integer
     I64(NdArrayTensor<i64>),
+    /// 32 bit signed integer
+    I32(NdArrayTensor<i32>),
+    /// 8 bit unsigned integer
     U8(NdArrayTensor<u8>),
 }
 
 impl From<NdArrayTensor<i64>> for NdArrayTensorInt {
     fn from(value: NdArrayTensor<i64>) -> Self {
         NdArrayTensorInt::I64(value)
+    }
+}
+
+impl From<NdArrayTensor<i32>> for NdArrayTensorInt {
+    fn from(value: NdArrayTensor<i32>) -> Self {
+        NdArrayTensorInt::I32(value)
     }
 }
 
@@ -24,6 +34,7 @@ impl TensorMetadata for NdArrayTensorInt {
     fn dtype(&self) -> DType {
         match self {
             NdArrayTensorInt::I64(tensor) => tensor.dtype(),
+            NdArrayTensorInt::I32(tensor) => tensor.dtype(),
             NdArrayTensorInt::U8(tensor) => tensor.dtype(),
         }
     }
@@ -31,6 +42,7 @@ impl TensorMetadata for NdArrayTensorInt {
     fn shape(&self) -> Shape {
         match self {
             NdArrayTensorInt::I64(tensor) => tensor.shape(),
+            NdArrayTensorInt::I32(tensor) => tensor.shape(),
             NdArrayTensorInt::U8(tensor) => tensor.shape(),
         }
     }
@@ -43,6 +55,9 @@ macro_rules! new_tensor_int {
         match <$I as burn_tensor::Element>::dtype() {
             burn_tensor::DType::I64 => {
                 $crate::NdArrayTensorInt::I64($crate::NdArrayTensor::from_data(data))
+            }
+            burn_tensor::DType::I32 => {
+                $crate::NdArrayTensorInt::I32($crate::NdArrayTensor::from_data(data))
             }
             burn_tensor::DType::U8 => {
                 $crate::NdArrayTensorInt::U8($crate::NdArrayTensor::from_data(data))
@@ -59,6 +74,10 @@ macro_rules! dispatch_int_tensor {
         match $tensor {
             $crate::NdArrayTensorInt::I64($tensor_var) => {
                 type $element = i64;
+                $body
+            }
+            $crate::NdArrayTensorInt::I32($tensor_var) => {
+                type $element = i32;
                 $body
             }
             $crate::NdArrayTensorInt::U8($tensor_var) => {
@@ -104,6 +123,9 @@ macro_rules! execute_with_int_dtype {
             ($crate::NdArrayTensorInt::I64(lhs), $crate::NdArrayTensorInt::I64(rhs)) => {
                 $crate::NdArrayTensorInt::I64($op(lhs, rhs))
             }
+            ($crate::NdArrayTensorInt::I32(lhs), $crate::NdArrayTensorInt::I32(rhs)) => {
+                $crate::NdArrayTensorInt::I32($op(lhs, rhs))
+            }
             ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => {
                 $crate::NdArrayTensorInt::U8($op(lhs, rhs))
             }
@@ -122,6 +144,10 @@ macro_rules! execute_with_int_dtype {
             ($crate::NdArrayTensorInt::I64(lhs), $crate::NdArrayTensorInt::I64(rhs)) => {
                 type $element = i64;
                 $crate::NdArrayTensorInt::I64($op(lhs, rhs))
+            }
+            ($crate::NdArrayTensorInt::I32(lhs), $crate::NdArrayTensorInt::I32(rhs)) => {
+                type $element = i32;
+                $crate::NdArrayTensorInt::I32($op(lhs, rhs))
             }
             ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => {
                 type $element = u8;
@@ -142,6 +168,9 @@ macro_rules! execute_with_int_dtype {
             ($crate::NdArrayTensorInt::I64(lhs), $crate::NdArrayTensorInt::I64(rhs)) => {
                 $op(lhs, rhs)
             }
+            ($crate::NdArrayTensorInt::I32(lhs), $crate::NdArrayTensorInt::I32(rhs)) => {
+                $op(lhs, rhs)
+            }
             ($crate::NdArrayTensorInt::U8(lhs), $crate::NdArrayTensorInt::U8(rhs)) => $op(lhs, rhs),
             _ => panic!(
                 "Data type mismatch (lhs: {:?}, rhs: {:?})",
@@ -154,6 +183,7 @@ macro_rules! execute_with_int_dtype {
     ($tensor:expr, $op:expr) => {{
         match $tensor {
             $crate::NdArrayTensorInt::I64(tensor) => $crate::NdArrayTensorInt::I64($op(tensor)),
+            $crate::NdArrayTensorInt::I32(tensor) => $crate::NdArrayTensorInt::I32($op(tensor)),
             $crate::NdArrayTensorInt::U8(tensor) => $crate::NdArrayTensorInt::U8($op(tensor)),
         }
     }};
@@ -164,6 +194,10 @@ macro_rules! execute_with_int_dtype {
             $crate::NdArrayTensorInt::I64(tensor) => {
                 type $element = i64;
                 $crate::NdArrayTensorInt::I64($op(tensor))
+            }
+            $crate::NdArrayTensorInt::I32(tensor) => {
+                type $element = i32;
+                $crate::NdArrayTensorInt::I32($op(tensor))
             }
             $crate::NdArrayTensorInt::U8(tensor) => {
                 type $element = u8;
@@ -176,6 +210,7 @@ macro_rules! execute_with_int_dtype {
     ($tensor:expr => $op:expr) => {{
         match $tensor {
             $crate::NdArrayTensorInt::I64(tensor) => $op(tensor),
+            $crate::NdArrayTensorInt::I32(tensor) => $op(tensor),
             $crate::NdArrayTensorInt::U8(tensor) => $op(tensor),
         }
     }};
@@ -185,6 +220,10 @@ macro_rules! execute_with_int_dtype {
         match $tensor {
             $crate::NdArrayTensorInt::I64(tensor) => {
                 type $element = i64;
+                $op(tensor)
+            }
+            $crate::NdArrayTensorInt::I32(tensor) => {
+                type $element = i32;
                 $op(tensor)
             }
             $crate::NdArrayTensorInt::U8(tensor) => {

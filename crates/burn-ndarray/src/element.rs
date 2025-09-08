@@ -34,7 +34,21 @@ pub trait NdArrayElement:
 {
 }
 
+/// A trait for computing the **sign** of a numeric value.
+///
+/// It returns:
+///
+/// - `1` if the number is positive  
+/// - `-1` if the number is negative (only for signed types)  
+/// - `0` if the number is zero  
+///
+/// For unsigned types, negative values are not possible, so the function only distinguishes
+/// between `0` and nonzero values.
 pub trait Signum: Zero + One {
+    /// Returns the **sign** of the value as:
+    /// - `1` for positive values,
+    /// - `-1` for negative values (signed types only),
+    /// - `0` for zero.
     fn signum(self) -> Self;
 }
 
@@ -94,6 +108,7 @@ impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
 
 impl IntNdArrayElement for i64 {}
+impl IntNdArrayElement for i32 {}
 impl IntNdArrayElement for u8 {}
 
 macro_rules! make_elem {
