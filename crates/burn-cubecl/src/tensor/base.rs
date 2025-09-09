@@ -7,7 +7,7 @@ use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::prelude::{TensorHandleRef, *};
-use cubecl::server::{CopyDescriptor, Handle};
+use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use std::marker::PhantomData;
 

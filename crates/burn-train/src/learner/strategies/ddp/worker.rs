@@ -2,9 +2,7 @@ use crate::components::{LearnerComponentTypes, TrainBackend};
 use crate::ddp::epoch::DdpValidEpoch;
 use crate::learner::strategies::ddp;
 use crate::metric::store::EventStoreClient;
-use crate::{
-    EarlyStoppingStrategyRef, LearnerCheckpointer, TrainLoader, TrainingInterrupter, ValidLoader,
-};
+use crate::{EarlyStoppingStrategyRef, Interrupter, LearnerCheckpointer, TrainLoader, ValidLoader};
 use burn_collective::{self, CollectiveConfig, PeerId};
 use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
@@ -27,7 +25,7 @@ where
     event_store: Arc<EventStoreClient>,
     checkpointer: Option<LearnerCheckpointer<LC>>,
     lr_scheduler: LC::LrScheduler,
-    interrupter: TrainingInterrupter,
+    interrupter: Interrupter,
     dataloader_train: TrainLoader<LC>,
     dataloader_valid: Option<ValidLoader<LC>>,
     collective_config: CollectiveConfig,
@@ -55,7 +53,7 @@ where
         event_store: Arc<EventStoreClient>,
         checkpointer: Option<LearnerCheckpointer<LC>>,
         lr_scheduler: LC::LrScheduler,
-        interrupter: TrainingInterrupter,
+        interrupter: Interrupter,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: Option<ValidLoader<LC>>,
         collective_config: CollectiveConfig,
