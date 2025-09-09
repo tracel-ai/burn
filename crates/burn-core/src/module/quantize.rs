@@ -53,7 +53,7 @@ mod tests {
             calibration,
             scheme,
         };
-        let q_module = Module::quantize_weights(module, &mut quantizer);
+        let q_module = module.quantize_weights(&mut quantizer);
         let q_result = func(&q_module);
 
         println!("{q_result}");
@@ -102,6 +102,34 @@ mod tests {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
+            .with_store(QuantStore::U32)
+            .with_param(QuantParam::F32);
+
+        should_quantize_module(transformer, scheme, |tr| tr.weight.val().dequantize());
+    }
+
+    #[test]
+    fn should_quantize_linear_blocks() {
+        let device: Device<B> = Default::default();
+        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
+        let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Block(16))
+            .with_store(QuantStore::Native)
+            .with_param(QuantParam::F32);
+
+        should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
+    }
+
+    #[test]
+    fn should_quantize_linear_weights_blocks() {
+        let device: Device<B> = Default::default();
+        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Block(16))
+            // .with_store(QuantStore::Native)
             .with_store(QuantStore::U32)
             .with_param(QuantParam::F32);
 
