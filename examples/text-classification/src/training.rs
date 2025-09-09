@@ -37,7 +37,7 @@ pub struct ExperimentConfig {
     pub optimizer: AdamConfig,
     #[config(default = 256)]
     pub max_seq_length: usize,
-    #[config(default = 32)]
+    #[config(default = 64)]
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
