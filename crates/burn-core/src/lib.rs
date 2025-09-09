@@ -34,7 +34,6 @@ pub mod module;
 /// Neural network module.
 pub mod nn;
 
-
 /// Module for the recorder.
 pub mod record;
 
