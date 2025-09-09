@@ -13,7 +13,7 @@ use crate::tensor::backend::Backend;
 use num_traits::Float as _;
 
 /// Configuration to create a [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.
     #[config(default = "5_000")]

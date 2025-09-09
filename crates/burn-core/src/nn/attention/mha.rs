@@ -15,7 +15,7 @@ use burn_tensor::activation::{quiet_softmax, softmax};
 use num_traits::Float as _;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer using the [init function](MultiHeadAttentionConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MultiHeadAttentionConfig {
     /// The size of each linear layer.
     pub d_model: usize,

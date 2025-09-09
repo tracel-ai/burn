@@ -8,7 +8,7 @@ use burn_tensor::backend::Backend;
 /// This scheduler returns the learning rate `initial_lr` at the first step, then multiplies it by
 /// a constant `gamma` at every iteration. At any iteration `i` (which starts from 0), the learning
 /// rate is given by `initial_lr * gamma^i`.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExponentialLrSchedulerConfig {
     // The initial learning rate.
     initial_lr: LearningRate,

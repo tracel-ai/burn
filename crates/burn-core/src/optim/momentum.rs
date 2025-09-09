@@ -6,7 +6,7 @@ use crate::tensor::{ElementConversion, Tensor};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create [momentum](Momentum).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MomentumConfig {
     /// Momemtum factor
     #[config(default = 0.9)]

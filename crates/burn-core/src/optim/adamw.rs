@@ -13,7 +13,7 @@ use burn_tensor::{backend::Backend, ops::Device};
 use num_traits::Float as _;
 
 /// AdamW configuration.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdamWConfig {
     /// Parameter for AdamW.
     #[config(default = 0.9)]

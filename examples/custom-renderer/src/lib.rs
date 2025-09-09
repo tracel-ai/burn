@@ -13,7 +13,7 @@ use burn::{
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
