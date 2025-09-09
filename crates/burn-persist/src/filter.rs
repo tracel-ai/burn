@@ -315,7 +315,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_empty_filter() {
+    fn empty_filter() {
         let filter = PathFilter::new();
         assert!(filter.is_empty());
         assert!(!filter.matches("encoder.weight"));
@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn test_match_all() {
+    fn match_all() {
         let filter = PathFilter::all();
         assert!(!filter.is_empty());
         assert!(filter.matches("encoder.weight"));
@@ -332,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exact_paths() {
+    fn exact_paths() {
         let filter = PathFilter::new()
             .with_full_path("encoder.weight")
             .with_full_path("decoder.bias");
@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn test_regex_patterns() {
+    fn regex_patterns() {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*")
             .with_regex(r".*\.weight$");
@@ -357,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn test_predicates() {
+    fn predicates() {
         fn contains_norm(path: &str, _container_path: &str) -> bool {
             path.contains("norm")
         }
@@ -377,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn test_combined_filters() {
+    fn combined_filters() {
         let filter = PathFilter::new()
             .with_full_path("special.tensor")
             .with_predicate(|path, _container_path| path.contains("attention"));
@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn test_or_combination() {
+    fn or_combination() {
         let encoder_filter = PathFilter::new().with_full_path("encoder.weight");
         let decoder_filter = PathFilter::new().with_full_path("decoder.bias");
 
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn test_common_patterns() {
+    fn common_patterns() {
         // Test encoder pattern
         let encoder = PathFilter::new().with_regex(r"^encoder\..*");
         assert!(encoder.matches("encoder.weight"));
@@ -431,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn test_criteria_count() {
+    fn criteria_count() {
         let filter = PathFilter::new()
             .with_full_path("path1")
             .with_full_path("path2")
@@ -448,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clear_operations() {
+    fn clear_operations() {
         let mut filter = PathFilter::new().with_full_path("test");
 
         filter.clear_paths();
@@ -459,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_container_predicates() {
+    fn container_predicates() {
         // Filter that matches only Linear module weights
         let linear_weights = PathFilter::new().with_predicate(|path, container_path| {
             container_path.split('.').last() == Some("Linear") && path.ends_with(".weight")
@@ -493,7 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn test_container_predicate_with_regex() {
+    fn container_predicate_with_regex() {
         // Combine regex patterns with container predicates
         #[cfg(target_has_atomic = "ptr")]
         {
@@ -513,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    fn test_container_stack_predicates() {
+    fn container_stack_predicates() {
         // Filter using full container path - only tensors nested in a specific hierarchy
         let nested_filter = PathFilter::new().with_predicate(|_path, container_path| {
             // Check if tensor is nested within: Model -> TransformerBlock -> Linear
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_container_path_dot_notation() {
+    fn container_path_dot_notation() {
         // Filter using dot-notated container path
         let dot_filter = PathFilter::new().with_predicate(|_path, container_path| {
             container_path.starts_with("Model.TransformerBlock")

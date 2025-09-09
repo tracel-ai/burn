@@ -593,9 +593,9 @@ mod tests {
         )];
 
         // Try to apply to module with different shape
-        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let target = SimpleModule::<TestBackend>::zeros(&device);
         let mut applier = TensorApplier::<TestBackend>::new(views);
-        target = target.map(&mut applier);
+        let _ = target.map(&mut applier);
 
         let result = applier.into_result();
         assert!(!result.is_success());
@@ -622,9 +622,9 @@ mod tests {
         ];
 
         // Apply to module that expects both tensors
-        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let target = SimpleModule::<TestBackend>::zeros(&device);
         let mut applier = TensorApplier::<TestBackend>::new(views);
-        target = target.map(&mut applier);
+        let _ = target.map(&mut applier);
 
         let result = applier.into_result();
         assert!(result.is_success()); // No errors, just missing
@@ -662,9 +662,9 @@ mod tests {
         ];
 
         // Apply to module that doesn't have "extra"
-        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let target = SimpleModule::<TestBackend>::zeros(&device);
         let mut applier = TensorApplier::<TestBackend>::new(views);
-        target = target.map(&mut applier);
+        let _ = target.map(&mut applier);
 
         let result = applier.into_result();
         assert!(result.is_success());
@@ -729,9 +729,9 @@ mod tests {
         ];
 
         // Apply to nested target
-        let mut target = NestedModule::<TestBackend>::zeros(&device);
+        let target = NestedModule::<TestBackend>::zeros(&device);
         let mut applier = TensorApplier::<TestBackend>::new(views);
-        target = target.map(&mut applier);
+        let _ = target.map(&mut applier);
 
         let result = applier.into_result();
         assert!(result.is_success());
@@ -777,9 +777,10 @@ mod tests {
 
         // Filter to only apply layer1 tensors
         let filter = PathFilter::new().with_regex(r"^layer1\..*");
-        let mut target = NestedModule::<TestBackend>::zeros(&device);
+        let target = NestedModule::<TestBackend>::zeros(&device);
         let mut applier = TensorApplier::<TestBackend>::with_filter(views, filter);
-        target = target.map(&mut applier);
+
+        let _ = target.map(&mut applier);
 
         let result = applier.into_result();
         assert!(result.is_success());

@@ -23,3 +23,5 @@ pub use keyremapper::KeyRemapper;
 pub use tensor_view::TensorView;
 pub use traits::ModulePersist;
 pub use traits::ModulePersister;
+
+pub use safetensors::*;
