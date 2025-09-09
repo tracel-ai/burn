@@ -62,18 +62,6 @@ mod tests {
             &device,
         );
 
-        // 3D shapes similar to your matmul test (adjust to the exact inputs your generated forward expects)
-        // If your generated model takes multiple inputs, pass them in order:
-        // let (out_2d_1d, out_1d_2d, ...) = model.forward(mat2d, mat3d, vec1d, vec3, mat2d_square, mat3d_for_vec);
-
-        // Minimal single-case run (2D@1D)
-        // If your ranks model expects multiple inputs, mirror the matmul ranks test’s signature.
-        // Here’s a simple one-call example assuming the ranks model exposes a similar forward:
-        // let out_2d_1d = model.forward_2d_1d(mat2d.clone(), vec1d.clone());
-        // (If you don’t generate helper variants, skip this or keep compile-only tests.)
-
-        // Quick sanity for 2D@1D (mat2d @ vec1d) = [ (0*1+1*2+2*3)=8, (3*1+4*2+5*3)=26 ]
-        // let expected_2d_1d = TensorData::from([8i32, 26]);
-        // out_2d_1d.to_data().assert_eq(&expected_2d_1d, true);
+      
     }
 }

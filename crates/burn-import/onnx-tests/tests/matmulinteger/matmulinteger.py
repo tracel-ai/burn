@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-# outputs: onnx-tests/tests/matmulinteger/matmulinteger.onnx
-import os, onnx, numpy as np
+# Generates matmulinteger.onnx in the same directory and sanity-checks with ReferenceEvaluator.
+
+import os
+from pathlib import Path
+import numpy as np
+import onnx
 from onnx import helper, TensorProto, numpy_helper
+from onnx.reference import ReferenceEvaluator
+
+HERE = Path(__file__).parent.resolve()
+OUT = HERE / "matmulinteger.onnx"
 
 def main():
-    os.makedirs("onnx-tests/tests/matmulinteger", exist_ok=True)
-
     # ---- ValueInfos ----
     A  = helper.make_tensor_value_info("A", TensorProto.UINT8, [2, 4])
     B  = helper.make_tensor_value_info("B", TensorProto.UINT8, [4, 3])
@@ -19,7 +25,7 @@ def main():
     F  = helper.make_tensor_value_info("F", TensorProto.UINT8, [4, 2])
     YC = helper.make_tensor_value_info("YC", TensorProto.INT32, [2, 2])
 
-    # ---- ZPs as Constant(Int32) + Cast (NO 8-bit initializers) ----
+    # ---- ZPs as Constant(Int32) + Cast (no 8-bit initializers) ----
     a0_i32 = numpy_helper.from_array(np.array([0], dtype=np.int32), name="a0_i32")
     b0_i32 = numpy_helper.from_array(np.array([0], dtype=np.int32), name="b0_i32")
     a2_i32 = numpy_helper.from_array(np.array([2], dtype=np.int32), name="a2_i32")
@@ -34,7 +40,6 @@ def main():
     cast_b0_u8 = helper.make_node("Cast", ["b0_i32_out"], ["b0_u8"], to=TensorProto.UINT8)
     cast_a2_u8 = helper.make_node("Cast", ["a2_i32_out"], ["a2_u8"], to=TensorProto.UINT8)
     cast_b3_u8 = helper.make_node("Cast", ["b3_i32_out"], ["b3_u8"], to=TensorProto.UINT8)
-
     cast_a0_i8 = helper.make_node("Cast", ["a0_i32_out"], ["a0_i8"], to=TensorProto.INT8)
 
     # ---- MatMulInteger nodes ----
@@ -51,31 +56,34 @@ def main():
         "MatMulIntegerBundle",
         [A,B,C,D,E,F],
         [YA,YB,YC],
-        # NOTE: no initializer list at all
     )
 
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 16)])
     model.ir_version = 8
     onnx.checker.check_model(model)
 
-    out = "onnx-tests/tests/matmulinteger/matmulinteger.onnx"
-    onnx.save(model, out)
-    print(f"Wrote {out}")
+    onnx.save(model, OUT.as_posix())
+    print(f"Wrote {OUT.name}")
 
-    # Optional: expected outputs (quick sanity)
+    # ---- Sanity check with ReferenceEvaluator ----
+    ref = ReferenceEvaluator(model)
+
     A_np = np.array([[1,2,3,4],[10,20,30,40]], dtype=np.uint8)
     B_np = np.array([[1,2,3],[4,5,6],[7,8,9],[10,11,12]], dtype=np.uint8)
+    got = ref.run(None, {"A": A_np, "B": B_np})
     YA_np = A_np.astype(np.int32) @ B_np.astype(np.int32)
-    print("Expected YA:", YA_np.tolist())
+    print("YA ok:", np.array_equal(got[0], YA_np))
 
     C_np = A_np; D_np = B_np
+    got = ref.run(None, {"C": C_np, "D": D_np})
     YB_np = (C_np.astype(np.int32)-2) @ (D_np.astype(np.int32)-3)
-    print("Expected YB:", YB_np.tolist())
+    print("YB ok:", np.array_equal(got[0], YB_np))
 
     E_np = np.array([[1,-1,2,-2],[3,-3,4,-4]], dtype=np.int8)
     F_np = np.array([[1,2],[3,4],[5,6],[7,8]], dtype=np.uint8)
+    got = ref.run(None, {"E": E_np, "F": F_np})
     YC_np = E_np.astype(np.int32) @ F_np.astype(np.int32)
-    print("Expected YC:", YC_np.tolist())
+    print("YC ok:", np.array_equal(got[0], YC_np))
 
 if __name__ == "__main__":
     main()
