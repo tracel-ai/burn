@@ -129,10 +129,18 @@ mod remote {
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
+    use burn::backend::{
+        Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
+    };
 
     pub fn run() {
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
+        let gpu0 = CudaDevice::new(0);
+        let gpu1 = CudaDevice::new(1);
+        let gpu2 = CudaDevice::new(2);
+        let gpu3 = CudaDevice::new(3);
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
+            gpu0, gpu1, gpu2, gpu3,
+        ]);
     }
 }
 
