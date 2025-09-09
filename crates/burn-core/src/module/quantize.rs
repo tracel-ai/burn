@@ -34,7 +34,10 @@ mod tests {
     };
     use burn_tensor::{
         Device, Distribution, Tensor, Tolerance,
-        quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue},
+        ops::QuantizedTensor,
+        quantization::{
+            Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantScheme, QuantValue,
+        },
     };
 
     type B = TestBackend;
@@ -46,8 +49,6 @@ mod tests {
     ) {
         let result = func(&module);
 
-        println!("{result}");
-
         let calibration = Calibration::MinMax;
         let mut quantizer = Quantizer {
             calibration,
@@ -55,8 +56,6 @@ mod tests {
         };
         let q_module = module.quantize_weights(&mut quantizer);
         let q_result = func(&q_module);
-
-        println!("{q_result}");
 
         let tolerance = Tolerance::permissive();
         result
@@ -70,10 +69,9 @@ mod tests {
         let transformer: TransformerEncoder<B> =
             TransformerEncoderConfig::new(128, 256, 2, 2).init(&device);
         let signal = Tensor::random([2, 32, 128], Distribution::Default, &device);
-        let scheme = QuantScheme::default()
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(32))
-            .with_store(QuantStore::U32)
             .with_param(QuantParam::F32);
 
         should_quantize_module(transformer, scheme, |tr| {
@@ -86,10 +84,12 @@ mod tests {
         let device: Device<B> = Default::default();
         let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
         let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
-        let scheme = QuantScheme::default()
+        // Default scheme should select supported QuantStore default
+        // TODO: set native if dtype is supported by the test backend
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
-            .with_store(QuantStore::Native)
+            // .with_store(QuantStore::Native)
             .with_param(QuantParam::F32);
 
         should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
@@ -99,10 +99,9 @@ mod tests {
     fn should_quantize_linear_weights() {
         let device: Device<B> = Default::default();
         let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let scheme = QuantScheme::default()
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
-            .with_store(QuantStore::U32)
             .with_param(QuantParam::F32);
 
         should_quantize_module(transformer, scheme, |tr| tr.weight.val().dequantize());
@@ -113,10 +112,10 @@ mod tests {
         let device: Device<B> = Default::default();
         let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
         let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
-        let scheme = QuantScheme::default()
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(16))
-            .with_store(QuantStore::Native)
+            // .with_store(QuantStore::Native)
             .with_param(QuantParam::F32);
 
         should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
@@ -126,11 +125,10 @@ mod tests {
     fn should_quantize_linear_weights_blocks() {
         let device: Device<B> = Default::default();
         let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let scheme = QuantScheme::default()
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(16))
             // .with_store(QuantStore::Native)
-            .with_store(QuantStore::U32)
             .with_param(QuantParam::F32);
 
         should_quantize_module(transformer, scheme, |tr| tr.weight.val().dequantize());
