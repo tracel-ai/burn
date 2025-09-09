@@ -139,7 +139,8 @@ mod cuda {
         let gpu2 = CudaDevice::new(2);
         let gpu3 = CudaDevice::new(3);
         launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
-            gpu0, gpu1, gpu2, gpu3,
+            gpu0, gpu1,
+            // gpu2, gpu3,
         ]);
     }
 }
