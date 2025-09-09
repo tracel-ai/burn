@@ -50,10 +50,10 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
         QuantScheme {
             level: QuantLevel::Tensor,
             mode: QuantMode::Symmetric,
-            value,
             ..
         } => {
-            let data_desc = AllocationDescriptor::optimized(&shape.dims, value.size_bits());
+            let size_bytes = scheme.size_bits_stored() / 8;
+            let data_desc = AllocationDescriptor::optimized(&shape.dims, size_bytes);
             let scale_desc = AllocationDescriptor::optimized(&[1], scales_dtype.size());
 
             scales_shape = Shape::new([1]);
@@ -88,7 +88,6 @@ fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
                 (scales_desc, &data[length_bits..]),
             ]
         }
-        _ => todo!("Unsupported {scheme:?}"),
     };
 
     let mut tensors = client.create_tensors(descriptors);
