@@ -18,7 +18,8 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
 
                 for _ in 0..num_iterations {
                     let new = compute(input.clone());
-                    sender.send(new).unwrap();
+                    sender.send(new.clone()).unwrap();
+                    let _ = new.sum().into_scalar();
                 }
             })
         })
@@ -35,6 +36,7 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
             let main = tensor.to_device(&aggregation_device);
             input = input + main.clone() / 2;
             let value = main.sum().into_scalar().elem::<f32>();
+            println!("{value:?}");
             assert_ne!(value, 0.0);
         }
     }));
