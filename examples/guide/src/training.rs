@@ -44,7 +44,7 @@ impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> 
     }
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: AdamConfig,

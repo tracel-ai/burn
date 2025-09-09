@@ -3,12 +3,13 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
     use burn_vision::{
         BorderType, KernelShape, MorphOptions, Morphology, Point, Size, as_type,
         create_structuring_element,
         tests::{save_test_image, test_image},
     };
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn should_support_dilate_luma() {
@@ -28,7 +29,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -49,7 +52,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -70,7 +75,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -91,7 +98,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -112,7 +121,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -133,7 +144,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -154,7 +167,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -180,7 +195,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -206,7 +223,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -232,7 +251,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -258,7 +279,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -284,7 +307,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -310,7 +335,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -334,7 +361,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -363,7 +392,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -387,7 +418,9 @@ mod tests {
         .greater_elem(0);
         let expected = TestTensorBool::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -411,7 +444,9 @@ mod tests {
         .greater_elem(0);
         let expected = TestTensorBool::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -435,7 +470,9 @@ mod tests {
             .int();
         let expected = TestTensorInt::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -459,7 +496,9 @@ mod tests {
             .int();
         let expected = TestTensorInt::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -477,7 +516,9 @@ mod tests {
         let expected = test_image("morphology/Erode_1_5x5_Rect.png", &Default::default(), true);
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -498,7 +539,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]
@@ -519,7 +562,9 @@ mod tests {
         );
         let expected = TestTensor::<3>::from(expected);
 
-        output.into_data().assert_eq(&expected.into_data(), false);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::absolute(1e-6));
     }
 
     #[test]

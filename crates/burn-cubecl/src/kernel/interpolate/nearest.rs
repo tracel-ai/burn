@@ -25,7 +25,7 @@ fn interpolate_nearest_kernel<F: Float>(
     }
 
     let line_size = input.line_size();
-    let out_idx = out_layout.to_linear_pos(ABSOLUTE_POS);
+    let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let out_pos = ABSOLUTE_POS * line_size;
 

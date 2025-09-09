@@ -1,6 +1,6 @@
 // Language
+use crate::rand::get_seeded_rng;
 use alloc::vec::Vec;
-use burn_common::rand::get_seeded_rng;
 use burn_tensor::{Distribution, ops::IntTensor};
 use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
@@ -55,8 +55,12 @@ where
         NdArrayDevice::Cpu
     }
 
-    fn int_empty(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor {
-        Self::int_zeros(shape, device)
+    fn int_empty(
+        shape: Shape,
+        device: &<NdArray<E> as Backend>::Device,
+        dtype: IntDType,
+    ) -> NdArrayTensor {
+        Self::int_zeros(shape, device, dtype)
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -180,22 +184,6 @@ where
 
     fn int_neg(tensor: NdArrayTensor) -> NdArrayTensor {
         Self::int_mul_scalar(tensor, (-1).elem())
-    }
-
-    fn int_zeros(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor {
-        Self::int_from_data(TensorData::zeros::<I, _>(shape), device)
-    }
-
-    fn int_ones(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor {
-        Self::int_from_data(TensorData::ones::<I, _>(shape), device)
-    }
-
-    fn int_full(
-        shape: Shape,
-        fill_value: I,
-        device: &<NdArray<E> as Backend>::Device,
-    ) -> NdArrayTensor {
-        Self::int_from_data(TensorData::full(shape, fill_value), device)
     }
 
     fn int_sum(tensor: NdArrayTensor) -> NdArrayTensor {

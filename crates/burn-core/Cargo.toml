@@ -98,7 +98,7 @@ uuid = { workspace = true }
 
 derive-new = { workspace = true }
 log = { workspace = true, optional = true }
-rand = { workspace = true, features = ["std_rng"] } # Default enables std
+rand = { workspace = true }
 
 # The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
