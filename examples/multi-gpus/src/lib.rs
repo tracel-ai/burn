@@ -47,6 +47,6 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
 }
 
 fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
-    let log = input.clone().log();
+    let log = input.clone() + 1.0;
     input.matmul(log)
 }
