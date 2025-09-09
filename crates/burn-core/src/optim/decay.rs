@@ -7,7 +7,7 @@ use crate::config::Config;
 use crate::tensor::Tensor;
 
 /// Configuration to create [weight decay](WeightDecay).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct WeightDecayConfig {
     /// L2 penalty.
     pub penalty: f32,

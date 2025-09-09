@@ -9,10 +9,11 @@ use crate::{
 use burn_tensor::{backend::Backend, ops::Device};
 
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// AdamW configuration.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdamWConfig {
     /// Parameter for AdamW.
     #[config(default = 0.9)]

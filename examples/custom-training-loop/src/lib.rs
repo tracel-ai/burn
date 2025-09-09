@@ -13,7 +13,7 @@ use guide::{
     model::{Model, ModelConfig},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,

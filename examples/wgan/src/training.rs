@@ -10,7 +10,7 @@ use burn::{
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
 use std::path::Path;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: RmsPropConfig,

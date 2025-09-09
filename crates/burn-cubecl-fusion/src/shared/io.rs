@@ -4,7 +4,10 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::tensor::{View, layout::linear::LinearLayout},
+    std::tensor::{
+        View,
+        layout::{linear::LinearLayout, plain::PlainLayout},
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -243,10 +246,10 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
 pub fn input_as_linear_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
     #[comptime] pos: u32,
-) -> View<C, u32> {
+) -> View<Line<C>, u32> {
     let slice = input_as_slice::<Line<C>>(inputs, pos);
-    let layout = LinearLayout::new_Plain(slice.len());
-    View::new::<Slice<Line<C>>>(slice, layout.virt())
+    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
+    View::new::<Slice<Line<C>>, u32>(slice, layout.virt())
 }
 
 #[cube]

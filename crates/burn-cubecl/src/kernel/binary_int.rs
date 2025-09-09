@@ -8,7 +8,7 @@ use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::tensor::{index_offset_with_layout, layout::linear::LinearView, r#virtual::ReadWrite},
+    std::tensor::{index_offset_with_layout, layout::linear::LinearView},
     tensor_line_size_parallel,
 };
 
@@ -85,11 +85,11 @@ impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
-    input: &LinearView<C>,
+    input: &LinearView<Line<C>>,
     scalar: C,
-    output: &mut LinearView<C, ReadWrite>,
+    output: &mut LinearView<Line<C>, ReadWrite>,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 

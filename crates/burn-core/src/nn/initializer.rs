@@ -8,7 +8,8 @@ use crate::tensor::{Distribution, Tensor, s};
 use crate as burn;
 
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]

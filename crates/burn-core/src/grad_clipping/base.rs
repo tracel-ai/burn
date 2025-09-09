@@ -4,7 +4,7 @@ use crate::{config::Config, tensor::Tensor};
 use burn_tensor::backend::Backend;
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub enum GradientClippingConfig {
     /// Clip the gradient by value.
     Value(f32),
