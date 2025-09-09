@@ -376,3 +376,430 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tensor_view::TensorView;
+    use burn_core::module::{Module, Param};
+    use burn_tensor::Tensor;
+
+    type TestBackend = burn_ndarray::NdArray;
+
+    #[test]
+    fn apply_error_display() {
+        let err = ApplyError::ShapeMismatch {
+            path: "model.weight".to_string(),
+            expected: vec![2, 3],
+            found: vec![3, 2],
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("Shape mismatch"));
+        assert!(display.contains("model.weight"));
+        assert!(display.contains("[2, 3]"));
+        assert!(display.contains("[3, 2]"));
+
+        let err = ApplyError::TypeMismatch {
+            path: "model.bias".to_string(),
+            message: "Expected Float, got Int".to_string(),
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("Type mismatch"));
+        assert!(display.contains("model.bias"));
+        assert!(display.contains("Expected Float, got Int"));
+
+        let err = ApplyError::PathNotFound {
+            path: "missing.tensor".to_string(),
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("not found"));
+        assert!(display.contains("missing.tensor"));
+
+        let err = ApplyError::InvalidData {
+            path: "corrupted.tensor".to_string(),
+            reason: "Data corruption detected".to_string(),
+        };
+        let display = format!("{}", err);
+        assert!(display.contains("Invalid data"));
+        assert!(display.contains("corrupted.tensor"));
+        assert!(display.contains("Data corruption detected"));
+    }
+
+    #[test]
+    fn apply_result_is_success() {
+        let result = ApplyResult {
+            applied: vec!["tensor1".to_string(), "tensor2".to_string()],
+            skipped: vec![],
+            missing: vec![],
+            unused: vec![],
+            errors: vec![],
+        };
+        assert!(result.is_success());
+        assert_eq!(result.total_processed(), 2);
+
+        let result_with_errors = ApplyResult {
+            applied: vec!["tensor1".to_string()],
+            skipped: vec![],
+            missing: vec![],
+            unused: vec![],
+            errors: vec!["Error applying tensor2".to_string()],
+        };
+        assert!(!result_with_errors.is_success());
+        assert_eq!(result_with_errors.total_processed(), 2);
+    }
+
+    #[test]
+    fn apply_result_display() {
+        let result = ApplyResult {
+            applied: vec!["tensor1".to_string(), "tensor2".to_string()],
+            skipped: vec!["filtered1".to_string()],
+            missing: vec!["missing1".to_string()],
+            unused: vec!["unused1".to_string()],
+            errors: vec!["Error: shape mismatch".to_string()],
+        };
+
+        let display = format!("{}", result);
+        assert!(display.contains("Applied: 2 tensors"));
+        assert!(display.contains("Skipped: 1 tensors"));
+        assert!(display.contains("Missing: 1 tensors"));
+        assert!(display.contains("Unused: 1 tensors"));
+        assert!(display.contains("Errors: 1 tensors"));
+        assert!(display.contains("Error: shape mismatch"));
+    }
+
+    #[derive(Module, Debug)]
+    struct SimpleModule<B: Backend> {
+        weight: Param<Tensor<B, 2>>,
+        bias: Param<Tensor<B, 1>>,
+    }
+
+    impl<B: Backend> SimpleModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                bias: Param::from_data([0.1, 0.2], device),
+            }
+        }
+
+        fn zeros(device: &B::Device) -> Self {
+            Self {
+                weight: Param::from_tensor(Tensor::zeros([2, 2], device)),
+                bias: Param::from_tensor(Tensor::zeros([2], device)),
+            }
+        }
+    }
+
+    #[test]
+    fn tensor_applier_basic() {
+        let device = Default::default();
+
+        // Create source module and extract views
+        let source = SimpleModule::<TestBackend>::new(&device);
+        let views = vec![
+            TensorView::from_float(
+                &source.weight.val(),
+                vec!["weight".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.bias.val(),
+                vec!["bias".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+        ];
+
+        // Create target module (zeros) and apply views
+        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::new(views);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 2);
+        assert!(result.applied.contains(&"weight".to_string()));
+        assert!(result.applied.contains(&"bias".to_string()));
+        assert_eq!(result.errors.len(), 0);
+        assert_eq!(result.missing.len(), 0);
+        assert_eq!(result.unused.len(), 0);
+
+        // Verify data was actually applied
+        let weight_data = target.weight.val().to_data();
+        assert_eq!(
+            weight_data.to_vec::<f32>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+        let bias_data = target.bias.val().to_data();
+        assert_eq!(bias_data.to_vec::<f32>().unwrap(), vec![0.1, 0.2]);
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn tensor_applier_with_filter() {
+        let device = Default::default();
+
+        // Create source module and extract views
+        let source = SimpleModule::<TestBackend>::new(&device);
+        let views = vec![
+            TensorView::from_float(
+                &source.weight.val(),
+                vec!["weight".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.bias.val(),
+                vec!["bias".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+        ];
+
+        // Apply with filter that only accepts "weight"
+        let filter = PathFilter::new().with_full_path("weight");
+        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::with_filter(views, filter);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 1);
+        assert!(result.applied.contains(&"weight".to_string()));
+        assert_eq!(result.skipped.len(), 1);
+        assert!(result.skipped.contains(&"bias".to_string()));
+
+        // Verify only weight was applied
+        let weight_data = target.weight.val().to_data();
+        assert_eq!(
+            weight_data.to_vec::<f32>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+        let bias_data = target.bias.val().to_data();
+        assert_eq!(bias_data.to_vec::<f32>().unwrap(), vec![0.0, 0.0]); // Still zeros
+    }
+
+    #[test]
+    fn tensor_applier_shape_mismatch() {
+        let device = Default::default();
+
+        // Create a view with wrong shape
+        let wrong_tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0]], &device);
+        let views = vec![TensorView::from_float(
+            &wrong_tensor,
+            vec!["weight".to_string()],
+            vec!["SimpleModule".to_string()],
+            ParamId::new(),
+        )];
+
+        // Try to apply to module with different shape
+        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::new(views);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(!result.is_success());
+        assert_eq!(result.applied.len(), 0);
+        assert_eq!(result.errors.len(), 1);
+        assert!(result.errors[0].contains("Shape mismatch"));
+        assert!(result.errors[0].contains("weight"));
+    }
+
+    #[test]
+    fn tensor_applier_missing_tensors() {
+        let device = Default::default();
+
+        // Create views with only partial tensors
+        let source = SimpleModule::<TestBackend>::new(&device);
+        let views = vec![
+            TensorView::from_float(
+                &source.weight.val(),
+                vec!["weight".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            // bias is missing
+        ];
+
+        // Apply to module that expects both tensors
+        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::new(views);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success()); // No errors, just missing
+        assert_eq!(result.applied.len(), 1);
+        assert_eq!(result.missing.len(), 1);
+        assert!(result.missing.contains(&"bias".to_string()));
+    }
+
+    #[test]
+    fn tensor_applier_unused_tensors() {
+        let device = Default::default();
+
+        // Create views with extra tensors
+        let source = SimpleModule::<TestBackend>::new(&device);
+        let extra_tensor = Tensor::<TestBackend, 2>::from_data([[5.0, 6.0], [7.0, 8.0]], &device);
+        let views = vec![
+            TensorView::from_float(
+                &source.weight.val(),
+                vec!["weight".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.bias.val(),
+                vec!["bias".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &extra_tensor,
+                vec!["extra".to_string()],
+                vec!["SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+        ];
+
+        // Apply to module that doesn't have "extra"
+        let mut target = SimpleModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::new(views);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 2);
+        assert_eq!(result.unused.len(), 1);
+        assert!(result.unused.contains(&"extra".to_string()));
+    }
+
+    #[derive(Module, Debug)]
+    struct NestedModule<B: Backend> {
+        layer1: SimpleModule<B>,
+        layer2: SimpleModule<B>,
+    }
+
+    impl<B: Backend> NestedModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layer1: SimpleModule::new(device),
+                layer2: SimpleModule::new(device),
+            }
+        }
+
+        fn zeros(device: &B::Device) -> Self {
+            Self {
+                layer1: SimpleModule::zeros(device),
+                layer2: SimpleModule::zeros(device),
+            }
+        }
+    }
+
+    #[test]
+    fn tensor_applier_nested_modules() {
+        let device = Default::default();
+
+        // Create source with nested structure
+        let source = NestedModule::<TestBackend>::new(&device);
+        let views = vec![
+            TensorView::from_float(
+                &source.layer1.weight.val(),
+                vec!["layer1".to_string(), "weight".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer1.bias.val(),
+                vec!["layer1".to_string(), "bias".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer2.weight.val(),
+                vec!["layer2".to_string(), "weight".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer2.bias.val(),
+                vec!["layer2".to_string(), "bias".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+        ];
+
+        // Apply to nested target
+        let mut target = NestedModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::new(views);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 4);
+        assert!(result.applied.contains(&"layer1.weight".to_string()));
+        assert!(result.applied.contains(&"layer1.bias".to_string()));
+        assert!(result.applied.contains(&"layer2.weight".to_string()));
+        assert!(result.applied.contains(&"layer2.bias".to_string()));
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn tensor_applier_regex_filter() {
+        let device = Default::default();
+
+        let source = NestedModule::<TestBackend>::new(&device);
+        let views = vec![
+            TensorView::from_float(
+                &source.layer1.weight.val(),
+                vec!["layer1".to_string(), "weight".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer1.bias.val(),
+                vec!["layer1".to_string(), "bias".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer2.weight.val(),
+                vec!["layer2".to_string(), "weight".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+            TensorView::from_float(
+                &source.layer2.bias.val(),
+                vec!["layer2".to_string(), "bias".to_string()],
+                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
+                ParamId::new(),
+            ),
+        ];
+
+        // Filter to only apply layer1 tensors
+        let filter = PathFilter::new().with_regex(r"^layer1\..*");
+        let mut target = NestedModule::<TestBackend>::zeros(&device);
+        let mut applier = TensorApplier::<TestBackend>::with_filter(views, filter);
+        target = target.map(&mut applier);
+
+        let result = applier.into_result();
+        assert!(result.is_success());
+        assert_eq!(result.applied.len(), 2);
+        assert!(result.applied.contains(&"layer1.weight".to_string()));
+        assert!(result.applied.contains(&"layer1.bias".to_string()));
+        assert_eq!(result.skipped.len(), 2);
+        assert!(result.skipped.contains(&"layer2.weight".to_string()));
+        assert!(result.skipped.contains(&"layer2.bias".to_string()));
+    }
+
+    #[test]
+    #[cfg(target_has_atomic = "ptr")]
+    fn regex_error_conversion() {
+        // Test that regex errors convert properly
+        let regex_err = regex::Regex::new("[invalid").unwrap_err();
+        let apply_err: ApplyError = regex_err.into();
+        match apply_err {
+            ApplyError::RegexError(_) => (),
+            _ => panic!("Expected RegexError variant"),
+        }
+    }
+}
