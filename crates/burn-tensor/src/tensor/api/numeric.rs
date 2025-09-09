@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
-use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
@@ -4359,6 +4358,3 @@ where
         Tensor::neg(self)
     }
 }
-
-#[cfg(feature = "wgpu")]
-use burn_core::tensor::ops::IntTensor;
