@@ -33,7 +33,9 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
 
         while let Ok(tensor) = receiver.recv() {
             let main = tensor.to_device(&aggregation_device);
-            input = input + main / 2;
+            input = input + main.clone() / 2;
+            let value = main.sum().into_scalar().elem::<f32>();
+            assert_ne!(value, 0.0);
         }
     }));
 
