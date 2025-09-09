@@ -61,7 +61,5 @@ mod tests {
             ],
             &device,
         );
-
-      
     }
 }

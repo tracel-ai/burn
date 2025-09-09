@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # Generates matmulinteger.onnx in the same directory and sanity-checks with ReferenceEvaluator.
 
-import os
 from pathlib import Path
 import numpy as np
 import onnx
@@ -68,22 +67,32 @@ def main():
     # ---- Sanity check with ReferenceEvaluator ----
     ref = ReferenceEvaluator(model)
 
+    # Real inputs for the case we test, dummy placeholders for the rest
     A_np = np.array([[1,2,3,4],[10,20,30,40]], dtype=np.uint8)
     B_np = np.array([[1,2,3],[4,5,6],[7,8,9],[10,11,12]], dtype=np.uint8)
-    got = ref.run(None, {"A": A_np, "B": B_np})
-    YA_np = A_np.astype(np.int32) @ B_np.astype(np.int32)
-    print("YA ok:", np.array_equal(got[0], YA_np))
+    C_np = A_np  # dummy (same shape as A)
+    D_np = B_np  # dummy (same shape as B)
+    E_np = np.zeros((2,4), dtype=np.int8)   # dummy
+    F_np = np.zeros((4,2), dtype=np.uint8)  # dummy
 
-    C_np = A_np; D_np = B_np
-    got = ref.run(None, {"C": C_np, "D": D_np})
-    YB_np = (C_np.astype(np.int32)-2) @ (D_np.astype(np.int32)-3)
-    print("YB ok:", np.array_equal(got[0], YB_np))
+    # YA
+    got_YA = ref.run(["YA"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
+    exp_YA = A_np.astype(np.int32) @ B_np.astype(np.int32)
+    print("YA ok:", np.array_equal(got_YA, exp_YA))
 
+    # YB (now use real C,D; others can be dummy)
+    C_np = A_np
+    D_np = B_np
+    got_YB = ref.run(["YB"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
+    exp_YB = (C_np.astype(np.int32) - 2) @ (D_np.astype(np.int32) - 3)
+    print("YB ok:", np.array_equal(got_YB, exp_YB))
+
+    # YC (real E,F)
     E_np = np.array([[1,-1,2,-2],[3,-3,4,-4]], dtype=np.int8)
     F_np = np.array([[1,2],[3,4],[5,6],[7,8]], dtype=np.uint8)
-    got = ref.run(None, {"E": E_np, "F": F_np})
-    YC_np = E_np.astype(np.int32) @ F_np.astype(np.int32)
-    print("YC ok:", np.array_equal(got[0], YC_np))
+    got_YC = ref.run(["YC"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
+    exp_YC = E_np.astype(np.int32) @ F_np.astype(np.int32)
+    print("YC ok:", np.array_equal(got_YC, exp_YC))
 
 if __name__ == "__main__":
     main()
