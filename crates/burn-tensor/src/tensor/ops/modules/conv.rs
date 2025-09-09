@@ -4,7 +4,8 @@ use crate::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
 use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Calculate the expected padding size required when applying a convolution.
 pub fn calculate_conv_padding(
