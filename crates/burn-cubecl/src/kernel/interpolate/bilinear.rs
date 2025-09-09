@@ -1,8 +1,6 @@
 use cubecl::std::{
     FastDivmod,
-    tensor::layout::{
-        VirtualLayoutOperations, VirtualLayoutOperationsExpand, linear::LinearLayout,
-    },
+    tensor::layout::{linear::LinearLayout, *},
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 

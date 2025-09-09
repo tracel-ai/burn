@@ -48,7 +48,11 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         ordering: Arc<Vec<usize>>,
     ) {
         if ordering.len() > self.operations.len() {
-            panic!("Ordering is bigger than operations");
+            panic!(
+                "Ordering is bigger than operations: ordering: {}, operations: {}",
+                ordering.len(),
+                self.operations.len()
+            );
         }
         self.ordering = Some(ordering);
         let num_drained = optimization.len();

@@ -222,7 +222,7 @@ pub fn input_as_linear_view<C: CubePrimitive>(
 ) -> View<Line<C>, u32> {
     let slice = input_as_slice::<Line<C>>(inputs, pos);
     let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
-    View::new::<Slice<Line<C>>, u32>(slice, layout.virt())
+    View::new::<Slice<Line<C>>, u32>(&slice, layout)
 }
 
 #[cube]
