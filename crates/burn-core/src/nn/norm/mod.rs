@@ -11,7 +11,7 @@
 //! [`NormalizationConfig`] can be used as a generic normalization policy:
 //! * Construct a config with arbitrary input features (we suggest `0`).
 //! * Clone and match that config to the target input layer,
-//!   using the [`NormalizationConfig::num_features()`] method.
+//!   using the [`NormalizationConfig::with_num_features()`] method.
 pub(crate) mod batch;
 pub(crate) mod group;
 pub(crate) mod instance;
