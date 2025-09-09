@@ -37,7 +37,7 @@ colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
@@ -50,6 +50,7 @@ serde_bytes = { workspace = true }
 [dev-dependencies]
 bincode = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] } # Default enables std
+paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

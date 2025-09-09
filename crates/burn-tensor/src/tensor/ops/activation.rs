@@ -254,6 +254,7 @@ pub trait ActivationOps<B: Backend> {
         // -max_derive + (z-1)/z if x is < 0
 
         let shape = x.shape();
+        let dtype = x.dtype();
         let device = B::float_device(&x);
 
         // max(-x, 0)
@@ -268,7 +269,7 @@ pub trait ActivationOps<B: Backend> {
         );
 
         // Derivative of max(-x, 0) is 1 if x < 0 or 0 if x >= 0
-        let ones = B::float_ones(shape, &device);
+        let ones = B::float_ones(shape, &device, dtype.into());
         let max_derive = B::float_mask_fill(ones.clone(), mask.clone(), 0.elem());
         let sign = B::float_mask_fill(ones.clone(), mask, (-1).elem());
 

@@ -18,7 +18,7 @@ use crate::{LearningRate, config::Config};
 ///
 /// The [step](StepLrScheduler::step) method of the scheduler panics if it is called more than
 /// `i32::MAX + 1` times.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct StepLrSchedulerConfig {
     // The learning rate at the initial step.
     initial_lr: LearningRate,

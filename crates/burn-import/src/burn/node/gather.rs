@@ -107,6 +107,22 @@ impl GatherNode {
                             );
                         }
                     }
+                    GatherIndices::Runtime(Type::Shape(idx_shape)) => {
+                        // Shape indices for gathering from Shape
+                        let index_name = &idx_shape.name;
+                        let output_rank = out_shape.rank;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+
+                        quote! {
+                            let #output: [i64; #output_rank] = #index_name
+                                .iter()
+                                .map(|&idx| #input_shape_name[idx as usize])
+                                .collect::<alloc::vec::Vec<_>>()
+                                .try_into()
+                                .unwrap();
+                        }
+                    }
                     GatherIndices::Static(indices) => {
                         let output_rank = out_shape.rank;
                         let input_shape_name = &input_shape.name;
@@ -130,7 +146,7 @@ impl GatherNode {
                         }
                     }
                     _ => panic!(
-                        "Gather from Shape to Shape needs Tensor index, got {:?}!",
+                        "Gather from Shape to Shape needs Tensor or Shape index, got {:?}!",
                         self.index
                     ),
                 }
@@ -672,6 +688,167 @@ mod tests {
                 ) -> i64 {
                     let dim1 = shape1[1usize] as i64;
                     dim1
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_with_shape_indices() {
+        // Test gathering from Shape with Shape indices (runtime)
+        // This tests our new functionality where Shape indices can be used to gather from Shape
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 4)),
+            Type::Shape(ShapeType::new("indices", 2)),
+            Type::Shape(ShapeType::new("output_shape", 2)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "indices".to_string()],
+            vec!["output_shape".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 4],
+                    indices: [i64; 2]
+                ) -> [i64; 2] {
+                    let output_shape: [i64; 2usize] = indices
+                        .iter()
+                        .map(|&idx| input_shape[idx as usize])
+                        .collect::<alloc::vec::Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    output_shape
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_with_shape_indices_rank3() {
+        // Test gathering from Shape with Shape(3) indices
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 5)),
+            Type::Shape(ShapeType::new("indices", 3)),
+            Type::Shape(ShapeType::new("output_shape", 3)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "indices".to_string()],
+            vec!["output_shape".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 5],
+                    indices: [i64; 3]
+                ) -> [i64; 3] {
+                    let output_shape: [i64; 3usize] = indices
+                        .iter()
+                        .map(|&idx| input_shape[idx as usize])
+                        .collect::<alloc::vec::Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    output_shape
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_scalar_output() {
+        // Test gathering from Shape with scalar runtime index
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 3)),
+            Type::Scalar(ScalarType::new("index", ScalarKind::Int64)),
+            Type::Scalar(ScalarType::new("output", ScalarKind::Int64)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "index".to_string()],
+            vec!["output".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 3],
+                    index: i64
+                ) -> i64 {
+                    let output = input_shape[index as usize] as i64;
+                    output
                 }
             }
         };

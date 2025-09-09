@@ -28,7 +28,12 @@ pub fn gather_update_outputs(node: &mut Node) {
     let indices_rank = match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         ArgType::Scalar(_) => 0,
-        ArgType::Shape(_) => 1, // Shape indices become 1D tensors at runtime
+        ArgType::Shape(shape_rank) => {
+            // Shape is always a 1D array, but when used as indices for Gather,
+            // we treat it as rank 1 for the ONNX gather formula
+            log::debug!("Gather indices are Shape({}) for {}", shape_rank, node.name);
+            1 // Shape indices are always treated as rank 1 for gather
+        }
     };
     log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
 
@@ -65,16 +70,22 @@ pub fn gather_update_outputs(node: &mut Node) {
             log::debug!("Gather input is shape for {}", node.name);
             // When gathering from a shape:
             // - If indices are scalar (rank 0), output is a scalar (single dimension value)
-            // - Otherwise, output is a shape with same rank as indices
+            // - Otherwise, output is a shape with same dimension as indices
             if indices_rank == 0 {
                 node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
                 log::debug!("Gather result for {} is scalar (from shape)", node.name);
             } else {
-                node.outputs[0].ty = ArgType::Shape(indices_rank);
+                // For Shape indices, use the actual shape rank (number of elements)
+                let output_shape_rank = match &node.inputs[1].ty {
+                    ArgType::Shape(shape_rank) => *shape_rank,
+                    ArgType::Tensor(_) => indices_rank, // For tensor indices, use computed rank
+                    _ => indices_rank,
+                };
+                node.outputs[0].ty = ArgType::Shape(output_shape_rank);
                 log::debug!(
                     "Gather result for {} is shape with rank {} (from shape)",
                     node.name,
-                    indices_rank
+                    output_shape_rank
                 );
             }
         }
@@ -333,6 +344,96 @@ mod tests {
                 assert_eq!(*elem_type, crate::ir::ElementType::Int64);
             }
             other => panic!("Expected scalar output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_shape_with_shape_indices_rank_2() {
+        // Test gather from Shape with Shape(2) indices -> Shape(2) output
+        // This tests our fix where Shape indices preserve their rank in the output
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_2")
+            .attr_int("axis", 0)
+            .input_shape("data", 4) // Shape input (represents shape of a 4D tensor)
+            .add_input("indices", ArgType::Shape(2)) // Shape(2) indices
+            .output_shape("output", 1) // Initial output, will be updated
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output Shape(2) since indices are Shape(2)
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 2, "Expected Shape(2) output for Shape(2) indices");
+            }
+            other => panic!("Expected Shape(2) output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_shape_with_shape_indices_rank_3() {
+        // Test gather from Shape with Shape(3) indices -> Shape(3) output
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_3")
+            .attr_int("axis", 0)
+            .input_shape("data", 5) // Shape input (represents shape of a 5D tensor)
+            .add_input("indices", ArgType::Shape(3)) // Shape(3) indices
+            .output_shape("output", 1) // Initial output, will be updated
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output Shape(3) since indices are Shape(3)
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 3, "Expected Shape(3) output for Shape(3) indices");
+            }
+            other => panic!("Expected Shape(3) output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_update_outputs_shape_with_tensor_indices() {
+        // Test gather from Shape with Tensor indices -> Shape output with computed rank
+        let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_tensor")
+            .attr_int("axis", 0)
+            .input_shape("data", 4) // Shape input
+            .input_tensor_i64("indices", 1, None) // 1D tensor indices
+            .output_shape("output", 1) // Initial output, will be updated
+            .build();
+
+        gather_update_outputs(&mut node);
+
+        // Should output Shape(1) for 1D tensor indices (indices_rank = 1)
+        match &node.outputs[0].ty {
+            ArgType::Shape(rank) => {
+                assert_eq!(*rank, 1, "Expected Shape(1) output for 1D tensor indices");
+            }
+            other => panic!("Expected Shape(1) output, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_gather_config_with_shape_indices() {
+        // Test gather_config with Shape indices (runtime)
+        let node = NodeBuilder::new(NodeType::Gather, "test_gather_config_shape")
+            .attr_int("axis", 0)
+            .input_shape("data", 3)
+            .add_input("indices", ArgType::Shape(2)) // Shape(2) as indices
+            .output_shape("output", 2)
+            .build();
+
+        let config = gather_config(&node);
+        assert_eq!(config.axis, 0);
+
+        // Check that Shape indices are treated as runtime
+        match config.indices {
+            GatherInput::Runtime(arg) => {
+                assert_eq!(arg.name, "indices");
+                match arg.ty {
+                    ArgType::Shape(rank) => assert_eq!(rank, 2),
+                    _ => panic!("Expected Shape(2) indices"),
+                }
+            }
+            _ => panic!("Expected runtime Shape indices"),
         }
     }
 }

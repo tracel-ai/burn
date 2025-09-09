@@ -16,7 +16,7 @@ use burn::{
 };
 
 // Define the model configuration
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TextClassificationModelConfig {
     transformer: TransformerEncoderConfig,
     n_classes: usize,

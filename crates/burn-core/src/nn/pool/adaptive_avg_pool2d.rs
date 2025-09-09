@@ -9,7 +9,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::module::adaptive_avg_pool2d;
 
 /// Configuration to create a [2D adaptive avg pooling](AdaptiveAvgPool2d) layer using the [init function](AdaptiveAvgPool2dConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdaptiveAvgPool2dConfig {
     /// The size of the output.
     pub output_size: [usize; 2],
