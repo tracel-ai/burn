@@ -6,7 +6,7 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
     let shape = [8, 4096, 4096];
     let num_iterations = 1000;
 
-    let (sender, receiver) = std::sync::mpsc::sync_channel(32);
+    let (sender, receiver) = std::sync::mpsc::sync_channel(devices.len());
 
     let mut handles = devices
         .into_iter()
@@ -19,7 +19,7 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
                 for _ in 0..num_iterations {
                     let new = compute(input.clone());
                     sender.send(new.clone()).unwrap();
-                    let _ = new.sum().into_scalar();
+                    // let _ = new.sum().into_scalar();
                 }
             })
         })
@@ -33,10 +33,9 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
         );
 
         while let Ok(tensor) = receiver.recv() {
-            // B::sync(&tensor.device());
             let main = tensor.to_device(&aggregation_device);
-            input = input + main.clone() / 2;
-            let value = main.sum().into_scalar().elem::<f32>();
+            let value = main.clone().sum().into_scalar().elem::<f32>();
+            input = input + main / 2;
             println!("{value:?}");
             assert_ne!(value, 0.0);
         }
