@@ -1,13 +1,11 @@
 //! SafeTensors persister implementation using the official safetensors crate.
 
+use crate::{ApplyResult, KeyRemapper, ModulePersist, ModulePersister, PathFilter, TensorView};
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_core::persist::{
-    ApplyResult, KeyRemapper, ModulePersist, ModulePersister, PathFilter, TensorView,
-};
-use burn_core::tensor::backend::Backend;
+use burn_tensor::backend::Backend;
 use burn_tensor::{DType, TensorData};
 use core::fmt;
 use core::ops::Deref;

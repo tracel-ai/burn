@@ -19,8 +19,8 @@
 //! ## Basic Save and Load
 //!
 //! ```rust,ignore
-//! use burn::persist::safetensors::SafetensorsPersister;
-//! use burn::persist::ModulePersist;
+//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_persist::ModulePersist;
 //!
 //! // Save a model to a file
 //! let mut persister = SafetensorsPersister::from_file("model.safetensors");
@@ -35,8 +35,8 @@
 //! ## Memory-Based Operations
 //!
 //! ```rust,ignore
-//! use burn::persist::safetensors::SafetensorsPersister;
-//! use burn::persist::ModulePersist;
+//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_persist::ModulePersist;
 //!
 //! // Save to memory buffer
 //! let mut persister = SafetensorsPersister::from_bytes(None);
@@ -52,8 +52,8 @@
 //! ## Advanced Features
 //!
 //! ```rust,ignore
-//! use burn::persist::{PathFilter, KeyRemapper, ModulePersist};
-//! use burn::persist::safetensors::SafetensorsPersister;
+//! use burn_persist::{PathFilter, KeyRemapper, ModulePersist};
+//! use burn_persist::safetensors::SafetensorsPersister;
 //!
 //! // Configure advanced options with method chaining
 //! let mut persister = SafetensorsPersister::from_file("model.safetensors")
@@ -99,7 +99,7 @@
 //! zero-copy design and built-in metadata handling:
 //!
 //! ```rust,ignore
-//! use burn::persist::safetensors::SafetensorsPersister;
+//! use burn_persist::safetensors::SafetensorsPersister;
 //!
 //! // Open a file - uses safetensors' efficient header reading
 //! let persister = SafetensorsPersister::from_file("large_model.safetensors");
@@ -136,7 +136,7 @@
 //! For direct byte operations without files:
 //!
 //! ```rust,ignore
-//! use burn::persist::ModulePersist;
+//! use burn_persist::ModulePersist;
 //!
 //! // Save to bytes
 //! let mut persister = SafetensorsPersister::from_bytes(None);

@@ -1,11 +1,28 @@
-#![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![warn(missing_docs)]
 
-#[macro_use]
+//! Module persistence and serialization infrastructure.
+//!
+//! This module provides comprehensive functionality for persisting and loading Burn modules
+//! and their tensor data. It supports bidirectional data flow with flexible filtering,
+//! remapping, and efficient memory management through lazy materialization.
+
 extern crate alloc;
 
+mod applier;
+mod collector;
+mod filter;
+mod keyremapper;
 pub mod safetensors;
+mod tensor_view;
+mod traits;
 
-// Re-export commonly used types
-pub use safetensors::*;
+#[cfg(test)]
+mod test;
+
+pub use applier::{ApplyError, ApplyResult, TensorApplier};
+pub use collector::TensorViewCollector;
+pub use filter::PathFilter;
+pub use keyremapper::KeyRemapper;
+pub use tensor_view::TensorView;
+pub use traits::ModulePersist;
+pub use traits::ModulePersister;

@@ -34,8 +34,6 @@ pub mod module;
 /// Neural network module.
 pub mod nn;
 
-/// Module for persistence operations.
-pub mod persist;
 
 /// Module for the recorder.
 pub mod record;

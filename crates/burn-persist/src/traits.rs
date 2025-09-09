@@ -2,11 +2,11 @@ use alloc::vec::Vec;
 
 use super::{
     TensorViewCollector,
-    appliers::{ApplyResult, TensorApplier},
+    applier::{ApplyResult, TensorApplier},
 };
-use crate::module::Module;
-use crate::persist::{PathFilter, TensorView};
-use crate::tensor::backend::Backend;
+use crate::{PathFilter, TensorView};
+use burn_core::module::Module;
+use burn_tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor persistence functionality.
 ///
@@ -70,7 +70,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// use burn::persist::PathFilter;
+    /// use burn_persist::PathFilter;
     ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");

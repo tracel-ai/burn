@@ -1,10 +1,9 @@
 use super::*;
-use burn_core as burn;
+use crate::{ModulePersist, PathFilter};
 use burn_core::module::{Module, Param};
 use burn_core::nn::{Linear, LinearConfig};
-use burn_core::persist::{ModulePersist, PathFilter};
-use burn_core::tensor::backend::Backend;
 use burn_tensor::Tensor;
+use burn_tensor::backend::Backend;
 
 type TestBackend = burn_ndarray::NdArray;
 

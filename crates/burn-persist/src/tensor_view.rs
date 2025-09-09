@@ -1,8 +1,8 @@
-use crate::module::ParamId;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use burn_core::module::ParamId;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
 /// A lightweight view of a tensor that can lazily produce TensorData.
@@ -180,7 +180,7 @@ impl TensorView {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    use crate::TestBackend;
+    type TestBackend = burn_ndarray::NdArray;
     use alloc::string::ToString;
     use burn_tensor::DType;
 

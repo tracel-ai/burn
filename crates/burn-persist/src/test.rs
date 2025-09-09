@@ -1,9 +1,8 @@
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::super::*;
-    use crate as burn;
-    use crate::{
-        TestBackend,
+    type TestBackend = burn_ndarray::NdArray;
+    use burn_core::{
         module::{Module, Param},
         nn::{self, Linear, LinearConfig},
     };
@@ -1020,7 +1019,7 @@ mod tests {
         }
     }
 
-    impl<B: Backend> crate::module::ModuleVisitor<B> for ContainerTracker {
+    impl<B: Backend> burn_core::module::ModuleVisitor<B> for ContainerTracker {
         fn enter_module(&mut self, name: &str, container_type: &str) {
             self.containers
                 .push((name.to_string(), container_type.to_string()));
@@ -1087,7 +1086,7 @@ mod tests {
         }
     }
 
-    impl<B: Backend> crate::module::ModuleMapper<B> for ContainerMapper {
+    impl<B: Backend> burn_core::module::ModuleMapper<B> for ContainerMapper {
         fn enter_module(&mut self, name: &str, container_type: &str) {
             self.path_stack.push(name.to_string());
             self.processed

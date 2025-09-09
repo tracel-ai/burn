@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::module::{ModuleVisitor, ParamId};
-use crate::persist::{PathFilter, TensorView};
+use crate::{PathFilter, TensorView};
+use burn_core::module::{ModuleVisitor, ParamId};
 
 /// Collects tensor views from modules without copying data.
 ///
@@ -68,7 +68,7 @@ impl TensorViewCollector {
     /// # Examples
     ///
     /// ```ignore
-    /// use burn::persist::PathFilter;
+    /// use burn_persist::PathFilter;
     ///
     /// // Use PathFilter builder
     /// let filter = PathFilter::new()
@@ -208,14 +208,13 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    use crate as burn; // Required for the derive macro
-    use crate::{
-        TestBackend,
+    type TestBackend = burn_ndarray::NdArray;
+    use alloc::collections::BTreeMap;
+    use alloc::string::String;
+    use burn_core::{
         module::{Module, Param},
         nn::LinearConfig,
     };
-    use alloc::collections::BTreeMap;
-    use alloc::string::String;
 
     #[test]
     fn test_tensor_view_collector() {

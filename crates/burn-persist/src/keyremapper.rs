@@ -17,7 +17,7 @@ use super::TensorView;
 /// # Examples
 ///
 /// ```ignore
-/// use burn_core::persist::KeyRemapper;
+/// use burn_persist::KeyRemapper;
 ///
 /// // Create a key remapper
 /// let remapper = KeyRemapper::new()
@@ -196,7 +196,7 @@ impl KeyRemapper {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    use crate::module::ParamId;
+    use burn_core::module::ParamId;
     use burn_tensor::TensorData;
 
     fn create_test_tensor_view(name: &str) -> TensorView {

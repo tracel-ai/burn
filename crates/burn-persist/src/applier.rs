@@ -6,8 +6,8 @@ use hashbrown::{HashMap, HashSet};
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::module::{ModuleMapper, ParamId};
-use crate::persist::{PathFilter, TensorView};
+use crate::{PathFilter, TensorView};
+use burn_core::module::{ModuleMapper, ParamId};
 
 /// Error types for apply operations
 #[derive(Debug)]
