@@ -122,11 +122,11 @@ impl NormalizationConfig {
 /// Normalization Layer Wrapper
 ///
 /// Provides support for built-in ``burn::nn::norm`` norm layers:
-/// * [`Batch`] - [`BatchNorm`]
-/// * [`Group`] - [`GroupNorm`]
-/// * [`Instance`] - [`InstanceNorm`]
-/// * [`Layer`] - [`LayerNorm`]
-/// * [`Rms`] - [`RmsNorm`]
+/// * [`Normalization::Batch`] - [`BatchNorm`]
+/// * [`Normalization::Group`] - [`GroupNorm`]
+/// * [`Normalization::Instance`] - [`InstanceNorm`]
+/// * [`Normalization::Layer`] - [`LayerNorm`]
+/// * [`Normalization::Rms`] - [`RmsNorm`]
 ///
 /// The enum is non-exhaustive, to prepare for future additions.
 #[derive(Module, Debug)]
