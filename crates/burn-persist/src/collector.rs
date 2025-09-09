@@ -217,7 +217,7 @@ mod tests {
     };
 
     #[test]
-    fn test_tensor_view_collector() {
+    fn tensor_view_collector() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn test_tensor_view_collector_with_filter() {
+    fn tensor_view_collector_with_filter() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn test_tensor_view_collector_with_multiple_filters() {
+    fn tensor_view_collector_with_multiple_filters() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tensor_view_collector_with_predicate() {
+    fn tensor_view_collector_with_predicate() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tensor_view_collector_predicate_with_complex_logic() {
+    fn tensor_view_collector_predicate_with_complex_logic() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -433,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nested_module_path_tracking() {
+    fn nested_module_path_tracking() {
         let device = Default::default();
         let module = OuterModule::<TestBackend>::new(&device);
 
@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn test_linear_module_paths() {
+    fn linear_module_paths() {
         let device = Default::default();
         let config = LinearConfig::new(10, 20).with_bias(true);
         let linear = config.init::<TestBackend>(&device);
@@ -553,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_module_path_tracking() {
+    fn deep_module_path_tracking() {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
@@ -601,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deep_module_filtered_export() {
+    fn deep_module_filtered_export() {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
@@ -654,5 +654,305 @@ mod tests {
             assert!(paths.contains(&"head.weight".to_string()));
             assert!(!paths.contains(&"head.bias".to_string())); // Not included
         }
+    }
+
+    use crate::traits::ModulePersist;
+    use burn_core::nn::Linear;
+    use hashbrown::HashMap;
+
+    // Test module with Option fields
+    #[derive(Module, Debug)]
+    struct OptionalFieldModule<B: Backend> {
+        required: Param<Tensor<B, 2>>,
+        optional: Option<Param<Tensor<B, 1>>>,
+    }
+
+    impl<B: Backend> OptionalFieldModule<B> {
+        fn new_with_optional(device: &B::Device) -> Self {
+            Self {
+                required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                optional: Some(Param::from_data([5.0, 6.0], device)),
+            }
+        }
+
+        fn new_without_optional(device: &B::Device) -> Self {
+            Self {
+                required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
+                optional: None,
+            }
+        }
+    }
+
+    #[test]
+    fn optional_field_module_with_value() {
+        let device = Default::default();
+        let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
+
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        assert_eq!(views.len(), 2);
+        assert!(views.contains_key("required"));
+        assert!(views.contains_key("optional"));
+    }
+
+    #[test]
+    fn optional_field_module_without_value() {
+        let device = Default::default();
+        let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
+
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        assert_eq!(views.len(), 1);
+        assert!(views.contains_key("required"));
+        assert!(!views.contains_key("optional"));
+    }
+
+    // Test Vec of modules
+    #[derive(Module, Debug)]
+    struct VecModule<B: Backend> {
+        layers: Vec<Linear<B>>,
+    }
+
+    impl<B: Backend> VecModule<B> {
+        fn new(device: &B::Device, num_layers: usize) -> Self {
+            Self {
+                layers: (0..num_layers)
+                    .map(|_| LinearConfig::new(10, 10).init(device))
+                    .collect(),
+            }
+        }
+    }
+
+    #[test]
+    fn vec_module_collect() {
+        let device = Default::default();
+        let module = VecModule::<TestBackend>::new(&device, 3);
+
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        // With the fix, all Vec items should now be properly indexed and visited
+        assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
+
+        // Check that all indexed paths exist
+        assert!(views.contains_key("layers.0.weight"));
+        assert!(views.contains_key("layers.0.bias"));
+        assert!(views.contains_key("layers.1.weight"));
+        assert!(views.contains_key("layers.1.bias"));
+        assert!(views.contains_key("layers.2.weight"));
+        assert!(views.contains_key("layers.2.bias"));
+    }
+
+    // Test array of modules
+    #[derive(Module, Debug)]
+    struct ArrayModule<B: Backend> {
+        layers: [Linear<B>; 3],
+    }
+
+    impl<B: Backend> ArrayModule<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                layers: [
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                    LinearConfig::new(10, 10).init(device),
+                ],
+            }
+        }
+    }
+
+    #[test]
+    fn array_module_collect() {
+        let device = Default::default();
+        let module = ArrayModule::<TestBackend>::new(&device);
+
+        let views: HashMap<String, TensorView> = module
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        // All array items should be properly indexed
+        assert_eq!(views.len(), 6); // 3 layers × 2 tensors each = 6 tensors
+
+        // Check indexed paths
+        for i in 0..3 {
+            assert!(views.contains_key(&format!("layers.{}.weight", i)));
+            assert!(views.contains_key(&format!("layers.{}.bias", i)));
+        }
+    }
+
+    // Test enum modules
+    #[derive(Module, Debug)]
+    enum EnumModule<B: Backend> {
+        LayerA(Linear<B>),
+        LayerB(Linear<B>),
+        LayerC(Linear<B>),
+    }
+
+    #[test]
+    fn enum_module_collect() {
+        let device = Default::default();
+
+        // Test variant A
+        let module_a = EnumModule::<TestBackend>::LayerA(LinearConfig::new(10, 20).init(&device));
+        let views_a: HashMap<String, TensorView> = module_a
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        // Should have the variant name in the path
+        assert_eq!(views_a.len(), 2);
+        assert!(views_a.contains_key("LayerA.weight"));
+        assert!(views_a.contains_key("LayerA.bias"));
+
+        // Test variant B
+        let module_b = EnumModule::<TestBackend>::LayerB(LinearConfig::new(10, 20).init(&device));
+        let views_b: HashMap<String, TensorView> = module_b
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        assert_eq!(views_b.len(), 2);
+        assert!(views_b.contains_key("LayerB.weight"));
+        assert!(views_b.contains_key("LayerB.bias"));
+    }
+
+    // Container type tracking tests
+    #[test]
+    fn linear_container_type() {
+        let device = Default::default();
+
+        #[derive(Module, Debug)]
+        struct ModelWithLinear<B: Backend> {
+            linear: Linear<B>,
+        }
+
+        impl<B: Backend> ModelWithLinear<B> {
+            fn new(device: &B::Device) -> Self {
+                Self {
+                    linear: LinearConfig::new(10, 20).init(device),
+                }
+            }
+        }
+
+        let model = ModelWithLinear::<TestBackend>::new(&device);
+
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        // Check that tensors inside Linear layers have "Linear" as their container type
+        for (path, view) in views.iter() {
+            if path == "linear.weight" || path == "linear.bias" {
+                assert_eq!(
+                    view.container_type(),
+                    "Linear",
+                    "Tensor '{}' should have container type 'Linear'",
+                    path
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn complex_model_container_types() {
+        let device = Default::default();
+
+        #[derive(Module, Debug)]
+        struct ComplexModel<B: Backend> {
+            linear_layers: [Linear<B>; 2],
+            vec_layers: Vec<Linear<B>>,
+            single_linear: Linear<B>,
+        }
+
+        impl<B: Backend> ComplexModel<B> {
+            fn new(device: &B::Device) -> Self {
+                Self {
+                    linear_layers: [
+                        LinearConfig::new(100, 50).init(device),
+                        LinearConfig::new(50, 10).init(device),
+                    ],
+                    vec_layers: vec![
+                        LinearConfig::new(10, 10).init(device),
+                        LinearConfig::new(10, 10).init(device),
+                    ],
+                    single_linear: LinearConfig::new(10, 1).init(device),
+                }
+            }
+        }
+
+        let model = ComplexModel::<TestBackend>::new(&device);
+
+        let views: HashMap<String, TensorView> = model
+            .collect()
+            .into_iter()
+            .map(|v| (v.full_path(), v))
+            .collect();
+
+        // Should have 10 tensors total
+        assert_eq!(views.len(), 10);
+
+        // Verify different container types
+        for (_path, view) in views.iter() {
+            assert_eq!(view.container_type(), "Linear");
+        }
+    }
+
+    #[test]
+    fn collect_with_container_filter() {
+        let device = Default::default();
+
+        #[derive(Module, Debug)]
+        struct FilterTestModel<B: Backend> {
+            layers: Vec<Linear<B>>,
+        }
+
+        impl<B: Backend> FilterTestModel<B> {
+            fn new(device: &B::Device) -> Self {
+                Self {
+                    layers: vec![
+                        LinearConfig::new(10, 10).init(device),
+                        LinearConfig::new(10, 10).init(device),
+                    ],
+                }
+            }
+        }
+
+        let model = FilterTestModel::<TestBackend>::new(&device);
+
+        // Filter to only collect tensors from Linear modules
+        let filter = PathFilter::new().with_predicate(|_path, container_path| {
+            container_path.split('.').last() == Some("Linear")
+        });
+
+        let linear_views: Vec<TensorView> = model.collect_with_filter(filter);
+
+        // All collected tensors should be from Linear modules
+        for view in linear_views.iter() {
+            assert_eq!(
+                view.container_type(),
+                "Linear",
+                "All tensors should be from Linear modules"
+            );
+        }
+
+        // Should have collected all Linear tensors
+        assert_eq!(linear_views.len(), 4);
     }
 }

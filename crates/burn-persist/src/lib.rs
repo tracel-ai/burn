@@ -16,9 +16,6 @@ pub mod safetensors;
 mod tensor_view;
 mod traits;
 
-#[cfg(test)]
-mod test;
-
 pub use applier::{ApplyError, ApplyResult, TensorApplier};
 pub use collector::TensorViewCollector;
 pub use filter::PathFilter;

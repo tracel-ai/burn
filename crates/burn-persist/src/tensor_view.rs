@@ -185,7 +185,7 @@ mod tests {
     use burn_tensor::DType;
 
     #[test]
-    fn test_tensor_view_float() {
+    fn tensor_view_float() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -209,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tensor_view_int() {
+    fn tensor_view_int() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
 
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tensor_view_bool() {
+    fn tensor_view_bool() {
         let device = Default::default();
         let tensor =
             Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn test_data_len() {
+    fn data_len() {
         let device = Default::default();
 
         // Test F32 tensor (4 bytes per element)
@@ -290,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_closure() {
+    fn from_closure() {
         let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
         let dtype = data.dtype;
         let shape = data.shape.clone();
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_data() {
+    fn from_data() {
         let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let original_dtype = data.dtype;
         let original_shape = data.shape.clone();
@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn test_container_type_extraction() {
+    fn container_type_extraction() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);
 
