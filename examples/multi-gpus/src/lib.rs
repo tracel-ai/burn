@@ -1,5 +1,5 @@
 use burn::{
-    collective::{CollectiveConfig, PeerId, ReduceOperation},
+    collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     prelude::*,
     tensor::TensorPrimitive,
 };
@@ -68,13 +68,13 @@ fn task_all_reduce<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
                 let id = PeerId::from(id);
                 let config = CollectiveConfig::default()
                     .with_num_devices(num_devices)
-                    .with_local_all_reduce_strategy(burn::collective::AllReduceStrategy::Ring);
+                    .with_local_all_reduce_strategy(collective::AllReduceStrategy::Centralized);
                 println!("{config:?}");
-                burn::collective::register::<B>(id, device, config).unwrap();
+                collective::register::<B>(id, device, config).unwrap();
 
                 for i in 0..num_iterations {
                     let tensor = compute(input);
-                    let result = burn::collective::all_reduce::<B>(
+                    let result = collective::all_reduce::<B>(
                         id,
                         tensor.into_primitive().tensor(),
                         ReduceOperation::Mean,
@@ -83,7 +83,7 @@ fn task_all_reduce<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
                     input = Tensor::from_primitive(TensorPrimitive::Float(result));
                     println!("[{id}] => Iter {i}");
                 }
-                burn::collective::finish_collective::<B>(id).unwrap();
+                collective::finish_collective::<B>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
