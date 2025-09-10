@@ -16,7 +16,7 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
         let start = Instant::now();
         task_all_reduce::<B>(
             devices.clone(),
-            32,
+            420,
             collective::AllReduceStrategy::Centralized,
         );
         println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
@@ -121,7 +121,8 @@ fn task_all_reduce<B: Backend>(
                     )
                     .unwrap();
                     weights = Tensor::from_primitive(TensorPrimitive::Float(result));
-                    println!("[{id}] => Iter {i}");
+                    let val = weights.clone().sum();
+                    println!("[{id}] => Iter {i} Sum {val}");
                 }
                 collective::finish_collective::<B>(id).unwrap();
             })
