@@ -259,6 +259,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return Err(CollectiveError::RegisterParamsMismatch);
         }
 
+        println!("Add peers {device_id:?} => {:?}", self.peers);
         self.peers.push(device_id);
         self.callbacks_register.push(callback.clone());
         self.devices.insert(device_id, device);
@@ -351,6 +352,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&peer_id) {
+            println!("Don't have peer {peer_id:?}, got {:?}", self.peers);
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
