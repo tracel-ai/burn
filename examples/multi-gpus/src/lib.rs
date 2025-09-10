@@ -92,7 +92,7 @@ fn task_all_reduce<B: Backend>(
                     shape_weights,
                     burn::tensor::Distribution::Default,
                     &device,
-                );
+                ) - 0.5;
 
                 let id = PeerId::from(id);
                 let config = CollectiveConfig::default()
@@ -106,7 +106,7 @@ fn task_all_reduce<B: Backend>(
                         shape_signal,
                         burn::tensor::Distribution::Default,
                         &device,
-                    );
+                    ) - 0.5;
                     let signal = compute(weights, signal);
                     let weights_update = signal.mean_dim(0);
 
