@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::ops::Range;
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +40,25 @@ impl Shape {
         Self {
             dims: [self.dims.iter().product()].into(),
         }
+    }
+
+    /// Convert to covering ranges for each dimension in the shape.
+    pub fn into_ranges(self) -> Vec<Range<usize>> {
+        self.into_iter().map(|d| 0..d).collect()
+    }
+
+    /// Construct a vector of the dims.
+    pub fn to_vec(&self) -> Vec<usize> {
+        self.dims.clone()
+    }
+}
+
+impl IntoIterator for Shape {
+    type Item = usize;
+    type IntoIter = alloc::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.dims.into_iter()
     }
 }
 
@@ -115,5 +135,27 @@ mod tests {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
         assert_eq!(120, shape.num_elements());
+    }
+
+    #[test]
+    fn test_iter() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+
+        assert_eq!(shape.into_iter().sum::<usize>(), 14);
+    }
+
+    #[test]
+    fn test_into_ranges() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+        assert_eq!(shape.into_ranges(), vec![0..2, 0..3, 0..4, 0..5]);
+    }
+
+    #[test]
+    fn test_to_vec() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+        assert_eq!(shape.to_vec(), vec![2, 3, 4, 5]);
     }
 }
