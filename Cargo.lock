@@ -989,6 +989,7 @@ name = "burn-tch"
 version = "0.19.0"
 dependencies = [
  "burn-autodiff",
+ "burn-common",
  "burn-tensor",
  "cc",
  "half",

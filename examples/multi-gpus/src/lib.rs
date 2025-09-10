@@ -6,10 +6,24 @@ use burn::{
     nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     optim::{GradientsParams, Optimizer, SgdConfig},
     prelude::*,
-    tensor::{TensorPrimitive, backend::AutodiffBackend},
+    tensor::{
+        TensorPrimitive,
+        backend::{AutodiffBackend, DeviceId},
+    },
 };
 
-pub fn run<B: Backend>(devices: Vec<B::Device>) {
+pub fn run<B: Backend>() {
+    let type_id = 0;
+    let num_devices = B::Device::device_count(type_id);
+
+    let devices = (0..num_devices)
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .collect();
+
+    run_with::<B>(devices);
+}
+
+fn run_with<B: Backend>(devices: Vec<B::Device>) {
     for strategy in [
         collective::AllReduceStrategy::Centralized,
         collective::AllReduceStrategy::Ring,
@@ -23,17 +37,17 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
             start.elapsed()
         );
     }
-    // for strategy in [
-    //     collective::AllReduceStrategy::Centralized,
-    //     collective::AllReduceStrategy::Ring,
-    //     collective::AllReduceStrategy::Tree(2),
-    // ] {
-    //     println!("[All Reduce - {strategy:?}] starting ...");
-    //     let start = Instant::now();
-    //     task_all_reduce::<B>(devices.clone(), 420, strategy);
-    //     println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
-    // }
-    // task_naive_aggregation::<B>(devices.clone(), 100);
+    for strategy in [
+        collective::AllReduceStrategy::Centralized,
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Tree(2),
+    ] {
+        println!("[All Reduce - {strategy:?}] starting ...");
+        let start = Instant::now();
+        task_all_reduce::<B>(devices.clone(), 420, strategy);
+        println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
+    }
+    task_naive_aggregation::<B>(devices.clone(), 100);
 }
 
 fn task_naive_aggregation<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {

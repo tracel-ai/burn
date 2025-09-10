@@ -1,9 +1,8 @@
 fn main() {
     #[cfg(feature = "cuda")]
-    multi_gpus::run::<burn::backend::Cuda>(vec![
-        burn::backend::cuda::CudaDevice::new(0),
-        burn::backend::cuda::CudaDevice::new(1),
-        burn::backend::cuda::CudaDevice::new(2),
-        burn::backend::cuda::CudaDevice::new(3),
-    ]);
+    multi_gpus::run::<burn::backend::Cuda>();
+    #[cfg(feature = "rocm")]
+    multi_gpus::run::<burn::backend::Rocm>();
+    #[cfg(feature = "tch-gpu")]
+    multi_gpus::run::<burn::backend::LibTorch>();
 }

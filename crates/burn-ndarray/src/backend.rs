@@ -21,11 +21,22 @@ pub enum NdArrayDevice {
     Cpu,
 }
 
-impl DeviceOps for NdArrayDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
-        match self {
-            NdArrayDevice::Cpu => DeviceId::new(0, 0),
+impl DeviceOps for NdArrayDevice {}
+
+impl burn_common::device::Device for NdArrayDevice {
+    fn from_id(_device_id: DeviceId) -> Self {
+        Self::Cpu
+    }
+
+    fn to_id(&self) -> DeviceId {
+        DeviceId {
+            type_id: 0,
+            index_id: 0,
         }
+    }
+
+    fn device_count(_type_id: u16) -> usize {
+        1
     }
 }
 

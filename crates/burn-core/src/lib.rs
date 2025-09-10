@@ -96,4 +96,5 @@ pub mod prelude {
             backend::Backend, cast::ToElement, s,
         },
     };
+    pub use burn_common::device::Device as DeviceOps;
 }
