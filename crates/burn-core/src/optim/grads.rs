@@ -137,6 +137,10 @@ impl GradientsParams {
 
             let grad = match grad {
                 TensorPrimitive::Float(grad) => {
+                    use burn_tensor::TensorMetadata;
+
+                    let shape = TensorMetadata::shape(&grad);
+                    println!("{shape:?}");
                     let grad = all_reduce::<B>(peer_id, grad, op)?;
                     TensorPrimitive::Float(grad)
                 }
