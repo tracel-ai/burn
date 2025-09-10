@@ -203,7 +203,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                         println!("Iter {i} => {stat}");
                     }
                 }
-                // collective::finish_collective::<B::InnerBackend>(id).unwrap();
+                collective::finish_collective::<B::InnerBackend>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
