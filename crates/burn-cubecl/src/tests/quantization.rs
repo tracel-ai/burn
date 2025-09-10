@@ -2,20 +2,63 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        Int, Tensor,
+        Int, Shape, Tensor,
         backend::Backend,
         quantization::{QuantLevel, QuantParam, QuantScheme, QuantStore, QuantValue},
     };
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
-    fn should_quantize_dequantize_symmetric_arange(value: QuantValue, store: QuantStore) {
+    fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
+        value: QuantValue,
+        store: QuantStore,
+        shape: S,
+    ) {
+        let shape = shape.into();
+        assert_eq!(shape.dims.len(), 2); // 2D tests
+
         let scheme = QuantScheme::default().with_value(value).with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
-        let input = Tensor::<TestBackend, 1, Int>::arange(0..128, &Default::default()).float();
+        let input: Tensor<TestBackend, 2> =
+            Tensor::arange(0..shape.num_elements() as i64, &Default::default())
+                .float()
+                .reshape(shape);
         let input_ref =
-            Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
+            Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
+
+        let output = input.quantize_dynamic(&scheme);
+        let output_ref = input_ref.quantize_dynamic(&scheme_ref);
+
+        output.to_data().assert_eq(&output_ref.to_data(), false);
+
+        let output = output.dequantize();
+        let output_ref = output_ref.dequantize();
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&output_ref.to_data(), Tolerance::default());
+    }
+
+    fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
+        value: QuantValue,
+        block_size: usize,
+        store: QuantStore,
+        shape: S,
+    ) {
+        let scheme = QuantScheme::default()
+            .with_value(value)
+            .with_level(QuantLevel::Block(block_size))
+            .with_store(store);
+        let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+
+        let shape = shape.into();
+        let input: Tensor<TestBackend, 2> =
+            Tensor::arange(0..shape.num_elements() as i64, &Default::default())
+                .float()
+                .reshape(shape);
+        let input_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme_ref);
@@ -84,32 +127,32 @@ mod tests {
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q8s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q8f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q4s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q4f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q2s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q2f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32)
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32, [8, 16])
     }
 
     #[test]
@@ -137,7 +180,11 @@ mod tests {
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q8s_native() {
         if supports_native() {
-            should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native)
+            should_quantize_dequantize_symmetric_arange(
+                QuantValue::Q8S,
+                QuantStore::Native,
+                [32, 32],
+            )
         }
     }
 
@@ -146,6 +193,49 @@ mod tests {
         if supports_native() {
             should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
         }
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_arange_q8s_packed() {
+        should_quantize_dequantize_symmetric_per_block_arange(
+            QuantValue::Q8S,
+            32,
+            QuantStore::U32,
+            [32, 32],
+        )
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_per_block_arange_q8s_native() {
+        if supports_native() {
+            should_quantize_dequantize_symmetric_per_block_arange(
+                QuantValue::Q8S,
+                32,
+                QuantStore::Native,
+                [32, 32],
+            )
+        }
+    }
+
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_128x256_q8s_native() {
+        if supports_native() {
+            should_quantize_dequantize_symmetric_per_block_arange(
+                QuantValue::Q8S,
+                32,
+                QuantStore::Native,
+                [128, 256],
+            )
+        }
+    }
+    #[test]
+    fn should_quantize_dequantize_symmetric_arange_128x256_q8s_packed() {
+        should_quantize_dequantize_symmetric_per_block_arange(
+            QuantValue::Q8S,
+            32,
+            QuantStore::U32,
+            [128, 256],
+        )
     }
 
     #[test]
