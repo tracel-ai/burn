@@ -12,6 +12,7 @@ fn main() {
         .input("tests/add/add_broadcast.onnx")
         .input("tests/initializer_to_const/initializer_to_const.onnx")
         .input("tests/and/and.onnx")
+        .input("tests/and/and_scalar.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/add/add_shape_tensor.onnx")
         .input("tests/add/add_argmax_with_shape.onnx")
@@ -72,7 +73,7 @@ fn main() {
         .input("tests/constant/constant_f64.onnx")
         .input("tests/constant/constant_i32.onnx")
         .input("tests/constant/constant_i64.onnx")
-        // .input("tests/constant/constant_bool.onnx") // TODO: Generate this file with updated constant.py
+        .input("tests/constant/constant_bool.onnx")
         .input("tests/constant/constant_shape.onnx")
         .input("tests/constant/constant_tensor_f32.onnx")
         .input("tests/constant/constant_tensor_i32.onnx")
@@ -187,6 +188,7 @@ fn main() {
         .input("tests/not/not.onnx")
         .input("tests/one_hot/one_hot.onnx")
         .input("tests/or/or.onnx")
+        .input("tests/or/or_scalar.onnx")
         .input("tests/pad/pad.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
@@ -280,6 +282,7 @@ fn main() {
         .input("tests/unsqueeze/squeeze_unsqueeze_roundtrip.onnx")
         .input("tests/split/split.onnx")
         .input("tests/xor/xor.onnx")
+        .input("tests/xor/xor_scalar.onnx")
         .out_dir("model/")
         .run_from_script();
 

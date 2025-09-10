@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(and);
+include_models!(and, and_scalar);
 
 #[cfg(test)]
 mod tests {
@@ -27,5 +27,18 @@ mod tests {
         let expected = TensorData::from([[[[false, false, false, true]]]]);
 
         output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn and_scalar() {
+        let device = Default::default();
+        let model: and_scalar::Model<TestBackend> = and_scalar::Model::new(&device);
+
+        // Test various combinations of scalar boolean inputs
+        // (input1 && true) && (input2 && false) = input1 && false = false
+        assert_eq!(model.forward(false, false), false);
+        assert_eq!(model.forward(false, true), false);
+        assert_eq!(model.forward(true, false), false);
+        assert_eq!(model.forward(true, true), false); // true && false = false
     }
 }

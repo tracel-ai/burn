@@ -68,7 +68,7 @@ def main():
 
     model_bool = ConstantModel(torch.bool)
     bool_input = torch.randint(
-        low=0, high=2, size=shape, device=device, dtype=torch.bool
+        low=0, high=2, size=[], device=device, dtype=torch.bool
     )
     export_model(model_bool, bool_input, "constant_bool.onnx")
 

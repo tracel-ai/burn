@@ -5,7 +5,7 @@ include_models!(
     constant_f64,
     constant_i32,
     constant_i64,
-    // constant_bool, // TODO: Generate constant_bool.onnx with updated constant.py
+    constant_bool,
     constant_shape,
     constant_tensor_f32,
     constant_tensor_i32,
@@ -69,26 +69,20 @@ mod tests {
         output.to_data().assert_eq(&expected, true);
     }
 
-    // TODO: Enable this test once constant_bool.onnx is generated with updated constant.py
-    // #[test]
-    // fn or_constant_bool() {
-    //     let device = Default::default();
-    //     let model = constant_bool::Model::<TestBackend>::new(&device);
-    //     use burn::tensor::Bool;
-    //
-    //     // Create input tensor [2, 3, 4] with all false values
-    //     let input = Tensor::<TestBackend, 3, Bool>::from_bool(
-    //         burn::tensor::TensorData::from([[[false; 4]; 3]; 2]),
-    //         &device,
-    //     );
-    //
-    //     // Expected: all true after OR with constant true
-    //     let expected = burn::tensor::TensorData::from([[[true; 4]; 3]; 2]);
+    #[test]
+    fn or_constant_bool() {
+        // Test scalar boolean constant with OR operation
+        let device = Default::default();
+        let model = constant_bool::Model::<TestBackend>::new(&device);
 
-    //     let output = model.forward(input);
+        // Test with false input - should return true (false OR true = true)
+        let output_false = model.forward(false);
+        assert_eq!(output_false, true, "false OR true should be true");
 
-    //     output.to_data().assert_eq(&expected, true);
-    // }
+        // Test with true input - should return true (true OR true = true)
+        let output_true = model.forward(true);
+        assert_eq!(output_true, true, "true OR true should be true");
+    }
 
     #[test]
     fn constant_tensor_f32_test() {
