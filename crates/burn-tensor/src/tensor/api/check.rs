@@ -913,11 +913,10 @@ impl TensorCheck {
         if DO != expected_do {
             check = check.register(
                 "Take",
-                TensorError::new("Output dimension mismatch")
-                    .details(format!(
-                        "Expected output dimension {} (D={} + DI={} - 1) but got DO={}",
-                        expected_do, D, DI, DO
-                    )),
+                TensorError::new("Output dimension mismatch").details(format!(
+                    "Expected output dimension {} (D={} + DI={} - 1) but got DO={}",
+                    expected_do, D, DI, DO
+                )),
             );
         }
 

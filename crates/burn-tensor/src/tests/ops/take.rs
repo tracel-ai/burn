@@ -250,13 +250,6 @@ mod tests {
         output.into_data().assert_eq(&expected, false);
     }
 
-
-
-
-
-
-
-
     #[test]
     fn should_take_with_negative_dim_2d() {
         // Test using negative dimension indexing on 2D tensor
