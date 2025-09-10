@@ -159,14 +159,16 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
     let d_model = 1024;
     let shape_signal = [batch, seq_length, d_model];
     let config = TransformerEncoderConfig::new(d_model, 2048, 4, 4);
+    let model_main = config.init::<B>(&Default::default());
 
     let handles = devices
         .into_iter()
         .enumerate()
         .map(|(id, device)| {
-            let config = config.clone();
+            let model_main = model_main.clone();
 
             std::thread::spawn(move || {
+                let mut model = model_main.to_device(&device);
                 let id = PeerId::from(id);
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
@@ -175,7 +177,6 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                 println!("[{id}] Register collective operation {config_col:?}");
                 collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
-                let mut model = config.init::<B>(&device);
                 let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
 
                 for i in 0..num_iterations {
