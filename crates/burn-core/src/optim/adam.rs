@@ -13,10 +13,11 @@ use crate::tensor::{Tensor, backend::AutodiffBackend};
 use burn_tensor::{backend::Backend, ops::Device};
 
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Adam configuration.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdamConfig {
     /// Parameter for Adam.
     #[config(default = 0.9)]

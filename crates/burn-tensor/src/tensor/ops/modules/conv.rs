@@ -4,7 +4,8 @@ use crate::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 
 use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Calculate the expected padding size required when applying a convolution.
 pub fn calculate_conv_padding(
@@ -118,6 +119,7 @@ pub(crate) fn conv1d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvOptions<1>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -125,7 +127,7 @@ pub(crate) fn conv1d_weight_backward<B: Backend>(
         true => conv1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv1d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),
@@ -199,6 +201,7 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvOptions<2>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -206,7 +209,7 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
         true => conv2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv2d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),
@@ -301,6 +304,7 @@ pub(crate) fn conv3d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvOptions<3>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -308,7 +312,7 @@ pub(crate) fn conv3d_weight_backward<B: Backend>(
         true => conv3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv3d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),
@@ -373,6 +377,7 @@ pub(crate) fn conv_transpose1d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvTransposeOptions<1>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -380,7 +385,7 @@ pub(crate) fn conv_transpose1d_weight_backward<B: Backend>(
         true => conv_transpose1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv_transpose1d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),
@@ -429,6 +434,7 @@ pub(crate) fn conv_transpose2d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvTransposeOptions<2>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -436,7 +442,7 @@ pub(crate) fn conv_transpose2d_weight_backward<B: Backend>(
         true => conv_transpose2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv_transpose2d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),
@@ -488,6 +494,7 @@ pub(crate) fn conv_transpose3d_weight_backward<B: Backend>(
     output_grad: FloatTensor<B>,
     options: ConvTransposeOptions<3>,
 ) -> FloatTensor<B> {
+    let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
     let weight_device = B::float_device(&weight);
 
@@ -495,7 +502,7 @@ pub(crate) fn conv_transpose3d_weight_backward<B: Backend>(
         true => conv_transpose3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
         false => conv_transpose3d_weight_grad_groups::<B>(
             x,
-            B::float_zeros(weight_shape, &weight_device),
+            B::float_zeros(weight_shape, &weight_device, weight_dtype.into()),
             output_grad,
             options,
         ),

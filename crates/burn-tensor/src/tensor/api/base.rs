@@ -153,7 +153,7 @@ where
     pub fn empty<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
-        Self::new(K::empty(shape, device))
+        Self::new(K::empty(shape, device, K::Elem::dtype()))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -178,7 +178,7 @@ where
     ) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
-        Self::new(K::full(shape, fill_value, device))
+        Self::new(K::full(shape, fill_value, device, K::Elem::dtype()))
     }
 
     ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
@@ -2438,6 +2438,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2451,7 +2452,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
     /// which is more high-level and designed for public use.
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Creates a tensor of the given shape where each element is equal to the provided value.
     ///
@@ -2460,6 +2461,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2477,6 +2479,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive;
 
     /// Reshapes the tensor.
@@ -2993,16 +2996,22 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_empty(shape, device))
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_empty(shape, device, dtype.into()))
     }
 
     fn full<E: ElementConversion>(
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
+        TensorPrimitive::Float(B::float_full(
+            shape,
+            fill_value.elem(),
+            device,
+            dtype.into(),
+        ))
     }
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
@@ -3208,16 +3217,17 @@ impl<B: Backend> BasicOps<B> for Float {
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_empty(shape, device)
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_empty(shape, device, dtype.into())
     }
 
     fn full<E: ElementConversion>(
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device)
+        B::int_full(shape, fill_value.elem(), device, dtype.into())
     }
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
@@ -3333,7 +3343,10 @@ impl<B: Backend> BasicOps<B> for Int {
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = B::BoolElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if dtype != Self::Elem::dtype() {
+            panic!("Expected bool data type, got {dtype:?}");
+        }
         B::bool_empty(shape, device)
     }
 
@@ -3341,7 +3354,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
+        if dtype != Self::Elem::dtype() {
+            panic!("Expected bool data type, got {dtype:?}");
+        }
         if fill_value.elem() {
             B::bool_ones(shape, device)
         } else {

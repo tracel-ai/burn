@@ -44,12 +44,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and zeros.
-    fn float_zeros(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::zeros::<FloatElem<B>, _>(shape), device)
+    fn float_zeros(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 0, dtype.into()), device)
     }
 
     /// Creates a new tensor with ones.
@@ -58,12 +59,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and ones.
-    fn float_ones(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::ones::<FloatElem<B>, _>(shape), device)
+    fn float_ones(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 1, dtype.into()), device)
     }
 
     /// Creates a tensor filled with given value.
@@ -73,12 +75,21 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor filled with given value
-    fn float_full(shape: Shape, fill_value: FloatElem<B>, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_add_scalar(Self::float_zeros(shape, device), fill_value)
+    fn float_full(
+        shape: Shape,
+        fill_value: FloatElem<B>,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B> {
+        Self::float_from_data(
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
+            device,
+        )
     }
 
     /// Converts the tensor to a data structure.
@@ -132,11 +143,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The empty tensor with the given shape.
-    fn float_empty(shape: Shape, device: &Device<B>) -> FloatTensor<B>;
+    fn float_empty(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1275,7 +1287,11 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let zeros = B::float_zeros(tensor.shape(), &B::float_device(&tensor));
+        let zeros = B::float_zeros(
+            tensor.shape(),
+            &B::float_device(&tensor),
+            tensor.dtype().into(),
+        );
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
 
