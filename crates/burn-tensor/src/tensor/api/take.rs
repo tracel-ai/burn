@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{BasicOps, Int, Tensor, backend::Backend, check, check::TensorCheck};
+use crate::{BasicOps, Int, Tensor, backend::Backend, check, check::TensorCheck, indexing::{AsIndex, canonicalize_dim}};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -17,7 +17,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension along which to select elements.
+    /// * `dim` - The dimension along which to select elements. Supports negative indexing.
     /// * `indices` - The indices of elements to select. Can be any dimensionality.
     ///   Negative values count from the end.
     ///
@@ -33,7 +33,7 @@ where
     ///   // Example with positive and negative indices (1D indices -> same dims)
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
     ///   let indices = Tensor::<B, 1, Int>::from_data([2, -3, -2], &device);  // [2, 0, 1]
-    ///   let result: Tensor<B, 2> = tensor.clone().take::<1, 2>(1, indices);
+    ///   let result: Tensor<B, 2> = tensor.clone().take::<1, 2>(-1, indices);  // -1 refers to last dimension
     ///   println!("{result}");
     ///   // [[3.0, 1.0, 2.0], [6.0, 4.0, 5.0]]
     ///
@@ -46,9 +46,10 @@ where
     /// ```
     pub fn take<const DI: usize, const DO: usize>(
         self,
-        dim: usize,
+        dim: impl AsIndex,
         indices: Tensor<B, DI, Int>,
     ) -> Tensor<B, DO, K> {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::take::<D, DI, DO>(dim));
 
         // Get the size of the dimension we're selecting from
