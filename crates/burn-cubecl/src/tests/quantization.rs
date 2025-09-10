@@ -25,7 +25,7 @@ mod tests {
                 .float()
                 .reshape(shape);
         let input_ref =
-            Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
+            Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
 
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme_ref);
@@ -127,32 +127,32 @@ mod tests {
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q8s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q8f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q4s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q4f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q2s_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32, [8, 16])
     }
 
     #[test]
     fn should_quantize_dequantize_symmetric_arange_q2f_packed() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32, [32, 32])
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32, [8, 16])
     }
 
     #[test]
