@@ -108,7 +108,7 @@ fn task_all_reduce<B: Backend>(
                         &device,
                     );
                     let signal = compute(weights, signal);
-                    let weights_update = signal.sum_dim(0);
+                    let weights_update = signal.mean_dim(0);
 
                     let result = collective::all_reduce::<B>(
                         id,
