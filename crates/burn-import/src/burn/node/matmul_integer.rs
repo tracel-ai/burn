@@ -95,46 +95,52 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         };
 
         // Centered inputs (already Int tensors)
-        let lhs_c = quote! { ((#lhs).sub(#a_zp)) };
-        let rhs_c = quote! { ((#rhs).sub(#b_zp)) };
+        let lhs_c = quote! { (#lhs).sub(#a_zp) };
+        let rhs_c = quote! { (#rhs).sub(#b_zp) };
 
         // ---- Rank handling for matmul broadcasting ----
         match lhs_dim.cmp(&rhs_dim) {
             core::cmp::Ordering::Greater => {
+                let num_unsqueezes = lhs_dim - rhs_dim;
+                
                 if rhs_dim == 1 {
-                    // (…, M, K) @ (K) -> (…, M)
+                    // Matrix-vector product: expand vector to match matrix rank
                     let squeeze_dim = lhs_dim - 1;
-                    let out_rank = self.output.rank;
-                    let target_rank = lhs_dim;
+                    // After squeeze, the output rank is reduced by 1
+                    let out_rank = lhs_dim - 1;
+                    
+                    // Build unsqueeze dimensions: [-1, 0, 0, ...]
+                    let mut unsqueeze_dims = vec![-1isize];
+                    if num_unsqueezes > 1 {
+                        unsqueeze_dims.extend(std::iter::repeat_n(0isize, num_unsqueezes - 1));
+                    }
+                    
                     quote! {
-                        let rhs_c = (#rhs_c).unsqueeze::<#target_rank>();
-                        let #out = (#lhs_c).matmul(rhs_c).squeeze::<#out_rank>(#squeeze_dim);
+                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze::<#out_rank>(#squeeze_dim);
                     }
                 } else {
-                    // Broadcast rhs leading dims up to lhs rank
+                    // General tensor broadcasting: add leading dimensions
                     let target_rank = lhs_dim;
                     quote! {
-                        let rhs_c = (#rhs_c).unsqueeze::<#target_rank>();
-                        let #out = (#lhs_c).matmul(rhs_c);
+                        let #out = (#lhs_c).matmul((#rhs_c).unsqueeze::<#target_rank>());
                     }
                 }
             }
             core::cmp::Ordering::Less => {
                 if lhs_dim == 1 {
-                    // (K) @ (…, K, N) -> (…, N)
+                    // Vector-matrix product: expand vector to match matrix rank
                     let squeeze_dim = rhs_dim - 2;
-                    let out_rank = self.output.rank;
+                    // After squeeze, the output rank is reduced by 1
+                    let out_rank = rhs_dim - 1;
                     let target_rank = rhs_dim;
                     quote! {
-                        let lhs_c = (#lhs_c).unsqueeze::<#target_rank>();
-                        let #out = lhs_c.matmul(#rhs_c).squeeze::<#out_rank>(#squeeze_dim);
+                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c).squeeze::<#out_rank>(#squeeze_dim);
                     }
                 } else {
-                    // Broadcast lhs leading dims up to rhs rank
+                    // General tensor broadcasting: add leading dimensions
                     let target_rank = rhs_dim;
                     quote! {
-                        let lhs_c = (#lhs_c).unsqueeze::<#target_rank>();
-                        let #out = lhs_c.matmul(#rhs_c);
+                        let #out = (#lhs_c).unsqueeze::<#target_rank>().matmul(#rhs_c);
                     }
                 }
             }
