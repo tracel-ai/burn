@@ -191,6 +191,8 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let sum = x.sum();
 
                     let grads = sum.backward();
+                    let stat = sum.into_scalar().elem::<f32>();
+
                     let grads = GradientsParams::from_grads(grads, &model);
                     let grads = grads
                         .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
@@ -199,7 +201,6 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     model = optim.step(1.0e-5, model, grads);
 
                     if id == PeerId::from(0) {
-                        let stat = sum.into_scalar().elem::<f32>();
                         println!("Iter {i} => {stat}");
                     }
                 }
