@@ -148,6 +148,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     /// Starts the local collective server thread
     pub(crate) fn start() -> LocalCollectiveClient<B> {
+        println!("Start a new local collective server");
         let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
 
         let runtime = get_server_runtime();
