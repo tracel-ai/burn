@@ -927,70 +927,6 @@ where
         ))
     }
 
-    /// Select the tensor elements along the given dimension corresponding to the given indices.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
-    /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
-    /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape, Int};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 3>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
-    ///   let tensor = tensor.select(0, indices);
-    ///   println!("{tensor}");
-    ///   //  [[1.0, -2.0, 3.0]]
-    /// }
-    /// ```
-    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
-        check!(TensorCheck::select::<D>(dim));
-        Self::new(K::select(self.primitive, dim, indices))
-    }
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor to the original tensor using sum reduction.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn select_assign(
-        self,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Tensor<B, D, K>,
-    ) -> Self {
-        check!(TensorCheck::select_assign::<D>(
-            dim,
-            &indices.shape(),
-            &values.shape()
-        ));
-
-        Self::new(K::select_assign(
-            self.primitive,
-            dim,
-            indices,
-            values.primitive,
-        ))
-    }
-
     /// Applies the argmax function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -2925,61 +2861,6 @@ where
         values: Self::Primitive,
     ) -> Self::Primitive;
 
-    /// Select tensor elements along the given dimension corresponding for the given indices.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to select elements from.
-    /// * `dim` - The axis along which to select elements.
-    /// * `indices` - The indices of the elements to select.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For selecting elements from a tensor along an axis, users should prefer the
-    /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive;
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to assign elements to.
-    /// * `dim` - The axis along which to assign elements.
-    /// * `indices` - The indices of the elements to assign.
-    /// * `values` - The values to assign to the tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis,
-    /// except for the elements at the specified indices, which are taken from the corresponding
-    /// element of the values tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For assigning elements to a tensor along an axis, users should prefer the
-    /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive;
-
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
     /// # Arguments
@@ -3536,18 +3417,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mask_fill(tensor, mask, value)
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        B::int_select(tensor, dim, indices.primitive)
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices.primitive, values)
-    }
     fn gather(
         dim: usize,
         tensor: Self::Primitive,
@@ -3859,32 +3728,6 @@ impl<B: Backend> Numeric<B> for Float {
         value: Self::Elem,
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
-    }
-
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices.primitive))
-            }
-        }
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
     }
 
     fn gather(
