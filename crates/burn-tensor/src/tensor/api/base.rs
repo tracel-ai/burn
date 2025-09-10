@@ -1178,7 +1178,7 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
 
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
         Self::new(K::slice(self.primitive, &ranges))
@@ -1213,7 +1213,7 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
@@ -1254,7 +1254,7 @@ where
         ranges: R,
         value: E,
     ) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
 
         Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))

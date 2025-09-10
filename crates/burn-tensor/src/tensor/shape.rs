@@ -1,3 +1,4 @@
+use crate::RangesArg;
 use alloc::vec::Vec;
 use core::ops::Range;
 
@@ -45,6 +46,62 @@ impl Shape {
     /// Convert to covering ranges for each dimension in the shape.
     pub fn into_ranges(self) -> Vec<Range<usize>> {
         self.into_iter().map(|d| 0..d).collect()
+    }
+
+    /// Applies a slice to the shape.
+    ///
+    /// For more complex indexing with different slice ranges, see also the slice
+    /// macro [`s!`](crate::s).
+    ///
+    /// # Arguments
+    ///
+    /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
+    ///   - A single range (slice the first dimension)
+    ///   - A single index (slice the first dimension)
+    ///   - An array of ranges
+    ///
+    /// # Behavior
+    ///
+    /// - Supports partial and full slicing in any number of dimensions.
+    /// - Missing ranges are treated as full slices if D > D2.
+    /// - Handles negative indices by wrapping around from the end of the dimension.
+    /// - Clamps ranges to the shape's dimensions if they exceed the bounds.
+    ///
+    /// # Panics
+    ///
+    /// - If the number of ranges provided exceeds the shape's dimensions.
+    /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape, s};
+    ///
+    /// fn example<B: Backend>() {
+    ///     // 1D slicing
+    ///     assert_eq!(Shape::new([4]).slice(s![1..4]), [1..3]);
+    ///
+    ///     // 2D slicing
+    ///     assert_eq!(Shape::new([3, 4]).slice(s![1..4, 0..2]), [1..3, 0..2]);
+    ///
+    ///     // Using negative indices
+    ///     assert_eq!(Shape::new([3]).slice(s![..-2]), [0..1]);
+    ///
+    ///     // Using the slice macro to select different ranges
+    ///     assert_eq!(
+    ///         Shape::new([2, 3, 4]).slice(s![.., 1..-1]),
+    ///         [0..2, 1..2]);
+    /// }
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// This function uses the `RangesArg` trait for flexible range specification. The trait
+    /// handles the conversion of various range formats and applies clamping and negative
+    /// index handling internally.
+    pub fn slice<const D: usize, R: RangesArg<D>>(self, ranges: R) -> [Range<usize>; D] {
+        ranges.into_ranges(self)
     }
 
     /// Construct a vector of the dims.
@@ -129,6 +186,8 @@ impl From<Shape> for Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::s;
+    use alloc::vec;
 
     #[test]
     fn num_elements() {
@@ -157,5 +216,18 @@ mod tests {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
         assert_eq!(shape.to_vec(), vec![2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_slice() {
+        assert_eq!(Shape::new([3]).slice(s![1..4]), [1..3]);
+
+        assert_eq!(Shape::new([3, 4]).slice(s![1..4, 0..2]), [1..3, 0..2]);
+
+        assert_eq!(Shape::new([3]).slice(s![..-2]), [0..1]);
+
+        assert_eq!(Shape::new([2, 3, 4]).slice(s![.., 1..-1]), [0..2, 1..2]);
+
+        assert_eq!(Shape::new([2, 3, 4]).slice(s![..20, 2]), [0..2, 2..3]);
     }
 }
