@@ -65,14 +65,14 @@ impl ActivationConfig {
     /// Initialize a wrapped activation layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
         match self {
-            ActivationConfig::Relu => Activation::Relu(Relu),
-            ActivationConfig::LeakyRelu(conf) => Activation::LeakyRelu(conf.init()),
-            ActivationConfig::Gelu => Activation::Gelu(Gelu),
-            ActivationConfig::PRelu(conf) => Activation::PRelu(conf.init(device)),
-            ActivationConfig::SwiGlu(conf) => Activation::SwiGlu(conf.init(device)),
-            ActivationConfig::HardSigmoid(conf) => Activation::HardSigmoid(conf.init()),
-            ActivationConfig::Sigmoid => Activation::Sigmoid(Sigmoid),
-            ActivationConfig::Tanh => Activation::Tanh(Tanh),
+            ActivationConfig::Relu => Relu.into(),
+            ActivationConfig::LeakyRelu(conf) => conf.init().into(),
+            ActivationConfig::Gelu => Gelu.into(),
+            ActivationConfig::PRelu(conf) => conf.init(device).into(),
+            ActivationConfig::SwiGlu(conf) => conf.init(device).into(),
+            ActivationConfig::HardSigmoid(conf) => conf.init().into(),
+            ActivationConfig::Sigmoid => Sigmoid.into(),
+            ActivationConfig::Tanh => Tanh.into(),
         }
     }
 }
@@ -106,6 +106,54 @@ pub enum Activation<B: Backend> {
 
     /// [`HardSigmoid`] activation layer.
     HardSigmoid(HardSigmoid),
+}
+
+impl<B: Backend> From<Gelu> for Activation<B> {
+    fn from(layer: Gelu) -> Self {
+        Self::Gelu(layer)
+    }
+}
+
+impl<B: Backend> From<PRelu<B>> for Activation<B> {
+    fn from(layer: PRelu<B>) -> Self {
+        Self::PRelu(layer)
+    }
+}
+
+impl<B: Backend> From<Relu> for Activation<B> {
+    fn from(layer: Relu) -> Self {
+        Self::Relu(layer)
+    }
+}
+
+impl<B: Backend> From<LeakyRelu> for Activation<B> {
+    fn from(layer: LeakyRelu) -> Self {
+        Self::LeakyRelu(layer)
+    }
+}
+
+impl<B: Backend> From<SwiGlu<B>> for Activation<B> {
+    fn from(layer: SwiGlu<B>) -> Self {
+        Self::SwiGlu(layer)
+    }
+}
+
+impl<B: Backend> From<Sigmoid> for Activation<B> {
+    fn from(layer: Sigmoid) -> Self {
+        Self::Sigmoid(layer)
+    }
+}
+
+impl<B: Backend> From<Tanh> for Activation<B> {
+    fn from(layer: Tanh) -> Self {
+        Self::Tanh(layer)
+    }
+}
+
+impl<B: Backend> From<HardSigmoid> for Activation<B> {
+    fn from(layer: HardSigmoid) -> Self {
+        Self::HardSigmoid(layer)
+    }
 }
 
 impl<B: Backend> Activation<B> {
