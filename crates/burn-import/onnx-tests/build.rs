@@ -167,6 +167,8 @@ fn main() {
         .input("tests/where_op/where_shape_scalar_cond.onnx")
         .input("tests/where_op/where_shapes_from_inputs.onnx")
         .input("tests/matmul/matmul.onnx")
+        .input("tests/matmulinteger/matmulinteger.onnx")
+        .input("tests/matmulinteger/matmulinteger_ranks.onnx")
         .input("tests/matmul/matmul_ranks.onnx")
         .input("tests/max/max.onnx")
         .input("tests/maxpool1d/maxpool1d.onnx")
