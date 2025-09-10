@@ -167,15 +167,15 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
             let config = config.clone();
 
             std::thread::spawn(move || {
-                let mut model = config.init::<B>(&device);
-                let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
-
                 let id = PeerId::from(id);
-                let config = CollectiveConfig::default()
+                let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
 
-                collective::register::<B>(id, device.clone(), config).unwrap();
+                collective::register::<B>(id, device.clone(), config_col).unwrap();
+
+                let mut model = config.init::<B>(&device);
+                let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
 
                 for i in 0..num_iterations {
                     let x = Tensor::<B, 3>::random(
