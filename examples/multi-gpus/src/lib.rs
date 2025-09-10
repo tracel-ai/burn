@@ -159,16 +159,15 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
     let d_model = 1024;
     let shape_signal = [batch, seq_length, d_model];
     let config = TransformerEncoderConfig::new(d_model, 2048, 4, 4);
-    let model_main = config.init::<B>(&Default::default());
+    let model_main = config.init::<B>(&devices[0]);
 
     let handles = devices
         .into_iter()
         .enumerate()
         .map(|(id, device)| {
-            let model_main = model_main.clone();
+            let mut model = model_main.clone().to_device(&device);
 
             std::thread::spawn(move || {
-                let mut model = model_main.to_device(&device);
                 let id = PeerId::from(id);
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
@@ -191,6 +190,8 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
 
                     let grads = x.backward();
                     let grads = GradientsParams::from_grads(grads, &model);
+
+                    println!("[{id}] All reduce operations ...");
                     let grads = grads
                         .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
                         .unwrap();

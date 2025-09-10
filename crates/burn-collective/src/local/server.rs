@@ -164,6 +164,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                         log::error!(
                             "Error receiving message from local collective server: {err:?}"
                         );
+                        println!("Error receiving message from local collective server: {err:?}");
                         break;
                     }
                 }
