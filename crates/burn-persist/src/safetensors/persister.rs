@@ -237,6 +237,40 @@ impl SafetensorsPersister {
         self
     }
 
+    /// Add a regex pattern to remap tensor names during load/save.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
+    ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn with_key_pattern(
+        mut self,
+        from_pattern: impl AsRef<str>,
+        to_pattern: impl Into<String>,
+    ) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => {
+                p.remapper = p
+                    .remapper
+                    .clone()
+                    .add_pattern(from_pattern, to_pattern)
+                    .expect("Invalid regex pattern");
+            }
+            Self::Memory(p) => {
+                p.remapper = p
+                    .remapper
+                    .clone()
+                    .add_pattern(from_pattern, to_pattern)
+                    .expect("Invalid regex pattern");
+            }
+        }
+        self
+    }
+
     /// Add metadata to be saved with the tensors.
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         let key = key.into();

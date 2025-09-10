@@ -51,17 +51,98 @@
 //!
 //! ## Advanced Features
 //!
+//! ### Filter Configuration with Builder Pattern
+//!
 //! ```rust,ignore
-//! use burn_persist::{PathFilter, KeyRemapper, ModulePersist};
+//! use burn_persist::ModulePersist;
 //! use burn_persist::safetensors::SafetensorsPersister;
 //!
-//! // Configure advanced options with method chaining
+//! // Filter with regex patterns (OR logic - matches any pattern)
 //! let mut persister = SafetensorsPersister::from_file("model.safetensors")
-//!     // Only load encoder layers
-//!     .filter(PathFilter::exact_paths(vec!["encoder.*"]))
-//!     // Rename layers during loading
-//!     .remap(KeyRemapper::new()
-//!         .add_pattern(r"^old_name\.", "new_name.")?)
+//!     .with_regex(r"^encoder\..*")     // Match all encoder tensors
+//!     .with_regex(r".*\.bias$");        // OR match any bias tensors
+//!
+//! // Filter with exact paths
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .with_full_path("encoder.weight")
+//!     .with_full_path("encoder.bias")
+//!     .with_full_paths(vec!["decoder.scale", "decoder.norm"]);
+//!
+//! // Custom filter logic with predicate
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .with_predicate(|path, _dtype| {
+//!         // Only save layer weights (not biases)
+//!         path.contains("layer") && path.ends_with("weight")
+//!     });
+//!
+//! // Combine multiple filter methods
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .with_regex(r"^encoder\..*")           // All encoder tensors
+//!     .with_full_path("decoder.scale")       // Plus specific decoder.scale
+//!     .with_predicate(|path, _| {            // Plus any projection tensors
+//!         path.contains("projection")
+//!     });
+//!
+//! // Save or load all tensors (no filtering)
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .match_all();
+//! ```
+//!
+//! ### Tensor Name Remapping
+//!
+//! Remap tensor names during load/save operations for compatibility between different frameworks:
+//!
+//! ```rust,ignore
+//! use burn_persist::ModulePersist;
+//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_persist::KeyRemapper;
+//!
+//! // Using builder pattern for common remapping patterns
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
+//!     .with_key_pattern(r"\.gamma$", ".weight")                // X.gamma -> X.weight  
+//!     .with_key_pattern(r"\.beta$", ".bias");                  // X.beta -> X.bias
+//!
+//! // Or using a pre-configured KeyRemapper for complex transformations
+//! let remapper = KeyRemapper::new()
+//!     .add_pattern(r"^pytorch\.(.*)", "burn.$1")?           // pytorch.layer -> burn.layer
+//!     .add_pattern(r"^(.*)\.running_mean$", "$1.mean")?     // layer.running_mean -> layer.mean
+//!     .add_pattern(r"^(.*)\.running_var$", "$1.variance")?; // layer.running_var -> layer.variance
+//!
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .remap(remapper);
+//! ```
+//!
+//! ### Framework Adapters
+//!
+//! Use adapters for automatic framework-specific transformations:
+//!
+//! ```rust,ignore
+//! use burn_persist::{ModulePersist, PyTorchToBurnAdapter, BurnToPyTorchAdapter};
+//! use burn_persist::safetensors::SafetensorsPersister;
+//!
+//! // Loading PyTorch model into Burn
+//! let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+//!     .with_from_adapter(PyTorchToBurnAdapter)  // Transposes linear weights, renames norm params
+//!     .allow_partial(true);                     // PyTorch models may have extra tensors
+//!
+//! let mut burn_model = Model::new(&device);
+//! burn_model.apply_from(&mut persister)?;
+//!
+//! // Saving Burn model for PyTorch
+//! let mut persister = SafetensorsPersister::from_file("for_pytorch.safetensors")
+//!     .with_to_adapter(BurnToPyTorchAdapter);   // Transposes weights back, renames for PyTorch
+//!
+//! burn_model.collect_to(&mut persister)?;
+//! ```
+//!
+//! ### Additional Configuration Options
+//!
+//! ```rust,ignore
+//! use burn_persist::ModulePersist;
+//! use burn_persist::safetensors::SafetensorsPersister;
+//!
+//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
 //!     // Add custom metadata
 //!     .metadata("version", "1.0.0")
 //!     .metadata("framework", "burn")
@@ -131,22 +212,99 @@
 //! let worker_tensors = persister.load_tensors(&worker_layers)?;
 //! ```
 //!
+//! # Builder Pattern API Reference
+//!
+//! The SafetensorsPersister provides a fluent builder API for configuration:
+//!
+//! ## Filtering Methods
+//!
+//! - **`with_regex(pattern)`** - Add regex pattern to match tensor names (OR logic with multiple patterns)
+//! - **`with_full_path(path)`** - Add exact tensor path to include
+//! - **`with_full_paths(paths)`** - Add multiple exact tensor paths to include
+//! - **`with_predicate(fn)`** - Add custom filter function `fn(&str, &str) -> bool`
+//! - **`match_all()`** - Disable filtering, include all tensors
+//!
+//! ## Remapping Methods
+//!
+//! - **`with_key_pattern(from, to)`** - Add regex pattern to rename tensors
+//! - **`remap(KeyRemapper)`** - Use a pre-configured KeyRemapper for complex transformations
+//!
+//! ## Adapter Methods
+//!
+//! - **`with_from_adapter(adapter)`** - Set adapter for loading (e.g., PyTorchToBurnAdapter)
+//! - **`with_to_adapter(adapter)`** - Set adapter for saving (e.g., BurnToPyTorchAdapter)
+//!
+//! ## Configuration Methods
+//!
+//! - **`metadata(key, value)`** - Add custom metadata to saved files
+//! - **`allow_partial(bool)`** - Allow loading even if some tensors are missing
+//! - **`validate(bool)`** - Enable/disable tensor validation during loading
+//!
+//! All methods return `Self` for chaining:
+//!
+//! ```rust,ignore
+//! let persister = SafetensorsPersister::from_file("model.safetensors")
+//!     .with_regex(r"^encoder\..*")
+//!     .with_key_pattern(r"\.gamma$", ".weight")
+//!     .with_from_adapter(PyTorchToBurnAdapter)
+//!     .allow_partial(true)
+//!     .metadata("version", "2.0");
+//! ```
+//!
 //! # Working with Bytes
 //!
 //! For direct byte operations without files:
 //!
 //! ```rust,ignore
 //! use burn_persist::ModulePersist;
+//! use burn_persist::safetensors::SafetensorsPersister;
 //!
-//! // Save to bytes
-//! let mut persister = SafetensorsPersister::from_bytes(None);
+//! // Save to bytes with filtering and remapping
+//! let mut persister = SafetensorsPersister::from_bytes(None)
+//!     .with_regex(r"^encoder\..*")                       // Only save encoder tensors
+//!     .with_key_pattern(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
+//!     .metadata("subset", "encoder_only");
 //! model.collect_to(&mut persister)?;
 //! let bytes = persister.get_bytes()?;
 //!
-//! // Load from bytes
-//! let mut persister = SafetensorsPersister::from_bytes(Some(bytes));
+//! // Load from bytes (allow partial since we only saved encoder)
+//! let mut persister = SafetensorsPersister::from_bytes(Some(bytes))
+//!     .with_key_pattern(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
+//!     .allow_partial(true);
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut persister)?;
+//! let result = model.apply_from(&mut persister)?;
+//! println!("Applied {} tensors", result.applied.len());
+//! ```
+//!
+//! # Complete Example: PyTorch Model Migration
+//!
+//! Migrating a PyTorch model to Burn with filtering, remapping, and adapters:
+//!
+//! ```rust,ignore
+//! use burn_persist::{ModulePersist, PyTorchToBurnAdapter};
+//! use burn_persist::safetensors::SafetensorsPersister;
+//!
+//! // Load PyTorch model with all transformations
+//! let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+//!     // Use PyTorch adapter for automatic transformations
+//!     .with_from_adapter(PyTorchToBurnAdapter)
+//!     // Only load transformer layers
+//!     .with_regex(r"^transformer\..*")
+//!     // Rename old layer names to new structure
+//!     .with_key_pattern(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
+//!     // Skip unexpected tensors from PyTorch
+//!     .allow_partial(true)
+//!     // Add metadata about the conversion
+//!     .metadata("source", "pytorch")
+//!     .metadata("converted_by", "burn-persist");
+//!
+//! let mut model = TransformerModel::new(&device);
+//! let result = model.apply_from(&mut persister)?;
+//!
+//! println!("Successfully loaded {} tensors", result.applied.len());
+//! if !result.missing.is_empty() {
+//!     println!("Missing tensors: {:?}", result.missing);
+//! }
 //! ```
 //!
 //! # Format Details
