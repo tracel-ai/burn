@@ -115,7 +115,7 @@ fn task_all_reduce<B: Backend>(
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
 
-                collective::register::<B>(id, device.clone(), config).unwrap();
+                collective::register(id, device.clone(), config).unwrap();
 
                 for i in 0..num_iterations {
                     let signal = Tensor::<B, 3>::random(
@@ -173,7 +173,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     .with_local_all_reduce_strategy(strategy);
 
                 println!("[{id}] Register collective operation {config_col:?}");
-                collective::register::<B>(id, device.clone(), config_col).unwrap();
+                collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
                 let mut model = config.init::<B>(&device);
                 let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
