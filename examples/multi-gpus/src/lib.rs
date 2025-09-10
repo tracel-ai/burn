@@ -172,6 +172,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
 
+                println!("[{id}] Register collective operation {config_col:?}");
                 collective::register::<B>(id, device.clone(), config_col).unwrap();
 
                 let mut model = config.init::<B>(&device);
@@ -199,7 +200,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                         println!("Iter {i}");
                     }
                 }
-                collective::finish_collective::<B>(id).unwrap();
+                // collective::finish_collective::<B>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
