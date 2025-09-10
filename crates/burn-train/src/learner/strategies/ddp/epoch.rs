@@ -217,7 +217,7 @@ impl<B: AutodiffBackend, M: AutodiffModule<B> + 'static> GradsSyncer<B, M> {
         while let Ok(new_grads) = recv.recv() {
             // Sync grads with collective
             let new_grads = new_grads
-                .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Sum)
+                .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Mean)
                 .expect("DDP worker could not sync gradients!");
 
             if double_buffering {
