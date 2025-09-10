@@ -113,8 +113,8 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
             log::info!("Iteration {iteration}");
 
             let mut progress = iterator.progress();
-            progress.items_processed = progress.items_processed * peer_count;
-            progress.items_total = progress.items_total * peer_count;
+            progress.items_processed *= peer_count;
+            progress.items_total *= peer_count;
 
             let item = model.step(item);
 
