@@ -80,6 +80,19 @@ mod tests {
     }
 
     #[test]
+    fn should_quantize_linear_128_256() {
+        let device: Device<B> = Default::default();
+        let transformer: Linear<B> = LinearConfig::new(128, 256).with_bias(false).init(&device);
+        let signal = Tensor::<B, 2>::random([1, 128], Distribution::Default, &device);
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+
+        should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
+    }
+
+    #[test]
     fn should_quantize_linear() {
         let device: Device<B> = Default::default();
         let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
