@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use burn::{
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     prelude::*,
@@ -5,7 +7,20 @@ use burn::{
 };
 
 pub fn run<B: Backend>(devices: Vec<B::Device>) {
-    task_all_reduce::<B>(devices.clone(), 100);
+    for strategy in [
+        collective::AllReduceStrategy::Centralized,
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Tree(2),
+    ] {
+        println!("[All Reduce - {strategy:?}] starting ...");
+        let start = Instant::now();
+        task_all_reduce::<B>(
+            devices.clone(),
+            32,
+            collective::AllReduceStrategy::Centralized,
+        );
+        println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
+    }
     task_different_tasks::<B>(devices.clone(), 100);
 }
 
@@ -53,7 +68,11 @@ fn task_different_tasks<B: Backend>(mut devices: Vec<B::Device>, num_iterations:
     }
 }
 
-fn task_all_reduce<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
+fn task_all_reduce<B: Backend>(
+    devices: Vec<B::Device>,
+    num_iterations: usize,
+    strategy: collective::AllReduceStrategy,
+) {
     let num_devices = devices.len();
     let shape = [8, 4096, 4096];
 
@@ -68,8 +87,7 @@ fn task_all_reduce<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
                 let id = PeerId::from(id);
                 let config = CollectiveConfig::default()
                     .with_num_devices(num_devices)
-                    .with_local_all_reduce_strategy(collective::AllReduceStrategy::Centralized);
-                println!("{config:?}");
+                    .with_local_all_reduce_strategy(strategy);
                 collective::register::<B>(id, device, config).unwrap();
 
                 for i in 0..num_iterations {
