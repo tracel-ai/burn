@@ -575,7 +575,6 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
- "burn-persist",
  "burn-remote",
  "burn-rocm",
  "burn-router",
