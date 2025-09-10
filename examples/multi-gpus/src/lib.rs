@@ -17,7 +17,7 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
     ] {
         println!("[Gradient Update - {strategy:?}] starting ...");
         let start = Instant::now();
-        task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 420, strategy);
+        task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 32, strategy);
         println!(
             "[Gradient Update - {strategy:?}] took {:?}",
             start.elapsed()
@@ -188,8 +188,9 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
 
                     let x = TransformerEncoderInput::new(x);
                     let x = model.forward(x);
+                    let sum = x.sum();
 
-                    let grads = x.backward();
+                    let grads = sum.backward();
                     let grads = GradientsParams::from_grads(grads, &model);
                     println!("[{id}] grad {}", grads.len());
 
@@ -201,7 +202,8 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     model = optim.step(1.0e-5, model, grads);
 
                     if id == PeerId::from(0) {
-                        println!("Iter {i}");
+                        let stat = sum.into_scalar().elem::<f32>();
+                        println!("Iter {i} => {stat}");
                     }
                 }
                 // collective::finish_collective::<B::InnerBackend>(id).unwrap();
