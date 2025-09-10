@@ -115,7 +115,7 @@ fn task_all_reduce<B: Backend>(
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
 
-                collective::register(id, device.clone(), config).unwrap();
+                collective::register::<B>(id, device.clone(), config).unwrap();
 
                 for i in 0..num_iterations {
                     let signal = Tensor::<B, 3>::random(
