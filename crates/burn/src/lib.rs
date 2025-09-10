@@ -92,6 +92,8 @@
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
+//! - Model Persistence
+//!   - `persist`: Enables model persistence with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `server`: Enables the remote server.
@@ -117,3 +119,9 @@ pub use burn_remote::server;
 /// Module for collective operations
 #[cfg(feature = "collective")]
 pub mod collective;
+
+/// Module for model persistence and serialization
+#[cfg(feature = "persist")]
+pub mod persist {
+    pub use burn_persist::*;
+}

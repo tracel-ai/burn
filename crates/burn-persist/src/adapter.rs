@@ -57,6 +57,7 @@
 //! ```
 
 use alloc::string::ToString;
+use alloc::vec;
 use burn_tensor::TensorData;
 
 use crate::{KeyRemapper, TensorSnapshot};

@@ -5,7 +5,9 @@ use crate::{
     TensorSnapshot,
 };
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::backend::Backend;
