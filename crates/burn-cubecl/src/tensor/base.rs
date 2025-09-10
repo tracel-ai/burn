@@ -393,22 +393,6 @@ where
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
-        // let bytes = self.client.read_one(self.handle.clone());
-        // let handle = client.create(&bytes);
-
-        // if self.qparams.is_some() {
-        //     unimplemented!("Needs more work to correctly transfer, waiting for QXxN packed types");
-        // }
-
-        // Self {
-        //     client,
-        //     handle,
-        //     shape: self.shape.clone(),
-        //     strides: self.strides.clone(),
-        //     device,
-        //     dtype: self.dtype,
-        //     qparams: None,
-        // }
     }
 
     /// Return the reference to a tensor handle.

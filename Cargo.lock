@@ -2060,7 +2060,6 @@ dependencies = [
  "derive-new",
  "dirs",
  "foldhash",
- "futures",
  "hashbrown 0.15.5",
  "log",
  "md5",
