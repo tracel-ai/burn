@@ -31,6 +31,11 @@ fn task_different_tasks<B: Backend>(mut devices: Vec<B::Device>, num_iterations:
 
     let (sender, receiver) = std::sync::mpsc::sync_channel(devices.len());
 
+    fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
+        let log = input.clone() + 1.0;
+        input.matmul(log)
+    }
+
     let mut handles = devices
         .into_iter()
         .map(|device| {
@@ -74,31 +79,48 @@ fn task_all_reduce<B: Backend>(
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
-    let shape = [8, 4096, 4096];
+    let batch = 128;
+    let shape_signal = [batch, 1024, 1024];
+    let shape_weights = [1, 1024, 1024];
+
+    fn compute<B: Backend>(weights: Tensor<B, 3>, signal: Tensor<B, 3>) -> Tensor<B, 3> {
+        weights.matmul(signal)
+    }
 
     let handles = devices
         .into_iter()
         .enumerate()
         .map(|(id, device)| {
             std::thread::spawn(move || {
-                let mut input =
-                    Tensor::<B, 3>::random(shape, burn::tensor::Distribution::Default, &device);
+                let mut weights = Tensor::<B, 3>::random(
+                    shape_weights,
+                    burn::tensor::Distribution::Default,
+                    &device,
+                );
 
                 let id = PeerId::from(id);
                 let config = CollectiveConfig::default()
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
-                collective::register::<B>(id, device, config).unwrap();
+
+                collective::register::<B>(id, device.clone(), config).unwrap();
 
                 for i in 0..num_iterations {
-                    let tensor = compute(input);
+                    let signal = Tensor::<B, 3>::random(
+                        shape_signal,
+                        burn::tensor::Distribution::Default,
+                        &device,
+                    );
+                    let signal = compute(weights, signal);
+                    let weights_update = signal.sum_dim(0);
+
                     let result = collective::all_reduce::<B>(
                         id,
-                        tensor.into_primitive().tensor(),
+                        weights_update.into_primitive().tensor(),
                         ReduceOperation::Mean,
                     )
                     .unwrap();
-                    input = Tensor::from_primitive(TensorPrimitive::Float(result));
+                    weights = Tensor::from_primitive(TensorPrimitive::Float(result));
                     println!("[{id}] => Iter {i}");
                 }
                 collective::finish_collective::<B>(id).unwrap();
@@ -109,9 +131,4 @@ fn task_all_reduce<B: Backend>(
     for handle in handles {
         handle.join().unwrap();
     }
-}
-
-fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
-    let log = input.clone() + 1.0;
-    input.matmul(log)
 }
