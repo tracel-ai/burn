@@ -72,7 +72,11 @@ fn main() {
         .input("tests/constant/constant_f64.onnx")
         .input("tests/constant/constant_i32.onnx")
         .input("tests/constant/constant_i64.onnx")
+        // .input("tests/constant/constant_bool.onnx") // TODO: Generate this file with updated constant.py
         .input("tests/constant/constant_shape.onnx")
+        .input("tests/constant/constant_tensor_f32.onnx")
+        .input("tests/constant/constant_tensor_i32.onnx")
+        .input("tests/constant/constant_tensor_bool.onnx")
         .input("tests/constant/rank_inference_propagation.onnx")
         .input("tests/constant/shape_binary_ops_with_constant.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")

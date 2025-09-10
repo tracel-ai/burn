@@ -5,7 +5,11 @@ include_models!(
     constant_f64,
     constant_i32,
     constant_i64,
+    // constant_bool, // TODO: Generate constant_bool.onnx with updated constant.py
     constant_shape,
+    constant_tensor_f32,
+    constant_tensor_i32,
+    constant_tensor_bool,
     rank_inference_propagation,
     shape_binary_ops_with_constant
 );
@@ -62,6 +66,90 @@ mod tests {
 
         let output = model.forward(input);
 
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    // TODO: Enable this test once constant_bool.onnx is generated with updated constant.py
+    // #[test]
+    // fn or_constant_bool() {
+    //     let device = Default::default();
+    //     let model = constant_bool::Model::<TestBackend>::new(&device);
+    //     use burn::tensor::Bool;
+    //
+    //     // Create input tensor [2, 3, 4] with all false values
+    //     let input = Tensor::<TestBackend, 3, Bool>::from_bool(
+    //         burn::tensor::TensorData::from([[[false; 4]; 3]; 2]),
+    //         &device,
+    //     );
+    //
+    //     // Expected: all true after OR with constant true
+    //     let expected = burn::tensor::TensorData::from([[[true; 4]; 3]; 2]);
+
+    //     let output = model.forward(input);
+
+    //     output.to_data().assert_eq(&expected, true);
+    // }
+
+    #[test]
+    fn constant_tensor_f32_test() {
+        // Test that multidimensional f32 tensor constants are properly loaded
+        let device = Default::default();
+        let model: constant_tensor_f32::Model<TestBackend> = constant_tensor_f32::Model::default();
+
+        // Create input tensor [2, 3] with values [[1, 2, 3], [4, 5, 6]]
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+
+        // Expected: input + constant where constant is [[1.5, 2.5, 3.5], [4.5, 5.5, 6.5]]
+        // Result: [[2.5, 4.5, 6.5], [8.5, 10.5, 12.5]]
+        let expected =
+            Tensor::<TestBackend, 2>::from_data([[2.5f32, 4.5, 6.5], [8.5, 10.5, 12.5]], &device)
+                .to_data();
+
+        let output = model.forward(input);
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn constant_tensor_i32_test() {
+        // Test that multidimensional i32 tensor constants are properly loaded with correct dtype
+        let device = Default::default();
+        let model: constant_tensor_i32::Model<TestBackend> = constant_tensor_i32::Model::default();
+
+        // Create input tensor [2, 3] with values [[1, 2, 3], [4, 5, 6]]
+        let input = Tensor::<TestBackend, 2, Int>::from_ints([[1i32, 2, 3], [4, 5, 6]], &device);
+
+        // Expected: input + constant where constant is [[10, 20, 30], [40, 50, 60]]
+        // Result: [[11, 22, 33], [44, 55, 66]]
+        let expected =
+            Tensor::<TestBackend, 2, Int>::from_ints([[11i32, 22, 33], [44, 55, 66]], &device)
+                .to_data();
+
+        let output = model.forward(input);
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn constant_tensor_bool_test() {
+        // Test that multidimensional bool tensor constants are properly loaded
+        let device = Default::default();
+        let model: constant_tensor_bool::Model<TestBackend> =
+            constant_tensor_bool::Model::default();
+
+        // Create input tensor [2, 3] with bool values
+        use burn::tensor::Bool;
+        let input_data = [[false, false, false], [true, true, true]];
+        let input = Tensor::<TestBackend, 2, Bool>::from_bool(
+            burn::tensor::TensorData::from(input_data),
+            &device,
+        );
+
+        // Expected: input OR constant where constant is [[true, false, true], [false, true, false]]
+        // Result: [[true, false, true], [true, true, true]]
+        let expected_data = [[true, false, true], [true, true, true]];
+        let expected = burn::tensor::TensorData::from(expected_data);
+
+        let output = model.forward(input);
         output.to_data().assert_eq(&expected, true);
     }
 

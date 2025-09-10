@@ -570,21 +570,19 @@ impl ParsedOnnxGraph {
                     let tensor_data = attr.value.expect("Constant tensor should have value");
 
                     let tensor_data = match &tensor.elem_type {
-                        // Floats
-                        ElementType::Float32 | ElementType::Float64 => {
+                        ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
                             serialize_data::<PS::FloatElem>(tensor_data.data, tensor_data.shape)
                         }
-                        // Ints (32/64)
-                        ElementType::Int32 | ElementType::Int64 => {
+                        ElementType::Int32
+                        | ElementType::Int64
+                        | ElementType::Uint8
+                        | ElementType::Int8 => {
                             serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
                         }
-                        // (Optional) allow 8-bit constants if serialize_data supports them.
-                        // If your PS::IntElem can't represent u8/i8 directly, either upcast to i32
-                        // in serialize_data or add a separate path.
-                        ElementType::Uint8 | ElementType::Int8 => {
-                            serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
+                        ElementType::Bool => {
+                            // Handle boolean tensor constants
+                            serialize_bool_data(tensor_data.data, tensor_data.shape)
                         }
-                        // TODO: support Bool tensor when Burn supports it
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
 
@@ -2023,8 +2021,15 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
         Data::Float64s(val) => TensorData::new(val, shape).convert::<E>(),
         Data::Int32s(val) => TensorData::new(val, shape).convert::<E>(),
         Data::Int64s(val) => TensorData::new(val, shape).convert::<E>(),
-        // TODO support Bool tensor when it is supported by Burn
         _ => panic!("Unsupported tensor element type"),
+    }
+}
+
+/// Convert boolean data to `TensorData`.
+fn serialize_bool_data(data: Data, shape: Vec<usize>) -> TensorData {
+    match data {
+        Data::Bools(val) => TensorData::new(val, shape),
+        _ => panic!("Expected boolean data for serialize_bool_data"),
     }
 }
 

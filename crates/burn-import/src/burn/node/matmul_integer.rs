@@ -102,19 +102,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         match lhs_dim.cmp(&rhs_dim) {
             core::cmp::Ordering::Greater => {
                 let num_unsqueezes = lhs_dim - rhs_dim;
-                
+
                 if rhs_dim == 1 {
                     // Matrix-vector product: expand vector to match matrix rank
                     let squeeze_dim = lhs_dim - 1;
                     // After squeeze, the output rank is reduced by 1
                     let out_rank = lhs_dim - 1;
-                    
+
                     // Build unsqueeze dimensions: [-1, 0, 0, ...]
                     let mut unsqueeze_dims = vec![-1isize];
                     if num_unsqueezes > 1 {
                         unsqueeze_dims.extend(std::iter::repeat_n(0isize, num_unsqueezes - 1));
                     }
-                    
+
                     quote! {
                         let #out = (#lhs_c).matmul((#rhs_c).unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze::<#out_rank>(#squeeze_dim);
                     }
