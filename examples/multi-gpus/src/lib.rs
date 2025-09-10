@@ -1,12 +1,25 @@
-use burn::prelude::*;
+use burn::{
+    collective::{CollectiveConfig, PeerId, ReduceOperation},
+    prelude::*,
+    tensor::TensorPrimitive,
+};
 
-pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
+pub fn run<B: Backend>(devices: Vec<B::Device>) {
+    task2::<B>(devices.clone(), 100);
+    task1::<B>(devices.clone(), 100);
+}
+
+fn task1<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
     let aggregation_device = devices.pop().unwrap();
 
     let shape = [8, 4096, 4096];
-    let num_iterations = 1000;
 
     let (sender, receiver) = std::sync::mpsc::sync_channel(devices.len());
+
+    fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
+        let log = input.clone() + 1.0;
+        input.matmul(log)
+    }
 
     let mut handles = devices
         .into_iter()
@@ -19,7 +32,6 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
                 for _ in 0..num_iterations {
                     let new = compute(input.clone());
                     sender.send(new.clone()).unwrap();
-                    // let _ = new.sum().into_scalar();
                 }
             })
         })
@@ -46,7 +58,43 @@ pub fn run<B: Backend>(mut devices: Vec<B::Device>) {
     }
 }
 
-fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
-    let log = input.clone() + 1.0;
-    input.matmul(log)
+fn task2<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
+    let num_devices = devices.len();
+    let shape = [8, 4096, 4096];
+
+    fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
+        let log = input.clone() + 1.0;
+        input.matmul(log)
+    }
+
+    let handles = devices
+        .into_iter()
+        .enumerate()
+        .map(|(id, device)| {
+            std::thread::spawn(move || {
+                let mut input =
+                    Tensor::<B, 3>::random(shape, burn::tensor::Distribution::Default, &device);
+
+                let id = PeerId::from(id);
+                let config = CollectiveConfig::default().with_num_devices(num_devices);
+                burn::collective::register::<B>(id, device, config).unwrap();
+
+                for _ in 0..num_iterations {
+                    let tensor = compute(input);
+                    let result = burn::collective::all_reduce::<B>(
+                        id,
+                        tensor.into_primitive().tensor(),
+                        ReduceOperation::Mean,
+                    )
+                    .unwrap();
+                    input = Tensor::from_primitive(TensorPrimitive::Float(result));
+                }
+                burn::collective::finish_collective::<B>(id).unwrap();
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }

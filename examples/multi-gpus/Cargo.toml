@@ -22,5 +22,6 @@ rocm = ["burn/rocm"]
 burn = { path = "../../crates/burn", features = [
     "autotune",
     "fusion",
+    "collective",
     "std",
 ], default-features = false }
