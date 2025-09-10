@@ -103,11 +103,9 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
 tracing-subscriber = "0.3.20"
 zip = "4.6.1"
+
+# Persist related
 safetensors = { version = "0.6.2", default-features = false }
-
-# safetensors = { path = "/Users/dilshod/Projects/safetensors/safetensors", default-features = false }
-# waiting for https://github.com/huggingface/safetensors/issues/650 fix to support no_std
-
 memmap2 = { version = "0.9" }
 
 # Async handling

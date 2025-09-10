@@ -488,10 +488,8 @@ impl ModulePersister for SafetensorsPersister {
                 #[cfg(feature = "std")]
                 let data = safetensors::serialize(tensors, Some(std_metadata))?;
 
-                // TODO waiting for https://github.com/huggingface/safetensors/issues/650 fix to support no_std
-                // for now we are no saving metadata Some(metadata)
                 #[cfg(not(feature = "std"))]
-                let data = safetensors::serialize(tensors, None)?;
+                let data = safetensors::serialize(tensors, Some(metadata))?;
                 p.data = Some(alloc::sync::Arc::new(data));
                 Ok(())
             }
