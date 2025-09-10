@@ -1304,7 +1304,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension to select from.
+    /// * `dim` - The dimension to select from. Supports negative indexing.
     /// * `indices` - The indices of the elements to select.
     ///
     /// # Example
@@ -1322,7 +1322,8 @@ where
     ///   //  [[1.0, -2.0, 3.0]]
     /// }
     /// ```
-    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
+    pub fn select(self, dim: impl AsIndex, indices: Tensor<B, 1, Int>) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices))
     }
@@ -1330,21 +1331,32 @@ where
     /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor to the original tensor using sum reduction.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to select. Supports negative indexing.
+    /// * `indices` - The indices to select from the tensor.
+    /// * `values` - The values to assign to the selected indices.
+    ///
+    /// # Example
+    ///
     /// Example using a 3D tensor:
     ///
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = -1 (same as dim = 2)`
     ///
     /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn select_assign(
         self,
-        dim: usize,
+        dim: impl AsIndex,
         indices: Tensor<B, 1, Int>,
         values: Tensor<B, D, K>,
     ) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::select_assign::<D>(
             dim,
             &indices.shape(),

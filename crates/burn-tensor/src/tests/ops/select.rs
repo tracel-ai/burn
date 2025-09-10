@@ -219,4 +219,63 @@ mod tests {
 
         output.into_data().assert_eq(&expected, false);
     }
+
+    #[test]
+    fn should_select_with_negative_dim_2d() {
+        // Test using negative dimension indexing on 2D tensor
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let indices = TestTensorInt::from_data([1, 0, 2], &device);
+
+        // Using -1 should refer to the last dimension (dim 1)
+        let output_neg = tensor.clone().select(-1, indices.clone());
+        let output_pos = tensor.select(1, indices);
+
+        // Both should produce the same result
+        output_neg
+            .into_data()
+            .assert_eq(&output_pos.into_data(), false);
+    }
+
+    #[test]
+    fn should_select_assign_with_negative_dim_2d() {
+        // Test select_assign with negative dimension on 2D tensor
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let values = TestTensor::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let indices = TestTensorInt::from_data([0, 2], &device);
+
+        // Using -1 should refer to the last dimension (dim 1)
+        let output_neg = tensor
+            .clone()
+            .select_assign(-1, indices.clone(), values.clone());
+        let output_pos = tensor.select_assign(1, indices, values);
+
+        output_neg
+            .into_data()
+            .assert_eq(&output_pos.into_data(), false);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_select_negative_dim_out_of_bounds() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let indices = TestTensorInt::from_data([0, 1], &device);
+
+        // This should panic because -3 is out of bounds for a 2D tensor
+        tensor.select(-3, indices);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_select_assign_negative_dim_out_of_bounds() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let values = TestTensor::from_data([[5.0], [6.0]], &device);
+        let indices = TestTensorInt::from_data([0], &device);
+
+        // This should panic because -3 is out of bounds for a 2D tensor
+        tensor.select_assign(-3, indices, values);
+    }
 }
