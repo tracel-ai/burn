@@ -60,11 +60,7 @@ where
         let indices_dims = indices_shape.dims.clone();
 
         // Flatten indices to 1D for processing
-        let indices_flat = if DI > 1 {
-            indices.flatten(0, DI - 1)
-        } else {
-            indices.reshape([indices_shape.num_elements()])
-        };
+        let indices_flat = indices.reshape([indices_shape.num_elements()]);
 
         // Normalize negative indices: if index < 0, add dim_size to it
         // For example, with dim_size=3: -1 becomes 2, -2 becomes 1, -3 becomes 0
