@@ -31,7 +31,7 @@ use burn::{
 use std::sync::Arc;
 
 // Define configuration struct for the experiment
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,

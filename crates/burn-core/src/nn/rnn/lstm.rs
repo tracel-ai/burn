@@ -25,7 +25,7 @@ impl<B: Backend, const D: usize> LstmState<B, D> {
 }
 
 /// Configuration to create a [Lstm](Lstm) module using the [init function](LstmConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct LstmConfig {
     /// The size of the input features.
     pub d_input: usize,
@@ -198,7 +198,7 @@ impl<B: Backend> Lstm<B> {
 }
 
 /// Configuration to create a [BiLstm](BiLstm) module using the [init function](BiLstmConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct BiLstmConfig {
     /// The size of the input features.
     pub d_input: usize,

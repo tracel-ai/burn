@@ -45,13 +45,15 @@ pub mod tensor;
 pub mod vision;
 
 extern crate alloc;
+extern crate core;
 
 /// Backend for test cases
 #[cfg(all(
     test,
     not(feature = "test-tch"),
     not(feature = "test-wgpu"),
-    not(feature = "test-cuda")
+    not(feature = "test-cuda"),
+    not(feature = "test-rocm")
 ))]
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 
@@ -66,6 +68,10 @@ pub type TestBackend = burn_wgpu::Wgpu;
 #[cfg(all(test, feature = "test-cuda"))]
 /// Backend for test cases
 pub type TestBackend = burn_cuda::Cuda;
+
+#[cfg(all(test, feature = "test-rocm"))]
+/// Backend for test cases
+pub type TestBackend = burn_rocm::Rocm;
 
 /// Backend for autodiff test cases
 #[cfg(test)]

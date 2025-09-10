@@ -16,7 +16,7 @@ pub struct RegressionModel<B: Backend> {
     activation: Relu,
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct RegressionModelConfig {
     #[config(default = 64)]
     pub hidden_size: usize,
