@@ -8,6 +8,7 @@
 
 extern crate alloc;
 
+mod adapter;
 mod applier;
 mod collector;
 mod filter;
@@ -16,6 +17,7 @@ pub mod safetensors;
 mod tensor_view;
 mod traits;
 
+pub use adapter::{Adapter, BurnToPyTorchAdapter, IdentityAdapter, PyTorchToBurnAdapter};
 pub use applier::{ApplyError, ApplyResult, TensorApplier};
 pub use collector::TensorViewCollector;
 pub use filter::PathFilter;

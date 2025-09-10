@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -14,8 +14,8 @@ use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 /// The dtype and shape are cached for efficient access without requiring data materialization,
 /// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorView {
-    /// Function to get tensor data when needed
-    data_fn: Box<dyn Fn() -> TensorData>,
+    /// Function to get tensor data when needed (Rc allows cloning)
+    data_fn: Rc<dyn Fn() -> TensorData>,
     /// Data type of the tensor (cached for efficient access)
     pub dtype: burn_tensor::DType,
     /// Shape of the tensor (cached for efficient access)
@@ -40,7 +40,7 @@ impl TensorView {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Box::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || tensor.to_data()),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -60,7 +60,7 @@ impl TensorView {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Box::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || tensor.to_data()),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -80,7 +80,7 @@ impl TensorView {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Box::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || tensor.to_data()),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -122,7 +122,7 @@ impl TensorView {
     /// Create a TensorView from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
-        data_fn: Box<dyn Fn() -> TensorData>,
+        data_fn: Rc<dyn Fn() -> TensorData>,
         dtype: burn_tensor::DType,
         shape: Vec<usize>,
         path_stack: Vec<String>,
@@ -149,7 +149,7 @@ impl TensorView {
         let dtype = data.dtype;
         let shape = data.shape.clone();
         Self {
-            data_fn: Box::new(move || data.clone()),
+            data_fn: Rc::new(move || data.clone()),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -174,6 +174,25 @@ impl TensorView {
             burn_tensor::DType::QFloat(_) => 1, // Simplified for quantized types
         };
         self.shape.iter().product::<usize>() * elem_size
+    }
+
+    /// Clone the data function for lazy composition
+    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> TensorData> {
+        self.data_fn.clone()
+    }
+}
+
+impl Clone for TensorView {
+    fn clone(&self) -> Self {
+        // Clone lazily - keep the same data function
+        Self {
+            data_fn: self.data_fn.clone(),
+            dtype: self.dtype,
+            shape: self.shape.clone(),
+            path_stack: self.path_stack.clone(),
+            container_stack: self.container_stack.clone(),
+            tensor_id: self.tensor_id,
+        }
     }
 }
 
@@ -296,7 +315,7 @@ mod tests {
         let shape = data.shape.clone();
 
         let view = TensorView::from_closure(
-            Box::new(move || data.clone()),
+            Rc::new(move || data.clone()),
             dtype,
             shape.clone(),
             vec!["model".to_string(), "layer".to_string()],

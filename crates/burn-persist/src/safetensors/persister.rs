@@ -1,6 +1,9 @@
 //! SafeTensors persister implementation using the official safetensors crate.
 
-use crate::{ApplyResult, KeyRemapper, ModulePersist, ModulePersister, PathFilter, TensorView};
+use crate::{
+    Adapter, ApplyResult, IdentityAdapter, KeyRemapper, ModulePersist, ModulePersister, PathFilter,
+    TensorView,
+};
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -87,6 +90,8 @@ impl SafetensorsPersister {
             metadata: HashMap::new(),
             validate: true,
             allow_partial: false,
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
         })
     }
 
@@ -99,6 +104,8 @@ impl SafetensorsPersister {
             metadata: HashMap::new(),
             validate: true,
             allow_partial: false,
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
         })
     }
 
@@ -159,6 +166,26 @@ impl SafetensorsPersister {
         self
     }
 
+    /// Set the adapter for loading tensors (converting from source format to Burn).
+    pub fn with_from_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.from_adapter = Box::new(adapter),
+            Self::Memory(p) => p.from_adapter = Box::new(adapter),
+        }
+        self
+    }
+
+    /// Set the adapter for saving tensors (converting from Burn to target format).
+    pub fn with_to_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.to_adapter = Box::new(adapter),
+            Self::Memory(p) => p.to_adapter = Box::new(adapter),
+        }
+        self
+    }
+
     /// Get saved bytes from memory-based persister.
     ///
     /// # Example
@@ -190,6 +217,8 @@ pub struct FilePersister {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
+    from_adapter: Box<dyn Adapter>,
+    to_adapter: Box<dyn Adapter>,
 }
 
 /// Memory-based persister.
@@ -200,6 +229,8 @@ pub struct MemoryPersister {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
+    from_adapter: Box<dyn Adapter>,
+    to_adapter: Box<dyn Adapter>,
 }
 
 impl Default for MemoryPersister {
@@ -211,6 +242,8 @@ impl Default for MemoryPersister {
             metadata: HashMap::new(),
             validate: true,
             allow_partial: false,
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
         }
     }
 }
@@ -267,6 +300,13 @@ impl ModulePersister for SafetensorsPersister {
         // Collect tensor views from module
         let mut views = module.collect();
 
+        // Apply to_adapter (for saving - convert from Burn format to target format)
+        let to_adapter = self.get_to_adapter();
+        views = views
+            .into_iter()
+            .filter_map(|view| to_adapter.adapt_tensor(&view))
+            .collect();
+
         // Apply filtering
         views = apply_filter(views, self.get_filter());
 
@@ -320,7 +360,7 @@ impl ModulePersister for SafetensorsPersister {
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
         // Convert to tensor views with lazy loading
-        let views = match self {
+        let mut views = match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
                 // Use safetensors' built-in lazy loading mechanisms
@@ -334,6 +374,13 @@ impl ModulePersister for SafetensorsPersister {
                 safetensors_to_views_lazy(data_arc)?
             }
         };
+
+        // Apply from_adapter (for loading - convert from source format to Burn format)
+        let from_adapter = self.get_from_adapter();
+        views = views
+            .into_iter()
+            .filter_map(|view| from_adapter.adapt_tensor(&view))
+            .collect();
 
         // Apply to module
         let result = module.apply(views);
@@ -397,6 +444,22 @@ impl SafetensorsPersister {
             Self::Memory(p) => p.allow_partial,
         }
     }
+
+    fn get_from_adapter(&self) -> &dyn Adapter {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.from_adapter.as_ref(),
+            Self::Memory(p) => p.from_adapter.as_ref(),
+        }
+    }
+
+    fn get_to_adapter(&self) -> &dyn Adapter {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.to_adapter.as_ref(),
+            Self::Memory(p) => p.to_adapter.as_ref(),
+        }
+    }
 }
 
 /// Apply filter to tensor views.
@@ -456,7 +519,7 @@ fn safetensors_to_views_lazy(
         // Create a lazy closure that will deserialize only this tensor when needed
         let data_clone = alloc::sync::Arc::clone(&data_arc);
         let name_clone = name.to_string();
-        let data_fn = Box::new(move || {
+        let data_fn = alloc::rc::Rc::new(move || {
             // Re-deserialize when needed (this is cheap, just parsing header)
             let tensors = safetensors::SafeTensors::deserialize(&data_clone)
                 .expect("Failed to re-deserialize safetensors");
@@ -516,7 +579,7 @@ fn safetensors_to_views_lazy_file(
         let mmap_clone = Arc::clone(&mmap_arc);
         let name_clone = name.to_string();
 
-        let data_fn = Box::new(move || {
+        let data_fn = alloc::rc::Rc::new(move || {
             // Re-parse to get the tensor view (this is cheap with mmap)
             let tensors =
                 safetensors::SafeTensors::deserialize(&mmap_clone).expect("Failed to deserialize");
