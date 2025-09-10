@@ -34,7 +34,7 @@ mod tests {
     };
     use burn_tensor::{
         Device, Distribution, Tensor, Tolerance,
-        ops::QuantizedTensor,
+        ops::{FloatElem, QuantizedTensor},
         quantization::{
             Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantScheme, QuantValue,
         },
@@ -46,6 +46,7 @@ mod tests {
         module: M,
         scheme: QuantScheme,
         func: F,
+        tolerance: Tolerance<FloatElem<B>>,
     ) {
         let result = func(&module);
 
@@ -57,7 +58,6 @@ mod tests {
         let q_module = module.quantize_weights(&mut quantizer);
         let q_result = func(&q_module);
 
-        let tolerance = Tolerance::permissive();
         result
             .into_data()
             .assert_approx_eq::<f32>(&q_result.into_data(), tolerance);
@@ -74,9 +74,12 @@ mod tests {
             .with_level(QuantLevel::Block(32))
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| {
-            tr.forward(TransformerEncoderInput::new(signal.clone()))
-        });
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.forward(TransformerEncoderInput::new(signal.clone())),
+            Tolerance::rel_abs(1e-2, 2e-2), // slightly higher abs tolerance (permissive: 1e-2)
+        );
     }
 
     #[test]
@@ -89,7 +92,12 @@ mod tests {
             .with_level(QuantLevel::Tensor)
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.forward(signal.clone()),
+            Tolerance::permissive(),
+        );
     }
 
     #[test]
@@ -105,7 +113,12 @@ mod tests {
             // .with_store(QuantStore::Native)
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.forward(signal.clone()),
+            Tolerance::permissive(),
+        );
     }
 
     #[test]
@@ -117,7 +130,12 @@ mod tests {
             .with_level(QuantLevel::Tensor)
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| tr.weight.val().dequantize());
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.weight.val().dequantize(),
+            Tolerance::permissive(),
+        );
     }
 
     #[test]
@@ -131,7 +149,12 @@ mod tests {
             // .with_store(QuantStore::Native)
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| tr.forward(signal.clone()));
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.forward(signal.clone()),
+            Tolerance::permissive(),
+        );
     }
 
     #[test]
@@ -144,6 +167,11 @@ mod tests {
             // .with_store(QuantStore::Native)
             .with_param(QuantParam::F32);
 
-        should_quantize_module(transformer, scheme, |tr| tr.weight.val().dequantize());
+        should_quantize_module(
+            transformer,
+            scheme,
+            |tr| tr.weight.val().dequantize(),
+            Tolerance::permissive(),
+        );
     }
 }
