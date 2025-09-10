@@ -15,14 +15,14 @@ use burn_core::module::{ModuleVisitor, ParamId};
 ///
 /// ## Collect all tensors
 /// ```ignore
-/// let collector = TensorSnapshotCollector::new();
+/// let collector = Collector::new();
 /// module.visit(&mut collector);
 /// let all_tensors = collector.tensors;
 /// ```
 ///
 /// ## Filter with single pattern
 /// ```ignore
-/// let collector = TensorSnapshotCollector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
+/// let collector = Collector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
 /// module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
@@ -32,11 +32,11 @@ use burn_core::module::{ModuleVisitor, ParamId};
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
 ///     .with_regex(r".*\.bias$");    // OR match any bias tensors
-/// let collector = TensorSnapshotCollector::with_filter(filter);
+/// let collector = Collector::with_filter(filter);
 /// module.visit(&mut collector);
 /// // Collects tensors matching ANY of the patterns
 /// ```
-pub struct TensorSnapshotCollector {
+pub struct Collector {
     /// Collection of tensor views
     pub tensors: Vec<TensorSnapshot>,
     path_stack: Vec<String>,
@@ -44,13 +44,13 @@ pub struct TensorSnapshotCollector {
     filter: Option<PathFilter>,
 }
 
-impl Default for TensorSnapshotCollector {
+impl Default for Collector {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TensorSnapshotCollector {
+impl Collector {
     /// Create a new tensor view collector that collects all tensors.
     pub fn new() -> Self {
         Self {
@@ -74,7 +74,7 @@ impl TensorSnapshotCollector {
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = TensorSnapshotCollector::with_filter(filter);
+    /// let collector = Collector::with_filter(filter);
     /// ```
     pub fn with_filter(filter: PathFilter) -> Self {
         Self {
@@ -98,7 +98,7 @@ impl TensorSnapshotCollector {
     }
 }
 
-impl<B: Backend> ModuleVisitor<B> for TensorSnapshotCollector {
+impl<B: Backend> ModuleVisitor<B> for Collector {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
         self.container_stack.push(container_type.to_string());
@@ -221,7 +221,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = TensorSnapshotCollector::new();
+        let mut collector = Collector::new();
         let id = ParamId::new();
 
         // Collect a tensor
@@ -243,7 +243,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
-        let mut collector = TensorSnapshotCollector::with_filter(filter);
+        let mut collector = Collector::with_filter(filter);
         let id = ParamId::new();
 
         // This should be collected
@@ -265,7 +265,7 @@ mod tests {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*") // Match encoder.*
             .with_regex(r".*\.bias$"); // Match *.bias
-        let mut collector = TensorSnapshotCollector::with_filter(filter);
+        let mut collector = Collector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -294,7 +294,7 @@ mod tests {
             path.starts_with("encoder.") || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(filter_fn);
-        let mut collector = TensorSnapshotCollector::with_filter(filter);
+        let mut collector = Collector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -330,7 +330,7 @@ mod tests {
             (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
-        let mut collector = TensorSnapshotCollector::with_filter(filter);
+        let mut collector = Collector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -557,7 +557,7 @@ mod tests {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
-        let mut collector = TensorSnapshotCollector::new();
+        let mut collector = Collector::new();
         model.visit(&mut collector);
 
         let views = collector.tensors;
@@ -609,7 +609,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^backbone\.encoder\..*");
-            let mut collector = TensorSnapshotCollector::with_filter(filter);
+            let mut collector = Collector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
         }
@@ -618,7 +618,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.block1\..*");
-            let mut collector = TensorSnapshotCollector::with_filter(filter);
+            let mut collector = Collector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
         }
@@ -627,7 +627,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let mut collector = TensorSnapshotCollector::with_filter(filter);
+            let mut collector = Collector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 9); // All weight tensors
         }
@@ -639,7 +639,7 @@ mod tests {
                 .with_regex(r"^backbone\.encoder\.block1\..*") // All encoder.block1 tensors
                 .with_regex(r"^backbone\.decoder\..*\.bias$") // All decoder biases
                 .with_regex(r"^head\.weight$"); // Head weight only
-            let mut collector = TensorSnapshotCollector::with_filter(filter);
+            let mut collector = Collector::with_filter(filter);
             model.visit(&mut collector);
 
             // Should have:

@@ -18,8 +18,8 @@ mod tensor_snapshot;
 mod traits;
 
 pub use adapter::{Adapter, BurnToPyTorchAdapter, IdentityAdapter, PyTorchToBurnAdapter};
-pub use applier::{ApplyError, ApplyResult, TensorApplier};
-pub use collector::TensorSnapshotCollector;
+pub use applier::{Applier, ApplyError, ApplyResult};
+pub use collector::Collector;
 pub use filter::PathFilter;
 pub use keyremapper::KeyRemapper;
 pub use tensor_snapshot::TensorSnapshot;

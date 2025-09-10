@@ -139,7 +139,7 @@ impl fmt::Display for ApplyResult {
 ///
 /// This applier traverses the module hierarchy and applies tensor data
 /// from TensorSnapshots to the corresponding tensors in the module.
-pub struct TensorApplier<B: Backend> {
+pub struct Applier<B: Backend> {
     /// Map of tensor paths to their views for O(1) lookup
     views: HashMap<String, TensorSnapshot>,
     /// Current path in the module hierarchy
@@ -160,7 +160,7 @@ pub struct TensorApplier<B: Backend> {
     _backend: core::marker::PhantomData<B>,
 }
 
-impl<B: Backend> TensorApplier<B> {
+impl<B: Backend> Applier<B> {
     /// Create a new tensor applier with all views
     pub fn new(views: Vec<TensorSnapshot>) -> Self {
         let views_map: HashMap<String, TensorSnapshot> = views
@@ -246,7 +246,7 @@ impl<B: Backend> TensorApplier<B> {
 }
 
 // Implement ModuleMapper for applying the tensors
-impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
+impl<B: Backend> ModuleMapper<B> for Applier<B> {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
         self.container_stack.push(container_type.to_string());
@@ -512,7 +512,7 @@ mod tests {
 
         // Create target module (zeros) and apply views
         let mut target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::new(views);
+        let mut applier = Applier::<TestBackend>::new(views);
         target = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -559,7 +559,7 @@ mod tests {
         // Apply with filter that only accepts "weight"
         let filter = PathFilter::new().with_full_path("weight");
         let mut target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::with_filter(views, filter);
+        let mut applier = Applier::<TestBackend>::with_filter(views, filter);
         target = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -594,7 +594,7 @@ mod tests {
 
         // Try to apply to module with different shape
         let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::new(views);
+        let mut applier = Applier::<TestBackend>::new(views);
         let _ = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -623,7 +623,7 @@ mod tests {
 
         // Apply to module that expects both tensors
         let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::new(views);
+        let mut applier = Applier::<TestBackend>::new(views);
         let _ = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -663,7 +663,7 @@ mod tests {
 
         // Apply to module that doesn't have "extra"
         let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::new(views);
+        let mut applier = Applier::<TestBackend>::new(views);
         let _ = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -730,7 +730,7 @@ mod tests {
 
         // Apply to nested target
         let target = NestedModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::new(views);
+        let mut applier = Applier::<TestBackend>::new(views);
         let _ = target.map(&mut applier);
 
         let result = applier.into_result();
@@ -778,7 +778,7 @@ mod tests {
         // Filter to only apply layer1 tensors
         let filter = PathFilter::new().with_regex(r"^layer1\..*");
         let target = NestedModule::<TestBackend>::zeros(&device);
-        let mut applier = TensorApplier::<TestBackend>::with_filter(views, filter);
+        let mut applier = Applier::<TestBackend>::with_filter(views, filter);
 
         let _ = target.map(&mut applier);
 

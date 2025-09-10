@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
-use super::applier::{ApplyResult, TensorApplier};
-use crate::collector::TensorSnapshotCollector;
+use super::applier::{Applier, ApplyResult};
+use crate::collector::Collector;
 use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::Module;
 use burn_tensor::backend::Backend;
@@ -17,7 +17,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
     /// Each `TensorSnapshot` contains the full path accessible via `view.full_path()`.
     fn collect(&self) -> Vec<TensorSnapshot> {
-        let mut collector = TensorSnapshotCollector::new();
+        let mut collector = Collector::new();
         self.visit(&mut collector);
         collector.tensors
     }
@@ -31,7 +31,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// * `filter` - A [`PathFilter`] to determine which tensors to collect
     fn collect_with_filter(&self, filter: PathFilter) -> Vec<TensorSnapshot> {
-        let mut collector = TensorSnapshotCollector::with_filter(filter);
+        let mut collector = Collector::with_filter(filter);
         self.visit(&mut collector);
         collector.tensors
     }
@@ -51,7 +51,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
     fn apply(&mut self, views: Vec<TensorSnapshot>) -> ApplyResult {
-        let mut applier = TensorApplier::new(views);
+        let mut applier = Applier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
@@ -82,7 +82,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// let result = model.apply_with_filter(views, filter);
     /// ```
     fn apply_with_filter(&mut self, views: Vec<TensorSnapshot>, filter: PathFilter) -> ApplyResult {
-        let mut applier = TensorApplier::with_filter(views, filter);
+        let mut applier = Applier::with_filter(views, filter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
