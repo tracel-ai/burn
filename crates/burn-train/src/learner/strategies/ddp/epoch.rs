@@ -102,7 +102,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(true, peer_id);
+        let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(false, peer_id);
 
         while let Some(item) = iterator.next() {
             let mut lr = 0.;
