@@ -1,4 +1,4 @@
-use crate::{ModulePersist, PathFilter, SafetensorsPersister};
+use crate::{ModulePersist, SafetensorsPersister};
 use burn_core::module::{Module, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -144,9 +144,9 @@ fn with_filtering() {
     let device = Default::default();
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
-    // Save only encoder tensors
+    // Save only encoder tensors using the builder pattern
     let mut save_persister = SafetensorsPersister::from_bytes(None)
-        .filter(PathFilter::new().with_regex(r"^encoder\..*"))
+        .with_regex(r"^encoder\..*")
         .metadata("subset", "encoder_only");
 
     model.collect_to(&mut save_persister).unwrap();

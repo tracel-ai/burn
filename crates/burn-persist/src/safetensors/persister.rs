@@ -119,6 +119,113 @@ impl SafetensorsPersister {
         self
     }
 
+    /// Add a regex pattern to filter tensors.
+    ///
+    /// Multiple patterns can be added and they work with OR logic.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
+    ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
+    /// ```
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn with_regex<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_regex(pattern),
+            Self::Memory(p) => p.filter = p.filter.clone().with_regex(pattern),
+        }
+        self
+    }
+
+    /// Add multiple regex patterns to filter tensors.
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_regexes(patterns),
+            Self::Memory(p) => p.filter = p.filter.clone().with_regexes(patterns),
+        }
+        self
+    }
+
+    /// Add an exact full path to match.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    ///     .with_full_path("encoder.layer1.weight")
+    ///     .with_full_path("decoder.output.bias");
+    /// ```
+    pub fn with_full_path<S: Into<String>>(mut self, path: S) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_full_path(path),
+            Self::Memory(p) => p.filter = p.filter.clone().with_full_path(path),
+        }
+        self
+    }
+
+    /// Add multiple exact full paths to match.
+    pub fn with_full_paths<I, S>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_full_paths(paths),
+            Self::Memory(p) => p.filter = p.filter.clone().with_full_paths(paths),
+        }
+        self
+    }
+
+    /// Add a predicate function for custom filtering logic.
+    ///
+    /// The predicate receives the tensor path and container path.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
+    /// ```
+    pub fn with_predicate(mut self, predicate: fn(&str, &str) -> bool) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_predicate(predicate),
+            Self::Memory(p) => p.filter = p.filter.clone().with_predicate(predicate),
+        }
+        self
+    }
+
+    /// Add multiple predicate functions.
+    pub fn with_predicates<I>(mut self, predicates: I) -> Self
+    where
+        I: IntoIterator<Item = fn(&str, &str) -> bool>,
+    {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().with_predicates(predicates),
+            Self::Memory(p) => p.filter = p.filter.clone().with_predicates(predicates),
+        }
+        self
+    }
+
+    /// Set the filter to match all paths (disables filtering).
+    pub fn match_all(mut self) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.filter = p.filter.clone().match_all(),
+            Self::Memory(p) => p.filter = p.filter.clone().match_all(),
+        }
+        self
+    }
+
     /// Remap tensor names during load/save.
     #[cfg(target_has_atomic = "ptr")]
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
