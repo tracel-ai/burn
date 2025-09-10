@@ -168,7 +168,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
             let model_main = model_main.clone();
 
             std::thread::spawn(move || {
-                let mut model = model_main.to_device(&device);
+                let mut model = model_main.fork(&device);
                 let id = PeerId::from(id);
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
