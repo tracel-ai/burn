@@ -190,6 +190,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
 
                     let grads = x.backward();
                     let grads = GradientsParams::from_grads(grads, &model);
+                    println!("[{id}] grad {}", grads.len());
 
                     println!("[{id}] All reduce operations ...");
                     let grads = grads
