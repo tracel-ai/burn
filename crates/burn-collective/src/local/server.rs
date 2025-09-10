@@ -309,6 +309,10 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&peer_id) {
+            println!(
+                "All reduce: Don't have peer {peer_id:?}, got {:?}",
+                self.peers
+            );
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -399,6 +403,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&caller) {
+            println!("Don't have peer {caller:?}, got {:?}", self.peers);
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
