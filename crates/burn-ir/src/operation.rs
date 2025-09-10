@@ -56,7 +56,7 @@ impl CustomOpIr {
     }
 }
 
-/// irribe all tensor operations possible.
+/// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum OperationIr {
     /// Basic operation on a float tensor.
@@ -66,9 +66,9 @@ pub enum OperationIr {
     /// Basic operation on a bool tensor.
     BaseBool(BaseOperationIr),
     /// Numeric operation on a float tensor.
-    NumericFloat(DType, NumericOperationIr<f32>),
+    NumericFloat(DType, NumericOperationIr<f64>),
     /// Numeric operation on an int tensor.
-    NumericInt(DType, NumericOperationIr<i32>),
+    NumericInt(DType, NumericOperationIr<i64>),
     /// Operation specific to a bool tensor.
     Bool(BoolOperationIr),
     /// Operation specific to an int tensor.
