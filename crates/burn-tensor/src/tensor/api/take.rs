@@ -49,17 +49,7 @@ where
         dim: usize,
         indices: Tensor<B, DI, Int>,
     ) -> Tensor<B, DO, K> {
-        check!(TensorCheck::select::<D>(dim));
-
-        // Calculate expected output dimensions
-        // DO = D - 1 + DI (remove 1 dim, add DI dims)
-        assert_eq!(
-            DO,
-            D + DI - 1,
-            "Output dimension mismatch: expected {} but got {}",
-            D + DI - 1,
-            DO
-        );
+        check!(TensorCheck::take::<D, DI, DO>(dim));
 
         // Get the size of the dimension we're selecting from
         let input_shape = self.shape();
