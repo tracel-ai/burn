@@ -166,9 +166,9 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
         .enumerate()
         .map(|(id, device)| {
             let model_main = model_main.clone();
+            let mut model = model_main.to_device(&device);
 
             std::thread::spawn(move || {
-                let mut model = model_main.to_device(&device);
                 let id = PeerId::from(id);
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
@@ -190,6 +190,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let x = model.forward(x);
 
                     let grads = x.backward();
+                    println!("{grads:?}");
                     let grads = GradientsParams::from_grads(grads, &model);
                     println!("[{id}] grad {}", grads.len());
 
