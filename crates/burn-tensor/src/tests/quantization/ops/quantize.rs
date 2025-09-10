@@ -114,7 +114,7 @@ mod tests {
     fn should_quantize_dequantize_symmetric_arange_16x16() {
         let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
 
-        let input = Tensor::<TestBackend, 1, burn_tensor::Int>::arange(0..256, &Default::default())
+        let input: TestTensor<2> = Tensor::arange(0..256, &Default::default())
             .float()
             .reshape([16, 16]);
 
@@ -175,7 +175,7 @@ mod tests {
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Block(32));
 
-        let input = Tensor::<TestBackend, 1, burn_tensor::Int>::arange(0..256, &Default::default())
+        let input: TestTensor<2> = Tensor::arange(0..256, &Default::default())
             .float()
             .reshape([16, 16]);
 

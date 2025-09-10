@@ -14,16 +14,16 @@ mod tests {
         store: QuantStore,
         shape: S,
     ) {
+        let shape = shape.into();
+        assert_eq!(shape.dims.len(), 2); // 2D tests
+
         let scheme = QuantScheme::default().with_value(value).with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
-        let shape = shape.into();
-        let input = Tensor::<TestBackend, 1, Int>::arange(
-            0..shape.num_elements() as i64,
-            &Default::default(),
-        )
-        .float()
-        .reshape(shape);
+        let input: Tensor<TestBackend, 2> =
+            Tensor::arange(0..shape.num_elements() as i64, &Default::default())
+                .float()
+                .reshape(shape);
         let input_ref =
             Tensor::<ReferenceBackend, 1>::from_data(input.to_data(), &Default::default());
 
@@ -53,12 +53,10 @@ mod tests {
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
         let shape = shape.into();
-        let input = Tensor::<TestBackend, 1, Int>::arange(
-            0..shape.num_elements() as i64,
-            &Default::default(),
-        )
-        .float()
-        .reshape(shape);
+        let input: Tensor<TestBackend, 2> =
+            Tensor::arange(0..shape.num_elements() as i64, &Default::default())
+                .float()
+                .reshape(shape);
         let input_ref =
             Tensor::<ReferenceBackend, 2>::from_data(input.to_data(), &Default::default());
 
@@ -193,12 +191,7 @@ mod tests {
     #[test]
     fn should_quantize_dequantize_symmetric_per_block_q8s_native() {
         if supports_native() {
-            should_quantize_dequantize_symmetric_per_block(
-                QuantValue::Q8S,
-                8,
-                QuantStore::Native,
-                [32, 32],
-            )
+            should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
         }
     }
 
@@ -227,8 +220,9 @@ mod tests {
     #[test]
     fn should_quantize_dequantize_symmetric_arange_128x256_q8s_native() {
         if supports_native() {
-            should_quantize_dequantize_symmetric_arange_128x256(
+            should_quantize_dequantize_symmetric_per_block_arange(
                 QuantValue::Q8S,
+                32,
                 QuantStore::Native,
                 [128, 256],
             )
@@ -236,8 +230,9 @@ mod tests {
     }
     #[test]
     fn should_quantize_dequantize_symmetric_arange_128x256_q8s_packed() {
-        should_quantize_dequantize_symmetric_arange_128x256(
+        should_quantize_dequantize_symmetric_per_block_arange(
             QuantValue::Q8S,
+            32,
             QuantStore::U32,
             [128, 256],
         )

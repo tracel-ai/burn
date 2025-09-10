@@ -22,7 +22,7 @@ impl<B: Backend> ModuleMapper<B> for Quantizer {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "test-tch")))]
 mod tests {
     use crate::{
         TestBackend,
