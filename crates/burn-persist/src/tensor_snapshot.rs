@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
-/// A lightweight view of a tensor that can lazily produce TensorData.
+/// A lightweight snapshot of a tensor that can lazily produce TensorData.
 ///
 /// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)
 /// and only materializes the actual data when `to_data()` is called. This allows
@@ -29,7 +29,7 @@ pub struct TensorSnapshot {
 }
 
 impl TensorSnapshot {
-    /// Create a new tensor view from a float tensor
+    /// Create a new tensor snapshot from a float tensor
     pub fn from_float<B: Backend, const D: usize>(
         tensor: &Tensor<B, D>,
         path_stack: Vec<String>,
@@ -49,7 +49,7 @@ impl TensorSnapshot {
         }
     }
 
-    /// Create a new tensor view from an int tensor
+    /// Create a new tensor snapshot from an int tensor
     pub fn from_int<B: Backend, const D: usize>(
         tensor: &Tensor<B, D, Int>,
         path_stack: Vec<String>,
@@ -69,7 +69,7 @@ impl TensorSnapshot {
         }
     }
 
-    /// Create a new tensor view from a bool tensor
+    /// Create a new tensor snapshot from a bool tensor
     pub fn from_bool<B: Backend, const D: usize>(
         tensor: &Tensor<B, D, Bool>,
         path_stack: Vec<String>,
@@ -208,7 +208,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let view = TensorSnapshot::from_float(
+        let snapshot = TensorSnapshot::from_float(
             &tensor,
             vec!["test".to_string(), "weight".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -216,13 +216,13 @@ mod tests {
         );
 
         // Test metadata access without materialization
-        assert_eq!(view.dtype, DType::F32);
-        assert_eq!(view.shape, vec![2, 2]);
-        assert_eq!(view.full_path(), "test.weight");
-        assert_eq!(view.container_path(), "TestModule.Param");
+        assert_eq!(snapshot.dtype, DType::F32);
+        assert_eq!(snapshot.shape, vec![2, 2]);
+        assert_eq!(snapshot.full_path(), "test.weight");
+        assert_eq!(snapshot.container_path(), "TestModule.Param");
 
         // Test data materialization
-        let data = view.to_data();
+        let data = snapshot.to_data();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::F32);
     }
@@ -232,7 +232,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
 
-        let view = TensorSnapshot::from_int(
+        let snapshot = TensorSnapshot::from_int(
             &tensor,
             vec!["test".to_string(), "int".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -241,10 +241,10 @@ mod tests {
 
         // Test metadata access without materialization
         // TestBackend uses I64 for integers
-        assert_eq!(view.dtype, DType::I64);
-        assert_eq!(view.shape, vec![2, 2]);
+        assert_eq!(snapshot.dtype, DType::I64);
+        assert_eq!(snapshot.shape, vec![2, 2]);
 
-        let data = view.to_data();
+        let data = snapshot.to_data();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::I64);
     }
@@ -255,7 +255,7 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
 
-        let view = TensorSnapshot::from_bool(
+        let snapshot = TensorSnapshot::from_bool(
             &tensor,
             vec!["test".to_string(), "bool".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -263,10 +263,10 @@ mod tests {
         );
 
         // Test metadata access without materialization
-        assert_eq!(view.dtype, DType::Bool);
-        assert_eq!(view.shape, vec![2, 2]);
+        assert_eq!(snapshot.dtype, DType::Bool);
+        assert_eq!(snapshot.shape, vec![2, 2]);
 
-        let data = view.to_data();
+        let data = snapshot.to_data();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::Bool);
     }
@@ -314,7 +314,7 @@ mod tests {
         let dtype = data.dtype;
         let shape = data.shape.clone();
 
-        let view = TensorSnapshot::from_closure(
+        let snapshot = TensorSnapshot::from_closure(
             Rc::new(move || data.clone()),
             dtype,
             shape.clone(),
@@ -324,13 +324,13 @@ mod tests {
         );
 
         // Test metadata access
-        assert_eq!(view.dtype, DType::F32);
-        assert_eq!(view.shape, vec![4]);
-        assert_eq!(view.full_path(), "model.layer");
-        assert_eq!(view.data_len(), 16); // 4 * 4 bytes
+        assert_eq!(snapshot.dtype, DType::F32);
+        assert_eq!(snapshot.shape, vec![4]);
+        assert_eq!(snapshot.full_path(), "model.layer");
+        assert_eq!(snapshot.data_len(), 16); // 4 * 4 bytes
 
         // Test data materialization
-        let materialized = view.to_data();
+        let materialized = snapshot.to_data();
         assert_eq!(materialized.shape, vec![4]);
     }
 
@@ -340,7 +340,7 @@ mod tests {
         let original_dtype = data.dtype;
         let original_shape = data.shape.clone();
 
-        let view = TensorSnapshot::from_data(
+        let snapshot = TensorSnapshot::from_data(
             data,
             vec!["encoder".to_string(), "weight".to_string()],
             vec!["Encoder".to_string(), "Dense".to_string()],
@@ -348,14 +348,14 @@ mod tests {
         );
 
         // Test metadata
-        assert_eq!(view.dtype, original_dtype);
-        assert_eq!(view.shape, original_shape);
-        assert_eq!(view.full_path(), "encoder.weight");
-        assert_eq!(view.container_type(), "Dense");
-        assert_eq!(view.data_len(), 24); // 6 * 4 bytes
+        assert_eq!(snapshot.dtype, original_dtype);
+        assert_eq!(snapshot.shape, original_shape);
+        assert_eq!(snapshot.full_path(), "encoder.weight");
+        assert_eq!(snapshot.container_type(), "Dense");
+        assert_eq!(snapshot.data_len(), 24); // 6 * 4 bytes
 
         // Test data materialization
-        let materialized = view.to_data();
+        let materialized = snapshot.to_data();
         assert_eq!(materialized.shape, original_shape);
     }
 
@@ -364,7 +364,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);
 
-        let view = TensorSnapshot::from_float(
+        let snapshot = TensorSnapshot::from_float(
             &tensor,
             vec![
                 "model".to_string(),
@@ -379,8 +379,8 @@ mod tests {
             ParamId::new(),
         );
 
-        assert_eq!(view.container_type(), "Param");
-        assert_eq!(view.container_path(), "Model.Conv2d.Param");
-        assert_eq!(view.full_path(), "model.layer1.weight");
+        assert_eq!(snapshot.container_type(), "Param");
+        assert_eq!(snapshot.container_path(), "Model.Conv2d.Param");
+        assert_eq!(snapshot.full_path(), "model.layer1.weight");
     }
 }

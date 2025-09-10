@@ -440,23 +440,23 @@ impl ModulePersister for SafetensorsPersister {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
-        // Collect tensor views from module
-        let mut views = module.collect();
+        // Collect tensor snapshots from module
+        let mut snapshots = module.collect();
 
         // Apply to_adapter (for saving - convert from Burn format to target format)
         let to_adapter = self.get_to_adapter();
-        views = views
+        snapshots = snapshots
             .into_iter()
-            .filter_map(|view| to_adapter.adapt_tensor(&view))
+            .filter_map(|snapshot| to_adapter.adapt_tensor(&snapshot))
             .collect();
 
         // Apply filtering
-        views = apply_filter(views, self.get_filter());
+        snapshots = apply_filter(snapshots, self.get_filter());
 
         // Apply remapping
         #[cfg(target_has_atomic = "ptr")]
         {
-            views = apply_remapping(views, self.get_remapper());
+            snapshots = apply_remapping(snapshots, self.get_remapper());
         }
 
         // Prepare metadata - convert from hashbrown to std HashMap for safetensors
@@ -474,7 +474,7 @@ impl ModulePersister for SafetensorsPersister {
             #[cfg(feature = "std")]
             Self::File(p) => {
                 // Convert to safetensors format
-                let tensors = views_to_safetensors(views)?;
+                let tensors = snapshots_to_safetensors(snapshots)?;
 
                 // Use serialize_to_file which streams directly to disk
                 // This calls the lazy closures on-demand without buffering everything
@@ -483,7 +483,7 @@ impl ModulePersister for SafetensorsPersister {
             }
             Self::Memory(p) => {
                 // For memory, we need to serialize to bytes
-                let tensors = views_to_safetensors(views)?;
+                let tensors = snapshots_to_safetensors(snapshots)?;
                 // For no-std, serialize still needs std HashMap when std feature is enabled
                 #[cfg(feature = "std")]
                 let data = safetensors::serialize(tensors, Some(std_metadata))?;
@@ -500,31 +500,31 @@ impl ModulePersister for SafetensorsPersister {
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
-        // Convert to tensor views with lazy loading
-        let mut views = match self {
+        // Convert to tensor snapshots with lazy loading
+        let mut snapshots = match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
                 // Use safetensors' built-in lazy loading mechanisms
-                safetensors_to_views_lazy_file(&p.path)?
+                safetensors_to_snapshots_lazy_file(&p.path)?
             }
             Self::Memory(p) => {
                 let data_arc = p
                     .data
                     .clone()
                     .ok_or_else(|| SafetensorsError::Other("No data loaded".to_string()))?;
-                safetensors_to_views_lazy(data_arc)?
+                safetensors_to_snapshots_lazy(data_arc)?
             }
         };
 
         // Apply from_adapter (for loading - convert from source format to Burn format)
         let from_adapter = self.get_from_adapter();
-        views = views
+        snapshots = snapshots
             .into_iter()
-            .filter_map(|view| from_adapter.adapt_tensor(&view))
+            .filter_map(|snapshot| from_adapter.adapt_tensor(&snapshot))
             .collect();
 
         // Apply to module
-        let result = module.apply(views);
+        let result = module.apply(snapshots);
 
         // Validate if needed
         if self.get_validate() && !result.errors.is_empty() {
@@ -603,53 +603,53 @@ impl SafetensorsPersister {
     }
 }
 
-/// Apply filter to tensor views.
-fn apply_filter(mut views: Vec<TensorSnapshot>, filter: &PathFilter) -> Vec<TensorSnapshot> {
+/// Apply filter to tensor snapshots.
+fn apply_filter(mut snapshots: Vec<TensorSnapshot>, filter: &PathFilter) -> Vec<TensorSnapshot> {
     if filter.is_empty() {
-        return views;
+        return snapshots;
     }
 
-    views.retain(|view| {
-        let path = view.full_path();
+    snapshots.retain(|snapshot| {
+        let path = snapshot.full_path();
         filter.matches(&path)
     });
 
-    views
+    snapshots
 }
 
-/// Apply remapping to tensor views.
+/// Apply remapping to tensor snapshots.
 #[cfg(target_has_atomic = "ptr")]
-fn apply_remapping(views: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Vec<TensorSnapshot> {
+fn apply_remapping(snapshots: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Vec<TensorSnapshot> {
     if remapper.is_empty() {
-        return views;
+        return snapshots;
     }
 
-    let (remapped, _) = remapper.remap(views);
+    let (remapped, _) = remapper.remap(snapshots);
     remapped
 }
 
 /// Convert TensorSnapshots to safetensors format lazily.
-fn views_to_safetensors(
-    views: Vec<TensorSnapshot>,
+fn snapshots_to_safetensors(
+    snapshots: Vec<TensorSnapshot>,
 ) -> Result<Vec<(String, TensorSnapshotAdapter)>, SafetensorsError> {
     let mut tensors = Vec::new();
 
-    for view in views {
-        let name = view.full_path();
+    for snapshot in snapshots {
+        let name = snapshot.full_path();
         // No need to materialize data - TensorSnapshot now has dtype and shape cached!
-        tensors.push((name, TensorSnapshotAdapter(view)));
+        tensors.push((name, TensorSnapshotAdapter(snapshot)));
     }
 
     Ok(tensors)
 }
 
 /// Convert safetensors to TensorSnapshots with lazy loading.
-fn safetensors_to_views_lazy(
+fn safetensors_to_snapshots_lazy(
     data_arc: alloc::sync::Arc<Vec<u8>>,
 ) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
     // Parse to get metadata
     let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
-    let mut views = Vec::new();
+    let mut snapshots = Vec::new();
 
     for (name, tensor_snapshot) in tensors.tensors() {
         // Extract metadata without materializing data
@@ -677,7 +677,7 @@ fn safetensors_to_views_lazy(
             }
         });
 
-        let view = TensorSnapshot::from_closure(
+        let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape,
@@ -685,16 +685,16 @@ fn safetensors_to_views_lazy(
             vec!["SafeTensor".to_string()],
             ParamId::new(),
         );
-        views.push(view);
+        snapshots.push(snapshot);
     }
 
-    Ok(views)
+    Ok(snapshots)
 }
 
 /// Convert safetensors to TensorSnapshots with true on-demand loading from file.
 /// This reads only the header initially, then loads tensor data on demand.
 #[cfg(feature = "std")]
-fn safetensors_to_views_lazy_file(
+fn safetensors_to_snapshots_lazy_file(
     path: &std::path::Path,
 ) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
     use alloc::sync::Arc;
@@ -709,7 +709,7 @@ fn safetensors_to_views_lazy_file(
 
     // Parse just to get metadata (safetensors won't copy data with mmap)
     let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
-    let mut views = Vec::new();
+    let mut snapshots = Vec::new();
 
     for (name, tensor_snapshot) in tensors.tensors() {
         let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
@@ -721,7 +721,7 @@ fn safetensors_to_views_lazy_file(
         let name_clone = name.to_string();
 
         let data_fn = alloc::rc::Rc::new(move || {
-            // Re-parse to get the tensor view (this is cheap with mmap)
+            // Re-parse to get the tensor snapshot (this is cheap with mmap)
             let tensors =
                 safetensors::SafeTensors::deserialize(&mmap_clone).expect("Failed to deserialize");
             let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
@@ -734,7 +734,7 @@ fn safetensors_to_views_lazy_file(
             }
         });
 
-        let view = TensorSnapshot::from_closure(
+        let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape,
@@ -742,10 +742,10 @@ fn safetensors_to_views_lazy_file(
             vec!["SafeTensor".to_string()],
             ParamId::new(),
         );
-        views.push(view);
+        snapshots.push(snapshot);
     }
 
-    Ok(views)
+    Ok(snapshots)
 }
 
 /// Helper to convert safetensors Dtype to burn DType.

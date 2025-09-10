@@ -165,11 +165,11 @@ impl KeyRemapper {
             return (tensors, remapped_names);
         }
 
-        let mut remapped_views = Vec::new();
+        let mut remapped_snapshots = Vec::new();
         let mut remapped_names = Vec::new();
 
-        for mut view in tensors.drain(..) {
-            let original_path = view.full_path();
+        for mut snapshot in tensors.drain(..) {
+            let original_path = snapshot.full_path();
             let mut new_path = original_path.clone();
 
             // Apply all patterns to get the new path
@@ -181,18 +181,18 @@ impl KeyRemapper {
                 }
             }
 
-            // Update the view's internal path_stack if the path changed
+            // Update the snapshot's internal path_stack if the path changed
             if new_path != original_path
-                && let Some(ref mut path_stack) = view.path_stack
+                && let Some(ref mut path_stack) = snapshot.path_stack
             {
                 *path_stack = new_path.split('.').map(|s| s.to_string()).collect();
             }
 
             remapped_names.push((new_path.clone(), original_path));
-            remapped_views.push(view);
+            remapped_snapshots.push(snapshot);
         }
 
-        (remapped_views, remapped_names)
+        (remapped_snapshots, remapped_names)
     }
 }
 
@@ -202,7 +202,7 @@ mod tests {
     use burn_core::module::ParamId;
     use burn_tensor::TensorData;
 
-    fn create_test_tensor_view(name: &str) -> TensorSnapshot {
+    fn create_test_tensor_snapshot(name: &str) -> TensorSnapshot {
         let data = TensorData {
             bytes: burn_tensor::Bytes::from_bytes_vec(vec![1, 2, 3, 4]),
             shape: vec![2, 2],
@@ -220,8 +220,8 @@ mod tests {
             .expect("valid regex");
 
         let tensors = vec![
-            create_test_tensor_view("encoder.layer1.weight"),
-            create_test_tensor_view("decoder.layer1.weight"),
+            create_test_tensor_snapshot("encoder.layer1.weight"),
+            create_test_tensor_snapshot("decoder.layer1.weight"),
         ];
 
         let (remapped, transformations) = remapper.remap(tensors);
@@ -256,7 +256,7 @@ mod tests {
             .add_pattern(r"\.gamma$", ".weight")
             .expect("valid regex");
 
-        let tensors = vec![create_test_tensor_view("encoder.layer1.gamma")];
+        let tensors = vec![create_test_tensor_snapshot("encoder.layer1.gamma")];
 
         let (remapped, _) = remapper.remap(tensors);
 
@@ -274,7 +274,7 @@ mod tests {
         let patterns = vec![(r"^pytorch\.", "burn."), (r"\.bias$", ".bias_param")];
         let remapper = KeyRemapper::from_patterns(patterns).expect("valid patterns");
 
-        let tensors = vec![create_test_tensor_view("pytorch.linear.bias")];
+        let tensors = vec![create_test_tensor_snapshot("pytorch.linear.bias")];
 
         let (remapped, _) = remapper.remap(tensors);
 
@@ -290,7 +290,7 @@ mod tests {
         let remapper = KeyRemapper::new();
         assert!(remapper.is_empty());
 
-        let tensors = vec![create_test_tensor_view("test.weight")];
+        let tensors = vec![create_test_tensor_snapshot("test.weight")];
 
         let (remapped, transformations) = remapper.remap(tensors);
 

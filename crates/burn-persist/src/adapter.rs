@@ -68,7 +68,7 @@ use crate::{KeyRemapper, TensorSnapshot};
 /// handling both loading and saving operations. Implementations can transform
 /// tensor data, rename parameters, and modify shapes as needed.
 pub trait Adapter {
-    /// Adapt a tensor view before saving it.
+    /// Adapt a tensor snapshot before saving it.
     ///
     /// This method can:
     /// - Transform tensor data (e.g., transpose weights)
@@ -76,7 +76,7 @@ pub trait Adapter {
     /// - Modify tensor shapes
     ///
     /// Returns `None` if the tensor should be skipped.
-    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot>;
+    fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot>;
 
     /// Get a key remapper for this adapter.
     ///
@@ -91,8 +91,8 @@ pub trait Adapter {
 pub struct IdentityAdapter;
 
 impl Adapter for IdentityAdapter {
-    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
-        Some(view.clone())
+    fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
+        Some(snapshot.clone())
     }
 }
 
@@ -105,21 +105,21 @@ impl Adapter for IdentityAdapter {
 pub struct PyTorchToBurnAdapter;
 
 impl Adapter for PyTorchToBurnAdapter {
-    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
-        let path = view.full_path();
+    fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
+        let path = snapshot.full_path();
 
         // Check if this is a linear layer weight that needs transposing
         if is_linear_weight(&path) {
-            return Some(transpose_2d_tensor(view));
+            return Some(transpose_2d_tensor(snapshot));
         }
 
         // Check if this needs parameter renaming (normalization layers)
-        if let Some(renamed_view) = rename_normalization_params_to_burn(view) {
-            return Some(renamed_view);
+        if let Some(renamed_snapshot) = rename_normalization_params_to_burn(snapshot) {
+            return Some(renamed_snapshot);
         }
 
         // Pass through unchanged
-        Some(view.clone())
+        Some(snapshot.clone())
     }
 
     fn key_remapper(&self) -> Option<KeyRemapper> {
@@ -138,21 +138,21 @@ impl Adapter for PyTorchToBurnAdapter {
 pub struct BurnToPyTorchAdapter;
 
 impl Adapter for BurnToPyTorchAdapter {
-    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
-        let path = view.full_path();
+    fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
+        let path = snapshot.full_path();
 
         // Check if this is a linear layer weight that needs transposing
         if is_linear_weight(&path) {
-            return Some(transpose_2d_tensor(view));
+            return Some(transpose_2d_tensor(snapshot));
         }
 
         // Check if this needs parameter renaming (normalization layers)
-        if let Some(renamed_view) = rename_normalization_params_to_pytorch(view) {
-            return Some(renamed_view);
+        if let Some(renamed_snapshot) = rename_normalization_params_to_pytorch(snapshot) {
+            return Some(renamed_snapshot);
         }
 
         // Pass through unchanged
-        Some(view.clone())
+        Some(snapshot.clone())
     }
 
     fn key_remapper(&self) -> Option<KeyRemapper> {
@@ -171,18 +171,18 @@ fn is_linear_weight(path: &str) -> bool {
         && path.ends_with(".weight")
 }
 
-fn transpose_2d_tensor(view: &TensorSnapshot) -> TensorSnapshot {
+fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
     // Only transpose 2D tensors
-    if view.shape.len() != 2 {
-        return view.clone();
+    if snapshot.shape.len() != 2 {
+        return snapshot.clone();
     }
 
     // Clone the original data function for lazy composition
-    let original_data_fn = view.clone_data_fn();
-    let dtype = view.dtype;
+    let original_data_fn = snapshot.clone_data_fn();
+    let dtype = snapshot.dtype;
 
     // Create transposed shape
-    let transposed_shape = vec![view.shape[1], view.shape[0]];
+    let transposed_shape = vec![snapshot.shape[1], snapshot.shape[0]];
 
     // Create a new lazy closure that transposes when called
     let transposed_data_fn = alloc::rc::Rc::new(move || {
@@ -190,14 +190,14 @@ fn transpose_2d_tensor(view: &TensorSnapshot) -> TensorSnapshot {
         transpose_tensor_data(data)
     });
 
-    // Create a new view with lazy transposition
+    // Create a new snapshot with lazy transposition
     TensorSnapshot::from_closure(
         transposed_data_fn,
         dtype,
         transposed_shape,
-        view.path_stack.clone().unwrap_or_default(),
-        view.container_stack.clone().unwrap_or_default(),
-        view.tensor_id.unwrap_or_default(),
+        snapshot.path_stack.clone().unwrap_or_default(),
+        snapshot.container_stack.clone().unwrap_or_default(),
+        snapshot.tensor_id.unwrap_or_default(),
     )
 }
 
@@ -244,8 +244,8 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
     }
 }
 
-fn rename_normalization_params_to_burn(view: &TensorSnapshot) -> Option<TensorSnapshot> {
-    let path = view.full_path();
+fn rename_normalization_params_to_burn(snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
+    let path = snapshot.full_path();
 
     // Check if this is a normalization layer parameter
     if !path.contains("norm") && !path.contains("bn") {
@@ -253,7 +253,7 @@ fn rename_normalization_params_to_burn(view: &TensorSnapshot) -> Option<TensorSn
     }
 
     // Rename weight -> gamma, bias -> beta
-    let mut path_stack = view.path_stack.clone().unwrap_or_default();
+    let mut path_stack = snapshot.path_stack.clone().unwrap_or_default();
     if let Some(last) = path_stack.last_mut() {
         if last == "weight" {
             *last = "gamma".to_string();
@@ -266,19 +266,19 @@ fn rename_normalization_params_to_burn(view: &TensorSnapshot) -> Option<TensorSn
         return None;
     }
 
-    // Create a new view with renamed path - keep the same lazy data function
+    // Create a new snapshot with renamed path - keep the same lazy data function
     Some(TensorSnapshot::from_closure(
-        view.clone_data_fn(), // Reuse the same lazy closure
-        view.dtype,
-        view.shape.clone(),
+        snapshot.clone_data_fn(), // Reuse the same lazy closure
+        snapshot.dtype,
+        snapshot.shape.clone(),
         path_stack,
-        view.container_stack.clone().unwrap_or_default(),
-        view.tensor_id.unwrap_or_default(),
+        snapshot.container_stack.clone().unwrap_or_default(),
+        snapshot.tensor_id.unwrap_or_default(),
     ))
 }
 
-fn rename_normalization_params_to_pytorch(view: &TensorSnapshot) -> Option<TensorSnapshot> {
-    let path = view.full_path();
+fn rename_normalization_params_to_pytorch(snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
+    let path = snapshot.full_path();
 
     // Check if this is a normalization layer parameter
     if !path.contains("norm") && !path.contains("bn") {
@@ -286,7 +286,7 @@ fn rename_normalization_params_to_pytorch(view: &TensorSnapshot) -> Option<Tenso
     }
 
     // Rename gamma -> weight, beta -> bias
-    let mut path_stack = view.path_stack.clone().unwrap_or_default();
+    let mut path_stack = snapshot.path_stack.clone().unwrap_or_default();
     if let Some(last) = path_stack.last_mut() {
         if last == "gamma" {
             *last = "weight".to_string();
@@ -299,14 +299,14 @@ fn rename_normalization_params_to_pytorch(view: &TensorSnapshot) -> Option<Tenso
         return None;
     }
 
-    // Create a new view with renamed path - keep the same lazy data function
+    // Create a new snapshot with renamed path - keep the same lazy data function
     Some(TensorSnapshot::from_closure(
-        view.clone_data_fn(), // Reuse the same lazy closure
-        view.dtype,
-        view.shape.clone(),
+        snapshot.clone_data_fn(), // Reuse the same lazy closure
+        snapshot.dtype,
+        snapshot.shape.clone(),
         path_stack,
-        view.container_stack.clone().unwrap_or_default(),
-        view.tensor_id.unwrap_or_default(),
+        snapshot.container_stack.clone().unwrap_or_default(),
+        snapshot.tensor_id.unwrap_or_default(),
     ))
 }
 

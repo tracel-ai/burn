@@ -15,7 +15,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Collects tensor views for inspection without copying data.
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
-    /// Each `TensorSnapshot` contains the full path accessible via `view.full_path()`.
+    /// Each `TensorSnapshot` contains the full path accessible via `snapshot.full_path()`.
     fn collect(&self) -> Vec<TensorSnapshot> {
         let mut collector = Collector::new();
         self.visit(&mut collector);
