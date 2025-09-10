@@ -23,5 +23,6 @@ burn = { path = "../../crates/burn", features = [
     "autotune",
     "fusion",
     "collective",
+    "train",
     "std",
 ], default-features = false }

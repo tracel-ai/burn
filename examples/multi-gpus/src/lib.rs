@@ -1,12 +1,28 @@
 use std::time::Instant;
 
 use burn::{
+    backend::Autodiff,
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
+    nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
+    optim::{GradientsParams, Optimizer, SgdConfig},
     prelude::*,
-    tensor::TensorPrimitive,
+    tensor::{TensorPrimitive, backend::AutodiffBackend},
 };
 
 pub fn run<B: Backend>(devices: Vec<B::Device>) {
+    for strategy in [
+        collective::AllReduceStrategy::Centralized,
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Tree(2),
+    ] {
+        println!("[Gradient Update - {strategy:?}] starting ...");
+        let start = Instant::now();
+        task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 420, strategy);
+        println!(
+            "[Gradient Update - {strategy:?}] took {:?}",
+            start.elapsed()
+        );
+    }
     for strategy in [
         collective::AllReduceStrategy::Centralized,
         collective::AllReduceStrategy::Ring,
@@ -17,10 +33,10 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
         task_all_reduce::<B>(devices.clone(), 420, strategy);
         println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
     }
-    task_different_tasks::<B>(devices.clone(), 100);
+    task_naive_aggregation::<B>(devices.clone(), 100);
 }
 
-fn task_different_tasks<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
+fn task_naive_aggregation<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
     let aggregation_device = devices.pop().unwrap();
 
     let shape = [8, 4096, 4096];
@@ -120,6 +136,67 @@ fn task_all_reduce<B: Backend>(
                     let val = weights.clone().sum().into_scalar().elem::<f32>();
                     if id == PeerId::from(0) {
                         println!("Iter {i} => {val}");
+                    }
+                }
+                collective::finish_collective::<B>(id).unwrap();
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}
+
+fn task_grad_all_reduce<B: AutodiffBackend>(
+    devices: Vec<B::Device>,
+    num_iterations: usize,
+    strategy: collective::AllReduceStrategy,
+) {
+    let num_devices = devices.len();
+    let batch = 32;
+    let seq_length = 512;
+    let d_model = 1024;
+    let shape_signal = [batch, seq_length, d_model];
+    let config = TransformerEncoderConfig::new(d_model, 2048, 4, 4);
+
+    let handles = devices
+        .into_iter()
+        .enumerate()
+        .map(|(id, device)| {
+            let config = config.clone();
+
+            std::thread::spawn(move || {
+                let mut model = config.init::<B>(&device);
+                let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
+
+                let id = PeerId::from(id);
+                let config = CollectiveConfig::default()
+                    .with_num_devices(num_devices)
+                    .with_local_all_reduce_strategy(strategy);
+
+                collective::register::<B>(id, device.clone(), config).unwrap();
+
+                for i in 0..num_iterations {
+                    let x = Tensor::<B, 3>::random(
+                        shape_signal,
+                        burn::tensor::Distribution::Default,
+                        &device,
+                    ) - 0.5;
+
+                    let x = TransformerEncoderInput::new(x);
+                    let x = model.forward(x);
+
+                    let grads = x.backward();
+                    let grads = GradientsParams::from_grads(grads, &model);
+                    let grads = grads
+                        .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
+                        .unwrap();
+
+                    model = optim.step(1.0e-5, model, grads);
+
+                    if id == PeerId::from(0) {
+                        println!("Iter {i}");
                     }
                 }
                 collective::finish_collective::<B>(id).unwrap();
