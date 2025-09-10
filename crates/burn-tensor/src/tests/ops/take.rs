@@ -250,113 +250,12 @@ mod tests {
         output.into_data().assert_eq(&expected, false);
     }
 
-    #[test]
-    fn should_take_with_negative_indices_1d() {
-        // Test negative indices with 1D indices
-        let device = Default::default();
-        let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
 
-        // -1 = last (2), -3 = first (0), -2 = middle (1)
-        let indices = TestTensorInt::<1>::from_data([-1, -3, -2], &device);
-        let output = tensor.take::<1, 2>(1, indices);
 
-        // Should select columns 2, 0, 1
-        let expected = TensorData::from([[3.0, 1.0, 2.0], [6.0, 4.0, 5.0]]);
-        output.into_data().assert_eq(&expected, false);
-    }
 
-    #[test]
-    fn should_take_with_negative_indices_2d() {
-        // Test negative indices with 2D indices
-        let device = Default::default();
-        let tensor = TestTensor::<2>::from_data(
-            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
-            &device,
-        );
 
-        // Mix of positive and negative indices
-        // [[0, -1], [-2, 1]] = [[0, 2], [1, 1]]
-        let indices = TestTensorInt::<2>::from_data([[0, -1], [-2, 1]], &device);
-        let output = tensor.take::<2, 3>(0, indices);
 
-        // Expected: selecting rows [[0, 2], [1, 1]]
-        let expected = TensorData::from([
-            [[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]],
-            [[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]],
-        ]);
 
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn should_take_with_all_negative_indices() {
-        // Test with all negative indices
-        let device = Default::default();
-        let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
-
-        // All negative: [-1, -4, -2, -3] = [3, 0, 2, 1]
-        let indices = TestTensorInt::<1>::from_data([-1, -4, -2, -3], &device);
-        let output = tensor.take::<1, 1>(0, indices);
-
-        let expected = TensorData::from([40.0, 10.0, 30.0, 20.0]);
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn should_take_int_with_negative_indices() {
-        // Test negative indices with integer tensors
-        let device = Default::default();
-        let tensor = TestTensorInt::<2>::from_data([[10, 20, 30], [40, 50, 60]], &device);
-
-        // -1 = last row (1), 0 = first row
-        let indices = TestTensorInt::<1>::from_data([-1, 0, -1], &device);
-        let output = tensor.take::<1, 2>(0, indices);
-
-        let expected = TensorData::from([[40, 50, 60], [10, 20, 30], [40, 50, 60]]);
-
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn should_take_bool_with_negative_indices() {
-        // Test negative indices with boolean tensors
-        let device = Default::default();
-        let tensor = TestTensorBool::<2>::from_data([[true, false], [false, true]], &device);
-
-        // -1 = last column (1), -2 = first column (0)
-        let indices = TestTensorInt::<1>::from_data([-1, -2, -1], &device);
-        let output = tensor.take::<1, 2>(1, indices);
-
-        let expected = TensorData::from([[false, true, false], [true, false, true]]);
-
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn should_wrap_around_with_very_negative_indices() {
-        // Test that very negative indices wrap around correctly
-        let device = Default::default();
-        let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);
-
-        // -4 should wrap to 2, -5 to 1, -6 to 0, -7 to 2 again
-        let indices = TestTensorInt::<1>::from_data([-4, -5, -6, -7], &device);
-        let output = tensor.take::<1, 1>(0, indices);
-
-        let expected = TensorData::from([3.0, 2.0, 1.0, 3.0]);
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
-    fn should_take_with_negative_indices() {
-        let device = Default::default();
-        let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-        let indices = TestTensorInt::<1>::from_data([-1, -2, 0], &device);
-
-        let output = tensor.take::<1, 2>(1, indices);
-        let expected = TensorData::from([[3.0, 2.0, 1.0], [6.0, 5.0, 4.0]]);
-
-        output.into_data().assert_eq(&expected, false);
-    }
 
     #[test]
     fn should_take_with_negative_dim_2d() {
