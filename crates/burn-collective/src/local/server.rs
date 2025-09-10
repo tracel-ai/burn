@@ -221,6 +221,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
+        println!("Process finish {id:?}");
         if !self.peers.contains(&id) {
             callback
                 .send(Err(CollectiveError::MultipleUnregister))
@@ -277,6 +278,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // All have registered, callback
         if self.peers.len() == config.num_devices {
             let mut register_result = Ok(());
+            println!("All peers registered {:?}", self.peers);
 
             // if an error occurs on the global register, it must be passed back to every local peer
             if let Some(global_params) = global_params {
@@ -440,6 +442,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     // Reinitializes the collective server
     fn reset(&mut self) {
+        println!("Reset");
         self.peers.clear();
         self.all_reduce_op = None;
         self.reduce_op = None;

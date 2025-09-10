@@ -23,17 +23,17 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
             start.elapsed()
         );
     }
-    for strategy in [
-        collective::AllReduceStrategy::Centralized,
-        collective::AllReduceStrategy::Ring,
-        collective::AllReduceStrategy::Tree(2),
-    ] {
-        println!("[All Reduce - {strategy:?}] starting ...");
-        let start = Instant::now();
-        task_all_reduce::<B>(devices.clone(), 420, strategy);
-        println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
-    }
-    task_naive_aggregation::<B>(devices.clone(), 100);
+    // for strategy in [
+    //     collective::AllReduceStrategy::Centralized,
+    //     collective::AllReduceStrategy::Ring,
+    //     collective::AllReduceStrategy::Tree(2),
+    // ] {
+    //     println!("[All Reduce - {strategy:?}] starting ...");
+    //     let start = Instant::now();
+    //     task_all_reduce::<B>(devices.clone(), 420, strategy);
+    //     println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
+    // }
+    // task_naive_aggregation::<B>(devices.clone(), 100);
 }
 
 fn task_naive_aggregation<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
