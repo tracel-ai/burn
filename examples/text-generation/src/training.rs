@@ -20,7 +20,7 @@ use burn::{
 };
 use std::sync::Arc;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: AdamConfig,
@@ -89,7 +89,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     DefaultRecorder::new()
         .record(
-            model_trained.into_record(),
+            model_trained.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();

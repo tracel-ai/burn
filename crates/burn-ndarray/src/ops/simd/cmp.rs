@@ -1,11 +1,11 @@
 use core::{marker::PhantomData, slice};
 
-use burn_tensor::{Element, TensorMetadata};
+use burn_tensor::Element;
 use macerator::{Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, SharedArray, ops::simd::uninit_array_like};
 
 use super::should_use_simd;
 
@@ -102,56 +102,56 @@ fn is_accelerated<S: Simd, T: Scalar, Op: SimdCmpOp<T>>(_x: PhantomData<(T, Op)>
 
 #[allow(clippy::result_large_err)]
 pub fn try_cmp_simd<E: Element, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
-    lhs: NdArrayTensor<E>,
-    rhs: NdArrayTensor<E>,
-) -> Result<NdArrayTensor<bool>, (NdArrayTensor<E>, NdArrayTensor<E>)> {
-    let lhs_len = lhs.array.len();
-    let rhs_len = rhs.array.len();
+    lhs: SharedArray<E>,
+    rhs: SharedArray<E>,
+) -> Result<SharedArray<bool>, (SharedArray<E>, SharedArray<E>)> {
+    let lhs_len = lhs.len();
+    let rhs_len = rhs.len();
     if !should_use_simd(lhs_len.max(rhs_len))
-        || !lhs.array.is_standard_layout()
-        || !rhs.array.is_standard_layout()
+        || !lhs.is_standard_layout()
+        || !rhs.is_standard_layout()
         || lhs.shape() != rhs.shape()
         || !is_accelerated::<T, Op>(PhantomData)
     {
         return Err((lhs, rhs));
     }
     // Used to assert traits based on the dynamic `DType`.
-    let lhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(lhs) };
-    let rhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(rhs) };
+    let lhs = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(lhs) };
+    let rhs = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(rhs) };
     let out = cmp_simd_same::<T, Op>(lhs, rhs);
 
     Ok(out)
 }
 
 fn cmp_simd_same<T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
-    lhs: NdArrayTensor<T>,
-    rhs: NdArrayTensor<T>,
-) -> NdArrayTensor<bool> {
-    let out = if lhs.array.is_unique() && size_of::<T>() == size_of::<bool>() {
-        let mut buf = lhs.array.into_owned();
+    lhs: SharedArray<T>,
+    rhs: SharedArray<T>,
+) -> SharedArray<bool> {
+    let out = if lhs.is_unique() && size_of::<T>() == size_of::<bool>() {
+        let mut buf = lhs.into_owned();
         let lhs = buf.as_slice_mut().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
+        let rhs = rhs.as_slice().unwrap();
         let out =
             unsafe { core::mem::transmute::<&mut [T], &mut [bool]>(unsafe_alias_slice_mut(lhs)) };
         cmp(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<bool>>(buf) }
-    } else if rhs.array.is_unique() && size_of::<T>() == size_of::<bool>() {
-        let mut buf = rhs.array.into_owned();
-        let lhs = lhs.array.as_slice().unwrap();
+    } else if rhs.is_unique() && size_of::<T>() == size_of::<bool>() {
+        let mut buf = rhs.into_owned();
+        let lhs = lhs.as_slice().unwrap();
         let rhs = buf.as_slice_mut().unwrap();
         let out =
             unsafe { core::mem::transmute::<&mut [T], &mut [bool]>(unsafe_alias_slice_mut(rhs)) };
         cmp(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<bool>>(buf) }
     } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
-        let lhs = lhs.array.as_slice().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
+        let mut out = uninit_array_like(&lhs);
+        let lhs = lhs.as_slice().unwrap();
+        let rhs = rhs.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
         cmp(lhs, rhs, out_slice, PhantomData::<Op>);
         out
     };
-    NdArrayTensor::new(out.into_shared())
+    out.into_shared()
 }
 
 #[allow(clippy::erasing_op, clippy::identity_op)]
@@ -232,20 +232,20 @@ mod elemwise {
     use super::*;
 
     pub fn try_cmp_scalar_simd<E: NdArrayElement, T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
-        input: NdArrayTensor<E>,
+        input: SharedArray<E>,
         elem: T,
-    ) -> Result<NdArrayTensor<bool>, NdArrayTensor<E>> {
-        if !should_use_simd(input.array.len())
-            || input.array.as_slice_memory_order().is_none()
+    ) -> Result<SharedArray<bool>, SharedArray<E>> {
+        if !should_use_simd(input.len())
+            || input.as_slice_memory_order().is_none()
             || !is_accelerated::<T, Op>(PhantomData)
         {
             return Err(input);
         }
         // Used to assert traits based on the dynamic `DType`.
-        let input = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(input) };
+        let input = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(input) };
         let out = if size_of::<T>() == size_of::<bool>()
             && align_of::<T>() >= align_of::<bool>()
-            && input.array.is_unique()
+            && input.is_unique()
         {
             unsafe { cmp_scalar_simd_inplace::<T, Op>(input, elem) }
         } else {
@@ -258,27 +258,27 @@ mod elemwise {
     /// SAFETY:
     /// Must ensure `size_of::<T> == size_of::<Out>` and `align_of::<T> >= align_of::<Out>`.
     unsafe fn cmp_scalar_simd_inplace<T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
-        input: NdArrayTensor<T>,
+        input: SharedArray<T>,
         elem: T,
-    ) -> NdArrayTensor<bool> {
-        let mut buffer = input.array.into_owned();
+    ) -> SharedArray<bool> {
+        let mut buffer = input.into_owned();
         let slice = buffer.as_slice_memory_order_mut().unwrap();
         unsafe { cmp_scalar_slice_inplace::<T, Op>(slice, elem, PhantomData) };
         // Buffer has the same elem size and is filled with the operation output, so this is safe
         let out = unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<bool>>(buffer) };
-        NdArrayTensor::new(out.into_shared())
+        out.into_shared()
     }
 
     /// Create a new copy of the tensor as the output
     fn cmp_scalar_simd_owned<T: NdArrayElement + Scalar, Op: SimdCmpOp<T>>(
-        input: NdArrayTensor<T>,
+        input: SharedArray<T>,
         elem: T,
-    ) -> NdArrayTensor<bool> {
-        let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
-        let input = input.array.as_slice_memory_order().unwrap();
+    ) -> SharedArray<bool> {
+        let mut out = uninit_array_like(&input);
+        let input = input.as_slice_memory_order().unwrap();
         let out_slice = out.as_slice_memory_order_mut().unwrap();
         cmp_scalar_slice::<T, Op>(input, out_slice, elem, PhantomData);
-        NdArrayTensor::new(out.into_shared())
+        out.into_shared()
     }
 
     #[inline(always)]

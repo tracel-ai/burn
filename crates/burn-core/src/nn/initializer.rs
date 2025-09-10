@@ -8,7 +8,8 @@ use crate::tensor::{Distribution, Tensor, s};
 use crate as burn;
 
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]
@@ -317,7 +318,8 @@ mod tests {
 
     #[test]
     fn initializer_uniform_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let (min, max) = (0.0, 1.0);
         let uniform = Initializer::Uniform { min, max };
@@ -331,7 +333,9 @@ mod tests {
     #[test]
     fn initializer_normal_init() {
         // seed random generator
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
+
         let (mean, std) = (0.0, 1.0);
         let normal: Tensor<TB, 1> = Initializer::Normal { mean, std }
             .init([1000], &Default::default())
@@ -386,7 +390,8 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
@@ -403,7 +408,8 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_normal_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (1000, 10);
@@ -421,7 +427,8 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_bias() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2_f64;
         let shape = [3];
@@ -439,7 +446,8 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_fan_out() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
@@ -457,7 +465,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_kaiming_uniform_no_fan() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
@@ -472,7 +481,8 @@ mod tests {
 
     #[test]
     fn initializer_xavier_uniform_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
@@ -491,7 +501,8 @@ mod tests {
 
     #[test]
     fn initializer_xavier_normal_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (1000, 10);
@@ -512,7 +523,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_xavier_uniform_no_fan() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
@@ -523,7 +535,8 @@ mod tests {
 
     #[test]
     fn test_qr_decomposition() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
         let a = Tensor::<TB, 2>::from_floats(
@@ -543,7 +556,8 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_correct() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 1.;
 
@@ -564,7 +578,8 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_init() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
 
         let gain = 1.;
 
@@ -594,7 +609,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_orthogonal_init_1d() {
-        TB::seed(0);
+        let device = Default::default();
+        TB::seed(&device, 0);
+
         let gain = 1.;
 
         // test 1D tensor

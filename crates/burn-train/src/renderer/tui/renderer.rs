@@ -1,6 +1,10 @@
-use crate::TrainingInterrupter;
-use crate::renderer::{MetricState, TrainingProgress};
-use crate::renderer::{MetricsRenderer, tui::NumericMetricsState};
+use crate::Interrupter;
+use crate::renderer::tui::TuiSplit;
+use crate::renderer::{
+    EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+    TrainingProgress,
+};
+use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use ratatui::{
     Terminal,
     crossterm::{
@@ -20,7 +24,7 @@ use std::{
 
 use super::{
     Callback, CallbackFn, ControlsView, MetricsView, PopupState, ProgressBarState, StatusState,
-    TextMetricsState,
+    TextMetricsState, TuiGroup, TuiTag,
 };
 
 /// The current terminal backend.
@@ -40,35 +44,44 @@ pub struct TuiMetricsRenderer {
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     status: StatusState,
-    interuptor: TrainingInterrupter,
+    interuptor: Interrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
     persistent: bool,
 }
 
+impl MetricsRendererEvaluation for TuiMetricsRenderer {
+    fn update_test(&mut self, name: EvaluationName, state: MetricState) {
+        self.update_metric(TuiSplit::Test, TuiGroup::Named(name.name), state);
+    }
+
+    fn render_test(&mut self, item: EvaluationProgress) {
+        self.progress.update_test(&item);
+        self.metrics_numeric.update_progress_test(&item);
+        self.status.update_test(item);
+        self.render().unwrap();
+    }
+}
+
 impl MetricsRenderer for TuiMetricsRenderer {
+    fn manual_close(&mut self) {
+        loop {
+            self.render().unwrap();
+            if self.interuptor.should_stop() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
+
+impl MetricsRendererTraining for TuiMetricsRenderer {
     fn update_train(&mut self, state: MetricState) {
-        match state {
-            MetricState::Generic(entry) => {
-                self.metrics_text.update_train(entry);
-            }
-            MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push_train(entry.name.clone(), value);
-                self.metrics_text.update_train(entry);
-            }
-        };
+        self.update_metric(TuiSplit::Train, TuiGroup::Default, state);
     }
 
     fn update_valid(&mut self, state: MetricState) {
-        match state {
-            MetricState::Generic(entry) => {
-                self.metrics_text.update_valid(entry);
-            }
-            MetricState::Numeric(entry, value) => {
-                self.metrics_numeric.push_valid(entry.name.clone(), value);
-                self.metrics_text.update_valid(entry);
-            }
-        };
+        self.update_metric(TuiSplit::Valid, TuiGroup::Default, state);
     }
 
     fn render_train(&mut self, item: TrainingProgress) {
@@ -86,13 +99,31 @@ impl MetricsRenderer for TuiMetricsRenderer {
     }
 
     fn on_train_end(&mut self) -> Result<(), Box<dyn Error>> {
-        self.reset()
+        // Reset for following steps.
+        self.interuptor.reset();
+        Ok(())
     }
 }
 
 impl TuiMetricsRenderer {
+    fn update_metric(&mut self, split: TuiSplit, group: TuiGroup, state: MetricState) {
+        match state {
+            MetricState::Generic(entry) => {
+                self.metrics_text.update(split, group, entry);
+            }
+            MetricState::Numeric(entry, value) => {
+                self.metrics_numeric.push(
+                    TuiTag::new(split, group.clone()),
+                    entry.name.clone(),
+                    value,
+                );
+                self.metrics_text.update(split, group, entry);
+            }
+        };
+    }
+
     /// Create a new terminal UI renderer.
-    pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
+    pub fn new(interuptor: Interrupter, checkpoint: Option<usize>) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -281,7 +312,7 @@ impl TuiMetricsRenderer {
     }
 }
 
-struct QuitPopupAccept(TrainingInterrupter);
+struct QuitPopupAccept(Interrupter);
 struct KillPopupAccept;
 struct PopupCancel;
 

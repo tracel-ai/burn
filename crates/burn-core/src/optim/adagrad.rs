@@ -13,7 +13,7 @@ use crate::tensor::{Tensor, backend::AutodiffBackend};
 use burn_tensor::{backend::Backend, ops::Device};
 
 /// AdaGrad configuration.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdaGradConfig {
     #[config(default = 0.)]
     lr_decay: f64,
@@ -156,17 +156,18 @@ mod tests {
     use burn_tensor::ops::FloatElem;
 
     use super::*;
+    use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
+    use crate::nn::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{TestAutodiffBackend, nn, nn::Linear};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adagrad_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let linear = LinearConfig::new(6, 6).init(&device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adagrad();
         let grads = linear.forward(x).backward();
@@ -279,16 +280,14 @@ mod tests {
         weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = nn::LinearRecord {
+        let record = LinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        nn::LinearConfig::new(6, 6)
-            .init(&device)
-            .load_record(record)
+        LinearConfig::new(6, 6).init(&device).load_record(record)
     }
 
     fn create_adagrad()

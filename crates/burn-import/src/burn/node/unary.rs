@@ -303,20 +303,32 @@ impl UnaryNode {
     }
 
     pub(crate) fn shape(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
-        let start_dim = start_dim.to_tokens();
-        let end_dim = end_dim.to_tokens();
+        let start_dim_tok = start_dim.to_tokens();
+        let end_dim_tok = end_dim.to_tokens();
 
-        let function = move |input| {
-            quote! {
-                #input.dims()[#start_dim..#end_dim]
-                    .iter()
-                    .map(|&x| x as i64)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
+        let function: Rc<dyn Fn(TokenStream) -> TokenStream> = match &input {
+            Type::Tensor(_) => Rc::new(move |input| {
+                quote! {
+                    #input.dims()[#start_dim_tok..#end_dim_tok]
+                        .iter()
+                        .map(|&x| x as i64)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                }
+            }),
+            Type::Shape(shape_type) => {
+                // If input is already a shape array [i64; N], the Shape operation
+                // returns the dimensionality of the shape (which is N) as a Shape(1) array
+                // This matches the ONNX semantics where Shape of a shape gives you the rank
+                let rank_value = shape_type.rank as i64;
+                Rc::new(move |_input| {
+                    quote! { [#rank_value] }
+                })
             }
+            _ => panic!("Shape operation only supports Tensor or Shape inputs"),
         };
-        Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
+        Self::new(input, output, UnaryNodeKind::Shape, function)
     }
 
     pub(crate) fn sign(input: Type, output: Type) -> Self {

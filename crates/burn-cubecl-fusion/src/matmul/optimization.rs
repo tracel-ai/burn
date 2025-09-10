@@ -29,6 +29,8 @@ use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelection
 use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
+use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
 use cubecl::matmul::{
     components::{LhsS, MatmulLineSizes, MatmulPrecision},
     kernels::layered::Algorithm,
@@ -76,6 +78,8 @@ pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MatmulVariants {
     pub(crate) simple_unit: FusedMatmul,
+    pub(crate) simple_vec_mat: FusedMatmul,
+    pub(crate) double_vec_mat: FusedMatmul,
     pub(crate) double_unit: FusedMatmul,
     pub(crate) simple: FusedMatmul,
     pub(crate) simple_multi_rows: FusedMatmul,
@@ -104,6 +108,8 @@ impl MatmulVariants {
 
         Self {
             simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_sizes.clone())),
+            simple_vec_mat: selector(FusedMatmulSelector::SimpleVecMat(line_sizes.clone())),
+            double_vec_mat: selector(FusedMatmulSelector::DoubleVecMat(line_sizes.clone())),
             double_unit: selector(FusedMatmulSelector::DoubleUnit(line_sizes)),
             simple: selector(FusedMatmulSelector::Simple),
             simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
@@ -269,6 +275,8 @@ pub enum FusedMatmulSelector {
     DoubleBuffering,
     Specialized,
     OrderedDoubleBuffering,
+    SimpleVecMat(LineSizeOverrides),
+    DoubleVecMat(LineSizeOverrides),
     SimpleUnit(LineSizeOverrides),
     DoubleUnit(LineSizeOverrides),
 }
@@ -551,6 +559,46 @@ impl FusedMatmul {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
+            FusedMatmulSelector::SimpleVecMat(..) => {
+                match launch_inner_fix_dtype::<R, EG, SimpleVecMatAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::DoubleVecMat(..) => {
+                match launch_inner_fix_dtype::<R, EG, DoubleVecMatAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
         }
     }
 }
@@ -613,9 +661,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     matmul: &FusedMatmul,
     trace: &FuseTrace,
 ) -> LineSizeOverrides {
-    let elem_lhs = matmul.lhs.precision().into_elem();
-    let elem_rhs = matmul.rhs.precision().into_elem();
-    let elem_out = matmul.out.precision().into_elem();
+    let elem_lhs = matmul.lhs.precision().into_type();
+    let elem_rhs = matmul.rhs.precision().into_type();
+    let elem_out = matmul.out.precision().into_type();
 
     let lhs_id = match &matmul.lhs {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
@@ -627,9 +675,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     };
 
     let available_line_sizes = AvailableLineSizes {
-        lhs: R::line_size_elem(&elem_lhs).collect(),
-        rhs: R::line_size_elem(&elem_rhs).collect(),
-        out: R::line_size_elem(&elem_out).collect(),
+        lhs: R::line_size_type(&elem_lhs).collect(),
+        rhs: R::line_size_type(&elem_rhs).collect(),
+        out: R::line_size_type(&elem_out).collect(),
     };
     let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 
@@ -647,6 +695,8 @@ pub(crate) trait MatmulVariantSelection {
 
 pub(crate) struct Simple;
 pub(crate) struct SimpleUnit;
+pub(crate) struct SimpleVecMat;
+pub(crate) struct DoubleVecMat;
 pub(crate) struct DoubleUnit;
 pub(crate) struct SimpleMultiRows;
 pub(crate) struct DoubleBuffering;
@@ -662,6 +712,18 @@ impl MatmulVariantSelection for Simple {
 impl MatmulVariantSelection for SimpleUnit {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple_unit
+    }
+}
+
+impl MatmulVariantSelection for SimpleVecMat {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_vec_mat
+    }
+}
+
+impl MatmulVariantSelection for DoubleVecMat {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_vec_mat
     }
 }
 

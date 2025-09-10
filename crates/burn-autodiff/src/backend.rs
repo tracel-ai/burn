@@ -34,7 +34,6 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
-    type QuantizedEncoding = B::QuantizedEncoding;
 
     fn ad_enabled() -> bool {
         true
@@ -44,8 +43,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         format!("autodiff<{}>", B::name(device))
     }
 
-    fn seed(seed: u64) {
-        B::seed(seed)
+    fn seed(device: &B::Device, seed: u64) {
+        B::seed(device, seed)
     }
 
     fn sync(device: &B::Device) {

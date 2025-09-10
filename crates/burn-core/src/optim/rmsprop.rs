@@ -13,7 +13,7 @@ use crate::tensor::{Tensor, backend::AutodiffBackend, ops::Device};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create the [RmsProp](RmsProp) optimizer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct RmsPropConfig {
     /// Smoothing constant.
     #[config(default = 0.99)]
@@ -319,10 +319,11 @@ mod tests {
     use burn_tensor::{Shape, Tolerance};
 
     use super::*;
+    use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
+    use crate::nn::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{TestAutodiffBackend, nn};
 
     type FT = FloatElem<TestAutodiffBackend>;
 
@@ -331,7 +332,7 @@ mod tests {
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let linear = LinearConfig::new(6, 6).init(&device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_rmsprop();
         let grads = linear.forward(x).backward();
@@ -530,16 +531,14 @@ mod tests {
         weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = nn::LinearRecord {
+        let record = LinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        nn::LinearConfig::new(6, 6)
-            .init(&device)
-            .load_record(record)
+        LinearConfig::new(6, 6).init(&device).load_record(record)
     }
 
     #[allow(dead_code)]
@@ -552,7 +551,7 @@ mod tests {
     }
 
     fn create_rmsprop()
-    -> OptimizerAdaptor<RmsProp, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    -> OptimizerAdaptor<RmsProp, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

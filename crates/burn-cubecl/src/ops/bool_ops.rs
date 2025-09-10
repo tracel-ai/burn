@@ -21,11 +21,11 @@ where
     }
 
     fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::zeros::<R, I>(shape, device)
+        numeric::zeros::<R, BT>(shape, device)
     }
 
     fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::ones::<R, I>(shape, device)
+        numeric::ones::<R, BT>(shape, device)
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {

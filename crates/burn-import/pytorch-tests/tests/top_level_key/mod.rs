@@ -7,7 +7,7 @@ pub struct Net<B: Backend> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::record::{FullPrecisionSettings, Recorder};
     use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
@@ -18,9 +18,10 @@ mod tests {
     #[should_panic]
     fn should_fail_if_not_found() {
         let device = Default::default();
-        let _record: NetRecord<Backend> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/top_level_key/top_level_key.pt".into(), &device)
-            .expect("Should decode state successfully");
+        let _record: NetRecord<TestBackend> =
+            PyTorchFileRecorder::<FullPrecisionSettings>::default()
+                .load("tests/top_level_key/top_level_key.pt".into(), &device)
+                .expect("Should decode state successfully");
     }
 
     #[test]
@@ -29,8 +30,9 @@ mod tests {
         let load_args = LoadArgs::new("tests/top_level_key/top_level_key.pt".into())
             .with_top_level_key("my_state_dict");
 
-        let _record: NetRecord<Backend> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(load_args, &device)
-            .expect("Should decode state successfully");
+        let _record: NetRecord<TestBackend> =
+            PyTorchFileRecorder::<FullPrecisionSettings>::default()
+                .load(load_args, &device)
+                .expect("Should decode state successfully");
     }
 }

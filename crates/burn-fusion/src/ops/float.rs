@@ -9,7 +9,8 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, ElementConversion, FloatDType, Shape, TensorData,
+    TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
@@ -76,7 +77,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct ZerosOps<B: FusionBackend> {
             out: TensorIr,
@@ -86,28 +87,26 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
-                let output = B::float_zeros(shape, &self.device);
+                let output = B::float_zeros(shape, &self.device, self.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.out.id, output);
             }
         }
 
+        let dtype = dtype.into();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims, B::FloatElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
 
         let desc = out.to_ir_out();
         client.register(
             OperationStreams::default(),
-            OperationIr::NumericFloat(
-                FloatElem::<Self>::dtype(),
-                NumericOperationIr::Zeros(desc.clone()),
-            ),
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Zeros(desc.clone())),
             ZerosOps::<B>::new(desc, device.clone()),
         );
 
         out
     }
 
-    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct OnesOps<B: FusionBackend> {
             out: TensorIr,
@@ -117,21 +116,19 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
-                let output = B::float_ones(shape, &self.device);
+                let output = B::float_ones(shape, &self.device, self.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.out.id, output);
             }
         }
 
+        let dtype = dtype.into();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims, B::FloatElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
 
         let desc = out.to_ir_out();
         client.register(
             OperationStreams::default(),
-            OperationIr::NumericFloat(
-                FloatElem::<Self>::dtype(),
-                NumericOperationIr::Ones(desc.clone()),
-            ),
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Ones(desc.clone())),
             OnesOps::<B>::new(desc, device.clone()),
         );
 
@@ -142,6 +139,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape: Shape,
         fill_value: FloatElem<Self>,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct FullOps<B: FusionBackend> {
@@ -154,21 +152,19 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output: B::FloatTensorPrimitive =
-                    B::float_full(shape, self.elem.elem(), &self.device);
+                    B::float_full(shape, self.elem.elem(), &self.device, self.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.out.id, output);
             }
         }
 
+        let dtype = dtype.into();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims, B::FloatElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
 
         let desc = (out.to_ir_out(), fill_value.elem::<f32>());
         client.register(
             OperationStreams::default(),
-            OperationIr::NumericFloat(
-                FloatElem::<Self>::dtype(),
-                NumericOperationIr::Full(desc.clone()),
-            ),
+            OperationIr::NumericFloat(dtype, NumericOperationIr::Full(desc.clone())),
             FullOps::<B>::new(desc.0, desc.1, device.clone()),
         );
 
@@ -236,7 +232,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
@@ -245,13 +241,17 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::float_empty(Shape::from(&self.desc.shape), &self.device);
+                let output = B::float_empty(
+                    Shape::from(&self.desc.shape),
+                    &self.device,
+                    self.desc.dtype.into(),
+                );
                 handles.register_float_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims.clone(), B::FloatElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims.clone(), dtype.into());
 
         let desc = out.to_ir_out();
 
@@ -613,6 +613,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
+        if tensor.shape == shape.dims {
+            return tensor;
+        }
+
         #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,

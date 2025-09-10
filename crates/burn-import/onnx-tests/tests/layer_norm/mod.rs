@@ -7,16 +7,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn layer_norm() {
         let device = Default::default();
-        let model: layer_norm::Model<Backend> = layer_norm::Model::default();
+        let model: layer_norm::Model<TestBackend> = layer_norm::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::from_floats(
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [
                 [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
                 [

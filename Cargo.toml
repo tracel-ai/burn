@@ -16,7 +16,8 @@ members = [
 
 exclude = [
     "examples/notebook",
-    "examples/raspberry-pi-pico", # will cause xtask issues otherwise
+    "examples/raspberry-pi-pico",        # will cause xtask issues otherwise
+    "crates/burn-import/model-checks/*", # exclude model checking crates from workspace
 ]
 
 [workspace.package]
@@ -27,6 +28,10 @@ version = "0.19.0"
 
 [workspace.lints.clippy]
 
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.4"
@@ -34,6 +39,7 @@ bytemuck = "1.23.2"
 bytes = "1"
 candle-core = { version = "0.9.1" }
 clap = { version = "4.5.44", features = ["derive"] }
+const-random = "0.1"
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
@@ -51,12 +57,13 @@ gix-tempfile = { version = "18.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.5"
 hound = "3.5.1"
-image = "0.25.6"
+image = "0.25.8"
 indicatif = "0.18.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
-log = { default-features = false, version = "0.4.27" }
+log = { default-features = false, version = "0.4.28" }
 paste = "1"
+planus = { version = "=1.1" }
 polars = { version = "0.49.1", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.101"
@@ -66,7 +73,7 @@ quote = "1.0.40"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = "1.11.1"
+regex = "1.11.2"
 reqwest = { version = "0.12.23", default-features = false, features = [
     "rustls-tls",
 ] }
@@ -87,6 +94,7 @@ spin = { version = "0.10.0", features = [
 ] }
 strum = { version = "0.27.2", features = ["derive"] }
 syn = { version = "2.0.106", features = ["full", "extra-traits"] }
+tar = "0.4.44"
 tempfile = "3.20.0"
 thiserror = "2.0.15"
 tokio = { version = "1.47.1", features = ["rt", "macros"] }
@@ -94,8 +102,8 @@ tokio-tungstenite = "0.26"
 tokio-util = "0.7"
 tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
-tracing-subscriber = "0.3.19"
-zip = "4.3.0"
+tracing-subscriber = "0.3.20"
+zip = "4.6.1"
 
 # Async handling
 async-channel = "2.5"
@@ -132,9 +140,7 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.12"
-rand = { version = "0.9.2", default-features = false, features = [
-    "std_rng",
-] } # std_rng is for no_std
+rand = { version = "0.9.2", default-features = false }
 rand_distr = { version = "0.5.1", default-features = false }
 serde = { version = "1.0.219", default-features = false, features = [
     "derive",
@@ -155,9 +161,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a744fabc4f26a1b6308e2070ee11b44f2bdb2118" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a744fabc4f26a1b6308e2070ee11b44f2bdb2118" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a744fabc4f26a1b6308e2070ee11b44f2bdb2118" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

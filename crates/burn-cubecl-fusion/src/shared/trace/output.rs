@@ -1,8 +1,8 @@
-use burn_common::tensor::{contiguous_strides, is_contiguous};
+use burn_common::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
-use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::Elem};
+use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 use crate::{
     CubeFusionHandle, elem_dtype,
@@ -436,7 +436,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
-        let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
+        let size = tensor_global.shape.iter().product::<usize>() * StorageType::from(dtype).size();
 
         let handle = CubeFusionHandle {
             client: client.clone(),
@@ -486,47 +486,59 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             _ => tensor_global.dtype,
         };
 
-        if is_contiguous(
+        let action = reshape_action(
             &original_handle.global_ir.shape,
             &original_handle.handle.strides,
-        ) {
-            block.writes.remove(&output.tensor_relative.id);
+            &tensor_global.shape,
+        );
 
-            let handle = CubeFusionHandle {
-                client: client.clone(),
-                handle: original_handle.handle.handle.clone(),
-                device: device.clone(),
-                strides,
-                dtype,
-                qparams: original_handle.handle.qparams.clone(),
-            };
-            context
-                .handles
-                .register_handle(tensor_global.id, handle.clone());
+        let update = match action {
+            ReshapeAction::UpdateStrides { strides } => Some(strides),
+            ReshapeAction::NoChange => Some(original_handle.handle.strides.clone()),
+            ReshapeAction::Recompute => None,
+        };
 
-            // IT will never be access, just a way to keep the original position working.
-            self.handles[output.pos_original] = Some(HandleOutput::Alias {
-                input_pos: pos_input,
-                precision: output.precision,
-                #[cfg(feature = "autotune-checks")]
-                debug_info: super::HandleOutputAliasDebugInfo {
-                    relative_id: output.tensor_relative.id,
-                    handle: handle.clone(),
-                    global_shape: tensor_global.shape.clone(),
-                },
-            });
-            self.globals[output.pos_original] = Some(tensor_global);
-        } else {
-            self.normal_output::<BT>(
-                client,
-                device,
-                context,
-                plan,
-                output,
-                tensor_global,
-                strides,
-                block_idx,
-            );
+        match update {
+            Some(strides) => {
+                block.writes.remove(&output.tensor_relative.id);
+
+                let handle = CubeFusionHandle {
+                    client: client.clone(),
+                    handle: original_handle.handle.handle.clone(),
+                    device: device.clone(),
+                    strides,
+                    dtype,
+                    qparams: original_handle.handle.qparams.clone(),
+                };
+                context
+                    .handles
+                    .register_handle(tensor_global.id, handle.clone());
+
+                // IT will never be access, just a way to keep the original position working.
+                self.handles[output.pos_original] = Some(HandleOutput::Alias {
+                    input_pos: pos_input,
+                    precision: output.precision,
+                    #[cfg(feature = "autotune-checks")]
+                    debug_info: super::HandleOutputAliasDebugInfo {
+                        relative_id: output.tensor_relative.id,
+                        handle: handle.clone(),
+                        global_shape: tensor_global.shape.clone(),
+                    },
+                });
+                self.globals[output.pos_original] = Some(tensor_global);
+            }
+            None => {
+                self.normal_output::<BT>(
+                    client,
+                    device,
+                    context,
+                    plan,
+                    output,
+                    tensor_global,
+                    strides,
+                    block_idx,
+                );
+            }
         }
     }
 
@@ -556,6 +568,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block.writes.remove(&output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
+
         let mut handle = CubeFusionHandle {
             client: client.clone(),
             handle: original_handle.handle.handle.clone(),

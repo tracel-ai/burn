@@ -9,7 +9,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::module::adaptive_avg_pool1d;
 
 /// Configuration to create a [1D adaptive avg pooling](AdaptiveAvgPool1d) layer using the [init function](AdaptiveAvgPool1dConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdaptiveAvgPool1dConfig {
     /// The size of the output.
     pub output_size: usize,

@@ -10,7 +10,7 @@ use burn::{
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {
     conv1: Conv2d<B>,
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
     fc1: Linear<B>,
     relu: Relu,
 }
@@ -40,7 +40,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::{
         record::{FullPrecisionSettings, Recorder},
@@ -57,14 +57,14 @@ mod tests {
             .load("tests/multi_layer/multi_layer.safetensors".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new(&device).load_record(record);
+        let model = Net::<TestBackend>::new(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::ones([1, 3, 8, 8], &device);
+        let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
 
         let output = model.forward(input);
 
         // Note: Expected values should be updated based on the actual output from the PyTorch model
-        let expected = Tensor::<Backend, 2>::from_data(
+        let expected = Tensor::<TestBackend, 2>::from_data(
             [[
                 0.04971555,
                 -0.16849735,

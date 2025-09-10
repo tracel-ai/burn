@@ -10,7 +10,7 @@ use burn::{
     train::{LearnerBuilder, metric::LossMetric},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExpConfig {
     #[config(default = 100)]
     pub num_epochs: usize,
@@ -40,7 +40,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
     let optimizer = AdamConfig::new();
     let config = ExpConfig::new(optimizer);
     let model = RegressionModelConfig::new().init(&device);
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Define train/valid datasets and dataloaders
     let train_dataset = HousingDataset::train();
@@ -82,6 +82,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .unwrap();
 
     model_trained
+        .model
         .save_file(
             format!("{artifact_dir}/model"),
             &NoStdTrainingRecorder::new(),

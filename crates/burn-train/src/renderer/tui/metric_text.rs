@@ -1,46 +1,71 @@
 use super::TerminalFrame;
-use crate::metric::MetricEntry;
+use crate::{
+    metric::{MetricEntry, MetricName},
+    renderer::tui::{TuiGroup, TuiSplit},
+};
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
-    data: HashMap<String, MetricData>,
-    names: Vec<String>,
+    data: BTreeMap<String, MetricGroup>,
+    names: Vec<MetricName>,
 }
 
-#[derive(new)]
-pub(crate) struct MetricData {
-    train: Option<MetricEntry>,
-    valid: Option<MetricEntry>,
+struct MetricGroup {
+    groups: BTreeMap<TuiGroup, MetricSplits>,
+}
+
+impl MetricGroup {
+    fn new(group: TuiGroup, metric: MetricSplits) -> Self {
+        Self {
+            groups: BTreeMap::from_iter(Some((group, metric))),
+        }
+    }
+    fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
+        match self.groups.get_mut(&group) {
+            Some(value) => value.update(split, metric),
+            None => {
+                let value = MetricSplits::new(split, metric);
+
+                self.groups.insert(group, value);
+            }
+        }
+    }
+}
+
+struct MetricSplits {
+    splits: BTreeMap<TuiSplit, MetricEntry>,
+}
+
+impl MetricSplits {
+    fn new(split: TuiSplit, metric: MetricEntry) -> Self {
+        Self {
+            splits: BTreeMap::from_iter(Some((split, metric))),
+        }
+    }
+
+    fn update(&mut self, split: TuiSplit, metric: MetricEntry) {
+        self.splits.insert(split, metric);
+    }
 }
 
 impl TextMetricsState {
-    pub(crate) fn update_train(&mut self, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(&metric.name) {
-            existing.train = Some(metric);
+    pub(crate) fn update(&mut self, split: TuiSplit, group: TuiGroup, metric: MetricEntry) {
+        if let Some(existing) = self.data.get_mut(metric.name.as_ref()) {
+            existing.update(split, group, metric);
         } else {
             let key = metric.name.clone();
-            let value = MetricData::new(Some(metric), None);
+            let value = MetricSplits::new(split, metric);
 
             self.names.push(key.clone());
-            self.data.insert(key, value);
-        }
-    }
-    pub(crate) fn update_valid(&mut self, metric: MetricEntry) {
-        if let Some(existing) = self.data.get_mut(&metric.name) {
-            existing.valid = Some(metric);
-        } else {
-            let key = metric.name.clone();
-            let value = MetricData::new(None, Some(metric));
-
-            self.names.push(key.clone());
-            self.data.insert(key, value);
+            self.data
+                .insert(key.to_string(), MetricGroup::new(group, value));
         }
     }
     pub(crate) fn view(&self) -> TextMetricView {
@@ -53,19 +78,13 @@ pub(crate) struct TextMetricView {
 }
 
 impl TextMetricView {
-    fn new(names: &[String], data: &HashMap<String, MetricData>) -> Self {
+    fn new(names: &[MetricName], data: &BTreeMap<String, MetricGroup>) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
 
         let start_line = |title: &str| vec![Span::from(format!(" {title} ")).bold().yellow()];
-        let train_line = |formatted: &str| {
+        let format_line = |group: &TuiGroup, split: &TuiSplit, formatted: &str| {
             vec![
-                Span::from("   Train ").bold(),
-                Span::from(formatted.to_string()).italic(),
-            ]
-        };
-        let valid_line = |formatted: &str| {
-            vec![
-                Span::from("   Valid ").bold(),
+                Span::from(format!(" {group}{split} ")).bold(),
                 Span::from(formatted.to_string()).italic(),
             ]
         };
@@ -73,14 +92,12 @@ impl TextMetricView {
         for name in names {
             lines.push(start_line(name));
 
-            let entry = data.get(name).unwrap();
+            let entry = data.get(name.as_ref()).unwrap();
 
-            if let Some(entry) = &entry.train {
-                lines.push(train_line(&entry.formatted));
-            }
-
-            if let Some(entry) = &entry.valid {
-                lines.push(valid_line(&entry.formatted));
+            for (name, group) in entry.groups.iter() {
+                for (split, entry) in group.splits.iter() {
+                    lines.push(format_line(name, split, &entry.formatted));
+                }
             }
 
             lines.push(vec![Span::from("")]);

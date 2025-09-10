@@ -128,8 +128,13 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
         let stride = format!("{:?}", self.stride);
         let kernel_size = format!("{:?}", self.kernel_size);
         let dilation = format!("{:?}", self.dilation);
-
+        let [channels_out, group_channels_in, _, _] = self.weight.dims();
+        let channels_in = group_channels_in * self.groups;
+        let ch_out = format!("{:?}", channels_out);
+        let ch_in = format!("{:?}", channels_in);
         content
+            .add("ch_in", &ch_in)
+            .add("ch_out", &ch_out)
             .add("stride", &stride)
             .add("kernel_size", &kernel_size)
             .add("dilation", &dilation)
@@ -145,9 +150,23 @@ impl<B: Backend> Conv2d<B> {
     /// See [conv2d](crate::tensor::module::conv2d) for more information.
     ///
     /// # Shapes
+    /// - `input`: `[batch_size, channels_in, height_in, width_in]`
+    /// - `output`: `[batch_size, channels_out, height_out, width_out]`
     ///
-    /// - input: `[batch_size, channels_in, height_in, width_in]`
-    /// - output: `[batch_size, channels_out, height_out, width_out]`
+    /// # Example
+    /// ```rust,ignore
+    /// use burn::nn::conv::Conv2dConfig;
+    /// use burn::tensor::Tensor;
+    ///
+    /// // Assuming backend type alias `B`
+    /// let device = Default::default();
+    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::<B>(&device);
+    ///
+    /// let x = Tensor::<B, 4>::zeros([1, 3, 28, 28], &device);
+    /// let y = conv.forward(x);
+    ///
+    /// println!("{:?}", y.dims()); // [1, 8, 26, 26]
+    /// ```
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
@@ -174,12 +193,12 @@ mod tests {
 
     #[test]
     fn initializer_default() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = (config.groups as f64 / k).sqrt().elem::<FT>();
-        let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -187,10 +206,10 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
-        let device = Default::default();
         let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
@@ -202,13 +221,14 @@ mod tests {
 
     #[test]
     fn initializer_fan_out() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true, // test that fan_out is passed to `init_with()`
         };
-        let device = Default::default();
+
         let config = Conv2dConfig::new([5, 1], [5, 5]).with_initializer(init.clone());
         let _ = config.init::<TestBackend>(&device);
 
@@ -217,13 +237,14 @@ mod tests {
 
     #[test]
     fn initializer_fan_with_groups_is_valid() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true,
         };
-        let device = Default::default();
+
         let config = Conv2dConfig::new([4, 4], [1, 1])
             .with_initializer(init.clone())
             .with_groups(4);
@@ -255,7 +276,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{conv}"),
-            "Conv2d {stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
+            "Conv2d {ch_in: 5, ch_out: 1, stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: Valid, params: 126}"
         );
     }
 

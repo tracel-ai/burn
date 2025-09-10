@@ -11,7 +11,7 @@ use burn_ir::{
     TensorIr, UnaryOpIr,
 };
 use burn_tensor::{DType, Element};
-use cubecl::ir::Elem;
+use cubecl::ir::ElemType;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
 ///
@@ -29,6 +29,18 @@ pub(crate) struct FuseOptimizationBuilder {
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
     max_bindings: u32,
+}
+
+impl FuseOptimizationBuilder {
+    pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
+        let len_previous = self.len();
+        let mut builder_cloned = self.clone();
+
+        builder_cloned.register(op);
+        let len_after = builder_cloned.len();
+
+        len_after > len_previous
+    }
 }
 
 impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
@@ -448,7 +460,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(1, precision);
 
@@ -465,7 +477,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(0, precision);
 
@@ -635,6 +647,7 @@ impl FuseOptimizationBuilder {
         }
 
         let mut updated = self.current_output_shape.clone();
+        let mut should_update = false;
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
@@ -657,6 +670,7 @@ impl FuseOptimizationBuilder {
 
             // Broadcasted on curr dim - update reference output shape.
             if curr == 0 && self.settings.output_shape_updates {
+                should_update = true;
                 updated[i] = new;
                 continue;
             }
@@ -664,11 +678,14 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        if updated != out.shape {
-            return false;
-        }
+        if should_update {
+            // For now forced to have exact shape.
+            if updated != out.shape {
+                return false;
+            }
 
-        self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape);
+        }
 
         true
     }

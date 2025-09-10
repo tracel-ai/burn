@@ -29,7 +29,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
@@ -39,12 +39,12 @@ mod tests {
 
     use super::*;
 
-    fn conv_transpose2d(record: NetRecord<Backend>, precision: f32) {
+    fn conv_transpose2d(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
 
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.024_595_8, 0.25883394], [0.93905586, 0.416_715_5]],
                 [[0.713_979_7, 0.267_644_3], [0.990_609, 0.28845078]],
@@ -54,7 +54,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [0.04547675, 0.01879685, -0.01636661, 0.00310803],

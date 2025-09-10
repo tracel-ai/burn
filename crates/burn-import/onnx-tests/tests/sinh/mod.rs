@@ -7,15 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn sinh() {
         let device = Default::default();
-        let model: sinh::Model<Backend> = sinh::Model::new(&device);
+        let model: sinh::Model<TestBackend> = sinh::Model::new(&device);
 
-        let input = Tensor::<Backend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
+        let input = Tensor::<TestBackend, 4>::from_floats([[[[-4.0, 0.5, 1.0, 9.0]]]], &device);
 
         let output = model.forward(input);
         let expected = TensorData::from([[[[-27.2899, 0.5211, 1.1752, 4051.5419]]]]);

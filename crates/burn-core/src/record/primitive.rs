@@ -155,7 +155,8 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        let (id, tensor) = self.consume();
+        let (id, tensor, mapper) = self.consume();
+        let tensor = mapper.on_save(tensor);
         ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
@@ -175,7 +176,8 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        let (id, tensor) = self.consume();
+        let (id, tensor, mapper) = self.consume();
+        let tensor = mapper.on_save(tensor);
         ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
@@ -194,7 +196,8 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        let (id, tensor) = self.consume();
+        let (id, tensor, mapper) = self.consume();
+        let tensor = mapper.on_save(tensor);
         ParamSerde::new(id.serialize(), tensor.into_item::<S>())
     }
 
@@ -255,6 +258,7 @@ primitive!(i8);
 /// deserializing arrays of variable size,
 /// see [serde/issues/1937](https://github.com/serde-rs/serde/issues/1937)
 /// for backward compatibility reasons. Serde APIs were created before const generics.
+#[derive(Clone)]
 pub struct Array<const N: usize, T>([T; N]);
 
 impl<T: Serialize, const N: usize> Serialize for Array<N, T> {

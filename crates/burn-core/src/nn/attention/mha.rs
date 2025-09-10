@@ -1,19 +1,21 @@
 use crate as burn;
 
 use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::Initializer;
+use crate::nn::activation::Gelu;
 use crate::nn::cache::TensorCache;
+use crate::nn::{Dropout, DropoutConfig, Initializer, Linear, LinearConfig};
 use crate::{
     config::Config,
-    nn,
-    tensor::{Bool, Tensor, activation, backend::Backend},
+    tensor::{Bool, Tensor, backend::Backend},
 };
 
+use burn_tensor::activation::{quiet_softmax, softmax};
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer using the [init function](MultiHeadAttentionConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MultiHeadAttentionConfig {
     /// The size of each linear layer.
     pub d_model: usize,
@@ -46,27 +48,27 @@ pub struct MultiHeadAttentionConfig {
 ///
 /// # Params
 ///
-/// - query: [Linear](nn::Linear) layer with `d_model` input and output features.
-/// - key: [Linear](nn::Linear) layer with `d_model` input and output features.
-/// - value: [Linear](nn::Linear) layer with `d_model` input and output features.
-/// - output: [Linear](nn::Linear) layer with `d_model` input and output features.
+/// - `query`: [`Linear`] layer with `d_model` input and output features.
+/// - `key`: [`Linear`] layer with `d_model` input and output features.
+/// - `value`: [`Linear`] layer with `d_model` input and output features.
+/// - `output`: [`Linear`] layer with `d_model` input and output features.
 ///
 /// Should be created with [MultiHeadAttentionConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct MultiHeadAttention<B: Backend> {
     /// Linear layer to transform the input features into the query space.
-    pub query: nn::Linear<B>,
+    pub query: Linear<B>,
     /// Linear layer to transform the input features into the key space.
-    pub key: nn::Linear<B>,
+    pub key: Linear<B>,
     /// Linear layer to transform the input features into the value space.
-    pub value: nn::Linear<B>,
+    pub value: Linear<B>,
     /// Linear layer to transform the output features back to the original space.
-    pub output: nn::Linear<B>,
+    pub output: Linear<B>,
     /// Dropout layer.
-    pub dropout: nn::Dropout,
+    pub dropout: Dropout,
     /// Activation function.
-    pub activation: nn::Gelu,
+    pub activation: Gelu,
     /// The size of each linear layer.
     pub d_model: usize,
     /// The number of heads.
@@ -115,7 +117,7 @@ impl MultiHeadAttentionConfig {
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> MultiHeadAttention<B> {
         let linear = |config: &Self| {
-            nn::LinearConfig::new(config.d_model, config.d_model)
+            LinearConfig::new(config.d_model, config.d_model)
                 .with_initializer(self.initializer.clone())
                 .init(device)
         };
@@ -125,8 +127,8 @@ impl MultiHeadAttentionConfig {
             key: linear(self),
             value: linear(self),
             output: linear(self),
-            dropout: nn::DropoutConfig::new(self.dropout).init(),
-            activation: nn::Gelu::new(),
+            dropout: DropoutConfig::new(self.dropout).init(),
+            activation: Gelu::new(),
             n_heads: self.n_heads,
             d_k: self.d_model / self.n_heads,
             min_float: self.min_float,
@@ -282,13 +284,13 @@ impl<B: Backend> MultiHeadAttention<B> {
         }
 
         if self.quiet_softmax {
-            activation::quiet_softmax(attn_scores, 3)
+            quiet_softmax(attn_scores, 3)
         } else {
-            activation::softmax(attn_scores, 3)
+            softmax(attn_scores, 3)
         }
     }
 
-    fn attention_linear(&self, x: Tensor<B, 3>, linear: &nn::Linear<B>) -> Tensor<B, 4> {
+    fn attention_linear(&self, x: Tensor<B, 3>, linear: &Linear<B>) -> Tensor<B, 4> {
         let [batch_size, seq_length, _d_model] = x.dims();
         linear
             .forward(x)

@@ -1,11 +1,16 @@
-use crate::{CubeRuntime, IntElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, IntElement,
+    kernel::utils::{linear_view, linear_view_alias},
+    ops::numeric::empty_device,
+    tensor::CubeTensor,
+};
 use burn_tensor::Shape;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::{index_offset_with_layout, layout::linear::LinearView},
     tensor_line_size_parallel,
 };
-
-use super::into_contiguous;
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int>: BinaryOpInt<C>;
@@ -80,11 +85,11 @@ impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
-    input: &Tensor<Line<C>>,
+    input: &LinearView<Line<C>>,
     scalar: C,
-    output: &mut Tensor<Line<C>>,
+    output: &mut LinearView<Line<C>, ReadWrite>,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
@@ -139,13 +144,13 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
 ) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let line_size_lhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &lhs.shape.dims,
         &lhs.strides,
         ndims - 1,
     );
     let line_size_rhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &rhs.shape.dims,
         &rhs.strides,
         ndims - 1,
@@ -223,17 +228,13 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
 }
 
 pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
-    mut tensor: CubeTensor<R>,
+    tensor: CubeTensor<R>,
     scalar: E,
 ) -> CubeTensor<R> {
-    if !tensor.is_contiguous_buffer() {
-        tensor = into_contiguous(tensor);
-    }
-
     // Vectorization is only enabled when the last dimension is contiguous.
     let ndims = tensor.shape.num_dims();
     let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
+        R::line_size_type(&E::as_type_native_unchecked()),
         &tensor.shape.dims,
         &tensor.strides,
         ndims - 1,
@@ -245,14 +246,14 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     unsafe {
-        if tensor.can_mut() {
+        if tensor.can_mut() && tensor.is_contiguous_buffer() {
             kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
+                linear_view(&tensor, &line_size),
                 ScalarArg::new(scalar),
-                TensorArg::alias(0),
+                linear_view_alias(&tensor, &line_size, 0),
             );
 
             tensor
@@ -267,9 +268,9 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
                 &client,
                 cube_count,
                 CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
+                linear_view(&tensor, &line_size),
                 ScalarArg::new(scalar),
-                output.as_tensor_arg::<E>(line_size),
+                linear_view(&output, &line_size),
             );
 
             output

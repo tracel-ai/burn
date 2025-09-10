@@ -15,16 +15,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn constant_of_shape() {
         // This tests shape is being passed directly to the model
         let device = Default::default();
-        let model = constant_of_shape::Model::<Backend>::new(&device);
+        let model = constant_of_shape::Model::<TestBackend>::new(&device);
         let input_shape = [2i64, 3i64, 2i64];
-        let expected = Tensor::<Backend, 3>::full([2, 3, 2], 1.125, &device).to_data();
+        let expected = Tensor::<TestBackend, 3>::full([2, 3, 2], 1.125, &device).to_data();
 
         let output = model.forward(input_shape);
 
@@ -37,11 +37,11 @@ mod tests {
     fn constant_of_shape_full_like() {
         // This tests shape is being passed from the input tensor
         let device = Default::default();
-        let model = constant_of_shape_full_like::Model::<Backend>::new(&device);
+        let model = constant_of_shape_full_like::Model::<TestBackend>::new(&device);
         let shape = [2, 3, 2];
-        let f_expected = Tensor::<Backend, 3>::full(shape, 3.0, &device);
-        let i_expected = Tensor::<Backend, 3, Int>::full(shape, 5, &device);
-        let b_expected = Tensor::<Backend, 3, Int>::ones(shape, &device).bool();
+        let f_expected = Tensor::<TestBackend, 3>::full(shape, 3.0, &device);
+        let i_expected = Tensor::<TestBackend, 3, Int>::full(shape, 5, &device);
+        let b_expected = Tensor::<TestBackend, 3, Int>::ones(shape, &device).bool();
 
         let input = Tensor::ones(shape, &device);
         let (f_output, i_output, b_output) = model.forward(input);
@@ -55,7 +55,7 @@ mod tests {
     fn constant_of_shape_scalar_test() {
         // Test scalar output case
         let device = Default::default();
-        let model = constant_of_shape_scalar::Model::<Backend>::new(&device);
+        let model = constant_of_shape_scalar::Model::<TestBackend>::new(&device);
 
         // Input is an empty shape (rank 0)
         let shape_input = [];
@@ -69,7 +69,7 @@ mod tests {
     fn constant_of_shape_scalar_custom_value_test() {
         // Test scalar output with custom value
         let device = Default::default();
-        let model = constant_of_shape_scalar_custom_value::Model::<Backend>::new(&device);
+        let model = constant_of_shape_scalar_custom_value::Model::<TestBackend>::new(&device);
 
         // Input is an empty shape (rank 0)
         let shape_input = [];
@@ -83,7 +83,7 @@ mod tests {
     fn constant_of_shape_tensor_test() {
         // Test tensor output case
         let device = Default::default();
-        let model = constant_of_shape_tensor::Model::<Backend>::new(&device);
+        let model = constant_of_shape_tensor::Model::<TestBackend>::new(&device);
 
         // Input is shape [2, 3]
         let shape_input = [2i64, 3i64];
@@ -91,7 +91,7 @@ mod tests {
 
         // Output should be a 2x3 tensor filled with 0.0 (default)
         assert_eq!(output.dims(), [2, 3]);
-        let expected = Tensor::<Backend, 2>::zeros([2, 3], &device);
+        let expected = Tensor::<TestBackend, 2>::zeros([2, 3], &device);
         output.to_data().assert_eq(&expected.to_data(), true);
     }
 
@@ -99,7 +99,7 @@ mod tests {
     fn constant_of_shape_shape_optimization_test() {
         // Test Shape(1) -> Shape(1) optimization with Int64
         let device = Default::default();
-        let model = constant_of_shape_shape_optimization::Model::<Backend>::new(&device);
+        let model = constant_of_shape_shape_optimization::Model::<TestBackend>::new(&device);
 
         // Input is Shape(1) with some dimension
         let shape_input = [3i64]; // Requesting a shape with 3 elements
@@ -115,14 +115,14 @@ mod tests {
         // This tests the constant lifting mechanism where the shape values
         // are known at compile time and embedded directly in the generated code
         let device = Default::default();
-        let model = constant_of_shape_with_constant_input::Model::<Backend>::new(&device);
+        let model = constant_of_shape_with_constant_input::Model::<TestBackend>::new(&device);
 
         // Model has no inputs - the shape [2, 3, 4] comes from a constant
         let output = model.forward();
 
         // Output should be a 2x3x4 tensor filled with 1 (as specified in the value attribute)
         assert_eq!(output.dims(), [2, 3, 4]);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 1i64, &device);
+        let expected = Tensor::<TestBackend, 3, Int>::full([2, 3, 4], 1i64, &device);
         output.to_data().assert_eq(&expected.to_data(), true);
     }
 }

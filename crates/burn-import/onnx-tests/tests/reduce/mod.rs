@@ -17,8 +17,8 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     // Helper function to assert scalar values with tolerance
     fn assert_scalar_approx_eq(actual: f32, expected: f32, tolerance: f64) {
@@ -35,10 +35,10 @@ mod tests {
     #[test]
     fn reduce_min() {
         let device = Default::default();
-        let model: reduce_min::Model<Backend> = reduce_min::Model::new(&device);
+        let model: reduce_min::Model<TestBackend> = reduce_min::Model::new(&device);
 
         // Run the models
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -66,10 +66,10 @@ mod tests {
     #[test]
     fn reduce_max() {
         let device = Default::default();
-        let model: reduce_max::Model<Backend> = reduce_max::Model::new(&device);
+        let model: reduce_max::Model<TestBackend> = reduce_max::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -97,10 +97,10 @@ mod tests {
     #[test]
     fn reduce_sum() {
         let device = Default::default();
-        let model: reduce_sum::Model<Backend> = reduce_sum::Model::new(&device);
+        let model: reduce_sum::Model<TestBackend> = reduce_sum::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -132,10 +132,10 @@ mod tests {
     #[test]
     fn reduce_prod() {
         let device = Default::default();
-        let model: reduce_prod::Model<Backend> = reduce_prod::Model::new(&device);
+        let model: reduce_prod::Model<TestBackend> = reduce_prod::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -163,10 +163,10 @@ mod tests {
     #[test]
     fn reduce_mean() {
         let device = Default::default();
-        let model: reduce_mean::Model<Backend> = reduce_mean::Model::new(&device);
+        let model: reduce_mean::Model<TestBackend> = reduce_mean::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -202,10 +202,10 @@ mod tests {
     #[test]
     fn reduce_sum_square() {
         let device = Default::default();
-        let model: reduce_sum_square::Model<Backend> = reduce_sum_square::Model::new(&device);
+        let model: reduce_sum_square::Model<TestBackend> = reduce_sum_square::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -246,10 +246,10 @@ mod tests {
     #[test]
     fn reduce_l1() {
         let device = Default::default();
-        let model: reduce_l1::Model<Backend> = reduce_l1::Model::new(&device);
+        let model: reduce_l1::Model<TestBackend> = reduce_l1::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, -4.0, 9.0, 25.0], //
                 [2.0, 5.0, -10.0, 26.0],
@@ -291,10 +291,10 @@ mod tests {
     #[test]
     fn reduce_l2() {
         let device = Default::default();
-        let model: reduce_l2::Model<Backend> = reduce_l2::Model::new(&device);
+        let model: reduce_l2::Model<TestBackend> = reduce_l2::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, -4.0, 9.0, 25.0], //
                 [2.0, 5.0, -10.0, 26.0],
@@ -335,10 +335,10 @@ mod tests {
     #[test]
     fn reduce_log_sum() {
         let device = Default::default();
-        let model: reduce_log_sum::Model<Backend> = reduce_log_sum::Model::new(&device);
+        let model: reduce_log_sum::Model<TestBackend> = reduce_log_sum::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],
@@ -379,10 +379,10 @@ mod tests {
     #[test]
     fn reduce_log_sum_exp() {
         let device = Default::default();
-        let model: reduce_log_sum_exp::Model<Backend> = reduce_log_sum_exp::Model::new(&device);
+        let model: reduce_log_sum_exp::Model<TestBackend> = reduce_log_sum_exp::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [[[
                 [1.0, 4.0, 9.0, 25.0], //
                 [2.0, 5.0, 10.0, 26.0],

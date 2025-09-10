@@ -4,8 +4,9 @@ use crate::components::{
 #[cfg(feature = "ddp")]
 use crate::ddp::DdpLearningStrategy;
 use crate::multi::MultiDeviceLearningStrategy;
+use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
-use crate::{Learner, LearningMethod, LearningStrategy};
+use crate::{Learner, LearnerSummary, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
@@ -105,6 +106,16 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
+/// The result of a training, containing the model along with the [renderer](MetricsRenderer).
+pub struct TrainingResult<M> {
+    /// The model trained.
+    pub model: M,
+    /// The renderer that can be used for follow up training and evaluation.
+    pub renderer: Box<dyn MetricsRenderer>,
+    /// A summary of the training.
+    pub summary: Option<LearnerSummary>,
+}
+
 impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.
     ///
@@ -120,7 +131,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
         self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::Model {
+    ) -> TrainingResult<LC::InnerModel> {
         log::info!("Fitting the model:\n {}", self.model);
 
         match &self.learning_strategy {

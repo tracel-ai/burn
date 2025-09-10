@@ -1,4 +1,5 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
+use burn_common::tensor::{ReshapeAction, reshape_action};
 use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
@@ -162,8 +163,19 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    // TODO: Not force standard layout all the time (improve performance).
+pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+    let analysis = reshape_action(&tensor.shape.dims, &tensor.strides, &shape.dims);
+
+    match analysis {
+        ReshapeAction::UpdateStrides { strides } => {
+            tensor.shape = shape;
+            tensor.strides = strides;
+            return tensor;
+        }
+        ReshapeAction::NoChange => return tensor,
+        ReshapeAction::Recompute => (),
+    }
+
     let tensor = kernel::into_contiguous(tensor);
 
     let mut out = CubeTensor::new_contiguous(

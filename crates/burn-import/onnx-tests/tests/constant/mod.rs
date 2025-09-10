@@ -6,7 +6,8 @@ include_models!(
     constant_i32,
     constant_i64,
     constant_shape,
-    rank_inference_propagation
+    rank_inference_propagation,
+    shape_binary_ops_with_constant
 );
 
 #[cfg(test)]
@@ -14,14 +15,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn add_constant_f32() {
         let device = Default::default();
-        let model = constant_f32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_f32::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -31,9 +32,9 @@ mod tests {
     #[test]
     fn add_constant_f64() {
         let device = Default::default();
-        let model = constant_f64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_f64::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -43,9 +44,9 @@ mod tests {
     #[test]
     fn add_constant_i32() {
         let device = Default::default();
-        let model = constant_i32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_i32::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -55,9 +56,9 @@ mod tests {
     #[test]
     fn add_constant_i64() {
         let device = Default::default();
-        let model = constant_i64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
+        let model = constant_i64::Model::<TestBackend>::new(&device);
+        let input = Tensor::<TestBackend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let expected = Tensor::<TestBackend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
 
         let output = model.forward(input);
 
@@ -67,10 +68,10 @@ mod tests {
     #[test]
     fn constant_shape() {
         let device = Default::default();
-        let model = constant_shape::Model::<Backend>::new(&device);
+        let model = constant_shape::Model::<TestBackend>::new(&device);
 
         // Create input tensor with shape [2, 4, 6]
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 4, 6]), &device);
+        let input = Tensor::<TestBackend, 3>::zeros(Shape::from([2, 4, 6]), &device);
 
         // The model tests Shape operations with constants
         // Input shape: [2, 4, 6]
@@ -113,10 +114,10 @@ mod tests {
         // This should succeed with our fix
         // Without the fix, this would panic during model creation with:
         // "Concat axis 2 is out of bounds for rank 2"
-        let model = rank_inference_propagation::Model::<Backend>::new(&device);
+        let model = rank_inference_propagation::Model::<TestBackend>::new(&device);
 
         // Create a 3D input tensor (batch=2, sequence=4, features=384)
-        let input = Tensor::<Backend, 3>::ones([2, 4, 384], &device);
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 384], &device);
 
         // Run the model
         let output = model.forward(input);
@@ -144,5 +145,36 @@ mod tests {
             2 * 4 * 128,
             "Total elements should match concat output"
         );
+    }
+
+    #[test]
+    fn shape_binary_ops_with_constant() {
+        // Test that constant tensors are properly converted to Shape type
+        // when used in binary operations (add/sub/mul/div) with Shape inputs.
+        // This specifically tests the propagation case where a Shape type
+        // is propagated through the graph and constants need to be converted
+        // during propagation (not just during initial conversion).
+        //
+        // Without the fix, constants wouldn't be converted to Shape during
+        // propagation, causing type mismatches in binary operations.
+
+        let device = Default::default();
+        let model = shape_binary_ops_with_constant::Model::<TestBackend>::new(&device);
+
+        // Create input tensor with shape [2, 8, 3]
+        let input = Tensor::<TestBackend, 3>::ones(Shape::from([2, 8, 3]), &device);
+
+        // Run the model
+        let output = model.forward(input);
+
+        // The model performs on shape [2, 8, 3]:
+        // 1. Add [10, 20, 30]: [2+10, 8+20, 3+30] = [12, 28, 33]
+        // 2. Divide by [2, 2, 2]: [12/2, 28/2, 33/2] = [6, 14, 16]
+        // 3. Subtract [3, 4, 5]: [6-3, 14-4, 16-5] = [3, 10, 11]
+        // 4. Multiply by [4, 5, 6]: [3*4, 10*5, 11*6] = [12, 50, 66]
+
+        assert_eq!(output[0], 12, "First element should be 12");
+        assert_eq!(output[1], 50, "Second element should be 50");
+        assert_eq!(output[2], 66, "Third element should be 66");
     }
 }

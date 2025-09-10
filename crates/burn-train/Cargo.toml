@@ -20,7 +20,7 @@ doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 # Distributed Data Parallel
-ddp = ["burn-collective"]
+ddp = ["burn-collective", "burn-core/collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", features = [
@@ -40,7 +40,10 @@ sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }
 
 # Text UI
-ratatui = { workspace = true, optional = true, features = ["all-widgets", "crossterm"] }
+ratatui = { workspace = true, optional = true, features = [
+    "all-widgets",
+    "crossterm",
+] }
 
 # Utilities
 derive-new = { workspace = true }

@@ -31,7 +31,9 @@ mod tests {
     }
 
     fn select_assign_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let tensor =
             Tensor::<TestBackend, D>::random(shape, Distribution::Default, &Default::default());
         let value =

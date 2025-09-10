@@ -8,14 +8,14 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn dropout() {
-        let model: dropout::Model<Backend> = dropout::Model::default();
+        let model: dropout::Model<TestBackend> = dropout::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &Default::default());
 
         let output = model.forward(input);
 

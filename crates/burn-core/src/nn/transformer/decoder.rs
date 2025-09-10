@@ -18,7 +18,7 @@ use crate::{
 };
 
 /// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TransformerDecoderConfig {
     /// The size of the model.
     pub d_model: usize,
@@ -466,7 +466,8 @@ mod tests {
     #[test]
     fn test_autoregressive_norm_last() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers)
@@ -477,7 +478,8 @@ mod tests {
     #[test]
     fn test_autoregressive_norm_first() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers).with_norm_first(true),

@@ -4,7 +4,7 @@ use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
     Runtime,
-    ir::{Elem, UIntKind},
+    ir::{ElemType, StorageType, UIntKind},
 };
 use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
 
@@ -77,11 +77,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             TensorView::Reshape { .. } => None,
         });
 
-        let mut ref_elem = (Elem::UInt(UIntKind::U64), 8);
+        let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
         let mut quants_line_sizes: Option<Vec<u8>> = None;
 
         for input in plan.handle_inputs.iter() {
-            let elem: Elem = match input {
+            let elem: StorageType = match input {
                 HandleInput::Normal(h) => h.global_ir.dtype.into(),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_tensor::DType::QFloat(scheme) => {
@@ -99,7 +99,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: Elem = r.dtype.into();
+            let elem: StorageType = r.dtype.into();
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
@@ -122,7 +122,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // Quantization normally triggers higher vectorization than anything else, no need to
             // compare to ref elem.
             Some(line_sizes) => line_sizes,
-            None => R::line_size_elem(&ref_elem.0).collect::<Vec<u8>>(),
+            None => R::line_size_type(&ref_elem.0).collect::<Vec<u8>>(),
         };
 
         runner.vectorization(
@@ -316,9 +316,9 @@ fn apply_vectorization_block<R: Runtime>(
 fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
     match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::QInt8 => {
-                let line_sizes =
-                    R::line_size_elem(&Elem::Int(cubecl::ir::IntKind::I8)).collect::<Vec<u8>>();
+            QuantValue::Q8F | QuantValue::Q8S => {
+                let line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I8).into())
+                    .collect::<Vec<u8>>();
 
                 match &quants_line_sizes {
                     Some(sizes) => {
@@ -331,10 +331,13 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
                     }
                 }
             }
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                unreachable!("Can't store native sub-byte values")
+            }
         },
         QuantStore::U32 => {
-            let mut line_sizes =
-                R::line_size_elem(&Elem::Int(cubecl::ir::IntKind::I32)).collect::<Vec<u8>>();
+            let mut line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I32).into())
+                .collect::<Vec<u8>>();
             for val in line_sizes.iter_mut() {
                 *val *= scheme.num_quants() as u8;
             }

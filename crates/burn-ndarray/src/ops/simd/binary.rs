@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, slice};
 
-use burn_tensor::{Element, TensorMetadata};
+use burn_tensor::Element;
 use macerator::{
     Scalar, Simd, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VMul, VOrd, VSub, Vector, vload_unaligned,
     vstore_unaligned,
@@ -8,7 +8,7 @@ use macerator::{
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, SharedArray, ops::simd::uninit_array_like};
 
 use super::{
     MinMax,
@@ -165,26 +165,26 @@ pub fn try_binary_simd<
     Out: NdArrayElement + Scalar,
     Op: SimdBinop<T, Out>,
 >(
-    lhs: NdArrayTensor<E>,
-    rhs: NdArrayTensor<E>,
-) -> Result<NdArrayTensor<EOut>, (NdArrayTensor<E>, NdArrayTensor<E>)> {
-    let lhs_len = lhs.array.len();
-    let rhs_len = rhs.array.len();
+    lhs: SharedArray<E>,
+    rhs: SharedArray<E>,
+) -> Result<SharedArray<EOut>, (SharedArray<E>, SharedArray<E>)> {
+    let lhs_len = lhs.len();
+    let rhs_len = rhs.len();
     if !should_use_simd(lhs_len.max(rhs_len))
-        || !lhs.array.is_standard_layout()
-        || !rhs.array.is_standard_layout()
+        || !lhs.is_standard_layout()
+        || !rhs.is_standard_layout()
         || lhs.shape() != rhs.shape()
         || !is_accelerated::<T, Out, Op>(PhantomData)
     {
         return Err((lhs, rhs));
     }
     // Used to assert traits based on the dynamic `DType`.
-    let lhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(lhs) };
-    let rhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(rhs) };
+    let lhs = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(lhs) };
+    let rhs = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(rhs) };
     let out = binary_simd_same::<T, Out, Op>(lhs, rhs);
 
     // Used to assert traits based on the dynamic `DType`.
-    let out = unsafe { core::mem::transmute::<NdArrayTensor<Out>, NdArrayTensor<EOut>>(out) };
+    let out = unsafe { core::mem::transmute::<SharedArray<Out>, SharedArray<EOut>>(out) };
     Ok(out)
 }
 
@@ -193,34 +193,34 @@ fn binary_simd_same<
     Out: NdArrayElement + Scalar,
     Op: SimdBinop<T, Out>,
 >(
-    lhs: NdArrayTensor<T>,
-    rhs: NdArrayTensor<T>,
-) -> NdArrayTensor<Out> {
-    let out = if lhs.array.is_unique() {
-        let mut buf = lhs.array.into_owned();
+    lhs: SharedArray<T>,
+    rhs: SharedArray<T>,
+) -> SharedArray<Out> {
+    let out = if lhs.is_unique() {
+        let mut buf = lhs.into_owned();
         let lhs = buf.as_slice_mut().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
+        let rhs = rhs.as_slice().unwrap();
         let out =
             unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(unsafe_alias_slice_mut(lhs)) };
         binary(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buf) }
-    } else if rhs.array.is_unique() {
-        let mut buf = rhs.array.into_owned();
-        let lhs = lhs.array.as_slice().unwrap();
+    } else if rhs.is_unique() {
+        let mut buf = rhs.into_owned();
+        let lhs = lhs.as_slice().unwrap();
         let rhs = buf.as_slice_mut().unwrap();
         let out =
             unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(unsafe_alias_slice_mut(rhs)) };
         binary(lhs, rhs, out, PhantomData::<Op>);
         unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buf) }
     } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
-        let lhs = lhs.array.as_slice().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
+        let mut out = uninit_array_like(&lhs);
+        let lhs = lhs.as_slice().unwrap();
+        let rhs = rhs.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
         binary(lhs, rhs, out_slice, PhantomData::<Op>);
         out
     };
-    NdArrayTensor::new(out.into_shared())
+    out.into_shared()
 }
 
 #[allow(clippy::erasing_op, clippy::identity_op)]
