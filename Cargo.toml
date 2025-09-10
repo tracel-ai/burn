@@ -174,7 +174,4 @@ cubecl-quant = { path = "../cubecl/crates/cubecl-quant", default-features = fals
 tracel-xtask = { version = "2.1.7" }
 
 [profile.dev]
-debug = 1 # Speed up compilation time and not necessary.
-
-[profile.release]
-debug = 1
+debug = 0 # Speed up compilation time and not necessary.
