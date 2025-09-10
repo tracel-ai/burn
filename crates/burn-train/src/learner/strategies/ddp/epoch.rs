@@ -84,6 +84,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
         mut model: LC::Model,
