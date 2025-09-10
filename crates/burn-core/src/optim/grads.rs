@@ -123,7 +123,8 @@ impl GradientsParams {
         let mut ids = self
             .container
             .ids()
-            .into_iter().copied()
+            .into_iter()
+            .copied()
             .collect::<Vec<ParamId>>();
         // This is crucial, since the all-reduce operations need to happen in the same order for the same parameters on all nodes!
         ids.sort();

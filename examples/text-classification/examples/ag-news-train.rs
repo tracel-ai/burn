@@ -134,14 +134,14 @@ mod cuda {
     };
 
     pub fn run() {
-        let gpu0 = CudaDevice::new(0);
-        let gpu1 = CudaDevice::new(1);
-        let gpu2 = CudaDevice::new(2);
-        let gpu3 = CudaDevice::new(3);
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
-            gpu0, gpu1,
-            // gpu2, gpu3,
-        ]);
+        let type_id = 0;
+        let num_devices = B::Device::device_count(type_id);
+
+        let devices = (0..num_devices)
+            .map(|i| CudaDevice::new(i as usize))
+            .collect();
+
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(devices);
     }
 }
 
