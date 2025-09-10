@@ -28,6 +28,10 @@ version = "0.19.0"
 
 [workspace.lints.clippy]
 
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.4"

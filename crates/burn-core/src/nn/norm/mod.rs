@@ -2,11 +2,11 @@
 //!
 //! Users who wish to provide an abstraction over swappable normalization
 //! layers can use the [`Normalization`] wrapper, with support for:
-//! * [`Batch`] - [`BatchNorm`]
-//! * [`Group`] - [`GroupNorm`]
-//! * [`Instance`] - [`InstanceNorm`]
-//! * [`Layer`] - [`LayerNorm`]
-//! * [`Rms`] - [`RmsNorm`]
+//! * [`Normalization::Batch`] - [`BatchNorm`]
+//! * [`Normalization::Group`] - [`GroupNorm`]
+//! * [`Normalization::Instance`] - [`InstanceNorm`]
+//! * [`Normalization::Layer`] - [`LayerNorm`]
+//! * [`Normalization::Rms`] - [`RmsNorm`]
 //!
 //! [`NormalizationConfig`] can be used as a generic normalization policy:
 //! * Construct a config with arbitrary input features (we suggest `0`).
