@@ -148,7 +148,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     /// Starts the local collective server thread
     pub(crate) fn start() -> LocalCollectiveClient<B> {
-        println!("Start a new local collective server");
         let (sender, rec) = std::sync::mpsc::sync_channel::<Message<B>>(50);
 
         let runtime = get_server_runtime();
@@ -222,7 +221,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_finish_message(&mut self, id: PeerId, callback: SyncSender<RegisterResult>) {
-        println!("Process finish {id:?}");
         if !self.peers.contains(&id) {
             callback
                 .send(Err(CollectiveError::MultipleUnregister))
@@ -261,7 +259,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
             return Err(CollectiveError::RegisterParamsMismatch);
         }
 
-        println!("Add peers {device_id:?} => {:?}", self.peers);
         self.peers.push(device_id);
         self.callbacks_register.push(callback.clone());
         self.devices.insert(device_id, device);
@@ -279,7 +276,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
         // All have registered, callback
         if self.peers.len() == config.num_devices {
             let mut register_result = Ok(());
-            println!("All peers registered {:?}", self.peers);
 
             // if an error occurs on the global register, it must be passed back to every local peer
             if let Some(global_params) = global_params {
@@ -312,10 +308,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&peer_id) {
-            println!(
-                "All reduce: Don't have peer {peer_id:?}, got {:?}",
-                self.peers
-            );
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -359,7 +351,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&peer_id) {
-            println!("Don't have peer {peer_id:?}, got {:?}", self.peers);
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -406,7 +397,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     ) {
         if !self.peers.contains(&caller) {
-            println!("Don't have peer {caller:?}, got {:?}", self.peers);
             callback
                 .send(Err(CollectiveError::RegisterNotFirstOperation))
                 .unwrap();
@@ -443,7 +433,6 @@ impl<B: Backend> LocalCollectiveServer<B> {
 
     // Reinitializes the collective server
     fn reset(&mut self) {
-        println!("Reset");
         self.peers.clear();
         self.all_reduce_op = None;
         self.reduce_op = None;
