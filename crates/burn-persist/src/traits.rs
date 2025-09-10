@@ -1,10 +1,8 @@
 use alloc::vec::Vec;
 
-use super::{
-    TensorViewCollector,
-    applier::{ApplyResult, TensorApplier},
-};
-use crate::{PathFilter, TensorView};
+use super::applier::{ApplyResult, TensorApplier};
+use crate::collector::TensorSnapshotCollector;
+use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::Module;
 use burn_tensor::backend::Backend;
 
@@ -16,10 +14,10 @@ use burn_tensor::backend::Backend;
 pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// Collects tensor views for inspection without copying data.
     ///
-    /// Returns a vector of `TensorView` objects that can lazily materialize the tensor data.
-    /// Each `TensorView` contains the full path accessible via `view.full_path()`.
-    fn collect(&self) -> Vec<TensorView> {
-        let mut collector = TensorViewCollector::new();
+    /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
+    /// Each `TensorSnapshot` contains the full path accessible via `view.full_path()`.
+    fn collect(&self) -> Vec<TensorSnapshot> {
+        let mut collector = TensorSnapshotCollector::new();
         self.visit(&mut collector);
         collector.tensors
     }
@@ -32,27 +30,27 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `filter` - A [`PathFilter`] to determine which tensors to collect
-    fn collect_with_filter(&self, filter: PathFilter) -> Vec<TensorView> {
-        let mut collector = TensorViewCollector::with_filter(filter);
+    fn collect_with_filter(&self, filter: PathFilter) -> Vec<TensorSnapshot> {
+        let mut collector = TensorSnapshotCollector::with_filter(filter);
         self.visit(&mut collector);
         collector.tensors
     }
 
     /// Applies tensor views directly to the module.
     ///
-    /// This is the primary apply method that applies tensor data from `TensorView`s
+    /// This is the primary apply method that applies tensor data from `TensorSnapshot`s
     /// to the corresponding tensors in the module. The views are typically obtained
     /// from `collect()`.
     ///
     /// # Arguments
     ///
-    /// * `views` - A vector of TensorView objects
+    /// * `views` - A vector of TensorSnapshot objects
     ///
     /// # Returns
     ///
     /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    fn apply(&mut self, views: Vec<TensorView>) -> ApplyResult {
+    fn apply(&mut self, views: Vec<TensorSnapshot>) -> ApplyResult {
         let mut applier = TensorApplier::new(views);
         *self = self.clone().map(&mut applier);
         applier.into_result()
@@ -64,7 +62,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///
     /// # Arguments
     ///
-    /// * `views` - A vector of TensorView objects
+    /// * `views` - A vector of TensorSnapshot objects
     /// * `filter` - A [`PathFilter`] to determine which tensors to apply
     ///
     /// # Examples
@@ -83,7 +81,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     ///     .with_full_path("head.weight");
     /// let result = model.apply_with_filter(views, filter);
     /// ```
-    fn apply_with_filter(&mut self, views: Vec<TensorView>, filter: PathFilter) -> ApplyResult {
+    fn apply_with_filter(&mut self, views: Vec<TensorSnapshot>, filter: PathFilter) -> ApplyResult {
         let mut applier = TensorApplier::with_filter(views, filter);
         *self = self.clone().map(&mut applier);
         applier.into_result()

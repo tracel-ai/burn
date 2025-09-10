@@ -2,7 +2,7 @@
 
 use crate::{
     Adapter, ApplyResult, IdentityAdapter, KeyRemapper, ModulePersist, ModulePersister, PathFilter,
-    TensorView,
+    TensorSnapshot,
 };
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
@@ -265,10 +265,10 @@ impl MemoryPersister {
     }
 }
 
-// Adapter to use TensorView directly with safetensors
-struct TensorViewAdapter(TensorView);
+// Adapter to use TensorSnapshot directly with safetensors
+struct TensorSnapshotAdapter(TensorSnapshot);
 
-impl safetensors::View for TensorViewAdapter {
+impl safetensors::View for TensorSnapshotAdapter {
     fn dtype(&self) -> safetensors::Dtype {
         // Convert from burn dtype to safetensors dtype
         dtype_to_safetensors(self.0.dtype).unwrap_or(safetensors::Dtype::F32)
@@ -285,7 +285,7 @@ impl safetensors::View for TensorViewAdapter {
     }
 
     fn data_len(&self) -> usize {
-        // Use the efficient data_len method from TensorView
+        // Use the efficient data_len method from TensorSnapshot
         self.0.data_len()
     }
 }
@@ -463,7 +463,7 @@ impl SafetensorsPersister {
 }
 
 /// Apply filter to tensor views.
-fn apply_filter(mut views: Vec<TensorView>, filter: &PathFilter) -> Vec<TensorView> {
+fn apply_filter(mut views: Vec<TensorSnapshot>, filter: &PathFilter) -> Vec<TensorSnapshot> {
     if filter.is_empty() {
         return views;
     }
@@ -478,7 +478,7 @@ fn apply_filter(mut views: Vec<TensorView>, filter: &PathFilter) -> Vec<TensorVi
 
 /// Apply remapping to tensor views.
 #[cfg(target_has_atomic = "ptr")]
-fn apply_remapping(views: Vec<TensorView>, remapper: &KeyRemapper) -> Vec<TensorView> {
+fn apply_remapping(views: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Vec<TensorSnapshot> {
     if remapper.is_empty() {
         return views;
     }
@@ -487,33 +487,33 @@ fn apply_remapping(views: Vec<TensorView>, remapper: &KeyRemapper) -> Vec<Tensor
     remapped
 }
 
-/// Convert TensorViews to safetensors format lazily.
+/// Convert TensorSnapshots to safetensors format lazily.
 fn views_to_safetensors(
-    views: Vec<TensorView>,
-) -> Result<Vec<(String, TensorViewAdapter)>, SafetensorsError> {
+    views: Vec<TensorSnapshot>,
+) -> Result<Vec<(String, TensorSnapshotAdapter)>, SafetensorsError> {
     let mut tensors = Vec::new();
 
     for view in views {
         let name = view.full_path();
-        // No need to materialize data - TensorView now has dtype and shape cached!
-        tensors.push((name, TensorViewAdapter(view)));
+        // No need to materialize data - TensorSnapshot now has dtype and shape cached!
+        tensors.push((name, TensorSnapshotAdapter(view)));
     }
 
     Ok(tensors)
 }
 
-/// Convert safetensors to TensorViews with lazy loading.
+/// Convert safetensors to TensorSnapshots with lazy loading.
 fn safetensors_to_views_lazy(
     data_arc: alloc::sync::Arc<Vec<u8>>,
-) -> Result<Vec<TensorView>, SafetensorsError> {
+) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
     // Parse to get metadata
     let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
     let mut views = Vec::new();
 
-    for (name, tensor_view) in tensors.tensors() {
+    for (name, tensor_snapshot) in tensors.tensors() {
         // Extract metadata without materializing data
-        let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
-        let shape = tensor_view.shape().to_vec();
+        let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
+        let shape = tensor_snapshot.shape().to_vec();
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that will deserialize only this tensor when needed
@@ -536,7 +536,7 @@ fn safetensors_to_views_lazy(
             }
         });
 
-        let view = TensorView::from_closure(
+        let view = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape,
@@ -550,12 +550,12 @@ fn safetensors_to_views_lazy(
     Ok(views)
 }
 
-/// Convert safetensors to TensorViews with true on-demand loading from file.
+/// Convert safetensors to TensorSnapshots with true on-demand loading from file.
 /// This reads only the header initially, then loads tensor data on demand.
 #[cfg(feature = "std")]
 fn safetensors_to_views_lazy_file(
     path: &std::path::Path,
-) -> Result<Vec<TensorView>, SafetensorsError> {
+) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
     use alloc::sync::Arc;
 
     // Always use memory mapping for the most efficient access
@@ -570,9 +570,9 @@ fn safetensors_to_views_lazy_file(
     let tensors = safetensors::SafeTensors::deserialize(&mmap_arc)?;
     let mut views = Vec::new();
 
-    for (name, tensor_view) in tensors.tensors() {
-        let dtype = safetensor_dtype_to_burn(tensor_view.dtype())?;
-        let shape = tensor_view.shape().to_vec();
+    for (name, tensor_snapshot) in tensors.tensors() {
+        let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
+        let shape = tensor_snapshot.shape().to_vec();
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that accesses the mmap'd data
@@ -593,7 +593,7 @@ fn safetensors_to_views_lazy_file(
             }
         });
 
-        let view = TensorView::from_closure(
+        let view = TensorSnapshot::from_closure(
             data_fn,
             dtype,
             shape,

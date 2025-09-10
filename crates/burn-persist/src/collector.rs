@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::{PathFilter, TensorView};
+use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::{ModuleVisitor, ParamId};
 
 /// Collects tensor views from modules without copying data.
@@ -15,14 +15,14 @@ use burn_core::module::{ModuleVisitor, ParamId};
 ///
 /// ## Collect all tensors
 /// ```ignore
-/// let collector = TensorViewCollector::new();
+/// let collector = TensorSnapshotCollector::new();
 /// module.visit(&mut collector);
 /// let all_tensors = collector.tensors;
 /// ```
 ///
 /// ## Filter with single pattern
 /// ```ignore
-/// let collector = TensorViewCollector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
+/// let collector = TensorSnapshotCollector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
 /// module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
@@ -32,25 +32,25 @@ use burn_core::module::{ModuleVisitor, ParamId};
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
 ///     .with_regex(r".*\.bias$");    // OR match any bias tensors
-/// let collector = TensorViewCollector::with_filter(filter);
+/// let collector = TensorSnapshotCollector::with_filter(filter);
 /// module.visit(&mut collector);
 /// // Collects tensors matching ANY of the patterns
 /// ```
-pub struct TensorViewCollector {
+pub struct TensorSnapshotCollector {
     /// Collection of tensor views
-    pub tensors: Vec<TensorView>,
+    pub tensors: Vec<TensorSnapshot>,
     path_stack: Vec<String>,
     container_stack: Vec<String>,
     filter: Option<PathFilter>,
 }
 
-impl Default for TensorViewCollector {
+impl Default for TensorSnapshotCollector {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TensorViewCollector {
+impl TensorSnapshotCollector {
     /// Create a new tensor view collector that collects all tensors.
     pub fn new() -> Self {
         Self {
@@ -74,7 +74,7 @@ impl TensorViewCollector {
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = TensorViewCollector::with_filter(filter);
+    /// let collector = TensorSnapshotCollector::with_filter(filter);
     /// ```
     pub fn with_filter(filter: PathFilter) -> Self {
         Self {
@@ -98,7 +98,7 @@ impl TensorViewCollector {
     }
 }
 
-impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
+impl<B: Backend> ModuleVisitor<B> for TensorSnapshotCollector {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
         self.container_stack.push(container_type.to_string());
@@ -113,7 +113,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.push(TensorView::from_float(
+            self.tensors.push(TensorSnapshot::from_float(
                 tensor,
                 self.path_stack.clone(),
                 self.container_stack.clone(),
@@ -126,7 +126,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.push(TensorView::from_int(
+            self.tensors.push(TensorSnapshot::from_int(
                 tensor,
                 self.path_stack.clone(),
                 self.container_stack.clone(),
@@ -139,7 +139,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let path = self.current_path();
         let container_path = self.container_stack.join(".");
         if !path.is_empty() && self.should_collect(&path, &container_path) {
-            self.tensors.push(TensorView::from_bool(
+            self.tensors.push(TensorSnapshot::from_bool(
                 tensor,
                 self.path_stack.clone(),
                 self.container_stack.clone(),
@@ -159,7 +159,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         if self.should_collect(path, &container_path) {
             // For path-based visits, we need to construct the path stack from the path string
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.push(TensorView::from_float(
+            self.tensors.push(TensorSnapshot::from_float(
                 tensor,
                 path_parts,
                 self.container_stack.clone(),
@@ -177,7 +177,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let container_path = self.container_stack.join(".");
         if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.push(TensorView::from_int(
+            self.tensors.push(TensorSnapshot::from_int(
                 tensor,
                 path_parts,
                 self.container_stack.clone(),
@@ -195,7 +195,7 @@ impl<B: Backend> ModuleVisitor<B> for TensorViewCollector {
         let container_path = self.container_stack.join(".");
         if self.should_collect(path, &container_path) {
             let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
-            self.tensors.push(TensorView::from_bool(
+            self.tensors.push(TensorSnapshot::from_bool(
                 tensor,
                 path_parts,
                 self.container_stack.clone(),
@@ -217,11 +217,11 @@ mod tests {
     };
 
     #[test]
-    fn tensor_view_collector() {
+    fn tensor_snapshot_collector() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = TensorViewCollector::new();
+        let mut collector = TensorSnapshotCollector::new();
         let id = ParamId::new();
 
         // Collect a tensor
@@ -238,12 +238,12 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn tensor_view_collector_with_filter() {
+    fn tensor_snapshot_collector_with_filter() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
-        let mut collector = TensorViewCollector::with_filter(filter);
+        let mut collector = TensorSnapshotCollector::with_filter(filter);
         let id = ParamId::new();
 
         // This should be collected
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     #[cfg(target_has_atomic = "ptr")]
-    fn tensor_view_collector_with_multiple_filters() {
+    fn tensor_snapshot_collector_with_multiple_filters() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -265,7 +265,7 @@ mod tests {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*") // Match encoder.*
             .with_regex(r".*\.bias$"); // Match *.bias
-        let mut collector = TensorViewCollector::with_filter(filter);
+        let mut collector = TensorSnapshotCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_view_collector_with_predicate() {
+    fn tensor_snapshot_collector_with_predicate() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -294,7 +294,7 @@ mod tests {
             path.starts_with("encoder.") || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(filter_fn);
-        let mut collector = TensorViewCollector::with_filter(filter);
+        let mut collector = TensorSnapshotCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn tensor_view_collector_predicate_with_complex_logic() {
+    fn tensor_snapshot_collector_predicate_with_complex_logic() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
@@ -330,7 +330,7 @@ mod tests {
             (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
-        let mut collector = TensorViewCollector::with_filter(filter);
+        let mut collector = TensorSnapshotCollector::with_filter(filter);
         let id = ParamId::new();
 
         // These should be collected
@@ -557,7 +557,7 @@ mod tests {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
-        let mut collector = TensorViewCollector::new();
+        let mut collector = TensorSnapshotCollector::new();
         model.visit(&mut collector);
 
         let views = collector.tensors;
@@ -609,7 +609,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^backbone\.encoder\..*");
-            let mut collector = TensorViewCollector::with_filter(filter);
+            let mut collector = TensorSnapshotCollector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
         }
@@ -618,7 +618,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.block1\..*");
-            let mut collector = TensorViewCollector::with_filter(filter);
+            let mut collector = TensorSnapshotCollector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
         }
@@ -627,7 +627,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let mut collector = TensorViewCollector::with_filter(filter);
+            let mut collector = TensorSnapshotCollector::with_filter(filter);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 9); // All weight tensors
         }
@@ -639,7 +639,7 @@ mod tests {
                 .with_regex(r"^backbone\.encoder\.block1\..*") // All encoder.block1 tensors
                 .with_regex(r"^backbone\.decoder\..*\.bias$") // All decoder biases
                 .with_regex(r"^head\.weight$"); // Head weight only
-            let mut collector = TensorViewCollector::with_filter(filter);
+            let mut collector = TensorSnapshotCollector::with_filter(filter);
             model.visit(&mut collector);
 
             // Should have:
@@ -688,7 +688,7 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
 
-        let views: HashMap<String, TensorView> = module
+        let views: HashMap<String, TensorSnapshot> = module
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -704,7 +704,7 @@ mod tests {
         let device = Default::default();
         let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
 
-        let views: HashMap<String, TensorView> = module
+        let views: HashMap<String, TensorSnapshot> = module
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -736,7 +736,7 @@ mod tests {
         let device = Default::default();
         let module = VecModule::<TestBackend>::new(&device, 3);
 
-        let views: HashMap<String, TensorView> = module
+        let views: HashMap<String, TensorSnapshot> = module
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -777,7 +777,7 @@ mod tests {
         let device = Default::default();
         let module = ArrayModule::<TestBackend>::new(&device);
 
-        let views: HashMap<String, TensorView> = module
+        let views: HashMap<String, TensorSnapshot> = module
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -807,7 +807,7 @@ mod tests {
 
         // Test variant A
         let module_a = EnumModule::<TestBackend>::LayerA(LinearConfig::new(10, 20).init(&device));
-        let views_a: HashMap<String, TensorView> = module_a
+        let views_a: HashMap<String, TensorSnapshot> = module_a
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -820,7 +820,7 @@ mod tests {
 
         // Test variant B
         let module_b = EnumModule::<TestBackend>::LayerB(LinearConfig::new(10, 20).init(&device));
-        let views_b: HashMap<String, TensorView> = module_b
+        let views_b: HashMap<String, TensorSnapshot> = module_b
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -851,7 +851,7 @@ mod tests {
 
         let model = ModelWithLinear::<TestBackend>::new(&device);
 
-        let views: HashMap<String, TensorView> = model
+        let views: HashMap<String, TensorSnapshot> = model
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -899,7 +899,7 @@ mod tests {
 
         let model = ComplexModel::<TestBackend>::new(&device);
 
-        let views: HashMap<String, TensorView> = model
+        let views: HashMap<String, TensorSnapshot> = model
             .collect()
             .into_iter()
             .map(|v| (v.full_path(), v))
@@ -941,7 +941,7 @@ mod tests {
             container_path.split('.').last() == Some("Linear")
         });
 
-        let linear_views: Vec<TensorView> = model.collect_with_filter(filter);
+        let linear_views: Vec<TensorSnapshot> = model.collect_with_filter(filter);
 
         // All collected tensors should be from Linear modules
         for view in linear_views.iter() {

@@ -30,7 +30,7 @@
 //! ## How It Works:
 //!
 //! ```text
-//! 1. SafeTensors file → TensorView with lazy closure
+//! 1. SafeTensors file → TensorSnapshot with lazy closure
 //! 2. Adapter wraps closure with transformation
 //! 3. Data materialized only when module.apply() needs it
 //! ```
@@ -59,7 +59,7 @@
 use alloc::string::ToString;
 use burn_tensor::TensorData;
 
-use crate::{KeyRemapper, TensorView};
+use crate::{KeyRemapper, TensorSnapshot};
 
 /// Trait for adapting tensors between different framework conventions.
 ///
@@ -75,7 +75,7 @@ pub trait Adapter {
     /// - Modify tensor shapes
     ///
     /// Returns `None` if the tensor should be skipped.
-    fn adapt_tensor(&self, view: &TensorView) -> Option<TensorView>;
+    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot>;
 
     /// Get a key remapper for this adapter.
     ///
@@ -90,7 +90,7 @@ pub trait Adapter {
 pub struct IdentityAdapter;
 
 impl Adapter for IdentityAdapter {
-    fn adapt_tensor(&self, view: &TensorView) -> Option<TensorView> {
+    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
         Some(view.clone())
     }
 }
@@ -104,7 +104,7 @@ impl Adapter for IdentityAdapter {
 pub struct PyTorchToBurnAdapter;
 
 impl Adapter for PyTorchToBurnAdapter {
-    fn adapt_tensor(&self, view: &TensorView) -> Option<TensorView> {
+    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
         let path = view.full_path();
 
         // Check if this is a linear layer weight that needs transposing
@@ -137,7 +137,7 @@ impl Adapter for PyTorchToBurnAdapter {
 pub struct BurnToPyTorchAdapter;
 
 impl Adapter for BurnToPyTorchAdapter {
-    fn adapt_tensor(&self, view: &TensorView) -> Option<TensorView> {
+    fn adapt_tensor(&self, view: &TensorSnapshot) -> Option<TensorSnapshot> {
         let path = view.full_path();
 
         // Check if this is a linear layer weight that needs transposing
@@ -170,7 +170,7 @@ fn is_linear_weight(path: &str) -> bool {
         && path.ends_with(".weight")
 }
 
-fn transpose_2d_tensor(view: &TensorView) -> TensorView {
+fn transpose_2d_tensor(view: &TensorSnapshot) -> TensorSnapshot {
     // Only transpose 2D tensors
     if view.shape.len() != 2 {
         return view.clone();
@@ -190,7 +190,7 @@ fn transpose_2d_tensor(view: &TensorView) -> TensorView {
     });
 
     // Create a new view with lazy transposition
-    TensorView::from_closure(
+    TensorSnapshot::from_closure(
         transposed_data_fn,
         dtype,
         transposed_shape,
@@ -243,7 +243,7 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
     }
 }
 
-fn rename_normalization_params_to_burn(view: &TensorView) -> Option<TensorView> {
+fn rename_normalization_params_to_burn(view: &TensorSnapshot) -> Option<TensorSnapshot> {
     let path = view.full_path();
 
     // Check if this is a normalization layer parameter
@@ -266,7 +266,7 @@ fn rename_normalization_params_to_burn(view: &TensorView) -> Option<TensorView> 
     }
 
     // Create a new view with renamed path - keep the same lazy data function
-    Some(TensorView::from_closure(
+    Some(TensorSnapshot::from_closure(
         view.clone_data_fn(), // Reuse the same lazy closure
         view.dtype,
         view.shape.clone(),
@@ -276,7 +276,7 @@ fn rename_normalization_params_to_burn(view: &TensorView) -> Option<TensorView> 
     ))
 }
 
-fn rename_normalization_params_to_pytorch(view: &TensorView) -> Option<TensorView> {
+fn rename_normalization_params_to_pytorch(view: &TensorSnapshot) -> Option<TensorSnapshot> {
     let path = view.full_path();
 
     // Check if this is a normalization layer parameter
@@ -299,7 +299,7 @@ fn rename_normalization_params_to_pytorch(view: &TensorView) -> Option<TensorVie
     }
 
     // Create a new view with renamed path - keep the same lazy data function
-    Some(TensorView::from_closure(
+    Some(TensorSnapshot::from_closure(
         view.clone_data_fn(), // Reuse the same lazy closure
         view.dtype,
         view.shape.clone(),
@@ -309,7 +309,7 @@ fn rename_normalization_params_to_pytorch(view: &TensorView) -> Option<TensorVie
     ))
 }
 
-// TensorView now has its own Clone implementation in tensor_view.rs that preserves laziness
+// TensorSnapshot now has its own Clone implementation in tensor_view.rs that preserves laziness
 
 #[cfg(test)]
 mod tests {
@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(adapted.full_path(), "model.norm.bias");
     }
 
-    fn create_test_view(path: &str, shape: Vec<usize>) -> TensorView {
+    fn create_test_view(path: &str, shape: Vec<usize>) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
         let data = match shape.len() {
             1 => TensorData::new(vec![1.0f32; shape[0]], shape.clone()),
@@ -393,6 +393,6 @@ mod tests {
             _ => TensorData::new(vec![1.0f32], vec![1]),
         };
 
-        TensorView::from_data(data, path_parts, vec!["Module".to_string()], ParamId::new())
+        TensorSnapshot::from_data(data, path_parts, vec!["Module".to_string()], ParamId::new())
     }
 }

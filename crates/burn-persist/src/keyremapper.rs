@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use regex::{self, Regex};
 
 #[cfg(target_has_atomic = "ptr")]
-use super::TensorView;
+use super::TensorSnapshot;
 
 /// Key remapper for transforming tensor names.
 ///
@@ -142,15 +142,18 @@ impl KeyRemapper {
     ///
     /// # Arguments
     ///
-    /// * `tensors` - Vec of TensorViews to remap
+    /// * `tensors` - Vec of TensorSnapshots to remap
     ///
     /// # Returns
     ///
     /// A tuple containing:
-    /// * The remapped Vec of TensorViews with updated paths
+    /// * The remapped Vec of TensorSnapshots with updated paths
     /// * A vector of (new_path, original_path) showing the transformations
     #[cfg(target_has_atomic = "ptr")]
-    pub fn remap(&self, mut tensors: Vec<TensorView>) -> (Vec<TensorView>, Vec<(String, String)>) {
+    pub fn remap(
+        &self,
+        mut tensors: Vec<TensorSnapshot>,
+    ) -> (Vec<TensorSnapshot>, Vec<(String, String)>) {
         if self.patterns.is_empty() {
             let remapped_names = tensors
                 .iter()
@@ -199,14 +202,14 @@ mod tests {
     use burn_core::module::ParamId;
     use burn_tensor::TensorData;
 
-    fn create_test_tensor_view(name: &str) -> TensorView {
+    fn create_test_tensor_view(name: &str) -> TensorSnapshot {
         let data = TensorData {
             bytes: burn_tensor::Bytes::from_bytes_vec(vec![1, 2, 3, 4]),
             shape: vec![2, 2],
             dtype: burn_tensor::DType::F32,
         };
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
-        TensorView::from_data(data, path_parts, vec!["Test".to_string()], ParamId::new())
+        TensorSnapshot::from_data(data, path_parts, vec!["Test".to_string()], ParamId::new())
     }
 
     #[test]

@@ -6,7 +6,7 @@ use hashbrown::{HashMap, HashSet};
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::{PathFilter, TensorView};
+use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::{ModuleMapper, ParamId};
 
 /// Error types for apply operations
@@ -138,10 +138,10 @@ impl fmt::Display for ApplyResult {
 /// Applies tensor views to a module using the ModuleMapper trait.
 ///
 /// This applier traverses the module hierarchy and applies tensor data
-/// from TensorViews to the corresponding tensors in the module.
+/// from TensorSnapshots to the corresponding tensors in the module.
 pub struct TensorApplier<B: Backend> {
     /// Map of tensor paths to their views for O(1) lookup
-    views: HashMap<String, TensorView>,
+    views: HashMap<String, TensorSnapshot>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
     /// Current container type stack in the module hierarchy
@@ -162,8 +162,8 @@ pub struct TensorApplier<B: Backend> {
 
 impl<B: Backend> TensorApplier<B> {
     /// Create a new tensor applier with all views
-    pub fn new(views: Vec<TensorView>) -> Self {
-        let views_map: HashMap<String, TensorView> = views
+    pub fn new(views: Vec<TensorSnapshot>) -> Self {
+        let views_map: HashMap<String, TensorSnapshot> = views
             .into_iter()
             .map(|view| (view.full_path(), view))
             .collect();
@@ -182,8 +182,8 @@ impl<B: Backend> TensorApplier<B> {
     }
 
     /// Create a new tensor applier with a PathFilter
-    pub fn with_filter(views: Vec<TensorView>, filter: PathFilter) -> Self {
-        let views_map: HashMap<String, TensorView> = views
+    pub fn with_filter(views: Vec<TensorSnapshot>, filter: PathFilter) -> Self {
+        let views_map: HashMap<String, TensorSnapshot> = views
             .into_iter()
             .map(|view| (view.full_path(), view))
             .collect();
@@ -380,7 +380,7 @@ impl<B: Backend> ModuleMapper<B> for TensorApplier<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor_view::TensorView;
+    use crate::tensor_snapshot::TensorSnapshot;
     use burn_core::module::{Module, Param};
     use burn_tensor::Tensor;
 
@@ -496,13 +496,13 @@ mod tests {
         // Create source module and extract views
         let source = SimpleModule::<TestBackend>::new(&device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.weight.val(),
                 vec!["weight".to_string()],
                 vec!["SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.bias.val(),
                 vec!["bias".to_string()],
                 vec!["SimpleModule".to_string()],
@@ -542,13 +542,13 @@ mod tests {
         // Create source module and extract views
         let source = SimpleModule::<TestBackend>::new(&device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.weight.val(),
                 vec!["weight".to_string()],
                 vec!["SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.bias.val(),
                 vec!["bias".to_string()],
                 vec!["SimpleModule".to_string()],
@@ -585,7 +585,7 @@ mod tests {
 
         // Create a view with wrong shape
         let wrong_tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0]], &device);
-        let views = vec![TensorView::from_float(
+        let views = vec![TensorSnapshot::from_float(
             &wrong_tensor,
             vec!["weight".to_string()],
             vec!["SimpleModule".to_string()],
@@ -612,7 +612,7 @@ mod tests {
         // Create views with only partial tensors
         let source = SimpleModule::<TestBackend>::new(&device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.weight.val(),
                 vec!["weight".to_string()],
                 vec!["SimpleModule".to_string()],
@@ -641,19 +641,19 @@ mod tests {
         let source = SimpleModule::<TestBackend>::new(&device);
         let extra_tensor = Tensor::<TestBackend, 2>::from_data([[5.0, 6.0], [7.0, 8.0]], &device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.weight.val(),
                 vec!["weight".to_string()],
                 vec!["SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.bias.val(),
                 vec!["bias".to_string()],
                 vec!["SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &extra_tensor,
                 vec!["extra".to_string()],
                 vec!["SimpleModule".to_string()],
@@ -702,25 +702,25 @@ mod tests {
         // Create source with nested structure
         let source = NestedModule::<TestBackend>::new(&device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer1.weight.val(),
                 vec!["layer1".to_string(), "weight".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer1.bias.val(),
                 vec!["layer1".to_string(), "bias".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer2.weight.val(),
                 vec!["layer2".to_string(), "weight".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer2.bias.val(),
                 vec!["layer2".to_string(), "bias".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
@@ -749,25 +749,25 @@ mod tests {
 
         let source = NestedModule::<TestBackend>::new(&device);
         let views = vec![
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer1.weight.val(),
                 vec!["layer1".to_string(), "weight".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer1.bias.val(),
                 vec!["layer1".to_string(), "bias".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer2.weight.val(),
                 vec!["layer2".to_string(), "weight".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],
                 ParamId::new(),
             ),
-            TensorView::from_float(
+            TensorSnapshot::from_float(
                 &source.layer2.bias.val(),
                 vec!["layer2".to_string(), "bias".to_string()],
                 vec!["NestedModule".to_string(), "SimpleModule".to_string()],

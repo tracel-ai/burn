@@ -7,13 +7,13 @@ use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
 /// A lightweight view of a tensor that can lazily produce TensorData.
 ///
-/// TensorView stores a cloned tensor internally (which is cheap due to reference counting)
+/// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)
 /// and only materializes the actual data when `to_data()` is called. This allows
 /// efficient inspection of module structure without the overhead of copying all tensor data.
 ///
 /// The dtype and shape are cached for efficient access without requiring data materialization,
 /// which is particularly useful for serialization formats that need metadata upfront.
-pub struct TensorView {
+pub struct TensorSnapshot {
     /// Function to get tensor data when needed (Rc allows cloning)
     data_fn: Rc<dyn Fn() -> TensorData>,
     /// Data type of the tensor (cached for efficient access)
@@ -28,7 +28,7 @@ pub struct TensorView {
     pub tensor_id: Option<ParamId>,
 }
 
-impl TensorView {
+impl TensorSnapshot {
     /// Create a new tensor view from a float tensor
     pub fn from_float<B: Backend, const D: usize>(
         tensor: &Tensor<B, D>,
@@ -119,7 +119,7 @@ impl TensorView {
             .unwrap_or_else(|| "Unknown".to_string())
     }
 
-    /// Create a TensorView from a closure that produces TensorData
+    /// Create a TensorSnapshot from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
         data_fn: Rc<dyn Fn() -> TensorData>,
@@ -139,7 +139,7 @@ impl TensorView {
         }
     }
 
-    /// Create a TensorView from TensorData directly
+    /// Create a TensorSnapshot from TensorData directly
     pub fn from_data(
         data: TensorData,
         path_stack: Vec<String>,
@@ -182,7 +182,7 @@ impl TensorView {
     }
 }
 
-impl Clone for TensorView {
+impl Clone for TensorSnapshot {
     fn clone(&self) -> Self {
         // Clone lazily - keep the same data function
         Self {
@@ -208,7 +208,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let view = TensorView::from_float(
+        let view = TensorSnapshot::from_float(
             &tensor,
             vec!["test".to_string(), "weight".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -232,7 +232,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
 
-        let view = TensorView::from_int(
+        let view = TensorSnapshot::from_int(
             &tensor,
             vec!["test".to_string(), "int".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -255,7 +255,7 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
 
-        let view = TensorView::from_bool(
+        let view = TensorSnapshot::from_bool(
             &tensor,
             vec!["test".to_string(), "bool".to_string()],
             vec!["TestModule".to_string(), "Param".to_string()],
@@ -277,7 +277,7 @@ mod tests {
 
         // Test F32 tensor (4 bytes per element)
         let tensor_f32 = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
-        let view_f32 = TensorView::from_float(
+        let view_f32 = TensorSnapshot::from_float(
             &tensor_f32,
             vec!["test".to_string()],
             vec!["Module".to_string()],
@@ -288,7 +288,7 @@ mod tests {
         // Test I64 tensor (8 bytes per element) - TestBackend uses I64 for Int
         let tensor_i64 =
             Tensor::<TestBackend, 3, Int>::from_data([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], &device);
-        let view_i64 = TensorView::from_int(
+        let view_i64 = TensorSnapshot::from_int(
             &tensor_i64,
             vec!["test".to_string()],
             vec!["Module".to_string()],
@@ -299,7 +299,7 @@ mod tests {
         // Test Bool tensor (1 byte per element)
         let tensor_bool =
             Tensor::<TestBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
-        let view_bool = TensorView::from_bool(
+        let view_bool = TensorSnapshot::from_bool(
             &tensor_bool,
             vec!["test".to_string()],
             vec!["Module".to_string()],
@@ -314,7 +314,7 @@ mod tests {
         let dtype = data.dtype;
         let shape = data.shape.clone();
 
-        let view = TensorView::from_closure(
+        let view = TensorSnapshot::from_closure(
             Rc::new(move || data.clone()),
             dtype,
             shape.clone(),
@@ -340,7 +340,7 @@ mod tests {
         let original_dtype = data.dtype;
         let original_shape = data.shape.clone();
 
-        let view = TensorView::from_data(
+        let view = TensorSnapshot::from_data(
             data,
             vec!["encoder".to_string(), "weight".to_string()],
             vec!["Encoder".to_string(), "Dense".to_string()],
@@ -364,7 +364,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);
 
-        let view = TensorView::from_float(
+        let view = TensorSnapshot::from_float(
             &tensor,
             vec![
                 "model".to_string(),

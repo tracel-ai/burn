@@ -14,15 +14,15 @@ mod collector;
 mod filter;
 mod keyremapper;
 pub mod safetensors;
-mod tensor_view;
+mod tensor_snapshot;
 mod traits;
 
 pub use adapter::{Adapter, BurnToPyTorchAdapter, IdentityAdapter, PyTorchToBurnAdapter};
 pub use applier::{ApplyError, ApplyResult, TensorApplier};
-pub use collector::TensorViewCollector;
+pub use collector::TensorSnapshotCollector;
 pub use filter::PathFilter;
 pub use keyremapper::KeyRemapper;
-pub use tensor_view::TensorView;
+pub use tensor_snapshot::TensorSnapshot;
 pub use traits::ModulePersist;
 pub use traits::ModulePersister;
 
