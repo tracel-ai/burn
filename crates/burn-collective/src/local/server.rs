@@ -164,6 +164,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
                         log::error!(
                             "Error receiving message from local collective server: {err:?}"
                         );
+                        println!("Error receiving message from local collective server: {err:?}");
                         break;
                     }
                 }
@@ -174,6 +175,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     }
 
     async fn process_message(&mut self, message: Message<B>) {
+        println!("{message:?}");
         match message {
             Message::Register {
                 device_id,

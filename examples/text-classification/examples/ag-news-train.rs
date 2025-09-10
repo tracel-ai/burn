@@ -18,7 +18,7 @@ type ElemType = burn::tensor::flex32;
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
+        TransformerEncoderConfig::new(512, 2048, 16, 8)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
@@ -129,10 +129,19 @@ mod remote {
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
+    use burn::backend::{
+        Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
+    };
 
     pub fn run() {
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
+        let gpu0 = CudaDevice::new(0);
+        let gpu1 = CudaDevice::new(1);
+        let gpu2 = CudaDevice::new(2);
+        let gpu3 = CudaDevice::new(3);
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![
+            gpu0, gpu1,
+            // gpu2, gpu3,
+        ]);
     }
 }
 

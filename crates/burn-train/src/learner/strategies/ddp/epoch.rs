@@ -6,9 +6,9 @@ use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
-use crate::metric::processor::{Event, EventProcessor, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{TrainLoader, TrainStep, ValidLoader, ValidStep};
-use crate::{components::LearnerComponentTypes, learner::base::TrainingInterrupter};
+use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
 
 /// A validation epoch.
 #[derive(new)]
@@ -38,7 +38,7 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
         &self,
         model: &LC::Model,
         processor: &mut LC::EventProcessor,
-        interrupter: &TrainingInterrupter,
+        interrupter: &Interrupter,
     ) {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -60,14 +60,14 @@ impl<LC: LearnerComponentTypes> DdpValidEpoch<LC> {
                 None,
             );
 
-            processor.process_valid(Event::ProcessedItem(item));
+            processor.process_valid(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        processor.process_valid(Event::EndEpoch(self.epoch));
+        processor.process_valid(LearnerEvent::EndEpoch(self.epoch));
     }
 }
 
@@ -90,7 +90,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
         processor: Arc<Mutex<LC::EventProcessor>>,
-        interrupter: &TrainingInterrupter,
+        interrupter: &Interrupter,
         peer_id: PeerId,
         peer_count: usize,
         is_main: bool,
@@ -156,7 +156,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
             {
                 let mut processor = processor.lock().unwrap();
-                processor.process_train(Event::ProcessedItem(item));
+                processor.process_train(LearnerEvent::ProcessedItem(item));
             }
 
             if interrupter.should_stop() {
@@ -167,7 +167,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
         if is_main {
             let mut processor = processor.lock().unwrap();
-            processor.process_train(Event::EndEpoch(self.epoch));
+            processor.process_train(LearnerEvent::EndEpoch(self.epoch));
         }
 
         self.epoch += 1;

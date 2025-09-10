@@ -128,6 +128,8 @@ impl GradientsParams {
             .collect::<Vec<ParamId>>();
         // This is crucial, since the all-reduce operations need to happen in the same order for the same parameters on all nodes!
         ids.sort();
+        println!("All reduce {ids:?}");
+
         for id in ids {
             use burn_tensor::TensorPrimitive;
 
