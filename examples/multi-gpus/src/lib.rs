@@ -14,11 +14,7 @@ pub fn run<B: Backend>(devices: Vec<B::Device>) {
     ] {
         println!("[All Reduce - {strategy:?}] starting ...");
         let start = Instant::now();
-        task_all_reduce::<B>(
-            devices.clone(),
-            420,
-            collective::AllReduceStrategy::Centralized,
-        );
+        task_all_reduce::<B>(devices.clone(), 420, strategy);
         println!("[All Reduce - {strategy:?}] took {:?}", start.elapsed());
     }
     task_different_tasks::<B>(devices.clone(), 100);
@@ -79,9 +75,9 @@ fn task_all_reduce<B: Backend>(
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
-    let batch = 128;
-    let shape_signal = [batch, 1024, 1024];
-    let shape_weights = [1, 1024, 1024];
+    let batch = 32;
+    let shape_signal = [batch, 2048, 2048];
+    let shape_weights = [1, 2048, 2048];
 
     fn compute<B: Backend>(weights: Tensor<B, 3>, signal: Tensor<B, 3>) -> Tensor<B, 3> {
         weights.matmul(signal)
@@ -121,8 +117,10 @@ fn task_all_reduce<B: Backend>(
                     )
                     .unwrap();
                     weights = Tensor::from_primitive(TensorPrimitive::Float(result));
-                    let val = weights.clone().sum();
-                    println!("[{id}] => Iter {i} Sum {val}");
+                    let val = weights.clone().sum().into_scalar().elem::<f32>();
+                    if id == PeerId::from(0) {
+                        println!("Iter {i} => {val}");
+                    }
                 }
                 collective::finish_collective::<B>(id).unwrap();
             })
