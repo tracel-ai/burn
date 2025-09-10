@@ -12,6 +12,7 @@ mod adapter;
 mod applier;
 mod collector;
 mod filter;
+#[cfg(feature = "std")]
 mod keyremapper;
 pub mod safetensors;
 mod tensor_snapshot;
@@ -21,6 +22,7 @@ pub use adapter::{Adapter, BurnToPyTorchAdapter, IdentityAdapter, PyTorchToBurnA
 pub use applier::{Applier, ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
+#[cfg(feature = "std")]
 pub use keyremapper::KeyRemapper;
 pub use tensor_snapshot::TensorSnapshot;
 pub use traits::ModulePersist;

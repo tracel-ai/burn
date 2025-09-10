@@ -60,7 +60,9 @@ use alloc::string::ToString;
 use alloc::vec;
 use burn_tensor::TensorData;
 
-use crate::{KeyRemapper, TensorSnapshot};
+#[cfg(feature = "std")]
+use crate::KeyRemapper;
+use crate::TensorSnapshot;
 
 /// Trait for adapting tensors between different framework conventions.
 ///
@@ -81,6 +83,7 @@ pub trait Adapter {
     /// Get a key remapper for this adapter.
     ///
     /// This provides a convenient way to rename multiple keys systematically.
+    #[cfg(feature = "std")]
     fn key_remapper(&self) -> Option<KeyRemapper> {
         None
     }
@@ -122,6 +125,7 @@ impl Adapter for PyTorchToBurnAdapter {
         Some(snapshot.clone())
     }
 
+    #[cfg(feature = "std")]
     fn key_remapper(&self) -> Option<KeyRemapper> {
         // For now, we handle renaming in adapt_tensor directly
         // This could be extended to use KeyRemapper if needed
@@ -155,6 +159,7 @@ impl Adapter for BurnToPyTorchAdapter {
         Some(snapshot.clone())
     }
 
+    #[cfg(feature = "std")]
     fn key_remapper(&self) -> Option<KeyRemapper> {
         // For now, we handle renaming in adapt_tensor directly
         // This could be extended to use KeyRemapper if needed

@@ -1,10 +1,9 @@
 extern crate alloc;
 
-use burn_ndarray::NdArray;
-use burn_no_std_tests::safetensors;
-
 #[test]
 fn test_safetensors_no_std() {
+    use burn_ndarray::NdArray;
+    use burn_no_std_tests::safetensors;
     type Backend = NdArray<f32>;
     let device = Default::default();
 

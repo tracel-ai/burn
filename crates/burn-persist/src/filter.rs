@@ -3,7 +3,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(feature = "std")]
 use regex::Regex;
 
 /// A sophisticated path filter that supports multiple matching strategies.
@@ -28,7 +28,7 @@ use regex::Regex;
 #[derive(Debug, Clone, Default)]
 pub struct PathFilter {
     /// Compiled regex patterns for matching paths
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     regex_patterns: Vec<Regex>,
 
     /// Exact full paths to match
@@ -62,7 +62,7 @@ impl PathFilter {
     }
 
     /// Add a regex pattern for matching paths
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn with_regex<S: AsRef<str>>(mut self, pattern: S) -> Self {
         if let Ok(regex) = Regex::new(pattern.as_ref()) {
             self.regex_patterns.push(regex);
@@ -72,7 +72,7 @@ impl PathFilter {
     }
 
     /// Add multiple regex patterns
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -152,7 +152,7 @@ impl PathFilter {
         }
 
         // Check regex patterns (on the path)
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         {
             for regex in &self.regex_patterns {
                 if regex.is_match(path) {
@@ -179,16 +179,12 @@ impl PathFilter {
             return false;
         }
 
-        self.exact_paths.is_empty() && self.predicates.is_empty() && {
-            #[cfg(target_has_atomic = "ptr")]
-            {
-                self.regex_patterns.is_empty()
-            }
-            #[cfg(not(target_has_atomic = "ptr"))]
-            {
-                true
-            }
-        }
+        #[cfg(feature = "std")]
+        let regex_empty = self.regex_patterns.is_empty();
+        #[cfg(not(feature = "std"))]
+        let regex_empty = true;
+
+        self.exact_paths.is_empty() && self.predicates.is_empty() && regex_empty
     }
 
     /// Get the number of filter criteria configured
@@ -200,7 +196,7 @@ impl PathFilter {
         #[allow(unused_mut)]
         let mut count = self.exact_paths.len() + self.predicates.len();
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         {
             count += self.regex_patterns.len();
         }
@@ -209,7 +205,7 @@ impl PathFilter {
     }
 
     /// Clear all regex patterns
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn clear_regex(&mut self) -> &mut Self {
         self.regex_patterns.clear();
         self
@@ -229,7 +225,7 @@ impl PathFilter {
 
     /// Clear all filters
     pub fn clear(&mut self) -> &mut Self {
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         self.clear_regex();
 
         self.clear_paths().clear_predicates();
@@ -238,7 +234,7 @@ impl PathFilter {
     }
 
     /// Create a filter from regex patterns only
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn from_regex_patterns<I, S>(patterns: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -267,7 +263,7 @@ impl PathFilter {
             return Self::all();
         }
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         {
             self.regex_patterns.extend(other.regex_patterns);
         }
@@ -293,7 +289,7 @@ impl fmt::Display for PathFilter {
 
         let mut parts = Vec::new();
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         if !self.regex_patterns.is_empty() {
             parts.push(format!("regex: {:?}", self.regex_patterns));
         }
@@ -344,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     fn regex_patterns() {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*")
@@ -382,13 +378,13 @@ mod tests {
             .with_full_path("special.tensor")
             .with_predicate(|path, _container_path| path.contains("attention"));
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         let filter = filter.with_regex(r"^encoder\..*");
 
         assert!(filter.matches("special.tensor"));
         assert!(filter.matches("self_attention.query"));
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         assert!(filter.matches("encoder.anything"));
 
         assert!(!filter.matches("decoder.weight"));
@@ -407,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     fn common_patterns() {
         // Test encoder pattern
         let encoder = PathFilter::new().with_regex(r"^encoder\..*");
@@ -437,13 +433,13 @@ mod tests {
             .with_full_path("path2")
             .with_predicate(|_, _| true);
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         let filter = filter.with_regex(".*");
 
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         assert_eq!(filter.criteria_count(), 4);
 
-        #[cfg(not(target_has_atomic = "ptr"))]
+        #[cfg(not(feature = "std"))]
         assert_eq!(filter.criteria_count(), 3);
     }
 
@@ -495,7 +491,7 @@ mod tests {
     #[test]
     fn container_predicate_with_regex() {
         // Combine regex patterns with container predicates
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         {
             let filter = PathFilter::new()
                 .with_regex(r"^encoder\..*")

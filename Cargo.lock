@@ -928,7 +928,6 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "burn-persist",
- "serde",
 ]
 
 [[package]]
@@ -943,7 +942,6 @@ dependencies = [
  "memmap2",
  "regex",
  "safetensors 0.6.2-dev.0",
- "serde",
  "tempfile",
 ]
 

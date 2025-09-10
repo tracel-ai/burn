@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std"]
+std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
@@ -25,16 +25,13 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
 # External dependencies
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
-regex = { workspace = true }
+regex = { workspace = true, optional = true }
 
 # Note: safetensors requires either std or alloc feature
 # We always require std for file I/O functionality
 # change after https://github.com/huggingface/safetensors/issues/650 is released to support no_std
 # safetensors = { workspace = true }
 safetensors = { git = "https://github.com/huggingface/safetensors", rev = "0816a1a", default-features = false }
-
-
-serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 burn = { path = "../burn", version = "0.19.0" }

@@ -41,7 +41,7 @@ pub enum ApplyError {
         reason: String,
     },
     /// Regex pattern error
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     RegexError(regex::Error),
     /// Generic error
     Other(String),
@@ -68,7 +68,7 @@ impl fmt::Display for ApplyError {
             ApplyError::InvalidData { path, reason } => {
                 write!(f, "Invalid data for tensor '{}': {}", path, reason)
             }
-            #[cfg(target_has_atomic = "ptr")]
+            #[cfg(feature = "std")]
             ApplyError::RegexError(e) => write!(f, "Regex error: {}", e),
             ApplyError::Other(msg) => write!(f, "{}", msg),
         }
@@ -78,7 +78,7 @@ impl fmt::Display for ApplyError {
 #[cfg(feature = "std")]
 impl std::error::Error for ApplyError {}
 
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(feature = "std")]
 impl From<regex::Error> for ApplyError {
     fn from(err: regex::Error) -> Self {
         ApplyError::RegexError(err)
@@ -793,7 +793,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     fn regex_error_conversion() {
         // Test that regex errors convert properly
         let regex_err = regex::Regex::new("[invalid").unwrap_err();

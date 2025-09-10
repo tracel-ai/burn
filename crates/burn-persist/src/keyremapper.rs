@@ -1,13 +1,9 @@
-#[cfg(target_has_atomic = "ptr")]
 use alloc::string::{String, ToString};
-#[cfg(target_has_atomic = "ptr")]
 use alloc::vec::Vec;
 
-#[cfg(target_has_atomic = "ptr")]
 use regex::{self, Regex};
 
-#[cfg(target_has_atomic = "ptr")]
-use super::TensorSnapshot;
+use crate::TensorSnapshot;
 
 /// Key remapper for transforming tensor names.
 ///
@@ -30,7 +26,6 @@ use super::TensorSnapshot;
 #[derive(Debug, Clone, Default)]
 pub struct KeyRemapper {
     /// Pattern-based remapping rules (regex pattern, replacement string)
-    #[cfg(target_has_atomic = "ptr")]
     pub patterns: Vec<(Regex, String)>,
 }
 
@@ -40,18 +35,17 @@ impl KeyRemapper {
         Self::default()
     }
 
-    /// Add a remapping pattern (compiles regex on atomic targets)
+    /// Add a remapping pattern (compiles regex)
     ///
     /// # Arguments
     ///
-    /// * `from` - Source pattern (regex string on atomic targets, literal string otherwise)
-    /// * `to` - Replacement string (can include capture groups like `$1` on atomic targets)
+    /// * `from` - Source pattern (regex string)
+    /// * `to` - Replacement string (can include capture groups like `$1`)
     ///
     /// # Returns
     ///
     /// * `Ok(Self)` - Updated remapping configuration
-    /// * `Err(regex::Error)` - If regex compilation fails (atomic targets only)
-    #[cfg(target_has_atomic = "ptr")]
+    /// * `Err(regex::Error)` - If regex compilation fails
     pub fn add_pattern<S1, S2>(mut self, from: S1, to: S2) -> Result<Self, regex::Error>
     where
         S1: AsRef<str>,
@@ -63,12 +57,11 @@ impl KeyRemapper {
     }
 
     /// Create from a list of compiled regex patterns
-    #[cfg(target_has_atomic = "ptr")]
     pub fn from_compiled_patterns(patterns: Vec<(Regex, String)>) -> Self {
         Self { patterns }
     }
 
-    /// Create from string patterns (will compile to regex on atomic targets)
+    /// Create from string patterns (will compile to regex)
     ///
     /// # Arguments
     ///
@@ -77,8 +70,7 @@ impl KeyRemapper {
     /// # Returns
     ///
     /// * `Ok(Self)` - New remapping configuration
-    /// * `Err(regex::Error)` - If any regex compilation fails (atomic targets only)
-    #[cfg(target_has_atomic = "ptr")]
+    /// * `Err(regex::Error)` - If any regex compilation fails
     pub fn from_patterns<S1, S2>(patterns: Vec<(S1, S2)>) -> Result<Self, regex::Error>
     where
         S1: AsRef<str>,
@@ -103,8 +95,7 @@ impl KeyRemapper {
     /// # Returns
     ///
     /// * `Ok(Self)` - New remapping configuration
-    /// * `Err(regex::Error)` - If any regex compilation fails (atomic targets only)
-    #[cfg(target_has_atomic = "ptr")]
+    /// * `Err(regex::Error)` - If any regex compilation fails
     pub fn from_pattern_iter<I, S1, S2>(iter: I) -> Result<Self, regex::Error>
     where
         I: IntoIterator<Item = (S1, S2)>,
@@ -122,18 +113,10 @@ impl KeyRemapper {
 
     /// Check if the remapping is empty
     pub fn is_empty(&self) -> bool {
-        #[cfg(target_has_atomic = "ptr")]
-        {
-            self.patterns.is_empty()
-        }
-        #[cfg(not(target_has_atomic = "ptr"))]
-        {
-            true
-        }
+        self.patterns.is_empty()
     }
 
     /// Convert to the format expected by remap_tensor_paths_with_patterns
-    #[cfg(target_has_atomic = "ptr")]
     pub fn to_regex_pairs(&self) -> Vec<(Regex, String)> {
         self.patterns.clone()
     }
@@ -149,7 +132,6 @@ impl KeyRemapper {
     /// A tuple containing:
     /// * The remapped Vec of TensorSnapshots with updated paths
     /// * A vector of (new_path, original_path) showing the transformations
-    #[cfg(target_has_atomic = "ptr")]
     pub fn remap(
         &self,
         mut tensors: Vec<TensorSnapshot>,
@@ -213,7 +195,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_key_remapper_basic() {
         let remapper = KeyRemapper::new()
             .add_pattern(r"^encoder\.", "transformer.encoder.")
@@ -248,7 +229,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_key_remapper_multiple_patterns() {
         let remapper = KeyRemapper::new()
             .add_pattern(r"^encoder\.", "transformer.encoder.")
@@ -269,7 +249,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_has_atomic = "ptr")]
     fn test_key_remapper_from_patterns() {
         let patterns = vec![(r"^pytorch\.", "burn."), (r"\.bias$", ".bias_param")];
         let remapper = KeyRemapper::from_patterns(patterns).expect("valid patterns");

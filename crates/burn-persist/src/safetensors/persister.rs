@@ -1,9 +1,12 @@
 //! SafeTensors persister implementation using the official safetensors crate.
 
 use crate::{
-    Adapter, ApplyResult, IdentityAdapter, KeyRemapper, ModulePersist, ModulePersister, PathFilter,
+    Adapter, ApplyResult, IdentityAdapter, ModulePersist, ModulePersister, PathFilter,
     TensorSnapshot,
 };
+
+#[cfg(feature = "std")]
+use crate::KeyRemapper;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -15,6 +18,14 @@ use burn_tensor::{DType, TensorData};
 use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
+
+// Arc is only available on targets with atomic pointers
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+// For targets without atomic pointers, we use Box instead
+#[cfg(not(target_has_atomic = "ptr"))]
+type Arc<T> = Box<T>;
 
 /// Errors that can occur during SafeTensors operations.
 #[derive(Debug)]
@@ -100,8 +111,9 @@ impl SafetensorsPersister {
     /// Create a persister for working with bytes in memory.
     pub fn from_bytes(bytes: Option<Vec<u8>>) -> Self {
         Self::Memory(MemoryPersister {
-            data: bytes.map(alloc::sync::Arc::new),
+            data: bytes.map(Arc::new),
             filter: PathFilter::new(),
+            #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             metadata: HashMap::new(),
             validate: true,
@@ -131,7 +143,7 @@ impl SafetensorsPersister {
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn with_regex<S: AsRef<str>>(mut self, pattern: S) -> Self {
         match &mut self {
             #[cfg(feature = "std")]
@@ -142,7 +154,7 @@ impl SafetensorsPersister {
     }
 
     /// Add multiple regex patterns to filter tensors.
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -229,10 +241,9 @@ impl SafetensorsPersister {
     }
 
     /// Remap tensor names during load/save.
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
         match &mut self {
-            #[cfg(feature = "std")]
             Self::File(p) => p.remapper = remapper,
             Self::Memory(p) => p.remapper = remapper,
         }
@@ -247,14 +258,13 @@ impl SafetensorsPersister {
     ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
     /// ```
-    #[cfg(target_has_atomic = "ptr")]
+    #[cfg(feature = "std")]
     pub fn with_key_pattern(
         mut self,
         from_pattern: impl AsRef<str>,
         to_pattern: impl Into<String>,
     ) -> Self {
         match &mut self {
-            #[cfg(feature = "std")]
             Self::File(p) => {
                 p.remapper = p
                     .remapper
@@ -366,8 +376,9 @@ pub struct FilePersister {
 
 /// Memory-based persister.
 pub struct MemoryPersister {
-    data: Option<alloc::sync::Arc<Vec<u8>>>,
+    data: Option<Arc<Vec<u8>>>,
     filter: PathFilter,
+    #[cfg(feature = "std")]
     remapper: KeyRemapper,
     metadata: HashMap<String, String>,
     validate: bool,
@@ -381,6 +392,7 @@ impl Default for MemoryPersister {
         Self {
             data: None,
             filter: PathFilter::new(),
+            #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             metadata: HashMap::new(),
             validate: true,
@@ -393,18 +405,18 @@ impl Default for MemoryPersister {
 
 impl MemoryPersister {
     #[cfg(test)]
-    pub(crate) fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
+    pub(crate) fn data(&self) -> Option<Arc<Vec<u8>>> {
         self.data.clone()
     }
 
     #[cfg(not(test))]
-    fn data(&self) -> Option<alloc::sync::Arc<Vec<u8>>> {
+    fn data(&self) -> Option<Arc<Vec<u8>>> {
         self.data.clone()
     }
 
     #[cfg(test)]
     pub(crate) fn set_data(&mut self, data: Vec<u8>) {
-        self.data = Some(alloc::sync::Arc::new(data));
+        self.data = Some(Arc::new(data));
     }
 }
 
@@ -454,7 +466,7 @@ impl ModulePersister for SafetensorsPersister {
         snapshots = apply_filter(snapshots, self.get_filter());
 
         // Apply remapping
-        #[cfg(target_has_atomic = "ptr")]
+        #[cfg(feature = "std")]
         {
             snapshots = apply_remapping(snapshots, self.get_remapper());
         }
@@ -490,7 +502,7 @@ impl ModulePersister for SafetensorsPersister {
 
                 #[cfg(not(feature = "std"))]
                 let data = safetensors::serialize(tensors, Some(metadata))?;
-                p.data = Some(alloc::sync::Arc::new(data));
+                p.data = Some(Arc::new(data));
                 Ok(())
             }
         }
@@ -554,9 +566,9 @@ impl SafetensorsPersister {
         }
     }
 
+    #[cfg(feature = "std")]
     fn get_remapper(&self) -> &KeyRemapper {
         match self {
-            #[cfg(feature = "std")]
             Self::File(p) => &p.remapper,
             Self::Memory(p) => &p.remapper,
         }
@@ -618,7 +630,7 @@ fn apply_filter(mut snapshots: Vec<TensorSnapshot>, filter: &PathFilter) -> Vec<
 }
 
 /// Apply remapping to tensor snapshots.
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(feature = "std")]
 fn apply_remapping(snapshots: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Vec<TensorSnapshot> {
     if remapper.is_empty() {
         return snapshots;
@@ -645,7 +657,7 @@ fn snapshots_to_safetensors(
 
 /// Convert safetensors to TensorSnapshots with lazy loading.
 fn safetensors_to_snapshots_lazy(
-    data_arc: alloc::sync::Arc<Vec<u8>>,
+    data_arc: Arc<Vec<u8>>,
 ) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
     // Parse to get metadata
     let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
@@ -658,7 +670,10 @@ fn safetensors_to_snapshots_lazy(
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that will deserialize only this tensor when needed
-        let data_clone = alloc::sync::Arc::clone(&data_arc);
+        #[cfg(target_has_atomic = "ptr")]
+        let data_clone = Arc::clone(&data_arc);
+        #[cfg(not(target_has_atomic = "ptr"))]
+        let data_clone = data_arc.clone();
         let name_clone = name.to_string();
         let data_fn = alloc::rc::Rc::new(move || {
             // Re-deserialize when needed (this is cheap, just parsing header)
@@ -697,8 +712,6 @@ fn safetensors_to_snapshots_lazy(
 fn safetensors_to_snapshots_lazy_file(
     path: &std::path::Path,
 ) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
-    use alloc::sync::Arc;
-
     // Always use memory mapping for the most efficient access
     use memmap2::MmapOptions;
 
