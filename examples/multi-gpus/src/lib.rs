@@ -5,21 +5,16 @@ use burn::{
 };
 
 pub fn run<B: Backend>(devices: Vec<B::Device>) {
-    task2::<B>(devices.clone(), 100);
-    task1::<B>(devices.clone(), 100);
+    task_all_reduce::<B>(devices.clone(), 100);
+    task_different_tasks::<B>(devices.clone(), 100);
 }
 
-fn task1<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
+fn task_different_tasks<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
     let aggregation_device = devices.pop().unwrap();
 
     let shape = [8, 4096, 4096];
 
     let (sender, receiver) = std::sync::mpsc::sync_channel(devices.len());
-
-    fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let log = input.clone() + 1.0;
-        input.matmul(log)
-    }
 
     let mut handles = devices
         .into_iter()
@@ -58,14 +53,9 @@ fn task1<B: Backend>(mut devices: Vec<B::Device>, num_iterations: usize) {
     }
 }
 
-fn task2<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
+fn task_all_reduce<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
     let num_devices = devices.len();
     let shape = [8, 4096, 4096];
-
-    fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
-        let log = input.clone() + 1.0;
-        input.matmul(log)
-    }
 
     let handles = devices
         .into_iter()
@@ -76,10 +66,13 @@ fn task2<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
                     Tensor::<B, 3>::random(shape, burn::tensor::Distribution::Default, &device);
 
                 let id = PeerId::from(id);
-                let config = CollectiveConfig::default().with_num_devices(num_devices);
+                let config = CollectiveConfig::default()
+                    .with_num_devices(num_devices)
+                    .with_local_all_reduce_strategy(burn::collective::AllReduceStrategy::Ring);
+                println!("{config:?}");
                 burn::collective::register::<B>(id, device, config).unwrap();
 
-                for _ in 0..num_iterations {
+                for i in 0..num_iterations {
                     let tensor = compute(input);
                     let result = burn::collective::all_reduce::<B>(
                         id,
@@ -88,6 +81,7 @@ fn task2<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
                     )
                     .unwrap();
                     input = Tensor::from_primitive(TensorPrimitive::Float(result));
+                    println!("[{id}] => Iter {i}");
                 }
                 burn::collective::finish_collective::<B>(id).unwrap();
             })
@@ -97,4 +91,9 @@ fn task2<B: Backend>(devices: Vec<B::Device>, num_iterations: usize) {
     for handle in handles {
         handle.join().unwrap();
     }
+}
+
+fn compute<B: Backend>(input: Tensor<B, 3>) -> Tensor<B, 3> {
+    let log = input.clone() + 1.0;
+    input.matmul(log)
 }
