@@ -12,7 +12,7 @@ use num_traits::{Float, ToPrimitive};
 use crate::{
     DType, Distribution, Element, ElementConversion,
     quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
-    tensor::bytes::Bytes,
+    tensor::Bytes,
 };
 
 use rand::RngCore;
