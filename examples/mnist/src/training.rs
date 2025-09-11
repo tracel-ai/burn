@@ -142,7 +142,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     renderer.manual_close();
     core::mem::drop(renderer);
 
-    // Making sure the Terminal is resetted.
+    // Making sure the Terminal is reset.
     std::thread::sleep(Duration::from_secs(1));
     if let Some(summary) = result.summary {
         log::info!("{}", summary);
