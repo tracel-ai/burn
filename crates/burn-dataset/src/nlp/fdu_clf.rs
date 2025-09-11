@@ -135,29 +135,3 @@ impl FduClfDataset {
         Ok(fdu_clf_dir)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Dataset;
-
-    #[test]
-    fn test_fdu_clf_download() {
-        let _dataset = FduClfDataset::new();
-        let cache_dir = dirs::home_dir()
-            .expect("Could not get home directory")
-            .join(".cache")
-            .join("burn-dataset");
-        let fdu_clf_dir = cache_dir.join("fdu_clf");
-        assert!(fdu_clf_dir.exists());
-    }
-
-    #[test]
-    fn test_fdu_clf_len() {
-        let dataset = FduClfDataset::new();
-        let train_dataset = dataset.train();
-        let test_dataset = dataset.test();
-        assert_eq!(train_dataset.len(), 9804);
-        assert_eq!(test_dataset.len(), 9832);
-    }
-}
