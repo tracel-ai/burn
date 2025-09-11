@@ -1,8 +1,7 @@
 use crate::transform::{Mapper, MapperDataset};
 use crate::{Dataset, InMemDataset};
 
-use encoding::all::{GBK, UTF_8, UTF_16LE, UTF_16BE, WINDOWS_1252};
-use encoding::{DecoderTrap, Encoding};
+use encoding_rs::{GB18030, GBK, UTF_8, UTF_16BE, UTF_16LE};
 use globwalk::{self, DirEntry};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -64,60 +63,48 @@ fn parse_text_content(text_path: &PathBuf) -> String {
 
     // Try to detect encoding and decode text
     // First try UTF-8 with BOM
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        if let Ok(text) = UTF_8
-            .decode(&bytes[3..], DecoderTrap::Strict)
-            .map(|s| s.to_string())
-        {
-            return text;
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) && bytes.len() >= 3 {
+        let (result, _, had_errors) = UTF_8.decode(&bytes[3..]);
+        if !had_errors {
+            return result.into_owned();
         }
     }
 
     // Try UTF-8 without BOM
-    if let Ok(text) = UTF_8
-        .decode(&bytes, DecoderTrap::Strict)
-        .map(|s| s.to_string())
-    {
-        return text;
+    let (result, _, had_errors) = UTF_8.decode(&bytes);
+    if !had_errors {
+        return result.into_owned();
     }
 
     // Try UTF-16LE with BOM
     if bytes.starts_with(&[0xFF, 0xFE]) && bytes.len() >= 2 {
-        if let Ok(text) = UTF_16LE
-            .decode(&bytes[2..], DecoderTrap::Strict)
-            .map(|s| s.to_string())
-        {
-            return text;
+        let (result, had_errors) = UTF_16LE.decode_with_bom_removal(&bytes[2..]);
+        if !had_errors {
+            return result.into_owned();
         }
     }
 
     // Try UTF-16BE with BOM
     if bytes.starts_with(&[0xFE, 0xFF]) && bytes.len() >= 2 {
-        if let Ok(text) = UTF_16BE
-            .decode(&bytes[2..], DecoderTrap::Strict)
-            .map(|s| s.to_string())
-        {
-            return text;
+        let (result, had_errors) = UTF_16BE.decode_with_bom_removal(&bytes[2..]);
+        if !had_errors {
+            return result.into_owned();
         }
     }
 
-    // Try GBK encoding (common for Chinese text)
-    if let Ok(text) = GBK
-        .decode(&bytes, DecoderTrap::Replace)
-        .map(|s| s.to_string())
-    {
-        return text;
+    // Try GB18030 encoding
+    let (result, _, had_errors) = GB18030.decode(&bytes);
+    if !had_errors {
+        return result.into_owned();
     }
 
-    // Try Windows-1252 (common for Western European text)
-    if let Ok(text) = WINDOWS_1252
-        .decode(&bytes, DecoderTrap::Replace)
-        .map(|s| s.to_string())
-    {
-        return text;
+    // Try GBK encoding
+    let (result, _, had_errors) = GBK.decode(&bytes);
+    if !had_errors {
+        return result.into_owned();
     }
 
-    // Default fallback
+    // Default fallback - use from_utf8_lossy for any remaining cases
     String::from_utf8_lossy(&bytes).to_string()
 }
 
