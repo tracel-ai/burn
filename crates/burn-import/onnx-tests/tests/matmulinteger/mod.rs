@@ -5,6 +5,7 @@ include_models!(matmulinteger, matmulinteger_ranks);
 // These two tests validate that our ONNX files convert end-to-end into a Burn record.
 // (Numerical assertions can be added later once we're happy with shapes & codegen.)
 
+#[allow(unused)]
 #[cfg(test)]
 mod tests {
     use super::*;
