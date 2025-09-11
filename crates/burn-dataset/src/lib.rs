@@ -24,6 +24,10 @@ pub mod audio;
 #[cfg(feature = "vision")]
 pub mod vision;
 
+/// Natural language processing datasets.
+#[cfg(feature = "nlp")]
+pub mod nlp;
+
 mod dataset;
 pub use dataset::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]
