@@ -75,24 +75,57 @@ def main():
     E_np = np.zeros((2,4), dtype=np.int8)   # dummy
     F_np = np.zeros((4,2), dtype=np.uint8)  # dummy
 
+    print("\n" + "="*60)
+    print("Test data for matmulinteger.onnx")
+    print("="*60)
+    
+    # Print test inputs
+    print("\nTest input A shape:", A_np.shape)
+    print("Test input A:", A_np.tolist())
+    
+    print("\nTest input B shape:", B_np.shape)
+    print("Test input B:", B_np.tolist())
+
     # YA
     got_YA = ref.run(["YA"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
     exp_YA = A_np.astype(np.int32) @ B_np.astype(np.int32)
-    print("YA ok:", np.array_equal(got_YA, exp_YA))
+    print("\nTest YA = A @ B (zero-points: a0=0, b0=0)")
+    print("Expected YA shape:", exp_YA.shape)
+    print("Expected YA:", exp_YA.tolist())
+    print("YA verification:", "PASS" if np.array_equal(got_YA, exp_YA) else "FAIL")
 
     # YB (now use real C,D; others can be dummy)
     C_np = A_np
     D_np = B_np
+    print("\nTest input C shape:", C_np.shape, "(same as A)")
+    print("Test input C:", C_np.tolist())
+    
+    print("\nTest input D shape:", D_np.shape, "(same as B)")
+    print("Test input D:", D_np.tolist())
+    
     got_YB = ref.run(["YB"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
     exp_YB = (C_np.astype(np.int32) - 2) @ (D_np.astype(np.int32) - 3)
-    print("YB ok:", np.array_equal(got_YB, exp_YB))
+    print("\nTest YB = (C - 2) @ (D - 3) (zero-points: a2=2, b3=3)")
+    print("Expected YB shape:", exp_YB.shape)
+    print("Expected YB:", exp_YB.tolist())
+    print("YB verification:", "PASS" if np.array_equal(got_YB, exp_YB) else "FAIL")
 
     # YC (real E,F)
     E_np = np.array([[1,-1,2,-2],[3,-3,4,-4]], dtype=np.int8)
     F_np = np.array([[1,2],[3,4],[5,6],[7,8]], dtype=np.uint8)
+    
+    print("\nTest input E shape:", E_np.shape)
+    print("Test input E:", E_np.tolist())
+    
+    print("\nTest input F shape:", F_np.shape)
+    print("Test input F:", F_np.tolist())
+    
     got_YC = ref.run(["YC"], {"A": A_np, "B": B_np, "C": C_np, "D": D_np, "E": E_np, "F": F_np})[0]
     exp_YC = E_np.astype(np.int32) @ F_np.astype(np.int32)
-    print("YC ok:", np.array_equal(got_YC, exp_YC))
+    print("\nTest YC = E @ F (zero-points: a0=0, b0=0)")
+    print("Expected YC shape:", exp_YC.shape)
+    print("Expected YC:", exp_YC.tolist())
+    print("YC verification:", "PASS" if np.array_equal(got_YC, exp_YC) else "FAIL")
 
 if __name__ == "__main__":
     main()

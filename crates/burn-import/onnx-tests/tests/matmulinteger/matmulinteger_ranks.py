@@ -65,16 +65,41 @@ def main():
     sq4_np     = np.arange(16, dtype=np.uint8).reshape(4,4)
     mat3d_b_np = (np.arange(24, dtype=np.uint8).reshape(2,3,4) % 5).astype(np.uint8)
 
+    print("\n" + "="*60)
+    print("Test data for matmulinteger_ranks.onnx")
+    print("="*60)
+    
+    # Print test inputs
+    print("\nTest input mat2d shape:", mat2d_np.shape)
+    print("Test input mat2d:", mat2d_np.tolist())
+    
+    print("\nTest input mat3d shape:", mat3d_np.shape)
+    print("Test input mat3d:", mat3d_np.tolist())
+    
+    print("\nTest input vec4 shape:", vec4_np.shape)
+    print("Test input vec4:", vec4_np.tolist())
+    
+    print("\nTest input vec3 shape:", vec3_np.shape)
+    print("Test input vec3:", vec3_np.tolist())
+    
+    print("\nTest input sq4 shape:", sq4_np.shape)
+    print("Test input sq4:", sq4_np.tolist())
+    
+    print("\nTest input mat3d_b shape:", mat3d_b_np.shape)
+    print("Test input mat3d_b:", mat3d_b_np.tolist())
+
     # Helper: int32 matmul with broadcasting semantics where applicable
     def mm(a, b):
         return a.astype(np.int32) @ b.astype(np.int32)
 
+    # Compute expected outputs
     y_2d_1d_np = mm(mat2d_np, vec4_np)
     y_1d_2d_np = mm(vec4_np, sq4_np)
     y_3d_1d_np = np.matmul(mat3d_np.astype(np.int32), vec4_np.astype(np.int32))  # (2,3)
     y_1d_3d_np = np.matmul(vec3_np.astype(np.int32),  mat3d_b_np.astype(np.int32))  # (2,4)
     y_2d_2d_np = mm(mat2d_np, sq4_np)
 
+    # Run model inference
     got_all = ref.run(None, {
         "mat2d": mat2d_np,
         "mat3d": mat3d_np,
@@ -84,16 +109,35 @@ def main():
         "mat3d_b": mat3d_b_np,
     })
 
-    checks = [
-        ("y_2d_1d", got_all[0], y_2d_1d_np),
-        ("y_1d_2d", got_all[1], y_1d_2d_np),
-        ("y_3d_1d", got_all[2], y_3d_1d_np),
-        ("y_1d_3d", got_all[3], y_1d_3d_np),
-        ("y_2d_2d", got_all[4], y_2d_2d_np),
-    ]
-    for name, got, exp in checks:
-        ok = np.array_equal(got, exp)
-        print(f"{name} ok:", ok)
+    # Test y_2d_1d: mat2d @ vec4 = [3, 4] @ [4] → [3]
+    print("\nTest y_2d_1d = mat2d @ vec4 (zero-points: a0=0, b0=0)")
+    print("Expected y_2d_1d shape:", y_2d_1d_np.shape)
+    print("Expected y_2d_1d:", y_2d_1d_np.tolist())
+    print("y_2d_1d verification:", "PASS" if np.array_equal(got_all[0], y_2d_1d_np) else "FAIL")
+    
+    # Test y_1d_2d: vec4 @ sq4 = [4] @ [4, 4] → [4]
+    print("\nTest y_1d_2d = vec4 @ sq4 (zero-points: a0=0, b0=0)")
+    print("Expected y_1d_2d shape:", y_1d_2d_np.shape)
+    print("Expected y_1d_2d:", y_1d_2d_np.tolist())
+    print("y_1d_2d verification:", "PASS" if np.array_equal(got_all[1], y_1d_2d_np) else "FAIL")
+    
+    # Test y_3d_1d: mat3d @ vec4 = [2, 3, 4] @ [4] → [2, 3]
+    print("\nTest y_3d_1d = mat3d @ vec4 (zero-points: a0=0, b0=0)")
+    print("Expected y_3d_1d shape:", y_3d_1d_np.shape)
+    print("Expected y_3d_1d:", y_3d_1d_np.tolist())
+    print("y_3d_1d verification:", "PASS" if np.array_equal(got_all[2], y_3d_1d_np) else "FAIL")
+    
+    # Test y_1d_3d: vec3 @ mat3d_b = [3] @ [2, 3, 4] → [2, 4]
+    print("\nTest y_1d_3d = vec3 @ mat3d_b (zero-points: a0=0, b0=0)")
+    print("Expected y_1d_3d shape:", y_1d_3d_np.shape)
+    print("Expected y_1d_3d:", y_1d_3d_np.tolist())
+    print("y_1d_3d verification:", "PASS" if np.array_equal(got_all[3], y_1d_3d_np) else "FAIL")
+    
+    # Test y_2d_2d: mat2d @ sq4 = [3, 4] @ [4, 4] → [3, 4]
+    print("\nTest y_2d_2d = mat2d @ sq4 (zero-points: a0=0, b0=0)")
+    print("Expected y_2d_2d shape:", y_2d_2d_np.shape)
+    print("Expected y_2d_2d:", y_2d_2d_np.tolist())
+    print("y_2d_2d verification:", "PASS" if np.array_equal(got_all[4], y_2d_2d_np) else "FAIL")
 
 if __name__ == "__main__":
     main()
