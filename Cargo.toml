@@ -28,6 +28,10 @@ version = "0.19.0"
 
 [workspace.lints.clippy]
 
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.4"
@@ -164,9 +168,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "462f7cdc066d6558124edb96300fcc61d7728555" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e25d9d58f84534f8f30d0f430b10bb7293b203c1" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e25d9d58f84534f8f30d0f430b10bb7293b203c1" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e25d9d58f84534f8f30d0f430b10bb7293b203c1" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

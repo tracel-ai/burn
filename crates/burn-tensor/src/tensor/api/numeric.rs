@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
-use crate::quantization::QTensorPrimitive;
 use crate::{
     BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
@@ -12,6 +11,23 @@ use crate::{
     ops::{Device, IntTensor},
 };
 use crate::{DType, TensorPrimitive};
+
+macro_rules! q_bin_ops {
+    ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
+        match ($lhs, $rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::$op(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::$q_op(lhs, rhs),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::$op(B::dequantize(lhs), rhs))
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs)))
+            }
+        }
+    };
+}
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -907,70 +923,6 @@ where
             dim,
             self.primitive,
             indices.primitive,
-            values.primitive,
-        ))
-    }
-
-    /// Select the tensor elements along the given dimension corresponding to the given indices.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
-    /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
-    /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape, Int};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 3>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
-    ///   let tensor = tensor.select(0, indices);
-    ///   println!("{tensor}");
-    ///   //  [[1.0, -2.0, 3.0]]
-    /// }
-    /// ```
-    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
-        check!(TensorCheck::select::<D>(dim));
-        Self::new(K::select(self.primitive, dim, indices))
-    }
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor to the original tensor using sum reduction.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn select_assign(
-        self,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Tensor<B, D, K>,
-    ) -> Self {
-        check!(TensorCheck::select_assign::<D>(
-            dim,
-            &indices.shape(),
-            &values.shape()
-        ));
-
-        Self::new(K::select_assign(
-            self.primitive,
-            dim,
-            indices,
             values.primitive,
         ))
     }
@@ -2909,61 +2861,6 @@ where
         values: Self::Primitive,
     ) -> Self::Primitive;
 
-    /// Select tensor elements along the given dimension corresponding for the given indices.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to select elements from.
-    /// * `dim` - The axis along which to select elements.
-    /// * `indices` - The indices of the elements to select.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For selecting elements from a tensor along an axis, users should prefer the
-    /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive;
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to assign elements to.
-    /// * `dim` - The axis along which to assign elements.
-    /// * `indices` - The indices of the elements to assign.
-    /// * `values` - The values to assign to the tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis,
-    /// except for the elements at the specified indices, which are taken from the corresponding
-    /// element of the values tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For assigning elements to a tensor along an axis, users should prefer the
-    /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive;
-
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
     /// # Arguments
@@ -3520,18 +3417,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mask_fill(tensor, mask, value)
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        B::int_select(tensor, dim, indices.primitive)
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices.primitive, values)
-    }
     fn gather(
         dim: usize,
         tensor: Self::Primitive,
@@ -3672,14 +3557,9 @@ impl<B: Backend> Numeric<B> for Int {
 
 impl<B: Backend> Numeric<B> for Float {
     fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_add(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_add(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_add, q_add)
     }
+
     fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3688,15 +3568,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs.elem()),
         }
     }
+
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_sub(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_sub(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_sub, q_sub)
     }
+
     fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3705,15 +3581,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs.elem()),
         }
     }
+
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_div(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_div(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_div, q_div)
     }
+
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3728,18 +3600,15 @@ impl<B: Backend> Numeric<B> for Float {
     ) -> <Float as TensorKind<B>>::Primitive {
         TensorPrimitive::Float(B::float_remainder(lhs.tensor(), rhs.tensor()))
     }
+
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs.elem()))
     }
+
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_mul(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_mul(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_mul, q_mul)
     }
+
     fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3859,32 +3728,6 @@ impl<B: Backend> Numeric<B> for Float {
         value: Self::Elem,
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
-    }
-
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices.primitive))
-            }
-        }
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
     }
 
     fn gather(
@@ -4025,13 +3868,7 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
     fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
@@ -4044,13 +3881,7 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
@@ -4135,25 +3966,7 @@ impl<B: Backend> Numeric<B> for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
-                // represents the weights.
-                //
-                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-                // more sense to re-quantize the input back. Better usability.
-                //
-                // This might change in the future (dequantize on read in fusion?).
-                B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
-            }
-        }
+        q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
     }
 }
 

@@ -45,6 +45,7 @@ pub mod leaky_relu;
 pub mod linear;
 pub mod log_softmax;
 pub mod matmul;
+pub mod matmulinteger;
 pub mod max_pool1d;
 pub mod max_pool2d;
 pub mod one_hot;

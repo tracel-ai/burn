@@ -806,7 +806,7 @@ fn dequantize<C: Float>(
     let num_quants = comptime!(scheme.num_quants() as u32);
     let line_size_result = comptime!(num_quants * line_size);
 
-    let line = if comptime!(num_quants == line_size_result) {
+    let line = if comptime!(line_size == 1) {
         result[0]
     } else {
         let mut line = Line::empty(line_size_result);
