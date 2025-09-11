@@ -218,6 +218,7 @@ mod tests {
         assert_eq!(shape.to_vec(), vec![2, 3, 4, 5]);
     }
 
+    #[allow(clippy::single_range_in_vec_init)]
     #[test]
     fn test_slice() {
         assert_eq!(Shape::new([3]).slice(s![1..4]), [1..3]);
