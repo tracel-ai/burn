@@ -1,9 +1,12 @@
 use crate::transform::{Mapper, MapperDataset};
 use crate::{Dataset, InMemDataset};
 
+use encoding::all::{GBK, UTF_8, UTF_16LE, UTF_16BE, WINDOWS_1252};
+use encoding::{DecoderTrap, Encoding};
 use globwalk::{self, DirEntry};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -52,10 +55,70 @@ struct PathToTextDatasetItem {
     classes: HashMap<String, usize>,
 }
 
-/// Parse the text content from file.
+/// Parse the text content from file with auto-detection of encoding.
 fn parse_text_content(text_path: &PathBuf) -> String {
-    // Read text from disk
-    fs::read_to_string(text_path).unwrap()
+    // Read raw bytes from disk
+    let mut file = fs::File::open(text_path).unwrap();
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).unwrap();
+
+    // Try to detect encoding and decode text
+    // First try UTF-8 with BOM
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        if let Ok(text) = UTF_8
+            .decode(&bytes[3..], DecoderTrap::Strict)
+            .map(|s| s.to_string())
+        {
+            return text;
+        }
+    }
+
+    // Try UTF-8 without BOM
+    if let Ok(text) = UTF_8
+        .decode(&bytes, DecoderTrap::Strict)
+        .map(|s| s.to_string())
+    {
+        return text;
+    }
+
+    // Try UTF-16LE with BOM
+    if bytes.starts_with(&[0xFF, 0xFE]) && bytes.len() >= 2 {
+        if let Ok(text) = UTF_16LE
+            .decode(&bytes[2..], DecoderTrap::Strict)
+            .map(|s| s.to_string())
+        {
+            return text;
+        }
+    }
+
+    // Try UTF-16BE with BOM
+    if bytes.starts_with(&[0xFE, 0xFF]) && bytes.len() >= 2 {
+        if let Ok(text) = UTF_16BE
+            .decode(&bytes[2..], DecoderTrap::Strict)
+            .map(|s| s.to_string())
+        {
+            return text;
+        }
+    }
+
+    // Try GBK encoding (common for Chinese text)
+    if let Ok(text) = GBK
+        .decode(&bytes, DecoderTrap::Replace)
+        .map(|s| s.to_string())
+    {
+        return text;
+    }
+
+    // Try Windows-1252 (common for Western European text)
+    if let Ok(text) = WINDOWS_1252
+        .decode(&bytes, DecoderTrap::Replace)
+        .map(|s| s.to_string())
+    {
+        return text;
+    }
+
+    // Default fallback
+    String::from_utf8_lossy(&bytes).to_string()
 }
 
 impl Mapper<TextDatasetItemRaw, TextDatasetItem> for PathToTextDatasetItem {
@@ -92,6 +155,10 @@ pub enum TextLoaderError {
     /// Invalid file error.
     #[error("Invalid file extension: `{0}`")]
     InvalidFileExtensionError(String),
+
+    /// Encoding error.
+    #[error("Encoding error: `{0}`")]
+    EncodingError(String),
 }
 
 type TextDatasetMapper =
@@ -316,6 +383,7 @@ mod tests {
 
     #[test]
     fn test_text_folder_dataset_with_items() {
+        // Create the dataset
         let root = Path::new(TEXT_ROOT);
         let items = vec![
             (
@@ -323,11 +391,10 @@ mod tests {
                 "positive".to_string(),
             ),
             (
-                root.join("negative").join("sample1.txt"),
+                root.join("negative").join("sample2.txt"),
                 "negative".to_string(),
             ),
         ];
-
         let classes = vec!["positive", "negative"];
         let dataset = TextFolderDataset::new_classification_with_items(items, &classes).unwrap();
 
@@ -335,16 +402,33 @@ mod tests {
         assert_eq!(dataset.len(), 2);
         assert_eq!(dataset.get(2), None);
 
-        // Check items
+        // Get items
         let item0 = dataset.get(0).unwrap();
         let item1 = dataset.get(1).unwrap();
 
-        // First item should be positive (label 0)
-        assert_eq!(item0.label, 0);
-        assert!(item0.text.text_path.contains("positive"));
+        // Check item0
+        assert!(compare_item(
+            &item0,
+            &(
+                "This is a positive text sample for testing the text folder dataset functionality."
+                    .to_string(),
+                0
+            )
+        ));
 
-        // Second item should be negative (label 1)
+        // Check item1
         assert_eq!(item1.label, 1);
         assert!(item1.text.text_path.contains("negative"));
+        assert!(compare_item(
+            &item1,
+            &(
+                "另一个负面文本样本，用以确保数据集能够处理同一类别中的多个文件。".to_string(),
+                1
+            )
+        ));
+    }
+
+    fn compare_item(item: &TextDatasetItem, target: &(String, usize)) -> bool {
+        item.text.text == target.0 && item.label == target.1
     }
 }
