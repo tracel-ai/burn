@@ -16,28 +16,27 @@ mod tests {
     #[test]
     fn matmulinteger_basic() {
         let device = Default::default();
-        let model: matmulinteger::Model<TestBackend> = matmulinteger::Model::new(&device);
+        let model: matmulinteger::Model<TestBackend> = matmulinteger::Model::default();
 
-        // Build inputs for A,B,C,D,E,F matching ONNX shapes: [2,4] @ [4,3]
-        let a = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2, 3, 4], [5, 6, 7, 8]], &device);
+        // Build inputs matching Python test in matmulinteger.py
+        // A and B for first MatMulInteger (zero-points: a0=0, b0=0)
+        let a = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2, 3, 4], [10, 20, 30, 40]], &device);
         let b = Tensor::<TestBackend, 2, Int>::from_ints(
-            [[7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]],
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]],
             &device,
         );
 
-        let c = Tensor::<TestBackend, 2, Int>::from_ints([[5, 6, 7, 8], [32, 42, 52, 62]], &device);
+        // C and D for second MatMulInteger (zero-points: a2=2, b3=3)
+        // Python uses same values as A and B for C and D
+        let c = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2, 3, 4], [10, 20, 30, 40]], &device);
         let d = Tensor::<TestBackend, 2, Int>::from_ints(
-            [[10, 11, 12], [13, 14, 15], [16, 17, 18], [19, 20, 21]],
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]],
             &device,
         );
 
-        // E is [2,4] and F is [4,2] for the third MatMulInteger
-        let e = Tensor::<TestBackend, 2, Int>::from_ints(
-            [[-10, -11, -12, -13], [-14, -15, -16, -17]],
-            &device,
-        );
-        let f =
-            Tensor::<TestBackend, 2, Int>::from_ints([[6, 7], [8, 9], [10, 11], [12, 13]], &device);
+        // E and F for third MatMulInteger (zero-points: a0=0, b0=0)
+        let e = Tensor::<TestBackend, 2, Int>::from_ints([[1, -1, 2, -2], [3, -3, 4, -4]], &device);
+        let f = Tensor::<TestBackend, 2, Int>::from_ints([[1, 2], [3, 4], [5, 6], [7, 8]], &device);
 
         // Forward now takes 6 args and returns 3 outputs (YA, YB, YC)
         let (ya, yb, yc) = model.forward(a, b, c, d, e, f);
@@ -45,28 +44,17 @@ mod tests {
         // NdArray backend: Int => i64, so build i64 expected
         use burn::tensor::TensorData;
 
-        // Test with zero-points from ONNX Constant nodes
         // YA: Computes (A - 0) @ (B - 0) since a0=0 and b0=0
-        // A = [[1, 2, 3, 4], [5, 6, 7, 8]], B = [[7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]]
-        // A @ B = [[1*7+2*10+3*13+4*16, 1*8+2*11+3*14+4*17, 1*9+2*12+3*15+4*18],
-        //          [5*7+6*10+7*13+8*16, 5*8+6*11+7*14+8*17, 5*9+6*12+7*15+8*18]]
-        //       = [[130, 140, 150], [314, 340, 366]]
-        let expected_ya = TensorData::from([[130i64, 140, 150], [314, 340, 366]]);
+        let expected_ya = TensorData::from([[70i64, 80, 90], [700, 800, 900]]);
         ya.to_data().assert_eq(&expected_ya, true);
 
-        // YB: Actually getting [392, 418, 444] and [2876, 3064, 3252]
-        // This suggests the constants might be loading with different values or broadcasting incorrectly
-        // Let's use the actual values we're getting for now to make the test pass
-        let expected_yb = TensorData::from([[392i64, 418, 444], [2876, 3064, 3252]]);
+        // YB: Computes (C - a2) @ (D - b3) where a2=2 and b3=3 (from ONNX constant nodes)
+        let expected_yb = TensorData::from([[20i64, 22, 24], [380, 472, 564]]);
         yb.to_data().assert_eq(&expected_yb, true);
 
         // YC: Computes (E - 0) @ (F - 0) with mixed signed/unsigned types
         // Since a0=0 and b0=0, the result is just E @ F
-        // E = [[-10, -11, -12, -13], [-14, -15, -16, -17]], F = [[6, 7], [8, 9], [10, 11], [12, 13]]
-        // E @ F = [[-10*6-11*8-12*10-13*12, -10*7-11*9-12*11-13*13],
-        //          [-14*6-15*8-16*10-17*12, -14*7-15*9-16*11-17*13]]
-        //       = [[-424, -470], [-568, -630]]
-        let expected_yc = TensorData::from([[-424i64, -470], [-568, -630]]);
+        let expected_yc = TensorData::from([[-6i64, -6], [-14, -14]]);
         yc.to_data().assert_eq(&expected_yc, true);
     }
 
@@ -74,8 +62,7 @@ mod tests {
     #[test]
     fn matmulinteger_ranks() {
         let device = Default::default();
-        let model: matmulinteger_ranks::Model<TestBackend> =
-            matmulinteger_ranks::Model::new(&device);
+        let model: matmulinteger_ranks::Model<TestBackend> = matmulinteger_ranks::Model::default();
 
         // Create inputs matching Python test shapes
         // mat2d: [3, 4]
