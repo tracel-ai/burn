@@ -5,23 +5,16 @@ macro_rules! scalar_float_ops {
         $name:ident,
         $ops:expr
     ) => {
-        scalar_float_ops!($name, $ops, f32);
-    };
-    (
-        $name:ident,
-        $ops:expr,
-        $elem:ty
-    ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<$elem>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
+                let output = $ops(lhs, self.desc.rhs.elem());
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
@@ -30,12 +23,11 @@ macro_rules! scalar_float_ops {
     (
         $name:ident,
         $ops:expr,
-        $elem:ty,
         noconvert
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<$elem>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
@@ -128,11 +120,10 @@ macro_rules! scalar_float2int_ops {
     (
         $name:ident,
         $ops:expr,
-        $elem:ty
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<$elem>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
@@ -244,14 +235,14 @@ macro_rules! scalar_float_cmp_ops {
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<f32>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
+                let output = $ops(lhs, self.desc.rhs.elem());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -268,14 +259,14 @@ macro_rules! scalar_int_cmp_ops {
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<i32>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
+                let output = $ops(lhs, self.desc.rhs.elem());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -290,23 +281,16 @@ macro_rules! scalar_int_ops {
         $name:ident,
         $ops:expr
     ) => {
-        scalar_int_ops!($name, $ops, i32);
-    };
-    (
-        $name:ident,
-        $ops:expr,
-        $elem:ty
-    ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<$elem>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
+                let output = $ops(lhs, self.desc.rhs.elem());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
@@ -315,12 +299,11 @@ macro_rules! scalar_int_ops {
     (
         $name:ident,
         $ops:expr,
-        $elem:ty,
         noconvert
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOpIr<$elem>,
+            desc: ScalarOpIr,
             _b: PhantomData<B>,
         }
 

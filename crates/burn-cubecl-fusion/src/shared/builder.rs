@@ -10,7 +10,7 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_tensor::{DType, Element};
+use burn_tensor::DType;
 use cubecl::ir::ElemType;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
@@ -77,13 +77,13 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
-                if !self.register_numeric::<f32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
-                if !self.register_numeric::<i32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -347,7 +347,7 @@ impl FuseOptimizationBuilder {
         }
     }
 
-    fn register_numeric<E: Element>(&mut self, op: &NumericOperationIr<E>) -> bool {
+    fn register_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
             NumericOperationIr::Add(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
@@ -613,7 +613,7 @@ impl FuseOptimizationBuilder {
         })
     }
 
-    fn register_scalar_ops<Func, E: Element>(&mut self, desc: &ScalarOpIr<E>, func: Func) -> bool
+    fn register_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
     where
         Func: Fn(Arg, Arg, Arg) -> FuseOp,
     {
