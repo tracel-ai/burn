@@ -24,13 +24,15 @@ pub fn trace<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     check!(TensorCheck::tri::<D>());
 
     let shape = tensor.shape();
-    // let mat_shape = &full_shape.dims[D - 2..].to_owned();
     let mat_shape = [shape.dims[D - 2], shape.dims[D - 1]];
 
     let mask = Tensor::<B, 2, Bool>::diag_mask(mat_shape, 0, &tensor.device());
 
     // Handle broadcasting of the mask
-    let mut mask_shape = vec![1; D];
+    let mut mask_shape = shape.dims.clone();
+    for item in mask_shape.iter_mut().take(D - 2) {
+        *item = 1;
+    }
     mask_shape[D - 2] = mat_shape[0];
     mask_shape[D - 1] = mat_shape[1];
     let mask_shape = Shape::from(mask_shape);

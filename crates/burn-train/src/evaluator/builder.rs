@@ -41,7 +41,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: impl AsRef<Path>) -> Self {
         let directory = directory.as_ref().to_path_buf();
-        let log_file = directory.join("evluation.log");
+        let log_file = directory.join("evaluation.log");
 
         Self {
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(log_file))),

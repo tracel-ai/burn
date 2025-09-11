@@ -6,10 +6,7 @@ mod tests {
     #[test]
     fn test_diag_2d_square() {
         let device = Default::default();
-        let tensor = TestTensor::<2>::from_data(
-            [[1.0, 2.0], [3.0, 4.0]], 
-            &device,
-        );
+        let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let result = diag(tensor);
         let expected = TestTensor::<2>::from_data([[1.0], [4.0]], &device);
 
@@ -20,10 +17,8 @@ mod tests {
     fn test_diag_2d_tall() {
         let device = Default::default();
         // 4x2 matrix (tall) - min(4,2) = 2 diagonal elements
-        let tensor = TestTensor::<2>::from_data(
-            [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]], 
-            &device,
-        );
+        let tensor =
+            TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]], &device);
         let result = diag(tensor);
         // Result should have shape [2, 1] with values [[1.0], [4.0]]
         let expected = TestTensor::<2>::from_data([[1.0], [4.0]], &device);
@@ -34,11 +29,9 @@ mod tests {
     #[test]
     fn test_diag_2d_wide() {
         let device = Default::default();
-        // 2x4 matrix (wide) - min(2,4) = 2 diagonal elements  
-        let tensor = TestTensor::<2>::from_data(
-            [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], 
-            &device,
-        );
+        // 2x4 matrix (wide) - min(2,4) = 2 diagonal elements
+        let tensor =
+            TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], &device);
         let result = diag(tensor);
         // Result should have shape [2, 1] with values [[1.0], [6.0]]
         let expected = TestTensor::<2>::from_data([[1.0], [6.0]], &device);
@@ -51,8 +44,7 @@ mod tests {
         let device = Default::default();
         // Batch of 2 matrices, each 2x2
         let tensor = TestTensor::<3>::from_data(
-            [[[1.0, 2.0], [3.0, 4.0]], 
-             [[5.0, 6.0], [7.0, 8.0]]], 
+            [[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]],
             &device,
         );
         let result = diag(tensor);
@@ -67,8 +59,10 @@ mod tests {
         let device = Default::default();
         // Batch of 2 matrices, each 3x2 (tall)
         let tensor = TestTensor::<3>::from_data(
-            [[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], 
-             [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]], 
+            [
+                [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+                [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
+            ],
             &device,
         );
         let result = diag(tensor);
@@ -83,8 +77,10 @@ mod tests {
         let device = Default::default();
         // Batch of 2 matrices, each 2x3 (wide)
         let tensor = TestTensor::<3>::from_data(
-            [[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], 
-             [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]], 
+            [
+                [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+                [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+            ],
             &device,
         );
         let result = diag(tensor);
@@ -99,18 +95,20 @@ mod tests {
         let device = Default::default();
         // [batch=2, channel=2, rows=2, cols=2]
         let tensor = TestTensor::<4>::from_data(
-            [[[[1.0, 2.0], [3.0, 4.0]], 
-              [[5.0, 6.0], [7.0, 8.0]]], 
-             [[[9.0, 10.0], [11.0, 12.0]], 
-              [[13.0, 14.0], [15.0, 16.0]]]], 
+            [
+                [[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]],
+                [[[9.0, 10.0], [11.0, 12.0]], [[13.0, 14.0], [15.0, 16.0]]],
+            ],
             &device,
         );
         let result = diag(tensor);
         // Result should have shape [2, 2, 2, 1]
         let expected = TestTensor::<4>::from_data(
-            [[[[1.0], [4.0]], [[5.0], [8.0]]], 
-             [[[9.0], [12.0]], [[13.0], [16.0]]]], 
-            &device
+            [
+                [[[1.0], [4.0]], [[5.0], [8.0]]],
+                [[[9.0], [12.0]], [[13.0], [16.0]]],
+            ],
+            &device,
         );
 
         assert_eq!(result.to_data(), expected.to_data());
@@ -119,19 +117,17 @@ mod tests {
     #[test]
     fn test_diag_4d_batch_channel_tall() {
         let device = Default::default();
-        // [batch=2, channel=1, rows=3, cols=2] 
+        // [batch=2, channel=1, rows=3, cols=2]
         let tensor = TestTensor::<4>::from_data(
-            [[[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]], 
-             [[[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]]], 
+            [
+                [[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]],
+                [[[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]],
+            ],
             &device,
         );
         let result = diag(tensor);
         // Result should have shape [2, 1, 2, 1] - min(3,2) = 2 diagonal elements each
-        let expected = TestTensor::<4>::from_data(
-            [[[[1.0], [4.0]]], 
-             [[[7.0], [10.0]]]], 
-            &device
-        );
+        let expected = TestTensor::<4>::from_data([[[[1.0], [4.0]]], [[[7.0], [10.0]]]], &device);
 
         assert_eq!(result.to_data(), expected.to_data());
     }
@@ -141,16 +137,15 @@ mod tests {
         let device = Default::default();
         // [batch=1, channel=2, rows=2, cols=4]
         let tensor = TestTensor::<4>::from_data(
-            [[[[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], 
-              [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]]]], 
+            [[
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+                [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
+            ]],
             &device,
         );
         let result = diag(tensor);
         // Result should have shape [1, 2, 2, 1] - min(2,4) = 2 diagonal elements each
-        let expected = TestTensor::<4>::from_data(
-            [[[[1.0], [6.0]], [[9.0], [14.0]]]], 
-            &device
-        );
+        let expected = TestTensor::<4>::from_data([[[[1.0], [6.0]], [[9.0], [14.0]]]], &device);
 
         assert_eq!(result.to_data(), expected.to_data());
     }
@@ -167,7 +162,7 @@ mod tests {
         assert_eq!(result.to_data(), expected.to_data());
     }
 
-    #[test] 
+    #[test]
     fn test_diag_single_row() {
         let device = Default::default();
         // Single row matrix
@@ -220,8 +215,7 @@ mod tests {
         let device = Default::default();
         // Batch with mixed zero and non-zero diagonal elements
         let tensor = TestTensor::<3>::from_data(
-            [[[1.0, 2.0], [3.0, 0.0]], 
-             [[0.0, 5.0], [6.0, 7.0]]], 
+            [[[1.0, 2.0], [3.0, 0.0]], [[0.0, 5.0], [6.0, 7.0]]],
             &device,
         );
         let result = diag(tensor);
@@ -235,10 +229,7 @@ mod tests {
     fn test_diag_int_tensor() {
         let device = Default::default();
         // Test with integer tensor
-        let tensor = TestTensorInt::<2>::from_data(
-            [[1, 2], [3, 4]], 
-            &device,
-        );
+        let tensor = TestTensorInt::<2>::from_data([[1, 2], [3, 4]], &device);
         let result = diag(tensor);
         // Result should have shape [2, 1] with values [[1], [4]]
         let expected = TestTensorInt::<2>::from_data([[1], [4]], &device);
@@ -250,10 +241,7 @@ mod tests {
     fn test_diag_int_3x3() {
         let device = Default::default();
         // Test with 3x3 integer matrix
-        let tensor = TestTensorInt::<2>::from_data(
-            [[1, 2, 3], [4, 5, 6], [7, 8, 9]], 
-            &device,
-        );
+        let tensor = TestTensorInt::<2>::from_data([[1, 2, 3], [4, 5, 6], [7, 8, 9]], &device);
         let result = diag(tensor);
         // Result should have shape [3, 1] with values [[1], [5], [9]]
         let expected = TestTensorInt::<2>::from_data([[1], [5], [9]], &device);
