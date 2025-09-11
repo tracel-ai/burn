@@ -217,10 +217,49 @@ pub trait ModuleVisitor<B: Backend> {
     fn visit_int<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Int>) {}
     /// Visit a bool tensor in the module.
     fn visit_bool<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Bool>) {}
+
+    /// Called when entering a submodule.
+    fn enter_module(&mut self, _name: &str, _container_type: &str) {}
+
+    /// Called when exiting a submodule.
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {}
+
+    /// Visit a float tensor with its full module path.
+    fn visit_float_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D>,
+    ) {
+    }
+
+    /// Visit an int tensor with its full module path.
+    fn visit_int_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D, Int>,
+    ) {
+    }
+
+    /// Visit a bool tensor with its full module path.
+    fn visit_bool_with_path<const D: usize>(
+        &mut self,
+        _path: &str,
+        _id: ParamId,
+        _tensor: &Tensor<B, D, Bool>,
+    ) {
+    }
 }
 
 /// Module mapper trait.
 pub trait ModuleMapper<B: Backend> {
+    /// Called when entering a submodule.
+    fn enter_module(&mut self, _name: &str, _container_type: &str) {}
+
+    /// Called when exiting a submodule.
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {}
+
     /// Map a float tensor in the module.
     fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         tensor
