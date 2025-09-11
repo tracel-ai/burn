@@ -1,5 +1,6 @@
 use alloc::{format, string::String, string::ToString};
 pub use burn_derive::Config;
+use core::fmt::Debug;
 
 /// Configuration IO error.
 #[derive(Debug)]
@@ -31,7 +32,7 @@ impl core::fmt::Display for ConfigError {
 impl core::error::Error for ConfigError {}
 
 /// Configuration trait.
-pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
+pub trait Config: Debug + serde::Serialize + serde::de::DeserializeOwned {
     /// Saves the configuration to a file.
     ///
     /// # Arguments

@@ -1,8 +1,7 @@
 //! # Activation Layers
 //!
 //! Users who desire a selectable activation function should
-//! consider [`Activation`] or [`DimSelectActivation`], which
-//! provide wrappers for:
+//! consider [`Activation`], which provides an abstraction over:
 //! * [`Relu`] - the default,
 //! * ['PRelu']
 //! * [`Gelu`]

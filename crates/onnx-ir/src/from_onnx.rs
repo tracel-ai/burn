@@ -19,7 +19,7 @@ use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 29] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 28] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -30,7 +30,6 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 29] = [
     NodeType::ConvTranspose3d,
     NodeType::Dropout,
     NodeType::Expand,
-    NodeType::Gather,
     NodeType::GroupNormalization,
     NodeType::InstanceNormalization,
     NodeType::LayerNormalization,
@@ -50,7 +49,23 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 29] = [
     NodeType::Trilu,
     NodeType::Unsqueeze,
 ];
+use crate::protos::tensor_proto::DataType as DT;
+use protobuf::Enum;
 
+pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
+    match DT::from_i32(dt_i32).ok_or_else(|| format!("unknown dtype {}", dt_i32))? {
+        DT::FLOAT => Ok(ElementType::Float32),
+        DT::DOUBLE => Ok(ElementType::Float64),
+        DT::FLOAT16 => Ok(ElementType::Float16),
+        DT::INT64 => Ok(ElementType::Int64),
+        DT::INT32 => Ok(ElementType::Int32),
+        DT::UINT8 => Ok(ElementType::Uint8),
+        DT::INT8 => Ok(ElementType::Int8),
+        DT::BOOL => Ok(ElementType::Bool),
+        DT::STRING => Ok(ElementType::String),
+        other => Err(format!("unsupported dtype {:?}", other)),
+    }
+}
 /// Minimum required ONNX opset version
 pub const MIN_OPSET_VERSION: i64 = 16;
 
@@ -214,8 +229,10 @@ pub(crate) struct OnnxGraphBuilder {
     /// Node types that should be lifted to constants
     constants_types: HashSet<NodeType>,
     node_name_counter: HashMap<NodeType, usize>,
-    /// Track how many times each constant is used
+    /// Track how many times each constant is used (keyed by original ONNX output name)
     constant_usage_count: HashMap<String, usize>,
+    /// Map from constant node index to its original ONNX output name
+    constant_original_names: HashMap<usize, String>,
 }
 
 impl OnnxGraphBuilder {
@@ -227,7 +244,19 @@ impl OnnxGraphBuilder {
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
-
+        for t in &model_proto.graph.initializer {
+            log::debug!(
+                "init name={:?} dtype={:?} dims={:?} raw_len={} i32={} i64={} f32={} f64={}",
+                t.name,
+                crate::protos::tensor_proto::DataType::from_i32(t.data_type),
+                t.dims,
+                t.raw_data.len(),
+                t.int32_data.len(),
+                t.int64_data.len(),
+                t.float_data.len(),
+                t.double_data.len(),
+            );
+        }
         // First pass: count constant usage
         self.count_constant_usage(&model_proto.graph.node);
 
@@ -384,6 +413,39 @@ impl OnnxGraphBuilder {
                                 // Actual rank will be determined from tensor data
                                 shape_inputs.push((input.name.clone(), 0));
                             }
+                        }
+                    }
+                }
+            }
+            // Gather: convert indices constants to Shape when data input is Shape
+            NodeType::Gather => {
+                if node.inputs.len() != 2 {
+                    return shape_inputs;
+                }
+
+                // Check if the data input (first input) is a Shape
+                if let ArgType::Shape(_shape_rank) = node.inputs[0].ty {
+                    let indices_input = &node.inputs[1];
+
+                    // Only convert rank-1 tensor constant indices to Shape
+                    if let ArgType::Tensor(t) = &indices_input.ty
+                        && t.rank == 1
+                    {
+                        // Only consider constants for conversion
+                        let is_constant = indices_input.value.is_some()
+                            || all_nodes.iter().any(|n| {
+                                n.node_type == NodeType::Constant
+                                    && n.outputs.iter().any(|o| o.name == indices_input.name)
+                            });
+
+                        if is_constant {
+                            // Convert rank-1 tensor indices to Shape(1)
+                            shape_inputs.push((indices_input.name.clone(), 1));
+                            log::debug!(
+                                "Gather node {} with Shape data input - marking indices {} for Shape conversion",
+                                node.name,
+                                indices_input.name
+                            );
                         }
                     }
                 }
@@ -666,10 +728,16 @@ impl OnnxGraphBuilder {
 
     fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Constant {
-            self.constants_map.insert(
-                format!("{}_out{}", &node.name, 1),
-                graph_data.get_current_index(),
-            );
+            let const_idx = graph_data.get_current_index();
+
+            // Remember the original ONNX output name before renaming for usage count lookup
+            if let Some(output) = node.outputs.first() {
+                self.constant_original_names
+                    .insert(const_idx, output.name.clone());
+            }
+
+            self.constants_map
+                .insert(format!("{}_out{}", &node.name, 1), const_idx);
         } else if node.node_type == NodeType::ConstantOfShape {
             // Special handling for ConstantOfShape - check first input
             log::debug!("Checking ConstantOfShape node {} for constants", &node.name);
@@ -693,7 +761,12 @@ impl OnnxGraphBuilder {
                     }
 
                     // Check usage count to determine if we should remove this constant
-                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
+                    // Use the original ONNX output name for usage count lookup
+                    let original_name = self
+                        .constant_original_names
+                        .get(const_idx)
+                        .unwrap_or(&input.name);
+                    let usage_count = self.constant_usage_count.get(original_name).unwrap_or(&0);
                     if *usage_count <= 1 {
                         // This is the only usage, we can remove the constant
                         self.nodes_to_remove.insert(*const_idx);
@@ -732,7 +805,12 @@ impl OnnxGraphBuilder {
                     }
 
                     // Check usage count to determine if we should remove this constant
-                    let usage_count = self.constant_usage_count.get(&input.name).unwrap_or(&0);
+                    // Use the original ONNX output name for usage count lookup
+                    let original_name = self
+                        .constant_original_names
+                        .get(const_idx)
+                        .unwrap_or(&input.name);
+                    let usage_count = self.constant_usage_count.get(original_name).unwrap_or(&0);
                     if *usage_count <= 1 {
                         // This is the only usage, we can remove the constant
                         self.nodes_to_remove.insert(*const_idx);

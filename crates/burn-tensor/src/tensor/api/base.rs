@@ -153,7 +153,7 @@ where
     pub fn empty<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
-        Self::new(K::empty(shape, device))
+        Self::new(K::empty(shape, device, K::Elem::dtype()))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -178,7 +178,7 @@ where
     ) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
-        Self::new(K::full(shape, fill_value, device))
+        Self::new(K::full(shape, fill_value, device, K::Elem::dtype()))
     }
 
     ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
@@ -1178,7 +1178,7 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
 
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
         Self::new(K::slice(self.primitive, &ranges))
@@ -1213,7 +1213,7 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
@@ -1254,7 +1254,7 @@ where
         ranges: R,
         value: E,
     ) -> Self {
-        let ranges = ranges.into_ranges(self.shape());
+        let ranges = self.shape().slice(ranges);
         check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
 
         Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
@@ -1298,6 +1298,77 @@ where
     /// Move the tensor to the given device.
     pub fn to_device(self, device: &B::Device) -> Self {
         Self::new(K::to_device(self.primitive, device))
+    }
+
+    /// Select tensor elements along the given dimension corresponding to the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension to select from. Supports negative indexing.
+    /// * `indices` - The indices of the elements to select.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Int};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
+    ///   let tensor = tensor.select(0, indices);
+    ///   println!("{tensor}");
+    ///   //  [[1.0, -2.0, 3.0]]
+    /// }
+    /// ```
+    pub fn select(self, dim: impl AsIndex, indices: Tensor<B, 1, Int>) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::select::<D>(dim));
+        Self::new(K::select(self.primitive, dim, indices))
+    }
+
+    /// Assign the selected elements along the given dimension corresponding to the given indices
+    /// from the value tensor to the original tensor using sum reduction.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which to select. Supports negative indexing.
+    /// * `indices` - The indices to select from the tensor.
+    /// * `values` - The values to assign to the selected indices.
+    ///
+    /// # Example
+    ///
+    /// Example using a 3D tensor:
+    ///
+    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
+    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = -1 (same as dim = 2)`
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn select_assign(
+        self,
+        dim: impl AsIndex,
+        indices: Tensor<B, 1, Int>,
+        values: Tensor<B, D, K>,
+    ) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::select_assign::<D>(
+            dim,
+            &indices.shape(),
+            &values.shape()
+        ));
+
+        Self::new(K::select_assign(
+            self.primitive,
+            dim,
+            indices,
+            values.primitive,
+        ))
     }
 
     /// Converts the data of the current tensor.
@@ -2379,6 +2450,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2392,7 +2464,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
     /// which is more high-level and designed for public use.
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Creates a tensor of the given shape where each element is equal to the provided value.
     ///
@@ -2401,6 +2473,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2418,6 +2491,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive;
 
     /// Reshapes the tensor.
@@ -2591,6 +2665,60 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 
         Self::slice(tensor, &ranges)
     }
+
+    /// Select tensor elements along the given dimension corresponding to the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `dim` - The dimension along which to select.
+    /// * `indices` - The indices of the elements to select.
+    ///
+    /// # Returns
+    ///
+    /// The selected tensor elements.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For selecting elements from a tensor along an axis, users should prefer the
+    /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive;
+
+    /// Assign the selected elements along the given dimension corresponding to the given indices
+    /// from the value tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to assign elements to.
+    /// * `dim` - The axis along which to assign elements.
+    /// * `indices` - The indices of the elements to assign.
+    /// * `values` - The values to assign to the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is taken from the
+    /// corresponding element of the input tensor at the corresponding index along the specified axis,
+    /// except for the elements at the specified indices, which are taken from the corresponding
+    /// element of the values tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For assigning elements to a tensor along an axis, users should prefer the
+    /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.
     ///
@@ -2880,16 +3008,22 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_empty(shape, device))
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_empty(shape, device, dtype.into()))
     }
 
     fn full<E: ElementConversion>(
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
+        TensorPrimitive::Float(B::float_full(
+            shape,
+            fill_value.elem(),
+            device,
+            dtype.into(),
+        ))
     }
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
@@ -2941,6 +3075,32 @@ impl<B: Backend> BasicOps<B> for Float {
             tensor.tensor(),
             ranges,
             value.tensor(),
+        ))
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices.primitive))
+            }
+        }
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        // Select assign is ambiguous for QFloat
+        TensorPrimitive::Float(B::float_select_assign(
+            tensor.tensor(),
+            dim,
+            indices.primitive,
+            values.tensor(),
         ))
     }
 
@@ -3069,16 +3229,17 @@ impl<B: Backend> BasicOps<B> for Float {
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_empty(shape, device)
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_empty(shape, device, dtype.into())
     }
 
     fn full<E: ElementConversion>(
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device)
+        B::int_full(shape, fill_value.elem(), device, dtype.into())
     }
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
@@ -3107,6 +3268,19 @@ impl<B: Backend> BasicOps<B> for Int {
         value: Self::Primitive,
     ) -> Self::Primitive {
         B::int_slice_assign(tensor, ranges, value)
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
+        B::int_select(tensor, dim, indices.primitive)
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        B::int_select_assign(tensor, dim, indices.primitive, values)
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -3181,7 +3355,10 @@ impl<B: Backend> BasicOps<B> for Int {
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = B::BoolElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if dtype != Self::Elem::dtype() {
+            panic!("Expected bool data type, got {dtype:?}");
+        }
         B::bool_empty(shape, device)
     }
 
@@ -3189,7 +3366,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         shape: Shape,
         fill_value: E,
         device: &B::Device,
+        dtype: DType,
     ) -> Self::Primitive {
+        if dtype != Self::Elem::dtype() {
+            panic!("Expected bool data type, got {dtype:?}");
+        }
         if fill_value.elem() {
             B::bool_ones(shape, device)
         } else {
@@ -3223,6 +3404,19 @@ impl<B: Backend> BasicOps<B> for Bool {
         value: Self::Primitive,
     ) -> Self::Primitive {
         B::bool_slice_assign(tensor, ranges, value)
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
+        B::bool_select(tensor, dim, indices.primitive)
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        B::bool_select_assign(tensor, dim, indices.primitive, values)
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

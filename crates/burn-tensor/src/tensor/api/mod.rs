@@ -11,6 +11,7 @@ mod kind;
 mod numeric;
 mod slice;
 mod sort;
+mod take;
 mod transaction;
 
 pub use argwhere::argwhere_data;

@@ -4,9 +4,6 @@
 
 //! Burn ndarray backend.
 
-#[macro_use]
-extern crate derive_new;
-
 #[cfg(any(
     feature = "blas-netlib",
     feature = "blas-openblas",
@@ -17,6 +14,7 @@ extern crate blas_src;
 mod backend;
 mod element;
 mod ops;
+mod rand;
 mod sharing;
 mod tensor;
 

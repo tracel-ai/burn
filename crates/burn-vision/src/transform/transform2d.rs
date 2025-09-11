@@ -67,7 +67,7 @@ impl Transform2D {
         }
     }
 
-    /// Makes a [ResampleTransform] for rotating a tensor
+    /// Makes a [`Transform2D`] for rotating a tensor
     ///
     /// * `theta` - In radians, the rotation
     /// * `cx` - Center of rotation, x
@@ -84,7 +84,7 @@ impl Transform2D {
         Self { transform }
     }
 
-    /// Makes a [ResampleTransform] for scaling an image tensor
+    /// Makes a [`Transform2D`] for scaling an image tensor
     ///
     /// * `sx` - Scale factor in the x direction
     /// * `sy` - Scale factor in the y direction
@@ -96,7 +96,7 @@ impl Transform2D {
         Self { transform }
     }
 
-    /// Makes a [ResampleTransform] for translating an image tensor
+    /// Makes a [`Transform2D`] for translating an image tensor
     ///
     /// * `tx` - Translation in the x direction
     /// * `ty` - Translation in the y direction

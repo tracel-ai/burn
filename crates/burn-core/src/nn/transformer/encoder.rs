@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TransformerEncoderConfig {
     /// The size of the model.
     pub d_model: usize,

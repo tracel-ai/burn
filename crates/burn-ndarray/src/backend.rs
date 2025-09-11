@@ -1,14 +1,18 @@
-use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
+use crate::rand::NdArrayRng;
+use crate::{NdArrayQTensor, NdArrayTensor};
+use crate::{
+    SharedArray,
+    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
+};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::SeedableRng;
 
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,25 +40,33 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32, I = i64, Q = i8> {
+pub struct NdArray<E = f32, I = i64, Q = i8>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
     _e: PhantomData<E>,
     _i: PhantomData<I>,
     _q: PhantomData<Q>,
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
     type Device = NdArrayDevice;
 
-    type FloatTensorPrimitive = NdArrayTensorFloat;
+    type FloatTensorPrimitive = NdArrayTensor;
     type FloatElem = E;
 
-    type IntTensorPrimitive = NdArrayTensor<I>;
+    type IntTensorPrimitive = NdArrayTensor;
     type IntElem = I;
 
-    type BoolTensorPrimitive = NdArrayTensor<bool>;
+    type BoolTensorPrimitive = NdArrayTensor;
     type BoolElem = bool;
 
-    type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
+    type QuantizedTensorPrimitive = NdArrayQTensor;
 
     fn ad_enabled() -> bool {
         false
@@ -65,13 +77,17 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
+        let rng = NdArrayRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

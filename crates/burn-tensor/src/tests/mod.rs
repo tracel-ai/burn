@@ -261,6 +261,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_take!();
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
         burn_tensor::testgen_grid_sample!();
@@ -295,6 +296,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_permute!();
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_take!();
         burn_tensor::testgen_sign!();
         burn_tensor::testgen_sort_argsort!();
         burn_tensor::testgen_stack!();

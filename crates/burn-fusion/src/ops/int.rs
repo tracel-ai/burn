@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, ElementConversion, IntDType, Shape, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
 };
 use core::ops::Range;
@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 use super::NoOp;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
-    fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
@@ -25,13 +25,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::int_empty(Shape::from(&self.desc.shape), &self.device);
+                let output = B::int_empty(
+                    Shape::from(&self.desc.shape),
+                    &self.device,
+                    self.desc.dtype.into(),
+                );
                 handles.register_int_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims.clone(), B::IntElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims.clone(), dtype.into());
 
         let desc = out.to_ir_out();
 
@@ -1132,7 +1136,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct ZerosOps<B: FusionBackend> {
             desc: TensorIr,
@@ -1142,27 +1146,25 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.shape.clone());
-                let output = B::int_zeros(shape, &self.device);
+                let output = B::int_zeros(shape, &self.device, self.desc.dtype.into());
                 handles.register_int_tensor::<B>(&self.desc.id, output);
             }
         }
 
+        let dtype = dtype.into();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims, B::IntElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
         let desc = out.to_ir_out();
         client.register(
             OperationStreams::default(),
-            OperationIr::NumericInt(
-                IntElem::<Self>::dtype(),
-                NumericOperationIr::Zeros(desc.clone()),
-            ),
+            OperationIr::NumericInt(dtype, NumericOperationIr::Zeros(desc.clone())),
             ZerosOps::<B>::new(desc, device.clone()),
         );
 
         out
     }
 
-    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct OnesOps<B: FusionBackend> {
             desc: TensorIr,
@@ -1172,22 +1174,56 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = Shape::from(self.desc.shape.clone());
-                let output = B::int_ones(shape, &self.device);
+                let output = B::int_ones(shape, &self.device, self.desc.dtype.into());
                 handles.register_int_tensor::<B>(&self.desc.id, output);
             }
         }
 
+        let dtype = dtype.into();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(shape.dims, B::IntElem::dtype());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
 
         let desc = out.to_ir_out();
         client.register(
             OperationStreams::default(),
-            OperationIr::NumericInt(
-                IntElem::<Self>::dtype(),
-                NumericOperationIr::Ones(desc.clone()),
-            ),
+            OperationIr::NumericInt(dtype, NumericOperationIr::Ones(desc.clone())),
             OnesOps::<B>::new(desc, device.clone()),
+        );
+
+        out
+    }
+
+    fn int_full(
+        shape: Shape,
+        fill_value: IntElem<Self>,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct FullOps<B: FusionBackend> {
+            out: TensorIr,
+            elem: i32,
+            device: Device<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FullOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let shape = Shape::from(self.out.shape.clone());
+                let output =
+                    B::int_full(shape, self.elem.elem(), &self.device, self.out.dtype.into());
+                handles.register_int_tensor::<B>(&self.out.id, output);
+            }
+        }
+
+        let dtype = dtype.into();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims, dtype);
+
+        let desc = (out.to_ir_out(), fill_value.elem());
+        client.register(
+            OperationStreams::default(),
+            OperationIr::NumericInt(dtype, NumericOperationIr::Full(desc.clone())),
+            FullOps::<B>::new(desc.0, desc.1, device.clone()),
         );
 
         out
@@ -2249,6 +2285,41 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(desc.clone())),
             BitwiseRightShiftOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct CastOps<B: FusionBackend> {
+            desc: UnaryOpIr,
+            dtype: burn_tensor::IntDType,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CastOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output: B::IntTensorPrimitive = B::int_cast(input, self.dtype);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), dtype.into());
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            streams,
+            OperationIr::BaseInt(BaseOperationIr::Cast(desc.clone())),
+            CastOps::<B>::new(desc, dtype),
         );
 
         out

@@ -9,7 +9,7 @@ use burn_tensor::backend::Backend;
 /// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by
 /// following a cosine function. After `num_iters` iterations, the learning rate is reset to
 /// `initial_lr`.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
     initial_lr: LearningRate,
