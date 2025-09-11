@@ -64,16 +64,33 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl DeviceOps for LibTorchDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_common::device::Device for LibTorchDevice {
+    fn from_id(device_id: DeviceId) -> Self {
+        match device_id.type_id {
+            0 => Self::Cuda(device_id.index_id as usize),
+            1 => Self::Mps,
+            2 => Self::Cpu,
+            3 => Self::Vulkan,
+            _ => LibTorchDevice::Cpu,
+        }
+    }
+
+    fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cpu => DeviceId::new(0, 0),
-            LibTorchDevice::Cuda(index) => DeviceId::new(1, *index as u32),
-            LibTorchDevice::Mps => DeviceId::new(2, 0),
+            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u32),
+            LibTorchDevice::Mps => DeviceId::new(1, 0),
+            LibTorchDevice::Cpu => DeviceId::new(2, 0),
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),
         }
     }
+
+    fn device_count(_type_id: u16) -> usize {
+        // TODO: Somehow find the info using the tch API.
+        1
+    }
 }
+
+impl DeviceOps for LibTorchDevice {}
 
 impl Default for LibTorchDevice {
     fn default() -> Self {

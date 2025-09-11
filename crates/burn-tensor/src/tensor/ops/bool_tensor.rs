@@ -148,6 +148,51 @@ pub trait BoolTensorOps<B: Backend> {
         value: BoolTensor<B>,
     ) -> BoolTensor<B>;
 
+    /// Select tensor elements along the given dimension corresponding to the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices of the elements to select.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements.
+    fn bool_select(tensor: BoolTensor<B>, dim: usize, indices: IntTensor<B>) -> BoolTensor<B> {
+        // Default implementation: convert to int, select, then convert back to bool
+        let int_tensor = B::bool_into_int(tensor);
+        let selected = B::int_select(int_tensor, dim, indices);
+        B::int_equal_elem(selected, 1_i32.elem())
+    }
+
+    /// Assign the selected elements along the given dimension corresponding to the given indices
+    /// to the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to assign the values to.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices of the elements to assign.
+    /// * `value` - The values to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the assigned values.
+    fn bool_select_assign(
+        tensor: BoolTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: BoolTensor<B>,
+    ) -> BoolTensor<B> {
+        // Default implementation: convert to int, select_assign, then convert back to bool
+        let int_tensor = B::bool_into_int(tensor);
+        let int_values = B::bool_into_int(value);
+        let assigned = B::int_select_assign(int_tensor, dim, indices, int_values);
+        // After select_assign with sum reduction, any non-zero value should be true
+        B::int_greater_elem(assigned, 0_i32.elem())
+    }
+
     /// Repeats one dimension of the tensor a given number of times along that dimension.
     ///
     /// # Arguments

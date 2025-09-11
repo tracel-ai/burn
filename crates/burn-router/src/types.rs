@@ -67,8 +67,13 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> DeviceOps for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
-                fn id(&self) -> DeviceId {
+            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> burn_common::device::Device for MultiDevice<$DefaultBackend, $($OtherBackend),+> {
+                fn from_id(_device_id: DeviceId) -> Self {
+                    // TODO: Should be fix with the new router backend.
+                    Default::default()
+                }
+
+                fn to_id(&self) -> DeviceId {
                     match self {
                         Self::$DefaultBackend(device) => device.id(),
                         $(
@@ -76,7 +81,13 @@ macro_rules! impl_multi_backend_types {
                         )+
                     }
                 }
+
+                fn device_count(_type_id: u16) -> usize {
+                    1
+                }
             }
+
+            impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> DeviceOps for MultiDevice<$DefaultBackend, $($OtherBackend),+> {}
 
             /// A local client with multiple runners (each responsible to execute tensor operations on a given backend).
             #[derive(Clone)]
