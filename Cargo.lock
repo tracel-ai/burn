@@ -1167,6 +1167,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "c2rust-bitfields"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46dc7d2bffa0d0b3d47eb2dc69973466858281446c2ac9f6d8a10e92ab1017df"
+dependencies = [
+ "c2rust-bitfields-derive",
+]
+
+[[package]]
+name = "c2rust-bitfields-derive"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebe1117afa5937ce280034e31fa1e84ed1824a252f75380327eed438535333f8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "candle-core"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2083,8 +2103,7 @@ dependencies = [
  "cubecl-runtime",
  "half",
  "hashbrown 0.15.5",
- "rspirv",
- "rspirv-ext",
+ "tracel-rspirv",
 ]
 
 [[package]]
@@ -2116,6 +2135,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.5",
  "log",
+ "tracel-ash",
  "wgpu",
 ]
 
@@ -6742,26 +6762,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rspirv"
-version = "0.12.0+sdk-1.3.268.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69cf3a93856b6e5946537278df0d3075596371b1950ccff012f02b0f7eafec8d"
-dependencies = [
- "rustc-hash 1.1.0",
- "spirv",
-]
-
-[[package]]
-name = "rspirv-ext"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7116c2d9dcf9ead2bc2c8e6ebe738bafa9aa7738c2a701de174a3c885199e6a8"
-dependencies = [
- "bitflags 2.9.4",
- "rspirv",
-]
-
-[[package]]
 name = "rstest"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7534,6 +7534,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
+ "quote",
  "unicode-ident",
 ]
 
@@ -8144,11 +8145,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
+name = "tracel-ash"
+version = "0.38.0+1.3.296"
+source = "git+https://github.com/tracel-ai/tracel-ash.git?rev=cedd894bbdb03f0635900e7c0d317020fdd38263#cedd894bbdb03f0635900e7c0d317020fdd38263"
+dependencies = [
+ "ash",
+ "c2rust-bitfields",
+]
+
+[[package]]
 name = "tracel-llvm"
 version = "0.1.0"
 source = "git+https://github.com/tracel-ai/tracel-llvm?rev=75780fbe097cce2ce11e3520e902d1784bfbd1d3#75780fbe097cce2ce11e3520e902d1784bfbd1d3"
 dependencies = [
  "melior",
+]
+
+[[package]]
+name = "tracel-rspirv"
+version = "0.12.0+sdk-1.4.309.0"
+source = "git+https://github.com/tracel-ai/tracel-rspirv.git?rev=9b4037a2e14fe4138c8d4a8cfcac40c6577b5549#9b4037a2e14fe4138c8d4a8cfcac40c6577b5549"
+dependencies = [
+ "bitflags 2.9.4",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
