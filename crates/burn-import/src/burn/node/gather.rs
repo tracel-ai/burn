@@ -236,32 +236,12 @@ impl GatherNode {
                         let output_rank = index_rank + input_rank - 1;
                         let final_rank = output_rank.max(1); // Ensure minimum rank of 1
 
-                        match index_rank {
-                            1 => {
-                                quote! {
-                                    let indices = #index;
-                                    let #output = Tensor::select(#input, #dim, indices);
-                                }
-                            }
-                            _ => quote! {
-                                let indices = #index;
+                        // Use proc_macro2::Literal to avoid usize suffix
+                        let index_rank_lit = proc_macro2::Literal::usize_unsuffixed(index_rank);
+                        let final_rank_lit = proc_macro2::Literal::usize_unsuffixed(final_rank);
 
-                                let n_dims = indices.dims().len();
-                                let index_flat = match n_dims {
-                                    1 => indices.reshape([1, -1]),
-                                    n if n >= 2 => indices.flatten::<2>(0, n - 2),
-                                    _ => panic!("Number of dimensions must be greater than 0"),
-                                };
-
-                                let out = index_flat
-                                    .iter_dim(0)
-                                    .map(|idxs| {
-                                        let idxs = idxs.squeeze::<1>(0);
-                                        Tensor::select(#input.clone(), #dim, idxs)
-                                    })
-                                    .collect();
-                                let #output = Tensor::stack::<#final_rank>(out, #dim);
-                            },
+                        quote! {
+                            let #output = #input.take::<#index_rank_lit, #final_rank_lit>(#dim, #index);
                         }
                     }
                     GatherIndices::Runtime(Type::Shape(shape_type)) => {
@@ -380,8 +360,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let indices = tensor2;
-                    let tensor3 = Tensor::select(tensor1, 0, indices);
+                    let tensor3 = tensor1.take::<1, 2>(0, tensor2);
                     tensor3
                 }
             }
@@ -430,23 +409,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 2, Int>
                 ) -> Tensor<B, 3> {
-                    let indices = tensor2;
-
-                    let n_dims = indices.dims().len();
-                    let index_flat = match n_dims {
-                        1 => indices.reshape([1, -1]),
-                        n if n >= 2 => indices.flatten::<2>(0, n - 2),
-                        _ => panic!("Number of dimensions must be greater than 0"),
-                    };
-
-                    let out = index_flat
-                        .iter_dim(0)
-                        .map(|idxs| {
-                            let idxs = idxs.squeeze::<1>(0);
-                            Tensor::select(tensor1.clone(), 0, idxs)
-                        })
-                        .collect();
-                    let tensor3 = Tensor::stack::<3usize>(out, 0);
+                    let tensor3 = tensor1.take::<2, 3>(0, tensor2);
                     tensor3
                 }
             }
