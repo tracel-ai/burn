@@ -240,10 +240,13 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
 
     let channels_per_group = out_channels / options.groups;
 
-    let stride = &options.stride;
-    let padding = &options.padding;
-    let dilation = &options.dilation;
-    let out_size = expect_conv_output_shape_dyn(in_shape, kernel_shape, stride, dilation, padding);
+    let out_size = expect_conv_output_shape_dyn(
+        in_shape,
+        kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+    );
 
     let mut shape_out = vec![batch_size];
     shape_out.extend(out_size.iter().copied());

@@ -12,7 +12,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 use burn_tensor::{Shape, ops::DeformConvOptions};
 
 #[derive(CubeLaunch, CubeType)]
@@ -269,14 +269,13 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.weight_groups;
 
-    let stride = options.stride[0];
-    let padding = options.padding[0];
-    let dilation = options.dilation[0];
-    let out_h = expect_conv1d_output_size(in_height, kernel_h, stride, dilation, padding);
-    let stride = options.stride[1];
-    let padding = options.padding[1];
-    let dilation = options.dilation[1];
-    let out_w = expect_conv1d_output_size(in_width, kernel_w, stride, dilation, padding);
+    let [out_h, out_w] = expect_conv_output_shape(
+        [in_height, in_width],
+        [kernel_h, kernel_w],
+        options.stride,
+        options.padding,
+        options.dilation,
+    );
     let out_dims = (out_h, out_w);
 
     let columns =

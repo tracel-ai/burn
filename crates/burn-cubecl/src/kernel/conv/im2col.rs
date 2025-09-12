@@ -239,10 +239,13 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let stride = &options.stride;
-    let padding = &options.padding;
-    let dilation = &options.dilation;
-    let out_shape = expect_conv_output_shape_dyn(in_shape, kernel_shape, stride, dilation, padding);
+    let out_shape = expect_conv_output_shape_dyn(
+        in_shape,
+        kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+    );
 
     let out_shape_prod = out_shape.iter().product::<usize>();
     let batches_per_run = batches_per_run(batch_size, out_shape_prod)?;
@@ -310,10 +313,13 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let stride = &options.stride;
-    let padding = &options.padding;
-    let dilation = &options.dilation;
-    let out_shape = expect_conv_output_shape_dyn(in_shape, kernel_shape, stride, dilation, padding);
+    let out_shape = expect_conv_output_shape_dyn(
+        in_shape,
+        kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+    );
 
     let mut split_m = vec![batch_size];
     split_m.extend(out_shape.iter().copied());
