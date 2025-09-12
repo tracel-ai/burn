@@ -1423,6 +1423,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_maybe_conv1d_output_size() {
+        pub fn maybe_conv1d_output_size_float(
+            input_size: usize,
+            kernel_size: usize,
+            stride: usize,
+            padding: usize,
+            dilation: usize,
+        ) -> Option<usize> {
+            let input_shape = input_size as f64;
+            let kernel_shape = kernel_size as f64;
+            let stride = stride as f64;
+            let dilation = dilation as f64;
+            let padding = padding as f64;
+
+            let effective_shape = input_shape + 2.0 * padding;
+            let kernel_width = 1.0 + dilation * (kernel_shape - 1.0);
+
+            let x = (((effective_shape - kernel_width) / stride) + 1.0).floor();
+            if x < 1.0 { None } else { Some(x as usize) }
+        }
+
+        for input_size in 1..10 {
+            for stride in 1..3 {
+                for kernel_size in 1..4 {
+                    for dilation in 1..2 {
+                        for padding in 0..10 {
+                            assert_eq!(
+                                maybe_conv1d_output_size(
+                                    input_size,
+                                    kernel_size,
+                                    stride,
+                                    padding,
+                                    dilation,
+                                ),
+                                maybe_conv1d_output_size_float(
+                                    input_size,
+                                    kernel_size,
+                                    stride,
+                                    padding,
+                                    dilation,
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_calculate_output_size_1() {
         let kernel_size = 3;
         let stride = 1;
