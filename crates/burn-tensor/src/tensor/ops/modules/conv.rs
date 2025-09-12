@@ -1368,9 +1368,9 @@ fn calculate_padding_out(
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
-    use cubecl::convolution::tests::calculate_conv_output_size;
 
     #[test]
     fn test_calculate_output_size_1() {
