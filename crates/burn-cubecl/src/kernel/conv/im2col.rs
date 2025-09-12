@@ -1,19 +1,3 @@
-use burn_tensor::{
-    Shape,
-    ops::{ConvOptions, conv::calculate_conv_output_sizes},
-};
-use core::iter;
-#[cfg(test)]
-use cubecl::convolution::components::ConvSetupError;
-#[cfg(not(test))]
-use cubecl::convolution::components::ConvSetupError;
-use cubecl::std::{FastDivmod, FastDivmodArgs};
-use cubecl::{
-    calculate_cube_count_elemwise, intrinsic,
-    prelude::*,
-    std::tensor::{TensorHandle, into_contiguous_pitched},
-};
-
 use crate::{
     CubeElement, CubeRuntime, FloatElement,
     kernel::{
@@ -29,6 +13,19 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
+};
+use burn_tensor::ops::conv::expect_conv_output_shape_dyn;
+use burn_tensor::{Shape, ops::ConvOptions};
+use core::iter;
+#[cfg(test)]
+use cubecl::convolution::components::ConvSetupError;
+#[cfg(not(test))]
+use cubecl::convolution::components::ConvSetupError;
+use cubecl::std::{FastDivmod, FastDivmodArgs};
+use cubecl::{
+    calculate_cube_count_elemwise, intrinsic,
+    prelude::*,
+    std::tensor::{TensorHandle, into_contiguous_pitched},
 };
 
 #[derive(CubeLaunch, CubeType, Clone)]
@@ -242,13 +239,10 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let out_shape = calculate_conv_output_sizes(
-        kernel_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
-        in_shape,
-    );
+    let stride = &options.stride;
+    let padding = &options.padding;
+    let dilation = &options.dilation;
+    let out_shape = expect_conv_output_shape_dyn(in_shape, kernel_shape, stride, dilation, padding);
 
     let out_shape_prod = out_shape.iter().product::<usize>();
     let batches_per_run = batches_per_run(batch_size, out_shape_prod)?;
@@ -316,13 +310,10 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let out_shape = calculate_conv_output_sizes(
-        kernel_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
-        in_shape,
-    );
+    let stride = &options.stride;
+    let padding = &options.padding;
+    let dilation = &options.dilation;
+    let out_shape = expect_conv_output_shape_dyn(in_shape, kernel_shape, stride, dilation, padding);
 
     let mut split_m = vec![batch_size];
     split_m.extend(out_shape.iter().copied());
