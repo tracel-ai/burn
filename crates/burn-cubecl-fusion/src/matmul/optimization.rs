@@ -376,9 +376,6 @@ impl FusedMatmul {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a FuseBlockConfig,
     ) -> Result<(), FusedMatmulError> {
-        // Runner error
-        // RunnerError(LaunchError
-        // LaunchError(MatmulSetupError)
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);
 
@@ -625,7 +622,6 @@ fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    // TODO: should return MatmulSetupError but currently seems to return OK with timings of 0 in some instances
     if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
         match (
             TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
