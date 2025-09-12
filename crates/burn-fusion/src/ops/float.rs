@@ -1486,7 +1486,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            // convert f32 to scalar ir with correct dtype
+            // TODO: float_powf_scalar w/ generic element instead?
+            rhs: Into::<ScalarIr>::into(rhs).convert(&dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
