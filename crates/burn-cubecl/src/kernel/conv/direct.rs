@@ -9,14 +9,14 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_tensor::ops::ConvOptions;
-use burn_tensor::ops::conv::expect_conv_output_shape_dyn;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
 };
 use cubecl::{
     convolution::components::ConvSetupError,
-    std::{CubeOption, CubeOptionExpand, FastDivmod},
+    std::{CubeOption, FastDivmod},
 };
 
 use super::im2col::{ConvParam, ConvParamLaunch};
@@ -240,12 +240,12 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
 
     let channels_per_group = out_channels / options.groups;
 
-    let out_size = expect_conv_output_shape_dyn(
-        in_shape,
-        kernel_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
+    let out_size = expect_conv_output_shape::<N>(
+        in_shape.try_into().unwrap(),
+        kernel_shape.try_into().unwrap(),
+        options.stride,
+        options.padding,
+        options.dilation,
     );
 
     let mut shape_out = vec![batch_size];
