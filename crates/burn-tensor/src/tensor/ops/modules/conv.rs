@@ -161,7 +161,7 @@ pub fn maybe_conv_output_shape_dyn(
 /// Predict the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape_dyn`];
-/// which is the generalization of [`maybe_conv1d_output_shape`] to D dimensions.
+/// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
 /// # Arguments
 ///
@@ -227,7 +227,7 @@ pub fn maybe_conv_output_shape<const D: usize>(
 /// Predict the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape`];
-/// which is the generalization of [`maybe_conv1d_output_shape`] to D dimensions.
+/// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
 /// # Arguments
 ///

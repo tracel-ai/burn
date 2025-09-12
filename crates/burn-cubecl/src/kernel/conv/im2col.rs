@@ -14,7 +14,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_tensor::ops::conv::expect_conv_output_shape_dyn;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 use burn_tensor::{Shape, ops::ConvOptions};
 use core::iter;
 #[cfg(test)]
@@ -239,12 +239,12 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let out_shape = expect_conv_output_shape_dyn(
-        in_shape,
-        kernel_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
+    let out_shape = expect_conv_output_shape::<N>(
+        in_shape.try_into().unwrap(),
+        kernel_shape.try_into().unwrap(),
+        options.stride,
+        options.padding,
+        options.dilation,
     );
 
     let out_shape_prod = out_shape.iter().product::<usize>();
@@ -313,12 +313,12 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     let out_channels = weight.shape.dims[0];
     let kernel_shape = &weight.shape.dims[1..dim_c];
 
-    let out_shape = expect_conv_output_shape_dyn(
-        in_shape,
-        kernel_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
+    let out_shape = expect_conv_output_shape::<N>(
+        in_shape.try_into().unwrap(),
+        kernel_shape.try_into().unwrap(),
+        options.stride,
+        options.padding,
+        options.dilation,
     );
 
     let mut split_m = vec![batch_size];
