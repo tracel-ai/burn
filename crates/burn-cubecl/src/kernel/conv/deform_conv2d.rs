@@ -1,10 +1,5 @@
 use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
-use burn_tensor::{
-    Shape,
-    ops::{DeformConvOptions, conv::calculate_conv_output_size},
-};
-
 use crate::{
     CubeRuntime, FloatElement,
     kernel::{
@@ -17,6 +12,8 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_tensor::ops::conv::expect_conv_output_shape;
+use burn_tensor::{Shape, ops::DeformConvOptions};
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dArgs<F: Float> {
@@ -272,19 +269,12 @@ pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.weight_groups;
 
-    let out_h = calculate_conv_output_size(
-        kernel_h,
-        options.stride[0],
-        options.padding[0],
-        options.dilation[0],
-        in_height,
-    );
-    let out_w = calculate_conv_output_size(
-        kernel_w,
-        options.stride[1],
-        options.padding[1],
-        options.dilation[1],
-        in_width,
+    let [out_h, out_w] = expect_conv_output_shape(
+        [in_height, in_width],
+        [kernel_h, kernel_w],
+        options.stride,
+        options.padding,
+        options.dilation,
     );
     let out_dims = (out_h, out_w);
 
