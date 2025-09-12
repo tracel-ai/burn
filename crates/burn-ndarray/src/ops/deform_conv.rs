@@ -7,7 +7,7 @@ use ndarray::{
 };
 
 use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray};
-use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
@@ -124,14 +124,13 @@ where
 
     let weight = weight.as_standard_layout();
 
-    let stride = args.stride[0];
-    let padding = args.padding[0];
-    let dilation = args.dilation[0];
-    let out_h = expect_conv1d_output_size(in_height, kernel_h, stride, dilation, padding);
-    let stride = args.stride[1];
-    let padding = args.padding[1];
-    let dilation = args.dilation[1];
-    let out_w = expect_conv1d_output_size(in_width, kernel_w, stride, dilation, padding);
+    let [out_h, out_w] = expect_conv_output_shape(
+        [in_height, in_width],
+        [kernel_h, kernel_w],
+        args.stride,
+        args.padding,
+        args.dilation,
+    );
     let out_dims = (out_h, out_w);
 
     let input = input.into_dimensionality::<Ix4>().unwrap();

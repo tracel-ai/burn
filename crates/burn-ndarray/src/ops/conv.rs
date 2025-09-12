@@ -5,7 +5,7 @@ use crate::{
     tensor::NdArrayTensor,
 };
 use burn_common::{iter_par, iter_range_par, run_par};
-use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 use burn_tensor::{
     ElementConversion,
     ops::{ConvOptions, ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
@@ -105,26 +105,18 @@ where
     NdArrayTensor: From<SharedArray<E>>,
 {
     let [dilation_height, dilation_width] = options.dilation;
-    let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
     let [out_channels, in_channels, kernel_height, kernel_width] =
         weight.shape().try_into().unwrap();
     let channels_per_group = out_channels / options.groups;
 
-    let out_height = expect_conv1d_output_size(
-        in_height,
-        kernel_height,
-        stride_height,
-        dilation_height,
-        padding_height,
-    );
-    let out_width = expect_conv1d_output_size(
-        in_width,
-        kernel_width,
-        stride_width,
-        dilation_width,
-        padding_width,
+    let [out_height, out_width] = expect_conv_output_shape(
+        [in_height, in_width],
+        [kernel_height, kernel_width],
+        options.stride,
+        options.padding,
+        options.dilation,
     );
 
     let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem());
@@ -320,7 +312,6 @@ where
     NdArrayTensor: From<SharedArray<E>>,
 {
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
-    let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().try_into().unwrap();
     let [
@@ -332,26 +323,12 @@ where
     ] = weight.shape().try_into().unwrap();
     let out_c_per_group = out_channels / options.groups;
 
-    let out_depth = expect_conv1d_output_size(
-        in_depth,
-        kernel_depth,
-        stride_depth,
-        dilation_depth,
-        padding_depth,
-    );
-    let out_height = expect_conv1d_output_size(
-        in_height,
-        kernel_height,
-        stride_height,
-        dilation_height,
-        padding_height,
-    );
-    let out_width = expect_conv1d_output_size(
-        in_width,
-        kernel_width,
-        stride_width,
-        dilation_width,
-        padding_width,
+    let [out_depth, out_height, out_width] = expect_conv_output_shape(
+        [in_depth, in_height, in_width],
+        [kernel_depth, kernel_height, kernel_width],
+        options.stride,
+        options.padding,
+        options.dilation,
     );
 
     let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem());

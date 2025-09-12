@@ -4,7 +4,7 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::*;
-use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::ops::conv::{expect_conv_output_shape, expect_conv1d_output_size};
 use burn_tensor::{
     Element,
     ops::{
@@ -54,12 +54,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&desc.out.id, output);
         });
 
-        let kernel_size = weight.shape[2];
-        let stride = options.stride[0];
-        let padding = options.padding[0];
-        let dilation = options.dilation[0];
-        let size_in = x.shape[2];
-        let size = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
+        let size = expect_conv1d_output_size(
+            x.shape[2],
+            weight.shape[2],
+            options.stride[0],
+            options.padding[0],
+            options.dilation[0],
+        );
 
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
@@ -111,18 +112,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&args.out.id, output);
         });
 
-        let kernel_size = weight.shape[2];
-        let stride = options.stride[0];
-        let padding = options.padding[0];
-        let dilation = options.dilation[0];
-        let size_in = x.shape[2];
-        let size_0 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
-        let kernel_size = weight.shape[3];
-        let stride = options.stride[1];
-        let padding = options.padding[1];
-        let dilation = options.dilation[1];
-        let size_in = x.shape[3];
-        let size_1 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
+        let [size_0, size_1] = expect_conv_output_shape::<2>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
+        );
 
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
@@ -182,18 +178,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
-        let kernel_size = weight.shape[2];
-        let stride = options.stride[0];
-        let padding = options.padding[0];
-        let dilation = options.dilation[0];
-        let size_in = x.shape[2];
-        let size_0 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
-        let kernel_size = weight.shape[3];
-        let stride = options.stride[1];
-        let padding = options.padding[1];
-        let dilation = options.dilation[1];
-        let size_in = x.shape[3];
-        let size_1 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
+        let [size_0, size_1] = expect_conv_output_shape::<2>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
+        );
 
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
@@ -358,24 +349,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&args.out.id, output);
         });
 
-        let kernel_size = weight.shape[2];
-        let stride = options.stride[0];
-        let padding = options.padding[0];
-        let dilation = options.dilation[0];
-        let size_in = x.shape[2];
-        let size_0 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
-        let kernel_size = weight.shape[3];
-        let stride = options.stride[1];
-        let padding = options.padding[1];
-        let dilation = options.dilation[1];
-        let size_in = x.shape[3];
-        let size_1 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
-        let kernel_size = weight.shape[4];
-        let stride = options.stride[2];
-        let padding = options.padding[2];
-        let dilation = options.dilation[2];
-        let size_in = x.shape[4];
-        let size_2 = expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding);
+        let [size_0, size_1, size_2] = expect_conv_output_shape::<3>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
+        );
 
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
