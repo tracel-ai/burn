@@ -160,7 +160,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape.dims, dtype);
 
-        let desc = (out.to_ir_out(), fill_value.into());
+        let desc = (out.to_ir_out(), ScalarIr::from_elem(fill_value, &dtype));
         client.register(
             OperationStreams::default(),
             OperationIr::NumericFloat(dtype, NumericOperationIr::Full(desc.clone())),
@@ -299,7 +299,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -340,8 +340,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ClampOpIr {
             tensor: tensor.into_ir(),
-            min: min.into(),
-            max: max.into(),
+            min: ScalarIr::from_elem(min, &dtype),
+            max: ScalarIr::from_elem(max, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -387,7 +387,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone(), dtype);
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -435,7 +435,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -482,7 +482,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -529,7 +529,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1008,7 +1008,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = MaskFillOpIr {
             tensor: tensor.into_ir(),
-            value: value.into(),
+            value: ScalarIr::from_elem(value, &dtype),
             mask: mask.into_ir(),
             out: out.to_ir_out(),
         };
@@ -1058,7 +1058,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1108,7 +1108,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1158,7 +1158,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1208,7 +1208,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1258,7 +1258,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.into(),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1354,10 +1354,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             streams,
-            OperationIr::NumericFloat(
-                FloatElem::<Self>::dtype(),
-                NumericOperationIr::ProdDim(desc.clone()),
-            ),
+            OperationIr::NumericFloat(dtype, NumericOperationIr::ProdDim(desc.clone())),
             ProdDimOps::<B>::new(desc),
         );
 
@@ -1486,9 +1483,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            // convert f32 to scalar ir with correct dtype
-            // TODO: float_powf_scalar w/ generic element instead?
-            rhs: Into::<ScalarIr>::into(rhs).convert(&dtype),
+            rhs: ScalarIr::from_elem(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
