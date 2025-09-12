@@ -108,11 +108,13 @@ where
     let out_channels = weight.shape.dims[0];
     let weight_shape = &weight.shape.dims[1..dim_c];
 
-    let stride = &options.stride;
-    let padding = &options.padding;
-    let dilation = &options.dilation;
-    let mut out_shape =
-        expect_conv_output_shape_dyn(shape, weight_shape, stride, dilation, padding);
+    let mut out_shape = expect_conv_output_shape_dyn(
+        shape,
+        weight_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+    );
 
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);

@@ -44,8 +44,8 @@ pub fn calculate_conv_padding(
 /// - `input_size`: The input dimension size, must be > 0.
 /// - `kernel_size`: The kernel size, must be > 0.
 /// - `stride`: The stride of the convolution, must be > 0.
-/// - `dilation`: The dilation of the convolution, must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, must be > 0.
 ///
 /// # Returns
 ///
@@ -54,8 +54,8 @@ pub fn maybe_conv1d_output_size(
     input_size: usize,
     kernel_size: usize,
     stride: usize,
-    dilation: usize,
     padding: usize,
+    dilation: usize,
 ) -> Option<usize> {
     assert!(input_size > 0);
     assert!(kernel_size > 0);
@@ -92,8 +92,8 @@ pub fn maybe_conv1d_output_size(
 /// - `input_size`: The input dimension size, must be > 0.
 /// - `kernel_size`: The kernel size, must be > 0.
 /// - `stride`: The stride of the convolution, must be > 0.
-/// - `dilation`: The dilation of the convolution, must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, must be > 0.
 ///
 /// # Returns
 ///
@@ -106,10 +106,10 @@ pub fn expect_conv1d_output_size(
     input_size: usize,
     kernel_size: usize,
     stride: usize,
-    dilation: usize,
     padding: usize,
+    dilation: usize,
 ) -> usize {
-    match maybe_conv1d_output_size(input_size, kernel_size, stride, dilation, padding) {
+    match maybe_conv1d_output_size(input_size, kernel_size, stride, padding, dilation) {
         Some(x) => x,
         None => panic!(
             "No legal output size for conv1d with:\n input_size:{input_size}\n kernel_size:{kernel_size}\n stride:{stride}\n dilation:{dilation}\n padding:{padding}",
@@ -126,8 +126,8 @@ pub fn expect_conv1d_output_size(
 /// - `input_shape`: The input dimension shape, each dim must be > 0.
 /// - `kernel_shape`: The kernel shape; length must match input_shape, each dim must be > 0.
 /// - `stride`: The stride of the convolution; length must match input_shape, each dim must be > 0.
-/// - `dilation`: The dilation of the convolution; length must match input_shape, each dim must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution; length must match input_shape, each dim must be > 0.
 ///
 /// # Returns
 ///
@@ -136,8 +136,8 @@ pub fn maybe_conv_output_shape_dyn(
     input_shape: &[usize],
     kernel_shape: &[usize],
     stride: &[usize],
-    dilation: &[usize],
     padding: &[usize],
+    dilation: &[usize],
 ) -> Option<Vec<usize>> {
     let rank = input_shape.len();
     assert_eq!(kernel_shape.len(), rank);
@@ -151,8 +151,8 @@ pub fn maybe_conv_output_shape_dyn(
             input_shape[i],
             kernel_shape[i],
             stride[i],
-            dilation[i],
             padding[i],
+            dilation[i],
         )?;
     }
     Some(output_shape)
@@ -161,15 +161,15 @@ pub fn maybe_conv_output_shape_dyn(
 /// Predict the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape_dyn`];
-/// which is the generalization of [`conv1d_output_shape`] to D dimensions.
+/// which is the generalization of [`maybe_conv1d_output_shape`] to D dimensions.
 ///
 /// # Arguments
 ///
 /// - `input_shape`: The input dimension shape, each dim must be > 0.
 /// - `kernel_shape`: The kernel shape, each dim must be > 0.
 /// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 ///
 /// # Returns
 ///
@@ -178,10 +178,10 @@ pub fn expect_conv_output_shape_dyn(
     input_shape: &[usize],
     kernel_shape: &[usize],
     stride: &[usize],
-    dilation: &[usize],
     padding: &[usize],
+    dilation: &[usize],
 ) -> Vec<usize> {
-    match maybe_conv_output_shape_dyn(input_shape, kernel_shape, stride, dilation, padding) {
+    match maybe_conv_output_shape_dyn(input_shape, kernel_shape, stride, padding, dilation) {
         Some(shape) => shape,
         None => panic!(
             "No legal output size for conv with:\n input_shape:{input_shape:?}\n kernel_shape:{kernel_shape:?}\n stride:{stride:?}\n dilation:{dilation:?}\n padding:{padding:?}",
@@ -198,8 +198,8 @@ pub fn expect_conv_output_shape_dyn(
 /// - `input_shape`: The input dimension shape, each dim must be > 0.
 /// - `kernel_shape`: The kernel shape, each dim must be > 0.
 /// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 ///
 /// # Returns
 ///
@@ -208,8 +208,8 @@ pub fn maybe_conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],
     stride: [usize; D],
-    dilation: [usize; D],
     padding: [usize; D],
+    dilation: [usize; D],
 ) -> Option<[usize; D]> {
     let mut output_shape = input_shape;
     for i in 0..D {
@@ -217,8 +217,8 @@ pub fn maybe_conv_output_shape<const D: usize>(
             input_shape[i],
             kernel_shape[i],
             stride[i],
-            dilation[i],
             padding[i],
+            dilation[i],
         )?;
     }
     Some(output_shape)
@@ -227,15 +227,15 @@ pub fn maybe_conv_output_shape<const D: usize>(
 /// Predict the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape`];
-/// which is the generalization of [`conv1d_output_shape`] to D dimensions.
+/// which is the generalization of [`maybe_conv1d_output_shape`] to D dimensions.
 ///
 /// # Arguments
 ///
 /// - `input_shape`: The input dimension shape, each dim must be > 0.
 /// - `kernel_shape`: The kernel shape, each dim must be > 0.
 /// - `stride`: The stride of the convolution, each dim must be > 0.
-/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 /// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, each dim must be > 0.
 ///
 /// # Returns
 ///
@@ -244,10 +244,10 @@ pub fn expect_conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],
     stride: [usize; D],
-    dilation: [usize; D],
     padding: [usize; D],
+    dilation: [usize; D],
 ) -> [usize; D] {
-    match maybe_conv_output_shape(input_shape, kernel_shape, stride, dilation, padding) {
+    match maybe_conv_output_shape(input_shape, kernel_shape, stride, padding, dilation) {
         Some(shape) => shape,
         None => panic!(
             "No legal output size for conv with:\n input_shape:{input_shape:?}\n kernel_shape:{kernel_shape:?}\n stride:{stride:?}\n dilation:{dilation:?}\n padding:{padding:?}",
@@ -267,7 +267,7 @@ pub fn calculate_conv_output_size(
     dilation: usize,
     size_in: usize,
 ) -> usize {
-    expect_conv1d_output_size(size_in, kernel_size, stride, dilation, padding)
+    expect_conv1d_output_size(size_in, kernel_size, stride, padding, dilation)
 }
 
 /// Calculate the expected output sizes when doing a convolution operation.
@@ -282,7 +282,7 @@ pub fn calculate_conv_output_sizes(
     dilation: &[usize],
     size_in: &[usize],
 ) -> Vec<usize> {
-    expect_conv_output_shape_dyn(size_in, kernel_size, stride, dilation, padding)
+    expect_conv_output_shape_dyn(size_in, kernel_size, stride, padding, dilation)
 }
 
 /// Calculate the expected output size when doing a transposed convolution operation.

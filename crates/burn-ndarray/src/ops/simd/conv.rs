@@ -2,7 +2,7 @@ use core::{marker::PhantomData, mem::transmute};
 
 use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::ops::conv::expect_conv_output_shape;
 use burn_tensor::{DType, Element, ops::ConvOptions};
 use bytemuck::Zeroable;
 use macerator::{Simd, VMulAdd, Vector, vload_unaligned, vstore_unaligned};
@@ -68,15 +68,17 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let bias = bias.map(|bias| cast::<_, E>(bias));
 
     let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
-    let [dilate_h, dilate_w] = options.dilation;
-    let [stride_h, stride_w] = options.stride;
-    let [pad_h, pad_w] = options.padding;
     let padded = options.padding != [0, 0];
     let strided = options.stride != [1, 1] || options.dilation != [1, 1];
     let grouped = options.groups != 1;
 
-    let out_height = expect_conv1d_output_size(in_height, k_height, stride_h, dilate_h, pad_h);
-    let out_width = expect_conv1d_output_size(in_width, k_width, stride_w, dilate_w, pad_w);
+    let [out_height, out_width] = expect_conv_output_shape(
+        [in_height, in_width],
+        [k_height, k_width],
+        options.stride,
+        options.padding,
+        options.dilation,
+    );
 
     let x = x.into_dimensionality::<Ix4>().unwrap();
     let weights = weight.into_dimensionality::<Ix4>().unwrap();
