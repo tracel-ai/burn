@@ -1,5 +1,4 @@
 use burn_ir::*;
-use burn_tensor::DType;
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -1051,5 +1050,17 @@ mod tests {
                 dtype: DType::F32
             }
         );
+    }
+
+    #[test]
+    fn scalar_ir_to_relative() {
+        let scalar1 = ScalarIr::F32(1.0);
+        let scalar2 = ScalarIr::U8(1);
+        let mut converter = OperationConverter::default();
+        let scalar1_local = scalar1.to_relative(&mut converter);
+        let scalar2_local = scalar2.to_relative(&mut converter);
+
+        assert_eq!(scalar1_local, ScalarIr::U64(0));
+        assert_eq!(scalar2_local, ScalarIr::U64(1));
     }
 }

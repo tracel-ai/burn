@@ -252,7 +252,7 @@ mod tests {
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                rhs: 5.0,
+                rhs: 5.0f32.into(),
                 out: TensorIr {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
