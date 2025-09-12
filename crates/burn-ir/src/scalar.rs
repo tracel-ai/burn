@@ -103,23 +103,23 @@ impl ScalarIr {
         }
     }
 
-    /// Converts the scalar to the specified data type.
-    pub fn convert(self, dtype: &DType) -> Self {
+    /// Creates a scalar with the specified data type.
+    pub fn from_elem<E: Element>(elem: E, dtype: &DType) -> Self {
         match dtype {
-            DType::F64 => ScalarIr::F64(self.elem()),
-            DType::F32 => ScalarIr::F32(self.elem()),
-            DType::Flex32 => ScalarIr::F32(self.elem()),
-            DType::F16 => ScalarIr::F16(self.elem()),
-            DType::BF16 => ScalarIr::BF16(self.elem()),
-            DType::I64 => ScalarIr::I64(self.elem()),
-            DType::I32 => ScalarIr::I32(self.elem()),
-            DType::I16 => ScalarIr::I16(self.elem()),
-            DType::I8 => ScalarIr::I8(self.elem()),
-            DType::U64 => ScalarIr::U64(self.elem()),
-            DType::U32 => ScalarIr::U32(self.elem()),
-            DType::U16 => ScalarIr::U16(self.elem()),
-            DType::U8 => ScalarIr::U8(self.elem()),
-            DType::Bool => ScalarIr::Bool(self.elem()),
+            DType::F64 => ScalarIr::F64(elem.elem()),
+            DType::F32 => ScalarIr::F32(elem.elem()),
+            DType::Flex32 => ScalarIr::F32(elem.elem()),
+            DType::F16 => ScalarIr::F16(elem.elem()),
+            DType::BF16 => ScalarIr::BF16(elem.elem()),
+            DType::I64 => ScalarIr::I64(elem.elem()),
+            DType::I32 => ScalarIr::I32(elem.elem()),
+            DType::I16 => ScalarIr::I16(elem.elem()),
+            DType::I8 => ScalarIr::I8(elem.elem()),
+            DType::U64 => ScalarIr::U64(elem.elem()),
+            DType::U32 => ScalarIr::U32(elem.elem()),
+            DType::U16 => ScalarIr::U16(elem.elem()),
+            DType::U8 => ScalarIr::U8(elem.elem()),
+            DType::Bool => ScalarIr::Bool(elem.elem()),
             DType::QFloat(_) => unimplemented!(),
         }
     }
