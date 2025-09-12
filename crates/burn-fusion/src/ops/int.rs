@@ -1361,8 +1361,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .tensor_uninitialized(tensor.shape.clone(), dtype);
         let desc = ClampOpIr {
             tensor: tensor.into_ir(),
-            min: min.into(),
-            max: max.into(),
+            min: ScalarIr::with_dtype(min, &dtype),
+            max: ScalarIr::with_dtype(max, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(

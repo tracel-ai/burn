@@ -41,30 +41,6 @@ impl Hash for ScalarIr {
     }
 }
 
-// Provide `elem.into()` and `scalar.elem()` for convenience.
-// ScalarIr::with_dtype(elem, &dtype) to automatically convert the scalar to the appropriate dtype.
-impl<E: Element> From<E> for ScalarIr {
-    fn from(value: E) -> Self {
-        match E::dtype() {
-            DType::F64 => ScalarIr::F64(value.elem()),
-            DType::F32 => ScalarIr::F32(value.elem()),
-            DType::Flex32 => ScalarIr::F32(value.elem()),
-            DType::F16 => ScalarIr::F16(value.elem()),
-            DType::BF16 => ScalarIr::BF16(value.elem()),
-            DType::I64 => ScalarIr::I64(value.elem()),
-            DType::I32 => ScalarIr::I32(value.elem()),
-            DType::I16 => ScalarIr::I16(value.elem()),
-            DType::I8 => ScalarIr::I8(value.elem()),
-            DType::U64 => ScalarIr::U64(value.elem()),
-            DType::U32 => ScalarIr::U32(value.elem()),
-            DType::U16 => ScalarIr::U16(value.elem()),
-            DType::U8 => ScalarIr::U8(value.elem()),
-            DType::Bool => ScalarIr::Bool(value.elem()),
-            DType::QFloat(_) => unimplemented!(),
-        }
-    }
-}
-
 impl ScalarIr {
     /// Converts and returns the converted element.
     pub fn elem<E: Element>(self) -> E {
