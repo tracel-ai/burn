@@ -1,16 +1,16 @@
 use burn_common::{iter_par, run_par};
-use burn_tensor::ops::{DeformConvOptions, conv::calculate_conv_output_size};
+use burn_tensor::ops::DeformConvOptions;
 use core::ops::AddAssign;
 use ndarray::{
     Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim, Ix4,
     Zip, s,
 };
 
+use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray};
+use burn_tensor::ops::conv::expect_conv1d_output_size;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
-
-use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray};
 
 use super::matmul::matmul;
 
@@ -124,20 +124,14 @@ where
 
     let weight = weight.as_standard_layout();
 
-    let out_h = calculate_conv_output_size(
-        kernel_h,
-        args.stride[0],
-        args.padding[0],
-        args.dilation[0],
-        in_height,
-    );
-    let out_w = calculate_conv_output_size(
-        kernel_w,
-        args.stride[1],
-        args.padding[1],
-        args.dilation[1],
-        in_width,
-    );
+    let stride = args.stride[0];
+    let padding = args.padding[0];
+    let dilation = args.dilation[0];
+    let out_h = expect_conv1d_output_size(in_height, kernel_h, stride, dilation, padding);
+    let stride = args.stride[1];
+    let padding = args.padding[1];
+    let dilation = args.dilation[1];
+    let out_w = expect_conv1d_output_size(in_width, kernel_w, stride, dilation, padding);
     let out_dims = (out_h, out_w);
 
     let input = input.into_dimensionality::<Ix4>().unwrap();
