@@ -42,7 +42,7 @@ impl Hash for ScalarIr {
 }
 
 // Provide `elem.into()` and `scalar.elem()` for convenience.
-// ScalarIr::from_elem(elem, &dtype) to automatically convert the scalar to the appropriate dtype.
+// ScalarIr::with_dtype(elem, &dtype) to automatically convert the scalar to the appropriate dtype.
 impl<E: Element> From<E> for ScalarIr {
     fn from(value: E) -> Self {
         match E::dtype() {
@@ -86,7 +86,7 @@ impl ScalarIr {
     }
 
     /// Creates a scalar with the specified data type.
-    pub fn from_elem<E: Element>(elem: E, dtype: &DType) -> Self {
+    pub fn with_dtype<E: Element>(elem: E, dtype: &DType) -> Self {
         match dtype {
             DType::F64 => ScalarIr::F64(elem.elem()),
             DType::F32 => ScalarIr::F32(elem.elem()),

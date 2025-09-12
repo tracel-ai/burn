@@ -324,7 +324,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = MaskFillOpIr {
             tensor: tensor.into_ir(),
-            value: ScalarIr::from_elem(value, &dtype),
+            value: ScalarIr::with_dtype(value, &dtype),
             mask: mask.into_ir(),
             out: out.to_ir_out(),
         };
@@ -610,7 +610,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let dtype = lhs.dtype;
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -660,7 +660,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let dtype = lhs.dtype;
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -710,7 +710,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let dtype = lhs.dtype;
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -760,7 +760,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let dtype = lhs.dtype;
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -810,7 +810,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let dtype = lhs.dtype;
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -857,7 +857,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -904,7 +904,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -951,7 +951,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -998,7 +998,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1045,7 +1045,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1140,7 +1140,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(&device.clone());
         let out = client.tensor_uninitialized(shape.dims, dtype);
 
-        let desc = (out.to_ir_out(), ScalarIr::from_elem(fill_value, &dtype));
+        let desc = (out.to_ir_out(), ScalarIr::with_dtype(fill_value, &dtype));
         client.register(
             OperationStreams::default(),
             OperationIr::NumericInt(dtype, NumericOperationIr::Full(desc.clone())),
@@ -1919,7 +1919,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -1966,7 +1966,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -2013,7 +2013,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -2083,7 +2083,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -2130,7 +2130,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
         out.client.register(

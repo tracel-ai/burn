@@ -91,7 +91,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         client.register(OperationIr::NumericFloat(
             dtype,
-            NumericOperationIr::Full((out.to_ir_out(), ScalarIr::from_elem(fill_value, &dtype))),
+            NumericOperationIr::Full((out.to_ir_out(), ScalarIr::with_dtype(fill_value, &dtype))),
         ));
 
         out
@@ -169,7 +169,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -192,8 +192,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ClampOpIr {
             tensor: tensor.into_ir(),
-            min: ScalarIr::from_elem(min, &dtype),
-            max: ScalarIr::from_elem(max, &dtype),
+            min: ScalarIr::with_dtype(min, &dtype),
+            max: ScalarIr::with_dtype(max, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -231,7 +231,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -269,7 +269,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -307,7 +307,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -345,7 +345,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -596,7 +596,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = MaskFillOpIr {
             tensor: tensor.into_ir(),
             mask: mask.into_ir(),
-            value: ScalarIr::from_elem(value, &dtype),
+            value: ScalarIr::with_dtype(value, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -633,7 +633,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -674,7 +674,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -715,7 +715,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -756,7 +756,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -797,7 +797,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -978,7 +978,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: ScalarIr::from_elem(rhs, &dtype),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
