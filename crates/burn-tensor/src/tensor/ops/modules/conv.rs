@@ -145,15 +145,15 @@ pub fn maybe_conv_output_shape_dyn(
     assert_eq!(dilation.len(), rank);
     assert_eq!(padding.len(), rank);
 
-    let mut output_shape = vec![0; rank];
+    let mut output_shape = Vec::with_capacity(rank);
     for i in 0..rank {
-        output_shape[i] = maybe_conv1d_output_size(
+        output_shape.push(maybe_conv1d_output_size(
             input_shape[i],
             kernel_shape[i],
             stride[i],
             padding[i],
             dilation[i],
-        )?;
+        )?);
     }
     Some(output_shape)
 }
