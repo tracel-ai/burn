@@ -51,15 +51,23 @@ mod wgpu {
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use burn::backend::{
-        Autodiff,
-        cuda::{Cuda, CudaDevice},
-    };
+    use burn::backend::{Autodiff, Cuda};
     use mnist::training;
 
     pub fn run() {
-        let devices = CudaDevice::default();
-        training::run::<Autodiff<Cuda>>(devices);
+        let device = Default::default();
+        training::run::<Autodiff<Cuda>>(device);
+    }
+}
+
+#[cfg(feature = "rocm")]
+mod rocm {
+    use burn::backend::{Autodiff, Rocm};
+    use mnist::training;
+
+    pub fn run() {
+        let device = Default::default();
+        training::run::<Autodiff<Rocm>>(device);
     }
 }
 
@@ -103,6 +111,8 @@ fn main() {
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
+    #[cfg(feature = "rocm")]
+    rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
 }

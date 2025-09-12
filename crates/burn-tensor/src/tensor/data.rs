@@ -75,10 +75,19 @@ impl TensorData {
     }
 
     /// Creates a new tensor data structure from raw bytes.
+    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
+        Self {
+            bytes,
+            shape: shape.into(),
+            dtype,
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes stored in a vector.
     ///
     /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
     /// certain that the bytes representation is valid.
-    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+    pub fn from_bytes_vec<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: Bytes::from_bytes_vec(bytes),
             shape: shape.into(),
