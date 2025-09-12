@@ -16,7 +16,7 @@ use cubecl::{
 };
 use cubecl::{
     convolution::components::ConvSetupError,
-    std::{CubeOption, FastDivmod},
+    std::{CubeOption, CubeOptionExpand, FastDivmod},
 };
 
 use super::im2col::{ConvParam, ConvParamLaunch};
