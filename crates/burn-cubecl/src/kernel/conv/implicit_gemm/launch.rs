@@ -1,4 +1,8 @@
-use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
+use crate::{
+    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_strided, tensor::CubeTensor,
+};
+use burn_tensor::ops::ConvOptions;
+use burn_tensor::ops::conv::expect_conv_output_shape_dyn;
 use cubecl::{
     convolution::{
         ConvolutionArgs,
@@ -16,10 +20,6 @@ use cubecl::{
             global::args::{ConcreteOutputFactory, MatmulArgs},
         },
     },
-};
-
-use crate::{
-    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_strided, tensor::CubeTensor,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -108,13 +108,11 @@ where
     let out_channels = weight.shape.dims[0];
     let weight_shape = &weight.shape.dims[1..dim_c];
 
-    let mut out_shape = calculate_conv_output_sizes(
-        weight_shape,
-        &options.stride,
-        &options.padding,
-        &options.dilation,
-        shape,
-    );
+    let stride = &options.stride;
+    let padding = &options.padding;
+    let dilation = &options.dilation;
+    let mut out_shape =
+        expect_conv_output_shape_dyn(shape, weight_shape, stride, dilation, padding);
 
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);

@@ -1,20 +1,17 @@
-use burn_common::{iter_par, iter_range_par, run_par};
-use burn_tensor::{
-    ElementConversion,
-    ops::{
-        ConvOptions, ConvTransposeOptions,
-        conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
-    },
-};
-use ndarray::{
-    Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim, s,
-};
-
 use crate::{
     NdArrayElement, SharedArray,
     ops::padding::{apply_padding_4d, apply_padding_5d},
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
+};
+use burn_common::{iter_par, iter_range_par, run_par};
+use burn_tensor::ops::conv::expect_conv1d_output_size;
+use burn_tensor::{
+    ElementConversion,
+    ops::{ConvOptions, ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
+};
+use ndarray::{
+    Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim, s,
 };
 
 #[inline(always)]
@@ -115,19 +112,19 @@ where
         weight.shape().try_into().unwrap();
     let channels_per_group = out_channels / options.groups;
 
-    let out_height = calculate_conv_output_size(
+    let out_height = expect_conv1d_output_size(
+        in_height,
         kernel_height,
         stride_height,
-        padding_height,
         dilation_height,
-        in_height,
+        padding_height,
     );
-    let out_width = calculate_conv_output_size(
+    let out_width = expect_conv1d_output_size(
+        in_width,
         kernel_width,
         stride_width,
-        padding_width,
         dilation_width,
-        in_width,
+        padding_width,
     );
 
     let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem());
@@ -335,26 +332,26 @@ where
     ] = weight.shape().try_into().unwrap();
     let out_c_per_group = out_channels / options.groups;
 
-    let out_depth = calculate_conv_output_size(
+    let out_depth = expect_conv1d_output_size(
+        in_depth,
         kernel_depth,
         stride_depth,
-        padding_depth,
         dilation_depth,
-        in_depth,
+        padding_depth,
     );
-    let out_height = calculate_conv_output_size(
+    let out_height = expect_conv1d_output_size(
+        in_height,
         kernel_height,
         stride_height,
-        padding_height,
         dilation_height,
-        in_height,
+        padding_height,
     );
-    let out_width = calculate_conv_output_size(
+    let out_width = expect_conv1d_output_size(
+        in_width,
         kernel_width,
         stride_width,
-        padding_width,
         dilation_width,
-        in_width,
+        padding_width,
     );
 
     let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem());
