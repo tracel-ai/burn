@@ -31,7 +31,7 @@ pub trait ComplexTensorBackend: Backend + ComplexTensorOps<Self> {
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 
     /// Complex element type.
-    type ComplexElem: ComplexElement;
+    type ComplexElem: Element;
 
     /// The underlaying layout for the complex elements
     type Layout: ComplexLayout;

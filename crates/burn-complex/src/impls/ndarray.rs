@@ -1,14 +1,15 @@
+use burn_common::rand::get_seeded_rng;
 use burn_ndarray::{
-    FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, QuantElement,
-    SEED as NDSEED,
+    FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor,
+    NdArrayTensorFloat, QuantElement, SEED as NDSEED,
 };
-use burn_tensor::{Distribution, Shape, TensorData, ops::FloatTensor};
-use ndarray::{Array, IxDyn};
-
-use crate::base::{
-    ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout, element::Complex32,
+use burn_tensor::{
+    Distribution, Shape, TensorData, backend::Backend, complex::Complex32, ops::FloatTensor,
 };
+use ndarray::{Array, ArrayD, IxDyn};
 
+use crate::base::{ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout};
+use burn_tensor::TensorMetadata;
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTensorBackend
     for NdArray<E, I, Q>
 {
@@ -20,31 +21,50 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTenso
     type Layout = InterleavedLayout;
 
     fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend> {
-        ndarray::Array::from_shape_vec(
-            tensor.shape(),
-            tensor.data().iter().map(|c| c.real).collect(),
+        NdArrayTensor::new(
+            ArrayD::from_shape_vec(
+                IxDyn(tensor.shape().dims.as_slice()),
+                tensor.array.iter().map(|c| c.real).collect(),
+            )
+            .unwrap()
+            .into_shared(),
         )
-        .unwrap()
+        .into()
     }
 
     fn imag(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend> {
-        ndarray::Array::from_shape_vec(
-            tensor.shape(),
-            tensor.data().iter().map(|c| c.imag).collect(),
+        NdArrayTensor::new(
+            ArrayD::from_shape_vec(
+                IxDyn(tensor.shape().dims.as_slice()),
+                tensor.array.iter().map(|c| c.imag).collect(),
+            )
+            .unwrap()
+            .into_shared(),
         )
-        .unwrap()
+        .into()
     }
 
     fn to_complex(tensor: FloatTensor<Self::InnerBackend>) -> ComplexTensor<Self> {
-        Array::from_shape_vec(
-            tensor.shape(),
-            tensor
-                .data()
-                .iter()
-                .map(|r| Complex32::new(*r, 0.0))
-                .collect(),
+        NdArrayTensor::new(
+            ArrayD::from_shape_vec(
+                IxDyn(tensor.shape().dims.as_slice()),
+                match tensor {
+                    NdArrayTensorFloat::F32(nd_array_tensor) => nd_array_tensor
+                        .array
+                        .iter()
+                        .map(|&x| Complex32::new(x, 0.0))
+                        .collect(),
+                    NdArrayTensorFloat::F64(nd_array_tensor) => nd_array_tensor
+                        .array
+                        .iter()
+                        .map(|&x| Complex32::new(x as f32, 0.0))
+                        .collect(),
+                },
+            )
+            .unwrap()
+            .into_shared(),
         )
-        .unwrap()
+        .into()
     }
 }
 
@@ -227,8 +247,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
     ) -> NdArrayTensor<Complex32> {
         // Extract real and imaginary parts as f32 tensors
         let real_f32 = match real {
-            crate::NdArrayTensorFloat::F32(tensor) => tensor,
-            crate::NdArrayTensorFloat::F64(tensor) => {
+            NdArrayTensorFloat::F32(tensor) => tensor,
+            NdArrayTensorFloat::F64(tensor) => {
                 let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
                 let shape = tensor.shape();
                 let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
@@ -237,8 +257,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
         };
 
         let imag_f32 = match imag {
-            crate::NdArrayTensorFloat::F32(tensor) => tensor,
-            crate::NdArrayTensorFloat::F64(tensor) => {
+            NdArrayTensorFloat::F32(tensor) => tensor,
+            NdArrayTensorFloat::F64(tensor) => {
                 let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
                 let shape = tensor.shape();
                 let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
@@ -264,8 +284,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
     ) -> NdArrayTensor<Complex32> {
         // Extract magnitude and phase as f32 tensors
         let mag_f32 = match magnitude {
-            crate::NdArrayTensorFloat::F32(tensor) => tensor,
-            crate::NdArrayTensorFloat::F64(tensor) => {
+            NdArrayTensorFloat::F32(tensor) => tensor,
+            NdArrayTensorFloat::F64(tensor) => {
                 let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
                 let shape = tensor.shape();
                 let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
@@ -274,8 +294,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
         };
 
         let phase_f32 = match phase {
-            crate::NdArrayTensorFloat::F32(tensor) => tensor,
-            crate::NdArrayTensorFloat::F64(tensor) => {
+            NdArrayTensorFloat::F32(tensor) => tensor,
+            NdArrayTensorFloat::F64(tensor) => {
                 let f32_data: Vec<f32> = tensor.array.iter().map(|&x| x as f32).collect();
                 let shape = tensor.shape();
                 let array = ArrayD::from_shape_vec(IxDyn(shape.dims.as_slice()), f32_data).unwrap();
@@ -373,6 +393,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
         let cos_z = Self::complex_cos(tensor);
         Self::complex_div(sin_z, cos_z)
     }
+
+    type Layout = InterleavedLayout;
 
     // #[test]
     // fn should_support_complex32() {
