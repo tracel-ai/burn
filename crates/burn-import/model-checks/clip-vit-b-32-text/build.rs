@@ -29,6 +29,5 @@ fn main() {
     ModelGen::new()
         .input(onnx_path)
         .out_dir("model/")
-        .double_precision(true)
         .run_from_script();
 }

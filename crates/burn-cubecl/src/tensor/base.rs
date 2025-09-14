@@ -384,21 +384,19 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = self.client.read_one(self.handle.clone());
-        let handle = client.create(&bytes);
-
-        if self.qparams.is_some() {
-            unimplemented!("Needs more work to correctly transfer, waiting for QXxN packed types");
-        }
+        let desc = self
+            .handle
+            .copy_descriptor(&self.shape.dims, &self.strides, self.elem_size());
+        let alloc = self.client.to_client_tensor(desc, &client);
 
         Self {
             client,
-            handle,
+            handle: alloc.handle,
             shape: self.shape.clone(),
-            strides: self.strides.clone(),
             device,
+            strides: alloc.strides,
             dtype: self.dtype,
-            qparams: None,
+            qparams: self.qparams.clone(),
         }
     }
 

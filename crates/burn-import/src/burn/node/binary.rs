@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, Type};
+use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -681,8 +681,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_and(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_and(#rhs) },
-            _ => panic!("and is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("and operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.bool_and(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("and operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs && #rhs }
+            }
+            _ => panic!("and is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::And, Arc::new(function))
@@ -690,8 +701,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_or(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_or(#rhs) },
-            _ => panic!("or is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("or operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.bool_or(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("or operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs || #rhs }
+            }
+            _ => panic!("or is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Or, Arc::new(function))
@@ -699,8 +721,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_xor(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.not_equal(#rhs) },
-            _ => panic!("xor is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("xor operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.not_equal(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("xor operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs ^ #rhs }
+            }
+            _ => panic!("xor is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Xor, Arc::new(function))
@@ -970,17 +1003,119 @@ mod tests {
 
     #[test]
     fn test_binary_codegen_bool_and() {
-        test_binary_operator_on_tensors!(bool_and);
+        // Test tensor boolean AND
+        one_node_graph(
+            BinaryNode::bool_and(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.bool_and(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean AND
+        one_node_graph(
+            BinaryNode::bool_and(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 && scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]
     fn test_binary_codegen_bool_or() {
-        test_binary_operator_on_tensors!(bool_or);
+        // Test tensor boolean OR
+        one_node_graph(
+            BinaryNode::bool_or(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.bool_or(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean OR
+        one_node_graph(
+            BinaryNode::bool_or(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 || scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]
     fn test_binary_codegen_bool_xor() {
-        test_binary_operator_on_tensors!(bool_xor, not_equal);
+        // Test tensor boolean XOR
+        one_node_graph(
+            BinaryNode::bool_xor(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.not_equal(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean XOR
+        one_node_graph(
+            BinaryNode::bool_xor(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 ^ scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]

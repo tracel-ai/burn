@@ -6,7 +6,7 @@ use super::{LrScheduler, String};
 use crate::{LearningRate, config::Config};
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct NoamLrSchedulerConfig {
     /// The initial learning rate.
     init_lr: LearningRate,

@@ -70,6 +70,7 @@ mod sqrt;
 mod squeeze;
 mod stack;
 mod sub;
+mod take;
 mod tan;
 mod tanh;
 mod topk;

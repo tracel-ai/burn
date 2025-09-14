@@ -1,8 +1,6 @@
 use cubecl::std::{
     FastDivmod,
-    tensor::layout::{
-        VirtualLayoutOperations, VirtualLayoutOperationsExpand, linear::LinearLayout,
-    },
+    tensor::layout::{linear::LinearLayout, *},
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -25,7 +23,7 @@ fn interpolate_nearest_backward_kernel<F: Float>(
     }
 
     let line_size = grad.line_size();
-    let out_idx = out_layout.to_linear_pos(ABSOLUTE_POS);
+    let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let out_h = output.shape(1);
     let out_w = output.shape(2);

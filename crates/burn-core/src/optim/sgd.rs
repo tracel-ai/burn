@@ -11,7 +11,7 @@ use crate::{self as burn, LearningRate};
 use burn_tensor::backend::{AutodiffBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct SgdConfig {
     /// [Weight decay](WeightDecayConfig) config.
     weight_decay: Option<WeightDecayConfig>,

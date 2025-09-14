@@ -39,6 +39,7 @@ pub(crate) mod instance_norm;
 pub(crate) mod layer_norm;
 pub(crate) mod linear;
 pub(crate) mod matmul;
+pub(crate) mod matmul_integer;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod mean;

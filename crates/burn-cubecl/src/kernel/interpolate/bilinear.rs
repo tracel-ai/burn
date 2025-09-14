@@ -1,8 +1,6 @@
 use cubecl::std::{
     FastDivmod,
-    tensor::layout::{
-        VirtualLayoutOperations, VirtualLayoutOperationsExpand, linear::LinearLayout,
-    },
+    tensor::layout::{linear::LinearLayout, *},
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -25,7 +23,7 @@ fn interpolate_bilinear_kernel<F: Float>(
     }
 
     let line_size = input.line_size();
-    let out_idx = out_layout.to_linear_pos(ABSOLUTE_POS);
+    let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
     let (rem, x) = shape_out.index(2).div_mod(rem);

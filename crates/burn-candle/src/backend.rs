@@ -142,15 +142,29 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl DeviceOps for CandleDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_common::device::Device for CandleDevice {
+    fn to_id(&self) -> burn_tensor::backend::DeviceId {
         match self {
-            CandleDevice::Cpu => DeviceId::new(0, 0),
-            CandleDevice::Cuda(device) => DeviceId::new(1, device.index as u32),
-            CandleDevice::Metal(device) => DeviceId::new(2, device.index as u32),
+            CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
+            CandleDevice::Metal(device) => DeviceId::new(1, device.index as u32),
+            CandleDevice::Cpu => DeviceId::new(2, 0),
         }
     }
+
+    fn from_id(device_id: DeviceId) -> Self {
+        match device_id.type_id {
+            0 => CandleDevice::cuda(device_id.index_id as usize),
+            1 => CandleDevice::metal(device_id.index_id as usize),
+            _ => CandleDevice::Cpu,
+        }
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        // TODO: Fix that
+        1
+    }
 }
+impl DeviceOps for CandleDevice {}
 
 impl Default for CandleDevice {
     fn default() -> Self {

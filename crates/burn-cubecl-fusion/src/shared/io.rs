@@ -4,7 +4,10 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::tensor::{View, layout::linear::LinearLayout},
+    std::tensor::{
+        View,
+        layout::{linear::LinearLayout, plain::PlainLayout},
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -132,6 +135,35 @@ pub fn read<C: CubePrimitive>(
 }
 
 #[cube]
+fn index_offset_with_quant_layout(
+    tensor: &GlobalTensor,
+    locals: &LocalArgs,
+    index: u32,
+    #[comptime] rank: u32,
+    #[comptime] scheme: QuantScheme,
+) -> u32 {
+    let (start, end) = comptime![(0u32, rank - 1)];
+    let num_quants = comptime!(scheme.num_quants() as u32);
+
+    let offset_ref = index * locals.ref_line_size;
+    let mut offset = 0u32;
+
+    #[unroll]
+    for i in start..end {
+        let ogwl = offset_ref / locals.ref_strides[i];
+        offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
+    }
+
+    // Handle packed representation in last dim
+    let ogwl = offset_ref / locals.ref_strides[end];
+    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let stride_last = tensor.tensor.stride(end);
+    offset += (ogwl / num_quants) % shape_last * stride_last;
+
+    offset / tensor.tensor.line_size()
+}
+
+#[cube]
 pub fn read_quantized<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
@@ -145,9 +177,7 @@ pub fn read_quantized<C: CubePrimitive>(
             let global = inputs.tensors.index(pos);
 
             let offset =
-                index_offset_with_layout(inputs, global, locals, ref_pos, None, config.rank, None);
-            let additional_factor = comptime!(scheme.num_quants() as u32);
-            let offset = offset / additional_factor;
+                index_offset_with_quant_layout(global, locals, ref_pos, config.rank, scheme);
             let val = global.tensor[offset];
             Line::cast_from(val)
         }
@@ -216,10 +246,10 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u3
 pub fn input_as_linear_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
     #[comptime] pos: u32,
-) -> View<C, u32> {
+) -> View<Line<C>, u32> {
     let slice = input_as_slice::<Line<C>>(inputs, pos);
-    let layout = LinearLayout::new_Plain(slice.len());
-    View::new::<Slice<Line<C>>>(slice, layout.virt())
+    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
+    View::new::<Slice<Line<C>>, u32>(&slice, layout)
 }
 
 #[cube]

@@ -207,8 +207,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if let ConstantValue::Tensor(_, data) = &self.value {
-            let data = data.clone().convert::<PS::FloatElem>();
+        if let ConstantValue::Tensor(tensor_type, data) = &self.value {
+            let data = match tensor_type.kind {
+                crate::burn::TensorKind::Int => data.clone().convert::<PS::IntElem>(),
+                crate::burn::TensorKind::Float => data.clone().convert::<PS::FloatElem>(),
+                crate::burn::TensorKind::Bool => data.clone(),
+            };
             let data = ParamSerde::new(ParamId::new().to_string(), data);
             return data.serialize(serializer);
         }

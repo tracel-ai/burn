@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(or);
+include_models!(or, or_scalar);
 
 #[cfg(test)]
 mod tests {
@@ -27,5 +27,18 @@ mod tests {
         let expected = TensorData::from([[[[false, true, true, true]]]]);
 
         output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn or_scalar() {
+        let device = Default::default();
+        let model: or_scalar::Model<TestBackend> = or_scalar::Model::new(&device);
+
+        // Test various combinations of scalar boolean inputs
+        // (input1 || true) || (input2 || false) = true || input2 = true
+        assert_eq!(model.forward(false, false), true);
+        assert_eq!(model.forward(false, true), true);
+        assert_eq!(model.forward(true, false), true);
+        assert_eq!(model.forward(true, true), true);
     }
 }

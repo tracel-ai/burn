@@ -78,57 +78,32 @@ mod cube {
 
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {
-    use crate::backend::{DeviceId, DeviceOps};
+    use crate::backend::DeviceOps;
     use cubecl::wgpu::WgpuDevice;
 
-    // Allow deprecated `WgpuDevice::BestAvailable`
-    #[allow(deprecated)]
-    impl DeviceOps for WgpuDevice {
-        fn id(&self) -> DeviceId {
-            match self {
-                WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
-                WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
-                WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
-                WgpuDevice::Cpu => DeviceId::new(3, 0),
-                WgpuDevice::BestAvailable | WgpuDevice::DefaultDevice => DeviceId::new(4, 0),
-                WgpuDevice::Existing(id) => DeviceId::new(5, *id),
-            }
-        }
-    }
+    impl DeviceOps for WgpuDevice {}
 }
 
 #[cfg(feature = "cubecl-cuda")]
 mod cube_cuda {
-    use crate::backend::{DeviceId, DeviceOps};
+    use crate::backend::DeviceOps;
     use cubecl::cuda::CudaDevice;
 
-    impl DeviceOps for CudaDevice {
-        fn id(&self) -> DeviceId {
-            DeviceId::new(0, self.index as u32)
-        }
-    }
+    impl DeviceOps for CudaDevice {}
 }
 
 #[cfg(all(feature = "cubecl-cpu", target_os = "linux"))]
 mod cube_cpu {
-    use crate::backend::{DeviceId, DeviceOps};
+    use crate::backend::DeviceOps;
     use cubecl::cpu::CpuDevice;
 
-    impl DeviceOps for CpuDevice {
-        fn id(&self) -> DeviceId {
-            DeviceId::new(0, 0)
-        }
-    }
+    impl DeviceOps for CpuDevice {}
 }
 
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
-    use crate::backend::{DeviceId, DeviceOps};
+    use crate::backend::DeviceOps;
     use cubecl::hip::AmdDevice;
 
-    impl DeviceOps for AmdDevice {
-        fn id(&self) -> DeviceId {
-            DeviceId::new(0, self.index as u32)
-        }
-    }
+    impl DeviceOps for AmdDevice {}
 }

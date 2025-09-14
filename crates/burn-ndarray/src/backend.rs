@@ -1,3 +1,4 @@
+use crate::rand::NdArrayRng;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use crate::{
     SharedArray,
@@ -9,10 +10,11 @@ use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::SeedableRng;
+
 
 /// The seed for the ndarray backend.
-pub static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+pub static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,11 +23,22 @@ pub enum NdArrayDevice {
     Cpu,
 }
 
-impl DeviceOps for NdArrayDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
-        match self {
-            NdArrayDevice::Cpu => DeviceId::new(0, 0),
+impl DeviceOps for NdArrayDevice {}
+
+impl burn_common::device::Device for NdArrayDevice {
+    fn from_id(_device_id: DeviceId) -> Self {
+        Self::Cpu
+    }
+
+    fn to_id(&self) -> DeviceId {
+        DeviceId {
+            type_id: 0,
+            index_id: 0,
         }
+    }
+
+    fn device_count(_type_id: u16) -> usize {
+        1
     }
 }
 
@@ -77,7 +90,7 @@ where
     }
 
     fn seed(_device: &Self::Device, seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
+        let rng = NdArrayRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }

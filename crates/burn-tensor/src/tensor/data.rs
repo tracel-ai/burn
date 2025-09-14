@@ -12,7 +12,7 @@ use num_traits::{Float, ToPrimitive};
 use crate::{
     DType, Distribution, Element, ElementConversion,
     quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
-    tensor::bytes::Bytes,
+    tensor::Bytes,
 };
 
 use rand::RngCore;
@@ -373,6 +373,29 @@ impl TensorData {
         }
 
         TensorData::new(data, shape)
+    }
+
+    pub(crate) fn full_dtype<E: Element, S: Into<Vec<usize>>>(
+        shape: S,
+        fill_value: E,
+        dtype: DType,
+    ) -> TensorData {
+        match dtype {
+            DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
+            DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
+            DType::BF16 => Self::full::<bf16, _>(shape, fill_value.elem()),
+            DType::I64 => Self::full::<i64, _>(shape, fill_value.elem()),
+            DType::I32 => Self::full::<i32, _>(shape, fill_value.elem()),
+            DType::I16 => Self::full::<i16, _>(shape, fill_value.elem()),
+            DType::I8 => Self::full::<i8, _>(shape, fill_value.elem()),
+            DType::U64 => Self::full::<u64, _>(shape, fill_value.elem()),
+            DType::U32 => Self::full::<u32, _>(shape, fill_value.elem()),
+            DType::U16 => Self::full::<u16, _>(shape, fill_value.elem()),
+            DType::U8 => Self::full::<u8, _>(shape, fill_value.elem()),
+            DType::Bool => Self::full::<bool, _>(shape, fill_value.elem()),
+            DType::QFloat(_) => unreachable!(),
+        }
     }
 
     /// Converts the data to a different element type.
@@ -1228,4 +1251,36 @@ mod tests {
             Tolerance::default(),
         );
     }
+
+    macro_rules! test_dtypes {
+    ($test_name:ident, $($dtype:ty),*) => {
+        $(
+            paste::paste! {
+                #[test]
+                fn [<$test_name _ $dtype:snake>]() {
+                    let full_dtype = TensorData::full_dtype([2, 16], 4, <$dtype>::dtype());
+                    let full = TensorData::full::<$dtype, _>([2, 16], 4.elem());
+                    assert_eq!(full_dtype, full);
+                }
+            }
+        )*
+    };
+}
+
+    test_dtypes!(
+        should_create_with_dtype,
+        bool,
+        i8,
+        i16,
+        i32,
+        i64,
+        u8,
+        u16,
+        u32,
+        u64,
+        f16,
+        bf16,
+        f32,
+        f64
+    );
 }
