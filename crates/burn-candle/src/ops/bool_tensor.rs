@@ -111,6 +111,24 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::flip(tensor, axes)
     }
 
+    fn bool_select(tensor: BoolTensor<Self>, dim: usize, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
+    }
+
+    fn bool_select_assign(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        CandleTensor::new(
+            tensor
+                .tensor
+                .index_add(&indices.tensor, &value.tensor, dim)
+                .unwrap(),
+        )
+    }
+
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         expand(tensor, shape)
     }

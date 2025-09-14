@@ -106,6 +106,19 @@ where
         expand(tensor, shape)
     }
 
+    fn bool_select(tensor: BoolTensor<Self>, dim: usize, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        kernel::select::<R, BT, I>(tensor, dim, indices)
+    }
+
+    fn bool_select_assign(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::select_assign::<R, BT, I>(tensor, dim, indices, value)
+    }
+
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         kernel::flip::<R, BT, BT>(tensor, axes)
     }

@@ -8,7 +8,7 @@ use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{NdArray, tensor::NdArrayTensor};
+use crate::{NdArray, tensor::NdArrayTensor, execute_with_int_dtype};
 use crate::{NdArrayDevice, SharedArray};
 
 // Workspace crates
@@ -115,6 +115,44 @@ where
 
     fn bool_expand(tensor: NdArrayTensor, shape: Shape) -> NdArrayTensor {
         NdArrayOps::expand(tensor.bool(), shape).into()
+    }
+
+    fn bool_select(
+        tensor: NdArrayTensor,
+        dim: usize,
+        indices: NdArrayTensor,
+    ) -> NdArrayTensor {
+        execute_with_int_dtype!(indices, I, |indices: SharedArray<I>| -> NdArrayTensor {
+            let tensor_bool = tensor.bool();
+            let indices_vec: Vec<usize> = indices
+                .into_iter()
+                .map(|i| i.elem::<i64>() as usize)
+                .collect();
+
+            let selected = tensor_bool.select(ndarray::Axis(dim), &indices_vec);
+            selected.into_shared().into()
+        })
+    }
+
+    fn bool_select_assign(
+        tensor: NdArrayTensor,
+        dim: usize,
+        indices: NdArrayTensor,
+        value: NdArrayTensor,
+    ) -> NdArrayTensor {
+        execute_with_int_dtype!(indices, I, |indices: SharedArray<I>| -> NdArrayTensor {
+            let mut output_array = tensor.bool().into_owned();
+            let value_bool = value.bool();
+
+            for (index_value, index) in indices.into_iter().enumerate() {
+                let index_usize = index.elem::<i64>() as usize;
+                let mut view = output_array.index_axis_mut(ndarray::Axis(dim), index_usize);
+                let value_slice = value_bool.index_axis(ndarray::Axis(dim), index_value);
+                // For boolean tensors, select_assign should use logical OR operation
+                view.zip_mut_with(&value_slice, |a, b| *a = *a || *b);
+            }
+            output_array.into_shared().into()
+        })
     }
 
     fn bool_flip(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
