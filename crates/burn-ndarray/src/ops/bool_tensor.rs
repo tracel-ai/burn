@@ -8,7 +8,7 @@ use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{NdArray, tensor::NdArrayTensor, execute_with_int_dtype};
+use crate::{NdArray, execute_with_int_dtype, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SharedArray};
 
 // Workspace crates
@@ -117,11 +117,7 @@ where
         NdArrayOps::expand(tensor.bool(), shape).into()
     }
 
-    fn bool_select(
-        tensor: NdArrayTensor,
-        dim: usize,
-        indices: NdArrayTensor,
-    ) -> NdArrayTensor {
+    fn bool_select(tensor: NdArrayTensor, dim: usize, indices: NdArrayTensor) -> NdArrayTensor {
         execute_with_int_dtype!(indices, I, |indices: SharedArray<I>| -> NdArrayTensor {
             let tensor_bool = tensor.bool();
             let indices_vec: Vec<usize> = indices

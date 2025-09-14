@@ -106,7 +106,11 @@ where
         expand(tensor, shape)
     }
 
-    fn bool_select(tensor: BoolTensor<Self>, dim: usize, indices: IntTensor<Self>) -> BoolTensor<Self> {
+    fn bool_select(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
         kernel::select::<R, BT, I>(tensor, dim, indices)
     }
 
