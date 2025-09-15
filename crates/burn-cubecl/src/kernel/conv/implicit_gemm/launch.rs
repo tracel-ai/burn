@@ -2,7 +2,7 @@ use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
     convolution::{
         ConvolutionArgs,
-        components::{ConvSetupError, global::args::ConcreteInputsFactory},
+        components::{AcceleratedConv, ConvSetupError, global::args::ConcreteInputsFactory},
         kernels::layered::algorithm::{
             Algorithm, multi_stage_tma::MultiStageTmaConvAlgorithm, simple::SimpleConvAlgorithm,
             simple_tma::SimpleTmaConvAlgorithm,
@@ -12,9 +12,8 @@ use cubecl::{
     matmul::{
         MatmulInputHandleRef,
         components::{
-            LhsG, MatmulPrecision, RhsG,
+            AccG, LhsG, MatmulPrecision, RhsG,
             global::args::{ConcreteOutputFactory, MatmulArgs},
-            tile::accelerated::AcceleratedMatmul,
         },
     },
 };
@@ -36,7 +35,7 @@ pub fn conv_gemm_cyclic<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedMatmul>, N>(
+    conv_gemm_with_algo::<R, F, SimpleConvAlgorithm<AcceleratedConv>, N>(
         input, weight, bias, options,
     )
 }
@@ -55,7 +54,7 @@ pub fn conv_gemm_tma<R: CubeRuntime, F: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedMatmul>, N>(
+    conv_gemm_with_algo::<R, F, SimpleTmaConvAlgorithm<AcceleratedConv>, N>(
         input, weight, bias, options,
     )
 }
@@ -74,7 +73,7 @@ pub fn conv_gemm_tma_multi_stage<R: CubeRuntime, F: FloatElement, const N: usize
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedMatmul>, N>(
+    conv_gemm_with_algo::<R, F, MultiStageTmaConvAlgorithm<AcceleratedConv>, N>(
         input, weight, bias, options,
     )
 }
@@ -93,9 +92,9 @@ pub fn conv_gemm_with_algo<R: CubeRuntime, MP: MatmulPrecision, Alg: Algorithm, 
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError>
 where
-    MP::EO: CubeElement,
-    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>, MP::EO>: ConcreteInputsFactory,
-    <Alg::Args as MatmulArgs>::Output<MP::EO>: ConcreteOutputFactory,
+    <Alg::Args as MatmulArgs>::Input<LhsG<MP>, RhsG<MP>, AccG<MP>>: ConcreteInputsFactory,
+    <Alg::Args as MatmulArgs>::Output<AccG<MP>>: ConcreteOutputFactory,
+    AccG<MP>: CubeElement,
 {
     if options.groups != 1 {
         return Err(ConvSetupError::Groups(options.groups));
@@ -120,7 +119,7 @@ where
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);
 
-    let out = empty_device_strided::<R, MP::EO>(
+    let out = empty_device_strided::<R, AccG<MP>>(
         input.client.clone(),
         input.device.clone(),
         out_shape.into(),

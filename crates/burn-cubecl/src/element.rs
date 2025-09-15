@@ -11,7 +11,11 @@ pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 /// ELement that can be used for matrix multiplication. Includes ints and floats.
 pub trait MatmulElement:
     CubeElement
-    + MatmulPrecision<Lhs: InputPrecision, Rhs: InputPrecision, EA: CubeElement, EO: CubeElement>
+    + MatmulPrecision<
+        Lhs: InputPrecision,
+        Rhs: InputPrecision,
+        Acc: InputPrecision<Global: CubeElement>,
+    >
 {
 }
 
