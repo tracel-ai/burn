@@ -73,6 +73,20 @@ pub fn maybe_conv1d_output_size(
     if x < 1 { None } else { Some(x) }
 }
 
+fn throw_conv_error(
+    msg: &str,
+    input_shape: &[usize],
+    kernel_shape: &[usize],
+    stride: &[usize],
+    padding: &[usize],
+    dilation: &[usize],
+) -> ! {
+    panic!(
+        "{}:\n input_shape:{:?}\n kernel_shape:{:?}\n stride:{:?}\n padding:{:?}\n dilation:{:?}",
+        msg, input_shape, kernel_shape, stride, padding, dilation,
+    )
+}
+
 /// Predict the output size of a 1D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv1d_output_size`].
@@ -101,7 +115,7 @@ pub fn maybe_conv1d_output_size(
 ///
 /// # Panics
 ///
-/// If the output size would be <= 0.
+/// On degenerate output sizes.
 pub fn expect_conv1d_output_size(
     input_size: usize,
     kernel_size: usize,
@@ -111,8 +125,13 @@ pub fn expect_conv1d_output_size(
 ) -> usize {
     match maybe_conv1d_output_size(input_size, kernel_size, stride, padding, dilation) {
         Some(x) => x,
-        None => panic!(
-            "No legal output size for conv1d with:\n input_size:{input_size}\n kernel_size:{kernel_size}\n stride:{stride}\n dilation:{dilation}\n padding:{padding}",
+        None => throw_conv_error(
+            "bad conv1d params",
+            &[input_size],
+            &[kernel_size],
+            &[stride],
+            &[padding],
+            &[padding],
         ),
     }
 }
@@ -239,7 +258,11 @@ pub fn maybe_conv_output_shape<const D: usize>(
 ///
 /// # Returns
 ///
-/// An `Option<[usize; D]>` representing the output shape; or `None` for <= 0.
+/// The output shape.
+///
+/// # Panics
+///
+/// On degenerate output shapes.
 pub fn expect_conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],
@@ -251,6 +274,72 @@ pub fn expect_conv_output_shape<const D: usize>(
         Some(shape) => shape,
         None => panic!(
             "No legal output size for conv with:\n input_shape:{input_shape:?}\n kernel_shape:{kernel_shape:?}\n stride:{stride:?}\n dilation:{dilation:?}\n padding:{padding:?}",
+        ),
+    }
+}
+
+/// Calculate the output shape of a conv2d op.
+///
+/// # Arguments
+///
+/// - `input_shape`: The full ``[batch, channel, height_in, width_in]`` input shape; each dim must be > 0.
+/// - `kernel_shape`: The kernel shape, each dim must be > 0.
+/// - `stride`: The stride of the convolution, each dim must be > 0.
+/// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, each dim must be > 0.
+///
+/// # Returns
+///
+/// An `Option<Shape>` of the ``[batch, channel, height_out, width_out]`` expected shape;
+/// or `None` for degenerate shapes.
+pub fn try_conv2d_output_shape(
+    input_shape: [usize; 4],
+    kernel_shape: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    dilation: [usize; 2],
+) -> Option<Shape> {
+    let [b, c, h_in, w_in] = input_shape;
+
+    let [h_out, w_out] =
+        maybe_conv_output_shape([h_in, w_in], kernel_shape, stride, padding, dilation)?;
+
+    Some(Shape::new([b, c, h_out, w_out]))
+}
+
+/// Calculate the output shape of a conv2d op.
+///
+/// # Arguments
+///
+/// - `input_shape`: The full ``[batch, channel, height_in, width_in]`` input shape; each dim must be > 0.
+/// - `kernel_shape`: The kernel shape, each dim must be > 0.
+/// - `stride`: The stride of the convolution, each dim must be > 0.
+/// - `padding`: The padding of the convolution, added evenly to all sides of the input.
+/// - `dilation`: The dilation of the convolution, each dim must be > 0.
+///
+/// # Returns
+///
+/// The ``[batch, channel, height_out, width_out]`` expected shape.
+///
+/// # Panics
+///
+/// For degenerate shapes.
+pub fn expect_conv2d_output_shape(
+    input_shape: [usize; 4],
+    kernel_shape: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    dilation: [usize; 2],
+) -> Shape {
+    match try_conv2d_output_shape(input_shape, kernel_shape, stride, padding, dilation) {
+        Some(shape) => shape,
+        None => throw_conv_error(
+            "bad conv2d params",
+            &input_shape,
+            &kernel_shape,
+            &stride,
+            &padding,
+            &dilation,
         ),
     }
 }
@@ -1470,6 +1559,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_expect_conv2d_output_shape() {
+        assert_eq!(
+            expect_conv2d_output_shape([12, 3, 10, 10], [3, 3], [2, 2], [1, 1], [1, 1],),
+            Shape::new([12, 3, 5, 5])
+        )
     }
 
     #[test]
