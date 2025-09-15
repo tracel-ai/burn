@@ -19,7 +19,6 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
 use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
@@ -37,6 +36,7 @@ use cubecl::matmul::{
 };
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::{features::TypeUsage, matmul::kernels::layered::Selection};
 use cubecl::{
     matmul::components::{
         self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
@@ -622,7 +622,9 @@ fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
+        && tf32::supported_uses(client).contains(TypeUsage::Conversion)
+    {
         match (
             TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
             TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
