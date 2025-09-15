@@ -15,6 +15,72 @@ pub fn generate_autoregressive_mask<B: Backend>(
     mask.expand([batch_size, seq_length, seq_length])
 }
 
+/// Generate a 1D padding mask from sequence lengths.
+///
+/// The resulting mask has shape `[batch_size, max_len]` with `true` marking padding positions.
+pub fn lengths_to_mask<B: Backend>(
+    lengths: &[usize],
+    max_len: usize,
+    device: &B::Device,
+) -> Tensor<B, 2, Bool> {
+    let batch = lengths.len();
+    // Start with all masked (true), unmask valid tokens per row.
+    let mut mask = Tensor::<B, 2, Bool>::full([batch, max_len], true, device);
+    for (i, &len_i) in lengths.iter().enumerate() {
+        let keep = len_i.min(max_len);
+        if keep > 0 {
+            let unmask = Tensor::<B, 2, Bool>::full([1, keep], false, device);
+            mask = mask.slice_assign([i..i + 1, 0..keep], unmask);
+        }
+    }
+    mask
+}
+
+/// Generate a causal mask for a single sequence length (no batch), shape `[seq_len, seq_len]`.
+///
+/// True indicates a masked position (future positions are masked).
+pub fn generate_causal_mask_1d<B: Backend>(seq_len: usize, device: &B::Device) -> Tensor<B, 2, Bool> {
+    Tensor::<B, 2, Bool>::tril_mask([seq_len, seq_len], 0, device)
+}
+
+/// Generate a chunked causal mask for streaming encoders.
+///
+/// Returns a boolean mask of shape `[seq_len, seq_len]` where `true` marks masked (disallowed)
+/// positions and `false` marks allowed positions. Each position `i` can attend to indices in
+/// `[start .. end)` where `start = max(0, (i / chunk_size - num_left_chunks)*chunk_size)` and
+/// `end = min(((i / chunk_size) + 1)*chunk_size, seq_len)`. Future positions remain masked.
+pub fn generate_chunked_causal_mask_1d<B: Backend>(
+    seq_len: usize,
+    chunk_size: usize,
+    num_left_chunks: isize,
+    device: &B::Device,
+) -> Tensor<B, 2, Bool> {
+    // Start fully masked.
+    let mut mask = Tensor::<B, 2, Bool>::full([seq_len, seq_len], true, device);
+    if chunk_size == 0 {
+        return mask;
+    }
+    for i in 0..seq_len {
+        let chunk_idx = i / chunk_size;
+        let start = if num_left_chunks < 0 {
+            0usize
+        } else {
+            let left = (chunk_idx as isize - num_left_chunks).max(0) as usize;
+            left * chunk_size
+        };
+        let mut end = ((chunk_idx + 1) * chunk_size).min(seq_len);
+        // Enforce causality (no future positions): end at i+1
+        if end > i + 1 {
+            end = i + 1;
+        }
+        if end > start {
+            let unmask = Tensor::<B, 2, Bool>::full([1, end - start], false, device);
+            mask = mask.slice_assign([i..i + 1, start..end], unmask);
+        }
+    }
+    mask
+}
+
 /// Generate a padding attention mask.
 pub struct GeneratePaddingMask<B: Backend> {
     /// The generated tensor.

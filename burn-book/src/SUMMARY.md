@@ -14,6 +14,7 @@
   - [Tensor](./building-blocks/tensor.md)
   - [Autodiff](./building-blocks/autodiff.md)
   - [Module](./building-blocks/module.md)
+  - [Attention Masks (1D Helpers)](./building-blocks/attention-masks-1d.md)
   - [Learner](./building-blocks/learner.md)
   - [Metric](./building-blocks/metric.md)
   - [Config](./building-blocks/config.md)
