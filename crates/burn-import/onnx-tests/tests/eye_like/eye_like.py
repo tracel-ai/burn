@@ -2,63 +2,17 @@
 
 # Used to generate model: onnx-tests/tests/eye_like/eye_like.onnx
 
-import torch
-import torch.nn as nn
+import numpy as np
 import onnx
-
-class EyeLikeModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        # EyeLike is not directly available in PyTorch, but we can use onnx directly
-        # We'll create a simple identity matrix operation
-        # For the purpose of this test, we'll simulate it
-        batch_size = x.shape[0] if x.dim() > 2 else 1
-        height, width = x.shape[-2], x.shape[-1]
-
-        # Create identity matrix
-        eye = torch.eye(min(height, width), dtype=x.dtype, device=x.device)
-
-        # Pad to match input shape if needed
-        if height != width:
-            result = torch.zeros_like(x)
-            min_dim = min(height, width)
-            result[..., :min_dim, :min_dim] = eye
-            return result
-        else:
-            return eye.expand_as(x)
+from onnx import helper, TensorProto
 
 def main():
-    model = EyeLikeModel()
-    model.eval()
-
-    # Test with a 3x3 square matrix
-    test_input = torch.zeros(3, 3)
-
+    # Create ONNX model with EyeLike operator directly
     onnx_file = "eye_like.onnx"
 
-    # We need to create the ONNX model manually since PyTorch doesn't have EyeLike
-    # Let's use a simpler approach with torch.onnx
-    torch.onnx.export(
-        model,
-        test_input,
-        onnx_file,
-        opset_version=16,
-    )
-
-    # However, the exported model won't have the actual EyeLike op
-    # We need to modify the ONNX model to use EyeLike operator
-
-    # Load and modify the ONNX model
-    model_proto = onnx.load(onnx_file)
-
-    # Create a new ONNX model with EyeLike operator
-    from onnx import helper, TensorProto, ValueInfoProto
-
-    # Define input and output
-    input_tensor = helper.make_tensor_value_info('input', TensorProto.FLOAT, [3, 3])
-    output_tensor = helper.make_tensor_value_info('output', TensorProto.FLOAT, [3, 3])
+    # Define input and output with dynamic shape (can handle different matrix sizes)
+    input_tensor = helper.make_tensor_value_info('input', TensorProto.FLOAT, ['H', 'W'])
+    output_tensor = helper.make_tensor_value_info('output', TensorProto.FLOAT, ['H', 'W'])
 
     # Create EyeLike node
     eye_like_node = helper.make_node(
@@ -84,11 +38,22 @@ def main():
     onnx.save(eye_like_model, onnx_file)
 
     print(f"Finished exporting model to {onnx_file}")
-    print(f"Test input data shape: {test_input.shape}")
 
-    # Expected output is identity matrix
-    expected_output = torch.eye(3)
-    print(f"Expected output: {expected_output}")
+    # Test input data examples (values don't matter for EyeLike, only shape)
+    print("EyeLike operator test cases:")
+
+    # Test case 1: 3x3 square matrix
+    test_input_3x3 = np.zeros((3, 3), dtype=np.float32)
+    expected_output_3x3 = np.eye(3, dtype=np.float32)
+    print(f"Square matrix (3x3) input shape: {test_input_3x3.shape}")
+    print(f"Expected output:\n{expected_output_3x3}")
+
+    # Test case 2: 3x4 rectangular matrix
+    test_input_3x4 = np.zeros((3, 4), dtype=np.float32)
+    expected_output_3x4 = np.zeros((3, 4), dtype=np.float32)
+    expected_output_3x4[:3, :3] = np.eye(3)  # Identity in top-left corner
+    print(f"Rectangular matrix (3x4) input shape: {test_input_3x4.shape}")
+    print(f"Expected output:\n{expected_output_3x4}")
 
 
 if __name__ == '__main__':
