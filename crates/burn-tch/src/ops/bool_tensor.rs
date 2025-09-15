@@ -134,6 +134,19 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor.tensor.argwhere())
     }
 
+    fn bool_select(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {
+        TchOps::index_select_dim(tensor, dim, indices)
+    }
+
+    fn bool_select_assign(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        TchOps::select_assign(tensor, dim, indices, value)
+    }
+
     fn bool_expand(tensor: TchTensor, shape: Shape) -> TchTensor {
         TchOps::expand(tensor, shape)
     }
