@@ -1,8 +1,6 @@
+use super::diag;
 use crate::backend::Backend;
-use crate::check;
-use crate::check::TensorCheck;
-use crate::tensor::Shape;
-use crate::tensor::{Bool, Tensor};
+use crate::tensor::Tensor;
 
 /// Computes the trace of the of square matrices.
 ///
@@ -17,26 +15,11 @@ use crate::tensor::{Bool, Tensor};
 ///
 /// # Returns
 ///
-/// Tensor with same shape as the input, where the last two dimensions are reduced to size 1,
-/// containing the trace of each matrix.
+/// Tensor with rank D - 1, where the last two matrix dimensions are replaced by a single
+/// dimension containing the the trace for each matrix.
 ///
-pub fn trace<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    check!(TensorCheck::tri::<D>());
+pub fn trace<B: Backend, const D: usize, const DO: usize>(tensor: Tensor<B, D>) -> Tensor<B, DO> {
+    let diag_tensor = diag::<_, D, DO, _>(tensor);
 
-    let shape = tensor.shape();
-    let mat_shape = [shape.dims[D - 2], shape.dims[D - 1]];
-
-    let mask = Tensor::<B, 2, Bool>::diag_mask(mat_shape, 0, &tensor.device());
-
-    // Handle broadcasting of the mask
-    let mut mask_shape = shape.dims.clone();
-    for item in mask_shape.iter_mut().take(D - 2) {
-        *item = 1;
-    }
-    mask_shape[D - 2] = mat_shape[0];
-    mask_shape[D - 1] = mat_shape[1];
-    let mask_shape = Shape::from(mask_shape);
-    let mask = mask.reshape(mask_shape);
-
-    tensor.mask_fill(mask, 0).sum_dim(D - 1).sum_dim(D - 2)
+    diag_tensor.sum_dim(DO - 1)
 }

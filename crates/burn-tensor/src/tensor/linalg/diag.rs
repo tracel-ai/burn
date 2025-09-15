@@ -1,4 +1,6 @@
 use crate::backend::Backend;
+use crate::check;
+use crate::check::TensorCheck;
 use crate::tensor::{Int, Shape, Tensor};
 use crate::{BasicOps, TensorKind};
 
@@ -14,14 +16,17 @@ use crate::{BasicOps, TensorKind};
 /// * `tensor` - The input tensor with at least 2 dimensions.
 ///
 /// # Returns
+/// Tensor with rank D - 1, where the last two matrix dimensions are replaced by a single
+/// dimension containing the diagonal elements
 ///
-/// Tensor with same shape as the input, where the D - 2 dimension contains the diagonal for that batch
-/// and the last dimension is 1 to preserve rank
-///
-pub fn diag<B: Backend, const D: usize, K>(tensor: Tensor<B, D, K>) -> Tensor<B, D, K>
+pub fn diag<B: Backend, const D: usize, const DO: usize, K>(
+    tensor: Tensor<B, D, K>,
+) -> Tensor<B, DO, K>
 where
     K: TensorKind<B> + BasicOps<B>,
 {
+    check!(TensorCheck::diag::<D, DO>());
+
     let shape = tensor.shape();
     let rows = shape.dims[D - 2];
     let cols = shape.dims[D - 1];
@@ -29,7 +34,6 @@ where
     let device = tensor.device();
 
     // create the indices for the diag
-
     let mut flat_shape = shape.dims.clone();
     flat_shape[D - 2] = rows * cols;
     flat_shape[D - 1] = 1;
@@ -38,5 +42,5 @@ where
     let range = Tensor::<B, 1, Int>::arange(0..diag_len as i64, &device);
     let step_tensor = Tensor::<B, 1, Int>::from_data([cols as i64 + 1], &device);
     let indices = range * step_tensor;
-    flat.take::<1, D>(D - 2, indices)
+    flat.take::<1, D>(D - 2, indices).squeeze(D - 1)
 }
