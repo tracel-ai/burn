@@ -1,7 +1,7 @@
 //! SafeTensors persister implementation using the official safetensors crate.
 
 use crate::{
-    Adapter, ApplyResult, IdentityAdapter, ModulePersist, ModulePersister, PathFilter,
+    Adapter, ApplyResult, IdentityAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
     TensorSnapshot,
 };
 
@@ -76,7 +76,7 @@ impl From<std::io::Error> for SafetensorsError {
 }
 
 /// SafeTensors persister supporting both file and memory storage.
-pub enum SafetensorsPersister {
+pub enum SafetensorsStore {
     /// File-based storage.
     #[cfg(feature = "std")]
     File(FilePersister),
@@ -85,14 +85,14 @@ pub enum SafetensorsPersister {
     Memory(MemoryPersister),
 }
 
-impl Default for SafetensorsPersister {
+impl Default for SafetensorsStore {
     /// Create a default memory-based persister.
     fn default() -> Self {
         Self::from_bytes(None)
     }
 }
 
-impl SafetensorsPersister {
+impl SafetensorsStore {
     /// Create a persister for loading from or saving to a file.
     #[cfg(feature = "std")]
     pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
@@ -139,7 +139,7 @@ impl SafetensorsPersister {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    /// let persister = SafetensorsStore::from_file("model.safetensors")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
     /// ```
@@ -172,7 +172,7 @@ impl SafetensorsPersister {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    /// let persister = SafetensorsStore::from_file("model.safetensors")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
     /// ```
@@ -205,7 +205,7 @@ impl SafetensorsPersister {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    /// let persister = SafetensorsStore::from_file("model.safetensors")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
     pub fn with_predicate(mut self, predicate: fn(&str, &str) -> bool) -> Self {
@@ -254,7 +254,7 @@ impl SafetensorsPersister {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsPersister::from_file("model.safetensors")
+    /// let persister = SafetensorsStore::from_file("model.safetensors")
     ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
     /// ```
@@ -343,7 +343,7 @@ impl SafetensorsPersister {
     ///
     /// # Example
     /// ```ignore
-    /// let mut persister = SafetensorsPersister::from_bytes(None);
+    /// let mut persister = SafetensorsStore::from_bytes(None);
     /// model.collect_to(&mut persister)?;
     /// let bytes = persister.get_bytes()?;
     /// ```
@@ -445,10 +445,10 @@ impl safetensors::View for TensorSnapshotAdapter {
     }
 }
 
-impl ModulePersister for SafetensorsPersister {
+impl ModuleSnapshoter for SafetensorsStore {
     type Error = SafetensorsError;
 
-    fn collect_from<B: Backend, M: ModulePersist<B>>(
+    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
@@ -508,7 +508,7 @@ impl ModulePersister for SafetensorsPersister {
         }
     }
 
-    fn apply_to<B: Backend, M: ModulePersist<B>>(
+    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
@@ -557,7 +557,7 @@ impl ModulePersister for SafetensorsPersister {
     }
 }
 
-impl SafetensorsPersister {
+impl SafetensorsStore {
     fn get_filter(&self) -> &PathFilter {
         match self {
             #[cfg(feature = "std")]

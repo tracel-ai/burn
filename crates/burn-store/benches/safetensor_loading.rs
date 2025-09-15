@@ -5,8 +5,8 @@ use burn_core::nn;
 use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, Recorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
-use burn_persist::ModulePersist;
-use burn_persist::safetensors::SafetensorsPersister;
+use burn_store::ModuleSnapshot;
+use burn_store::safetensors::SafetensorsStore;
 use divan::{AllocProfiler, Bencher};
 use std::fs;
 use std::path::PathBuf;
@@ -94,7 +94,7 @@ impl<B: Backend> LargeModel<B> {
 }
 
 fn create_test_file<B: Backend, M: Module<B>>(path: &PathBuf, model: M) {
-    let mut persister = SafetensorsPersister::from_file(path.clone());
+    let mut persister = SafetensorsStore::from_file(path.clone());
     model
         .collect_to(&mut persister)
         .expect("Failed to save model");
@@ -169,7 +169,7 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = SimpleModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsPersister::from_file(file_path.clone());
+                            let mut persister = SafetensorsStore::from_file(file_path.clone());
                             model.apply_from(&mut persister).expect("Failed to load");
                         });
                 }
@@ -216,7 +216,7 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = MediumModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsPersister::from_file(file_path.clone());
+                            let mut persister = SafetensorsStore::from_file(file_path.clone());
                             model.apply_from(&mut persister).expect("Failed to load");
                         });
                 }
@@ -263,7 +263,7 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = LargeModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsPersister::from_file(file_path.clone());
+                            let mut persister = SafetensorsStore::from_file(file_path.clone());
                             model.apply_from(&mut persister).expect("Failed to load");
                         });
                 }

@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::nn::LinearConfig;
 
 type TestBackend = burn_ndarray::NdArray;
@@ -11,7 +11,7 @@ fn metadata_preservation() {
         .init::<TestBackend>(&device);
 
     // Write with metadata
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .metadata("framework", "burn")
         .metadata("version", "0.14.0")
         .metadata("model_type", "linear");
@@ -20,9 +20,9 @@ fn metadata_preservation() {
 
     // Verify metadata was saved (would need to add a method to check metadata)
     // For now, just verify the round trip works
-    let mut load_persister = SafetensorsPersister::from_bytes(None);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());

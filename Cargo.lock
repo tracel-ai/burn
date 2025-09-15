@@ -575,10 +575,10 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
- "burn-persist",
  "burn-remote",
  "burn-rocm",
  "burn-router",
+ "burn-store",
  "burn-tch",
  "burn-train",
  "burn-wgpu",
@@ -927,28 +927,7 @@ version = "0.19.0"
 dependencies = [
  "burn",
  "burn-ndarray",
- "burn-persist",
-]
-
-[[package]]
-name = "burn-persist"
-version = "0.19.0"
-dependencies = [
- "burn",
- "burn-candle",
- "burn-core",
- "burn-cuda",
- "burn-import",
- "burn-ndarray",
- "burn-tch",
- "burn-tensor",
- "burn-wgpu",
- "divan",
- "hashbrown 0.15.5",
- "memmap2",
- "regex",
- "safetensors 0.6.2-dev.0",
- "tempfile",
+ "burn-store",
 ]
 
 [[package]]
@@ -1005,6 +984,27 @@ dependencies = [
  "hashbrown 0.15.5",
  "log",
  "spin",
+]
+
+[[package]]
+name = "burn-store"
+version = "0.19.0"
+dependencies = [
+ "burn",
+ "burn-candle",
+ "burn-core",
+ "burn-cuda",
+ "burn-import",
+ "burn-ndarray",
+ "burn-tch",
+ "burn-tensor",
+ "burn-wgpu",
+ "divan",
+ "hashbrown 0.15.5",
+ "memmap2",
+ "regex",
+ "safetensors 0.6.2-dev.0",
+ "tempfile",
 ]
 
 [[package]]

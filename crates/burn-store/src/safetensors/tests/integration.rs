@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -114,7 +114,7 @@ fn basic_usage() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save using new API
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .metadata("framework", "burn")
         .metadata("version", "0.19.0");
 
@@ -122,9 +122,9 @@ fn basic_usage() {
     model.collect_to(&mut save_persister).unwrap();
 
     // Load using new API
-    let mut load_persister = SafetensorsPersister::from_bytes(None);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
@@ -145,16 +145,16 @@ fn with_filtering() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save only encoder tensors using the builder pattern
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .with_regex(r"^encoder\..*")
         .metadata("subset", "encoder_only");
 
     model.collect_to(&mut save_persister).unwrap();
 
     // Load into new model - need to allow partial loading since we only saved encoder tensors
-    let mut load_persister = SafetensorsPersister::from_bytes(None).allow_partial(true);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None).allow_partial(true);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }

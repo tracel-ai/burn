@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::nn::LinearConfig;
 
 type TestBackend = burn_ndarray::NdArray;
@@ -13,7 +13,7 @@ fn shape_mismatch_errors() {
         .init::<TestBackend>(&device);
 
     // Save module
-    let mut save_persister = SafetensorsPersister::from_bytes(None);
+    let mut save_persister = SafetensorsStore::from_bytes(None);
     module.collect_to(&mut save_persister).unwrap();
 
     // Try to load into incompatible module (different dimensions)
@@ -22,9 +22,9 @@ fn shape_mismatch_errors() {
         .init::<TestBackend>(&device);
 
     // Load without validation - should return errors in the result
-    let mut load_persister = SafetensorsPersister::from_bytes(None).validate(false); // Disable validation to get errors in result
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None).validate(false); // Disable validation to get errors in result
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());
@@ -37,9 +37,9 @@ fn shape_mismatch_errors() {
     assert!(!result.errors.is_empty());
 
     // Try again with validation enabled - should return Err
-    let mut load_persister_with_validation = SafetensorsPersister::from_bytes(None).validate(true);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister_with_validation {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister_with_validation = SafetensorsStore::from_bytes(None).validate(true);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister_with_validation {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());

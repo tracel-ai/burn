@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 
 use super::round_trip::ComplexModule;
 
@@ -12,13 +12,13 @@ fn filtered_export_import() {
     let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
 
     // Export only encoder tensors using the builder pattern
-    let mut save_persister = SafetensorsPersister::from_bytes(None).with_regex(r"^encoder\..*");
+    let mut save_persister = SafetensorsStore::from_bytes(None).with_regex(r"^encoder\..*");
     module1.collect_to(&mut save_persister).unwrap();
 
     // Import filtered tensors - need to allow partial since we only saved encoder tensors
-    let mut load_persister = SafetensorsPersister::from_bytes(None).allow_partial(true);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None).allow_partial(true);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());
@@ -38,7 +38,7 @@ fn builder_pattern_filtering() {
     let module = ComplexModule::<TestBackend>::new(&device);
 
     // Test with_regex - multiple patterns (OR logic)
-    let mut persister = SafetensorsPersister::from_bytes(None)
+    let mut persister = SafetensorsStore::from_bytes(None)
         .with_regex(r"^encoder\..*") // Match encoder tensors
         .with_regex(r".*\.bias$"); // OR match any bias tensors
 
@@ -54,7 +54,7 @@ fn builder_pattern_filtering() {
     module.collect_to(&mut persister).unwrap();
 
     // Verify we saved the expected number of tensors
-    if let SafetensorsPersister::Memory(ref p) = persister {
+    if let SafetensorsStore::Memory(ref p) = persister {
         let data = p.data().unwrap();
         let tensors = safetensors::SafeTensors::deserialize(&data).unwrap();
         assert_eq!(tensors.len(), filtered_count);
@@ -68,14 +68,14 @@ fn builder_pattern_exact_paths() {
 
     // Test with_full_path and with_full_paths
     let paths = vec!["encoder.weight", "decoder.scale"];
-    let mut persister = SafetensorsPersister::from_bytes(None)
+    let mut persister = SafetensorsStore::from_bytes(None)
         .with_full_path("encoder.norm")
         .with_full_paths(paths.clone());
 
     module.collect_to(&mut persister).unwrap();
 
     // Verify only specified tensors were saved
-    if let SafetensorsPersister::Memory(ref p) = persister {
+    if let SafetensorsStore::Memory(ref p) = persister {
         let data = p.data().unwrap();
         let tensors = safetensors::SafeTensors::deserialize(&data).unwrap();
         assert_eq!(tensors.len(), 3); // encoder.norm + encoder.weight + decoder.scale
@@ -92,7 +92,7 @@ fn builder_pattern_with_predicate() {
     let module = ComplexModule::<TestBackend>::new(&device);
 
     // Test with_predicate - custom logic
-    let mut persister = SafetensorsPersister::from_bytes(None).with_predicate(|path, _| {
+    let mut persister = SafetensorsStore::from_bytes(None).with_predicate(|path, _| {
         // Only save tensors with "layer" in the path and ending with "weight"
         path.contains("layer") && path.ends_with("weight")
     });
@@ -100,7 +100,7 @@ fn builder_pattern_with_predicate() {
     module.collect_to(&mut persister).unwrap();
 
     // Verify only layer weights were saved
-    if let SafetensorsPersister::Memory(ref p) = persister {
+    if let SafetensorsStore::Memory(ref p) = persister {
         let data = p.data().unwrap();
         let tensors = safetensors::SafeTensors::deserialize(&data).unwrap();
 
@@ -119,7 +119,7 @@ fn builder_pattern_combined() {
     // Combine multiple filter methods
     #[cfg(target_has_atomic = "ptr")]
     {
-        let mut persister = SafetensorsPersister::from_bytes(None)
+        let mut persister = SafetensorsStore::from_bytes(None)
             .with_regex(r"^encoder\..*") // All encoder tensors
             .with_full_path("decoder.scale") // Plus specific decoder.scale
             .with_predicate(|path, _| {
@@ -129,7 +129,7 @@ fn builder_pattern_combined() {
 
         module.collect_to(&mut persister).unwrap();
 
-        if let SafetensorsPersister::Memory(ref p) = persister {
+        if let SafetensorsStore::Memory(ref p) = persister {
             let data = p.data().unwrap();
             let tensors = safetensors::SafeTensors::deserialize(&data).unwrap();
 
@@ -157,11 +157,11 @@ fn builder_pattern_match_all() {
     let total_count = all_views.len();
 
     // Test match_all - should save everything
-    let mut persister = SafetensorsPersister::from_bytes(None).match_all();
+    let mut persister = SafetensorsStore::from_bytes(None).match_all();
 
     module.collect_to(&mut persister).unwrap();
 
-    if let SafetensorsPersister::Memory(ref p) = persister {
+    if let SafetensorsStore::Memory(ref p) = persister {
         let data = p.data().unwrap();
         let tensors = safetensors::SafeTensors::deserialize(&data).unwrap();
         assert_eq!(tensors.len(), total_count);

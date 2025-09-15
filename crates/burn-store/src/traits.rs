@@ -11,7 +11,7 @@ use burn_tensor::backend::Backend;
 /// This trait provides convenient methods to collect and apply tensor views from any Burn module.
 /// Collection operations create lightweight tensor views without immediately copying data.
 /// Apply operations apply tensor data from views to the corresponding tensors in the module.
-pub trait ModulePersist<B: Backend>: Module<B> + Clone {
+pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     /// Collects tensor views for inspection without copying data.
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
@@ -68,7 +68,7 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
     /// # Examples
     ///
     /// ```ignore
-    /// use burn_persist::PathFilter;
+    /// use burn_store::PathFilter;
     ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
@@ -87,32 +87,32 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
         applier.into_result()
     }
 
-    /// Collects tensor views into a [`ModulePersister`] for saving.
+    /// Collects tensor views into a [`ModuleSnapshoter`] for saving.
     ///
-    /// This method allows using a `ModulePersister` implementation to handle the
+    /// This method allows using a `ModuleSnapshoter` implementation to handle the
     /// collection and writing logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a [`ModulePersister`] that will collect and save the tensors
+    /// * `persister` - A mutable reference to a [`ModuleSnapshoter`] that will collect and save the tensors
     fn collect_to<P>(&self, persister: &mut P) -> Result<(), P::Error>
     where
-        P: ModulePersister,
+        P: ModuleSnapshoter,
     {
         persister.collect_from(self)
     }
 
-    /// Applies tensor data from a [`ModulePersister`] for loading.
+    /// Applies tensor data from a [`ModuleSnapshoter`] for loading.
     ///
-    /// This method allows using a `ModulePersister` implementation to handle the
+    /// This method allows using a `ModuleSnapshoter` implementation to handle the
     /// loading and application logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a [`ModulePersister`] that will load and apply tensors
+    /// * `persister` - A mutable reference to a [`ModuleSnapshoter`] that will load and apply tensors
     fn apply_from<P>(&mut self, persister: &mut P) -> Result<ApplyResult, P::Error>
     where
-        P: ModulePersister,
+        P: ModuleSnapshoter,
     {
         persister.apply_to(self)
     }
@@ -120,10 +120,10 @@ pub trait ModulePersist<B: Backend>: Module<B> + Clone {
 
 /// A trait for handling module persistence operations.
 ///
-/// `ModulePersister` provides a unified interface for saving and loading module
+/// `ModuleSnapshoter` provides a unified interface for saving and loading module
 /// tensor data with support for various storage formats and advanced features like filtering,
 /// remapping, and metadata handling.
-pub trait ModulePersister {
+pub trait ModuleSnapshoter {
     /// The error type that can be returned during persistence operations.
     ///
     /// This should be a format-specific error type that provides detailed
@@ -140,13 +140,13 @@ pub trait ModulePersister {
     /// # Arguments
     ///
     /// * `module` - The module to collect tensor data from. The module must
-    ///   implement `ModulePersist` to provide tensor access.
+    ///   implement `ModuleSnapshot` to provide tensor access.
     ///
     /// # Returns
     ///
     /// * `Ok(())` - If all tensors were successfully collected and persisted
     /// * `Err(Self::Error)` - If an error occurred during collection or writing
-    fn collect_from<B: Backend, M: ModulePersist<B>>(
+    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error>;
@@ -160,7 +160,7 @@ pub trait ModulePersister {
     /// # Arguments
     ///
     /// * `module` - The module to apply tensor data to. The module must
-    ///   implement `ModulePersist` to allow tensor updates.
+    ///   implement `ModuleSnapshot` to allow tensor updates.
     ///
     /// # Returns
     ///
@@ -170,11 +170,11 @@ pub trait ModulePersister {
     ///   - `skipped`: Tensors in storage that were not applied (filtered or not needed)
     ///   - `errors`: Non-critical errors that occurred during apply
     /// * `Err(Self::Error)` - If a critical error prevented the apply operation
-    fn apply_to<B: Backend, M: ModulePersist<B>>(
+    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error>;
 }
 
 // Blanket implementation for all modules that implement Clone
-impl<B: Backend, M: Module<B> + Clone> ModulePersist<B> for M {}
+impl<B: Backend, M: Module<B> + Clone> ModuleSnapshot<B> for M {}

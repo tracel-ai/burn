@@ -25,7 +25,7 @@ pub use filter::PathFilter;
 #[cfg(feature = "std")]
 pub use keyremapper::KeyRemapper;
 pub use tensor_snapshot::TensorSnapshot;
-pub use traits::ModulePersist;
-pub use traits::ModulePersister;
+pub use traits::ModuleSnapshot;
+pub use traits::ModuleSnapshoter;
 
 pub use safetensors::*;

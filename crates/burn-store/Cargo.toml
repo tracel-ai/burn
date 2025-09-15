@@ -1,14 +1,14 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Persistence and serialization infrastructure for Burn"
-documentation = "https://docs.rs/burn-persist"
+description = "Storage and serialization infrastructure for Burn"
+documentation = "https://docs.rs/burn-store"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "persistence", "serialization"]
+keywords = ["deep-learning", "machine-learning", "tensor", "storage", "serialization"]
 license.workspace = true
-name = "burn-persist"
+name = "burn-store"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-persist"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-store"
 version.workspace = true
 
 [lints]

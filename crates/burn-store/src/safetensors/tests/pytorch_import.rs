@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::Module;
 use burn_core::nn::{
     BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
@@ -51,11 +51,11 @@ fn multi_layer_model_import() {
         "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
-    // Load the model using SafetensorsPersister
+    // Load the model using SafetensorsStore
     // Note: PyTorch and Burn have different conventions for linear layer weights
     // PyTorch stores as [out_features, in_features], Burn as [in_features, out_features]
     // Also, tensor names may differ (e.g., PyTorch uses different names for BatchNorm params)
-    let mut persister = SafetensorsPersister::from_file(safetensors_path)
+    let mut persister = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
@@ -93,7 +93,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     );
 
     // Load the model from PyTorch safetensors
-    let mut load_persister = SafetensorsPersister::from_file(safetensors_path)
+    let mut load_persister = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
@@ -102,16 +102,16 @@ fn safetensors_round_trip_with_pytorch_model() {
     assert!(load_result.applied.len() > 0);
 
     // Save the model to memory
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .metadata("source", "pytorch")
         .metadata("framework", "burn");
     model.collect_to(&mut save_persister).unwrap();
 
     // Load into a new model
     let mut model2 = Net::<TestBackend>::new(&device);
-    let mut load_persister2 = SafetensorsPersister::from_bytes(None);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister2 {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister2 = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister2 {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
@@ -145,7 +145,7 @@ fn partial_load_from_pytorch_model() {
     );
 
     // Load only conv1 and norm1 parameters (not fc1)
-    let mut persister = SafetensorsPersister::from_file(safetensors_path)
+    let mut persister = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true);
 
@@ -177,7 +177,7 @@ fn verify_tensor_names_from_pytorch() {
 
     // Create a model and load from PyTorch
     let mut model = Net::<TestBackend>::new(&device);
-    let mut persister = SafetensorsPersister::from_file(safetensors_path)
+    let mut persister = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
     let result = model.apply_from(&mut persister).unwrap();

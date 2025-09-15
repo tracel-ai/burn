@@ -4,7 +4,7 @@ use burn::{
     tensor::{Bool, Int, Tensor, backend::Backend},
 };
 
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 
 /// Simple model with different data types for testing
 #[derive(Module, Debug)]
@@ -65,14 +65,14 @@ mod tests {
         let model = MixedDtypeModel::<TestBackend>::new(&device);
 
         // Save to bytes
-        let mut save_persister = SafetensorsPersister::from_bytes(None);
+        let mut save_persister = SafetensorsStore::from_bytes(None);
         model
             .collect_to(&mut save_persister)
             .expect("Failed to save");
         let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
         // Load into a new model
-        let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+        let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
         loaded_model
             .apply_from(&mut load_persister)
@@ -171,13 +171,13 @@ mod tests {
         let model = ExtremeValueModel::<TestBackend>::new(&device);
 
         // Save and load
-        let mut save_persister = SafetensorsPersister::from_bytes(None);
+        let mut save_persister = SafetensorsStore::from_bytes(None);
         model
             .collect_to(&mut save_persister)
             .expect("Failed to save");
         let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
-        let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+        let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = ExtremeValueModel::<TestBackend>::new(&device);
         loaded_model
             .apply_from(&mut load_persister)
@@ -220,14 +220,14 @@ mod tests {
             let model = MixedDtypeModel::<TestBackend>::new(&device);
 
             // Save to bytes
-            let mut save_persister = SafetensorsPersister::from_bytes(None);
+            let mut save_persister = SafetensorsStore::from_bytes(None);
             model
                 .collect_to(&mut save_persister)
                 .expect("Failed to save");
             let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
             // Load and verify
-            let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+            let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
             let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
             loaded_model
                 .apply_from(&mut load_persister)
@@ -263,14 +263,14 @@ mod tests {
             };
 
             // Save to bytes
-            let mut save_persister = SafetensorsPersister::from_bytes(None);
+            let mut save_persister = SafetensorsStore::from_bytes(None);
             model
                 .collect_to(&mut save_persister)
                 .expect("Failed to save");
             let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
             // Load and verify
-            let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+            let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
             let mut loaded_model = F64Model::<TestBackend> {
                 linear: nn::LinearConfig::new(2, 2).init(&device),
                 double_precision: Param::from_tensor(Tensor::zeros([2, 2], &device)),
@@ -316,14 +316,14 @@ mod tests {
         };
 
         // Save to bytes
-        let mut save_persister = SafetensorsPersister::from_bytes(None);
+        let mut save_persister = SafetensorsStore::from_bytes(None);
         model
             .collect_to(&mut save_persister)
             .expect("Failed to save");
         let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
         // Load and verify
-        let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+        let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = MultiIntModel::<TestBackend> {
             small_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
             medium_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
@@ -408,14 +408,14 @@ mod tests {
         assert!(paths.iter().any(|p| p.contains("boolean_mask")));
 
         // Save to bytes
-        let mut save_persister = SafetensorsPersister::from_bytes(None);
+        let mut save_persister = SafetensorsStore::from_bytes(None);
         model
             .collect_to(&mut save_persister)
             .expect("Failed to save");
         let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
         // Load into fresh model
-        let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+        let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = ComprehensiveModel::<TestBackend> {
             linear1: nn::LinearConfig::new(4, 8).init(&device),
             conv2d: nn::conv::Conv2dConfig::new([3, 16], [3, 3]).init(&device),

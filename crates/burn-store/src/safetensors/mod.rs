@@ -19,15 +19,15 @@
 //! ## Basic Save and Load
 //!
 //! ```rust,ignore
-//! use burn_persist::safetensors::SafetensorsPersister;
-//! use burn_persist::ModulePersist;
+//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::ModuleSnapshot;
 //!
 //! // Save a model to a file
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors");
+//! let mut persister = SafetensorsStore::from_file("model.safetensors");
 //! model.collect_to(&mut persister)?;
 //!
 //! // Load a model from a file  
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors");
+//! let mut persister = SafetensorsStore::from_file("model.safetensors");
 //! let mut model = Model::new(&device);
 //! model.apply_from(&mut persister)?;
 //! ```
@@ -35,16 +35,16 @@
 //! ## Memory-Based Operations
 //!
 //! ```rust,ignore
-//! use burn_persist::safetensors::SafetensorsPersister;
-//! use burn_persist::ModulePersist;
+//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::ModuleSnapshot;
 //!
 //! // Save to memory buffer
-//! let mut persister = SafetensorsPersister::from_bytes(None);
+//! let mut persister = SafetensorsStore::from_bytes(None);
 //! model.collect_to(&mut persister)?;
 //! let bytes = persister.get_bytes()?;
 //!
 //! // Load from memory buffer
-//! let mut persister = SafetensorsPersister::from_bytes(Some(bytes));
+//! let mut persister = SafetensorsStore::from_bytes(Some(bytes));
 //! let mut model = Model::new(&device);
 //! model.apply_from(&mut persister)?;
 //! ```
@@ -54,29 +54,29 @@
 //! ### Filter Configuration with Builder Pattern
 //!
 //! ```rust,ignore
-//! use burn_persist::ModulePersist;
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::ModuleSnapshot;
+//! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Filter with regex patterns (OR logic - matches any pattern)
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")     // Match all encoder tensors
 //!     .with_regex(r".*\.bias$");        // OR match any bias tensors
 //!
 //! // Filter with exact paths
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_full_path("encoder.weight")
 //!     .with_full_path("encoder.bias")
 //!     .with_full_paths(vec!["decoder.scale", "decoder.norm"]);
 //!
 //! // Custom filter logic with predicate
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_predicate(|path, _dtype| {
 //!         // Only save layer weights (not biases)
 //!         path.contains("layer") && path.ends_with("weight")
 //!     });
 //!
 //! // Combine multiple filter methods
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")           // All encoder tensors
 //!     .with_full_path("decoder.scale")       // Plus specific decoder.scale
 //!     .with_predicate(|path, _| {            // Plus any projection tensors
@@ -84,7 +84,7 @@
 //!     });
 //!
 //! // Save or load all tensors (no filtering)
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .match_all();
 //! ```
 //!
@@ -93,12 +93,12 @@
 //! Remap tensor names during load/save operations for compatibility between different frameworks:
 //!
 //! ```rust,ignore
-//! use burn_persist::ModulePersist;
-//! use burn_persist::safetensors::SafetensorsPersister;
-//! use burn_persist::KeyRemapper;
+//! use burn_store::ModuleSnapshot;
+//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::KeyRemapper;
 //!
 //! // Using builder pattern for common remapping patterns
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
 //!     .with_key_pattern(r"\.gamma$", ".weight")                // X.gamma -> X.weight  
 //!     .with_key_pattern(r"\.beta$", ".bias");                  // X.beta -> X.bias
@@ -109,7 +109,7 @@
 //!     .add_pattern(r"^(.*)\.running_mean$", "$1.mean")?     // layer.running_mean -> layer.mean
 //!     .add_pattern(r"^(.*)\.running_var$", "$1.variance")?; // layer.running_var -> layer.variance
 //!
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .remap(remapper);
 //! ```
 //!
@@ -118,11 +118,11 @@
 //! Use adapters for automatic framework-specific transformations:
 //!
 //! ```rust,ignore
-//! use burn_persist::{ModulePersist, PyTorchToBurnAdapter, BurnToPyTorchAdapter};
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, BurnToPyTorchAdapter};
+//! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Loading PyTorch model into Burn
-//! let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
 //!     .with_from_adapter(PyTorchToBurnAdapter)  // Transposes linear weights, renames norm params
 //!     .allow_partial(true);                     // PyTorch models may have extra tensors
 //!
@@ -130,7 +130,7 @@
 //! burn_model.apply_from(&mut persister)?;
 //!
 //! // Saving Burn model for PyTorch
-//! let mut persister = SafetensorsPersister::from_file("for_pytorch.safetensors")
+//! let mut persister = SafetensorsStore::from_file("for_pytorch.safetensors")
 //!     .with_to_adapter(BurnToPyTorchAdapter);   // Transposes weights back, renames for PyTorch
 //!
 //! burn_model.collect_to(&mut persister)?;
@@ -139,10 +139,10 @@
 //! ### Additional Configuration Options
 //!
 //! ```rust,ignore
-//! use burn_persist::ModulePersist;
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::ModuleSnapshot;
+//! use burn_store::safetensors::SafetensorsStore;
 //!
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     // Add custom metadata
 //!     .metadata("version", "1.0.0")
 //!     .metadata("framework", "burn")
@@ -162,7 +162,7 @@
 //! SafeTensors provides efficient tensor loading through its zero-copy design:
 //!
 //! ```rust,ignore
-//! let mut persister = SafetensorsPersister::from_file("large_model.safetensors");
+//! let mut persister = SafetensorsStore::from_file("large_model.safetensors");
 //! // Uses memory mapping (when available) for zero-copy access
 //! // Falls back to buffered reading when mmap is not available
 //! let mut model = Model::new(&device);
@@ -180,10 +180,10 @@
 //! zero-copy design and built-in metadata handling:
 //!
 //! ```rust,ignore
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Open a file - uses safetensors' efficient header reading
-//! let persister = SafetensorsPersister::from_file("large_model.safetensors");
+//! let persister = SafetensorsStore::from_file("large_model.safetensors");
 //!
 //! // List all tensor names from the metadata
 //! let tensor_names = persister.list_tensors()?;
@@ -214,7 +214,7 @@
 //!
 //! # Builder Pattern API Reference
 //!
-//! The SafetensorsPersister provides a fluent builder API for configuration:
+//! The SafetensorsStore provides a fluent builder API for configuration:
 //!
 //! ## Filtering Methods
 //!
@@ -243,7 +243,7 @@
 //! All methods return `Self` for chaining:
 //!
 //! ```rust,ignore
-//! let persister = SafetensorsPersister::from_file("model.safetensors")
+//! let persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")
 //!     .with_key_pattern(r"\.gamma$", ".weight")
 //!     .with_from_adapter(PyTorchToBurnAdapter)
@@ -256,11 +256,11 @@
 //! For direct byte operations without files:
 //!
 //! ```rust,ignore
-//! use burn_persist::ModulePersist;
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::ModuleSnapshot;
+//! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Save to bytes with filtering and remapping
-//! let mut persister = SafetensorsPersister::from_bytes(None)
+//! let mut persister = SafetensorsStore::from_bytes(None)
 //!     .with_regex(r"^encoder\..*")                       // Only save encoder tensors
 //!     .with_key_pattern(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
@@ -268,7 +268,7 @@
 //! let bytes = persister.get_bytes()?;
 //!
 //! // Load from bytes (allow partial since we only saved encoder)
-//! let mut persister = SafetensorsPersister::from_bytes(Some(bytes))
+//! let mut persister = SafetensorsStore::from_bytes(Some(bytes))
 //!     .with_key_pattern(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
 //!     .allow_partial(true);
 //! let mut model = Model::new(&device);
@@ -281,11 +281,11 @@
 //! Migrating a PyTorch model to Burn with filtering, remapping, and adapters:
 //!
 //! ```rust,ignore
-//! use burn_persist::{ModulePersist, PyTorchToBurnAdapter};
-//! use burn_persist::safetensors::SafetensorsPersister;
+//! use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
+//! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Load PyTorch model with all transformations
-//! let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
 //!     // Use PyTorch adapter for automatic transformations
 //!     .with_from_adapter(PyTorchToBurnAdapter)
 //!     // Only load transformer layers
@@ -296,7 +296,7 @@
 //!     .allow_partial(true)
 //!     // Add metadata about the conversion
 //!     .metadata("source", "pytorch")
-//!     .metadata("converted_by", "burn-persist");
+//!     .metadata("converted_by", "burn-store");
 //!
 //! let mut model = TransformerModel::new(&device);
 //! let result = model.apply_from(&mut persister)?;
@@ -321,9 +321,9 @@
 //! - **Efficient access**: Use offsets to read only needed tensors
 //! - **Simple parsing**: Standard JSON header with fixed structure
 
-mod persister;
+mod store;
 
-pub use persister::{SafetensorsError, SafetensorsPersister};
+pub use store::{SafetensorsError, SafetensorsStore};
 
 #[cfg(test)]
 mod tests;

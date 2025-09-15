@@ -1,4 +1,4 @@
-use crate::{BurnToPyTorchAdapter, ModulePersist, PyTorchToBurnAdapter, SafetensorsPersister};
+use crate::{BurnToPyTorchAdapter, ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_core::nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
@@ -30,14 +30,14 @@ fn pytorch_to_burn_adapter_linear_transpose() {
 
     // Save with BurnToPyTorch adapter (will transpose linear weights)
     let mut save_persister =
-        SafetensorsPersister::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
+        SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
     model.collect_to(&mut save_persister).unwrap();
 
     // Load with PyTorchToBurn adapter (will transpose back)
     let mut load_persister =
-        SafetensorsPersister::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+        SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
@@ -88,7 +88,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
 
     // Save with BurnToPyTorch adapter (will rename gamma->weight, beta->bias)
     let mut save_persister =
-        SafetensorsPersister::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
+        SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
     model.collect_to(&mut save_persister).unwrap();
 
     // The saved data should have PyTorch naming convention
@@ -96,9 +96,9 @@ fn pytorch_to_burn_adapter_norm_rename() {
 
     // Load with PyTorchToBurn adapter (will rename weight->gamma, bias->beta)
     let mut load_persister =
-        SafetensorsPersister::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+        SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
@@ -125,13 +125,13 @@ fn no_adapter_preserves_original() {
     let model = TestModel::<TestBackend>::new(&device);
 
     // Save without adapter
-    let mut save_persister = SafetensorsPersister::from_bytes(None);
+    let mut save_persister = SafetensorsStore::from_bytes(None);
     model.collect_to(&mut save_persister).unwrap();
 
     // Load without adapter
-    let mut load_persister = SafetensorsPersister::from_bytes(None);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
@@ -181,7 +181,7 @@ fn adapter_with_pytorch_import() {
     }
 
     // Load with PyTorchToBurn adapter
-    let mut persister = SafetensorsPersister::from_file(safetensors_path)
+    let mut persister = SafetensorsStore::from_file(safetensors_path)
         .with_from_adapter(PyTorchToBurnAdapter)
         .validate(false)
         .allow_partial(true);

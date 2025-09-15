@@ -13,7 +13,7 @@ use crate::TensorSnapshot;
 /// # Examples
 ///
 /// ```ignore
-/// use burn_persist::KeyRemapper;
+/// use burn_store::KeyRemapper;
 ///
 /// // Create a key remapper
 /// let remapper = KeyRemapper::new()

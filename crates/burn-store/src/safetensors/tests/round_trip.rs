@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_core::nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
@@ -74,13 +74,13 @@ fn complex_module_round_trip() {
     let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
 
     // Save module1 using new persister API
-    let mut save_persister = SafetensorsPersister::from_bytes(None);
+    let mut save_persister = SafetensorsStore::from_bytes(None);
     module1.collect_to(&mut save_persister).unwrap();
 
     // Load into module2
-    let mut load_persister = SafetensorsPersister::from_bytes(None);
-    if let SafetensorsPersister::Memory(ref mut p) = load_persister {
-        if let SafetensorsPersister::Memory(ref p_save) = save_persister {
+    let mut load_persister = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_persister {
+        if let SafetensorsStore::Memory(ref p_save) = save_persister {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());

@@ -1,12 +1,12 @@
-# Burn Persist
+# Burn Store
 
-> Advanced persistence and model serialization for the Burn deep learning framework
+> Advanced model storage and serialization for the Burn deep learning framework
 
-[![Current Crates.io Version](https://img.shields.io/crates/v/burn-persist.svg)](https://crates.io/crates/burn-persist)
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn-store.svg)](https://crates.io/crates/burn-store)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/Tracel-AI/burn/blob/main/LICENSE)
 
-A comprehensive persistence library for Burn that enables efficient model serialization,
-cross-framework interoperability, and advanced tensor management.
+A comprehensive storage library for Burn that enables efficient model serialization, cross-framework
+interoperability, and advanced tensor management.
 
 ## Features
 
@@ -36,10 +36,10 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-burn-persist = "0.19"
+burn-store = "0.19"
 
 # Optional features
-burn-persist = { version = "0.19", features = ["std", "safetensors"] }
+burn-store = { version = "0.19", features = ["std", "safetensors"] }
 ```
 
 ## Quick Start
@@ -47,14 +47,14 @@ burn-persist = { version = "0.19", features = ["std", "safetensors"] }
 ### Basic Save and Load
 
 ```rust
-use burn_persist::{ModulePersist, SafetensorsPersister};
+use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 // Save a model
-let mut persister = SafetensorsPersister::from_file("model.safetensors");
+let mut persister = SafetensorsStore::from_file("model.safetensors");
 model.collect_to(&mut persister)?;
 
 // Load a model
-let mut persister = SafetensorsPersister::from_file("model.safetensors");
+let mut persister = SafetensorsStore::from_file("model.safetensors");
 model.apply_from(&mut persister)?;
 ```
 
@@ -62,14 +62,14 @@ model.apply_from(&mut persister)?;
 
 ```rust
 // Save only encoder layers
-let mut persister = SafetensorsPersister::from_file("encoder.safetensors")
+let mut persister = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .metadata("subset", "encoder_only");
 
 model.collect_to(&mut persister)?;
 
 // Load with multiple filter patterns (OR logic)
-let mut persister = SafetensorsPersister::from_file("model.safetensors")
+let mut persister = SafetensorsStore::from_file("model.safetensors")
     .with_regex(r"^encoder\..*")      // Include encoder tensors
     .with_regex(r".*\.bias$")          // OR include any bias tensors
     .with_full_path("decoder.scale"); // OR include specific tensor
@@ -80,17 +80,17 @@ model.apply_from(&mut persister)?;
 ### PyTorch Interoperability
 
 ```rust
-use burn_persist::{PyTorchToBurnAdapter, BurnToPyTorchAdapter};
+use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter};
 
 // Load PyTorch model into Burn
-let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
     .allow_partial(true);                     // Skip unknown PyTorch tensors
 
 burn_model.apply_from(&mut persister)?;
 
 // Save Burn model for PyTorch
-let mut persister = SafetensorsPersister::from_file("for_pytorch.safetensors")
+let mut persister = SafetensorsStore::from_file("for_pytorch.safetensors")
     .with_to_adapter(BurnToPyTorchAdapter);   // Convert back to PyTorch format
 
 burn_model.collect_to(&mut persister)?;
@@ -100,19 +100,19 @@ burn_model.collect_to(&mut persister)?;
 
 ```rust
 // Simple pattern-based remapping
-let mut persister = SafetensorsPersister::from_file("model.safetensors")
+let mut persister = SafetensorsStore::from_file("model.safetensors")
     .with_key_pattern(r"^old_model\.", "new_model.")  // old_model.X -> new_model.X
     .with_key_pattern(r"\.gamma$", ".weight")         // X.gamma -> X.weight
     .with_key_pattern(r"\.beta$", ".bias");          // X.beta -> X.bias
 
 // Complex remapping with KeyRemapper
-use burn_persist::KeyRemapper;
+use burn_store::KeyRemapper;
 
 let remapper = KeyRemapper::new()
     .add_pattern(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")?  // h.0 -> layer0
     .add_pattern(r"^(.*?)\.attn\.", "$1.attention.")?;                  // attn -> attention
 
-let mut persister = SafetensorsPersister::from_file("model.safetensors")
+let mut persister = SafetensorsStore::from_file("model.safetensors")
     .remap(remapper);
 ```
 
@@ -120,13 +120,13 @@ let mut persister = SafetensorsPersister::from_file("model.safetensors")
 
 ```rust
 // Save to memory buffer
-let mut persister = SafetensorsPersister::from_bytes(None)
+let mut persister = SafetensorsStore::from_bytes(None)
     .with_regex(r"^encoder\..*");
 model.collect_to(&mut persister)?;
 let bytes = persister.get_bytes()?;
 
 // Load from memory buffer
-let mut persister = SafetensorsPersister::from_bytes(Some(bytes))
+let mut persister = SafetensorsStore::from_bytes(Some(bytes))
     .allow_partial(true);
 let result = model.apply_from(&mut persister)?;
 
@@ -139,11 +139,11 @@ if !result.missing.is_empty() {
 ### Complete Example: Migrating PyTorch Models
 
 ```rust
-use burn_persist::{ModulePersist, PyTorchToBurnAdapter};
-use burn_persist::safetensors::SafetensorsPersister;
+use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
+use burn_store::safetensors::SafetensorsStore;
 
 // Load and convert a PyTorch transformer model
-let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
+let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
     // Automatic PyTorch → Burn conversions
     .with_from_adapter(PyTorchToBurnAdapter)
     // Only load transformer layers
@@ -154,7 +154,7 @@ let mut persister = SafetensorsPersister::from_file("pytorch_model.safetensors")
     .allow_partial(true)
     // Add conversion metadata
     .metadata("source", "pytorch")
-    .metadata("converted_by", "burn-persist");
+    .metadata("converted_by", "burn-store");
 
 let mut model = TransformerModel::new(&device);
 let result = model.apply_from(&mut persister)?;
@@ -164,7 +164,7 @@ println!("Successfully migrated {} tensors", result.applied.len());
 
 ## Benchmarks
 
-The crate includes comprehensive benchmarks comparing the new `SafetensorsPersister` with the legacy
+The crate includes comprehensive benchmarks comparing the new `SafetensorsStore` with the legacy
 `SafetensorsFileRecorder`. Benchmarks support multiple backends and include memory allocation
 tracking.
 
@@ -191,7 +191,7 @@ The benchmarks test three model sizes (small, medium, large) and show:
 
 - **Execution time** and **throughput** (MB/s)
 - **Memory allocation** statistics (max allocations, total allocations/deallocations)
-- Comparison between old `SafetensorsFileRecorder` and new `SafetensorsPersister`
+- Comparison between old `SafetensorsFileRecorder` and new `SafetensorsStore`
 
 Typical improvements with the new persister:
 
@@ -203,7 +203,7 @@ Typical improvements with the new persister:
 
 ### Builder Methods
 
-The `SafetensorsPersister` provides a fluent API for configuration:
+The `SafetensorsStore` provides a fluent API for configuration:
 
 #### Filtering
 

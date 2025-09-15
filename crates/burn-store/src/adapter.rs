@@ -44,10 +44,10 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use burn_persist::{SafetensorsPersister, PyTorchToBurnAdapter};
+//! use burn_store::{SafetensorsStore, PyTorchToBurnAdapter};
 //!
 //! // Load a PyTorch model with automatic conversion
-//! let mut persister = SafetensorsPersister::from_file("model.safetensors")
+//! let mut persister = SafetensorsStore::from_file("model.safetensors")
 //!     .with_from_adapter(PyTorchToBurnAdapter);
 //!
 //! // The adapter will:

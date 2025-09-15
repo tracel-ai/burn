@@ -68,7 +68,7 @@ impl Collector {
     /// # Examples
     ///
     /// ```ignore
-    /// use burn_persist::PathFilter;
+    /// use burn_store::PathFilter;
     ///
     /// // Use PathFilter builder
     /// let filter = PathFilter::new()
@@ -656,7 +656,7 @@ mod tests {
         }
     }
 
-    use crate::traits::ModulePersist;
+    use crate::traits::ModuleSnapshot;
     use burn_core::nn::Linear;
     use hashbrown::HashMap;
 

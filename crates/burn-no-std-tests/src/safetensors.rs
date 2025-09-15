@@ -6,7 +6,7 @@ use burn::{
     tensor::{Tensor, backend::Backend},
 };
 
-use burn_persist::{ModulePersist, SafetensorsPersister};
+use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 /// Simple model for testing SafeTensors persistence
 #[derive(Module, Debug)]
@@ -35,7 +35,7 @@ pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
     let model = TestModel::<B>::new(device);
 
     // Save to bytes (no file I/O in no-std)
-    let mut save_persister = SafetensorsPersister::from_bytes(None);
+    let mut save_persister = SafetensorsStore::from_bytes(None);
     model
         .collect_to(&mut save_persister)
         .expect("Failed to save model");
@@ -44,7 +44,7 @@ pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
     let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
     // Load from bytes
-    let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+    let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     loaded_model
         .apply_from(&mut load_persister)
@@ -60,7 +60,7 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
     let model = TestModel::<B>::new(device);
 
     // Save only linear1 weights
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .with_full_path("linear1.weight")
         .with_full_path("linear1.bias");
     model
@@ -70,7 +70,7 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
     let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
     // Load with partial loading allowed
-    let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes)).allow_partial(true);
+    let mut load_persister = SafetensorsStore::from_bytes(Some(bytes)).allow_partial(true);
     let mut partial_model = TestModel::<B>::new(device);
     let result = partial_model
         .apply_from(&mut load_persister)
@@ -86,7 +86,7 @@ pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
     let model = TestModel::<B>::new(device);
 
     // Save with metadata
-    let mut save_persister = SafetensorsPersister::from_bytes(None)
+    let mut save_persister = SafetensorsStore::from_bytes(None)
         .metadata("version", "1.0.0")
         .metadata("environment", "no-std");
     model
@@ -96,7 +96,7 @@ pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
     let bytes = save_persister.get_bytes().expect("Failed to get bytes");
 
     // Load and verify it works
-    let mut load_persister = SafetensorsPersister::from_bytes(Some(bytes));
+    let mut load_persister = SafetensorsStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     loaded_model
         .apply_from(&mut load_persister)

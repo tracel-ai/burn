@@ -120,8 +120,8 @@ pub use burn_remote::server;
 #[cfg(feature = "collective")]
 pub mod collective;
 
-/// Module for model persistence and serialization
-#[cfg(feature = "persist")]
-pub mod persist {
-    pub use burn_persist::*;
+/// Module for model storage and serialization
+#[cfg(feature = "store")]
+pub mod store {
+    pub use burn_store::*;
 }

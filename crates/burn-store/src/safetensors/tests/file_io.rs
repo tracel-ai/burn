@@ -1,4 +1,4 @@
-use crate::{ModulePersist, SafetensorsPersister};
+use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::nn::LinearConfig;
 
 type TestBackend = burn_ndarray::NdArray;
@@ -19,7 +19,7 @@ fn file_based_loading() {
 
     // Save to file
     let mut save_persister =
-        SafetensorsPersister::from_file(&file_path).metadata("test", "file_loading");
+        SafetensorsStore::from_file(&file_path).metadata("test", "file_loading");
 
     module.collect_to(&mut save_persister).unwrap();
 
@@ -27,7 +27,7 @@ fn file_based_loading() {
     assert!(file_path.exists());
 
     // Load from file (will use memory-mapped loading if available)
-    let mut load_persister = SafetensorsPersister::from_file(&file_path);
+    let mut load_persister = SafetensorsStore::from_file(&file_path);
 
     let mut loaded_module = LinearConfig::new(4, 2)
         .with_bias(true)
