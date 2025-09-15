@@ -102,9 +102,8 @@ fn safetensors_round_trip_with_pytorch_model() {
     assert!(load_result.applied.len() > 0);
 
     // Save the model to memory
-    let mut save_store = SafetensorsStore::from_bytes(None)
-        .metadata("source", "pytorch")
-        .metadata("framework", "burn");
+    // Note: format, producer and version are automatically added
+    let mut save_store = SafetensorsStore::from_bytes(None).metadata("source", "pytorch");
     model.collect_to(&mut save_store).unwrap();
 
     // Load into a new model

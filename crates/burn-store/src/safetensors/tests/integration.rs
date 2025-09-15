@@ -113,10 +113,8 @@ fn basic_usage() {
     let device = Default::default();
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
-    // Save using new API
-    let mut save_store = SafetensorsStore::from_bytes(None)
-        .metadata("framework", "burn")
-        .metadata("version", "0.19.0");
+    // Save using new API (format, producer and version are automatically added)
+    let mut save_store = SafetensorsStore::from_bytes(None).metadata("model_name", "test_model");
 
     // Use collect_to method
     model.collect_to(&mut save_store).unwrap();

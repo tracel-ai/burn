@@ -11,7 +11,7 @@
 //! - **Efficiency**: Memory-mapped files enable lazy loading without reading entire file
 //! - **Filtering**: Load only specific tensors using path filters
 //! - **Remapping**: Transform tensor names during load/save operations
-//! - **Metadata**: Store and retrieve custom metadata alongside tensors
+//! - **Metadata**: Store and retrieve custom metadata alongside tensors (automatic `format`, `producer` and `version` metadata included)
 //! - **Cross-Platform**: Works on all platforms including no-std environments
 //!
 //! # Usage Examples
@@ -145,7 +145,7 @@
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     // Add custom metadata
 //!     .metadata("version", "1.0.0")
-//!     .metadata("framework", "burn")
+//!     .metadata("producer", "burn")
 //!     // Allow partial loading (continue even if some tensors are missing)
 //!     .allow_partial(true)
 //!     // Disable validation for faster loading
@@ -236,7 +236,7 @@
 //!
 //! ## Configuration Methods
 //!
-//! - **`metadata(key, value)`** - Add custom metadata to saved files
+//! - **`metadata(key, value)`** - Add custom metadata to saved files (in addition to automatic `format`, `producer` and `version`)
 //! - **`allow_partial(bool)`** - Allow loading even if some tensors are missing
 //! - **`validate(bool)`** - Enable/disable tensor validation during loading
 //!

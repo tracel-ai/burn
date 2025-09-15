@@ -93,6 +93,22 @@ impl Default for SafetensorsStore {
 }
 
 impl SafetensorsStore {
+    /// Get the default metadata that includes Burn framework information.
+    ///
+    /// This includes:
+    /// - `format`: "safetensors"
+    /// - `producer`: "burn"
+    /// - `version`: The version of burn-store crate (from CARGO_PKG_VERSION)
+    ///
+    /// These metadata fields are automatically added to all saved models.
+    pub fn default_metadata() -> HashMap<String, String> {
+        let mut metadata = HashMap::new();
+        metadata.insert("format".to_string(), "safetensors".to_string());
+        metadata.insert("producer".to_string(), "burn".to_string());
+        metadata.insert("version".to_string(), env!("CARGO_PKG_VERSION").to_string());
+        metadata
+    }
+
     /// Create a store for loading from or saving to a file.
     #[cfg(feature = "std")]
     pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
@@ -100,7 +116,7 @@ impl SafetensorsStore {
             path: path.into(),
             filter: PathFilter::new(),
             remapper: KeyRemapper::new(),
-            metadata: HashMap::new(),
+            metadata: Self::default_metadata(),
             validate: true,
             allow_partial: false,
             from_adapter: Box::new(IdentityAdapter),
@@ -115,7 +131,7 @@ impl SafetensorsStore {
             filter: PathFilter::new(),
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
-            metadata: HashMap::new(),
+            metadata: Self::default_metadata(),
             validate: true,
             allow_partial: false,
             from_adapter: Box::new(IdentityAdapter),
@@ -299,6 +315,24 @@ impl SafetensorsStore {
         self
     }
 
+    /// Clear all metadata including the default Burn framework metadata.
+    ///
+    /// This removes the automatic `format`, `producer` and `version` fields.
+    /// Use this when you need complete control over metadata or when
+    /// saving models for use with other frameworks.
+    pub fn clear_metadata(mut self) -> Self {
+        match &mut self {
+            #[cfg(feature = "std")]
+            Self::File(p) => {
+                p.metadata.clear();
+            }
+            Self::Memory(p) => {
+                p.metadata.clear();
+            }
+        }
+        self
+    }
+
     /// Set whether to validate tensors during loading (default: true).
     pub fn validate(mut self, validate: bool) -> Self {
         match &mut self {
@@ -471,9 +505,8 @@ impl ModuleSnapshoter for SafetensorsStore {
             snapshots = apply_remapping(snapshots, self.get_remapper());
         }
 
-        // Prepare metadata - convert from hashbrown to std HashMap for safetensors
-        let mut metadata = self.get_metadata().clone();
-        metadata.insert("framework".to_string(), "burn".to_string());
+        // Get metadata (already includes format, producer and version from default_metadata)
+        let metadata = self.get_metadata().clone();
 
         #[cfg(feature = "std")]
         let std_metadata: std::collections::HashMap<String, String> = metadata
