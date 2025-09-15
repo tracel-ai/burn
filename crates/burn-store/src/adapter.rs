@@ -10,7 +10,7 @@
 //!
 //! # Architecture
 //!
-//! The adapter system uses a single [`Adapter`] trait that can handle both:
+//! The adapter system uses a single [`ModuleAdapter`] trait that can handle both:
 //! - Loading: Converting from external formats to Burn format
 //! - Saving: Converting from Burn format to external formats
 //!
@@ -69,7 +69,7 @@ use crate::TensorSnapshot;
 /// This trait allows conversion between different deep learning framework formats,
 /// handling both loading and saving operations. Implementations can transform
 /// tensor data, rename parameters, and modify shapes as needed.
-pub trait Adapter {
+pub trait ModuleAdapter {
     /// Adapt a tensor snapshot before saving it.
     ///
     /// This method can:
@@ -93,7 +93,7 @@ pub trait Adapter {
 #[derive(Debug, Clone, Default)]
 pub struct IdentityAdapter;
 
-impl Adapter for IdentityAdapter {
+impl ModuleAdapter for IdentityAdapter {
     fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
         Some(snapshot.clone())
     }
@@ -107,7 +107,7 @@ impl Adapter for IdentityAdapter {
 #[derive(Debug, Clone, Default)]
 pub struct PyTorchToBurnAdapter;
 
-impl Adapter for PyTorchToBurnAdapter {
+impl ModuleAdapter for PyTorchToBurnAdapter {
     fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
         let path = snapshot.full_path();
 
@@ -141,7 +141,7 @@ impl Adapter for PyTorchToBurnAdapter {
 #[derive(Debug, Clone, Default)]
 pub struct BurnToPyTorchAdapter;
 
-impl Adapter for BurnToPyTorchAdapter {
+impl ModuleAdapter for BurnToPyTorchAdapter {
     fn adapt_tensor(&self, snapshot: &TensorSnapshot) -> Option<TensorSnapshot> {
         let path = snapshot.full_path();
 
@@ -315,8 +315,6 @@ fn rename_normalization_params_to_pytorch(snapshot: &TensorSnapshot) -> Option<T
     ))
 }
 
-// TensorSnapshot now has its own Clone implementation in tensor_view.rs that preserves laziness
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,9 +323,9 @@ mod tests {
     #[test]
     fn test_identity_adapter() {
         let adapter = IdentityAdapter;
-        let view = create_test_view("model.weight", vec![2, 3]);
+        let snapshot = create_test_snapshot("model.weight", vec![2, 3]);
 
-        let adapted = Adapter::adapt_tensor(&adapter, &view);
+        let adapted = ModuleAdapter::adapt_tensor(&adapter, &snapshot);
         assert!(adapted.is_some());
 
         let adapted = adapted.unwrap();
@@ -338,9 +336,9 @@ mod tests {
     #[test]
     fn test_pytorch_to_burn_linear_weight() {
         let adapter = PyTorchToBurnAdapter;
-        let view = create_test_view("model.linear.weight", vec![3, 2]);
+        let snapshot = create_test_snapshot("model.linear.weight", vec![3, 2]);
 
-        let adapted = adapter.adapt_tensor(&view);
+        let adapted = adapter.adapt_tensor(&snapshot);
         assert!(adapted.is_some());
 
         let adapted = adapted.unwrap();
@@ -353,22 +351,22 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Test weight -> gamma
-        let view = create_test_view("model.norm.weight", vec![10]);
-        let adapted = adapter.adapt_tensor(&view).unwrap();
+        let snapshot = create_test_snapshot("model.norm.weight", vec![10]);
+        let adapted = adapter.adapt_tensor(&snapshot).unwrap();
         assert_eq!(adapted.full_path(), "model.norm.gamma");
 
         // Test bias -> beta
-        let view = create_test_view("model.norm.bias", vec![10]);
-        let adapted = adapter.adapt_tensor(&view).unwrap();
+        let snapshot = create_test_snapshot("model.norm.bias", vec![10]);
+        let adapted = adapter.adapt_tensor(&snapshot).unwrap();
         assert_eq!(adapted.full_path(), "model.norm.beta");
     }
 
     #[test]
     fn test_burn_to_pytorch_linear_weight() {
         let adapter = BurnToPyTorchAdapter;
-        let view = create_test_view("model.linear.weight", vec![2, 3]);
+        let snapshot = create_test_snapshot("model.linear.weight", vec![2, 3]);
 
-        let adapted = adapter.adapt_tensor(&view);
+        let adapted = adapter.adapt_tensor(&snapshot);
         assert!(adapted.is_some());
 
         let adapted = adapted.unwrap();
@@ -381,17 +379,17 @@ mod tests {
         let adapter = BurnToPyTorchAdapter;
 
         // Test gamma -> weight
-        let view = create_test_view("model.norm.gamma", vec![10]);
-        let adapted = adapter.adapt_tensor(&view).unwrap();
+        let snapshot = create_test_snapshot("model.norm.gamma", vec![10]);
+        let adapted = adapter.adapt_tensor(&snapshot).unwrap();
         assert_eq!(adapted.full_path(), "model.norm.weight");
 
         // Test beta -> bias
-        let view = create_test_view("model.norm.beta", vec![10]);
-        let adapted = adapter.adapt_tensor(&view).unwrap();
+        let snapshot = create_test_snapshot("model.norm.beta", vec![10]);
+        let adapted = adapter.adapt_tensor(&snapshot).unwrap();
         assert_eq!(adapted.full_path(), "model.norm.bias");
     }
 
-    fn create_test_view(path: &str, shape: Vec<usize>) -> TensorSnapshot {
+    fn create_test_snapshot(path: &str, shape: Vec<usize>) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
         let data = match shape.len() {
             1 => TensorData::new(vec![1.0f32; shape[0]], shape.clone()),

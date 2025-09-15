@@ -1,7 +1,7 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
 use crate::{
-    Adapter, ApplyResult, IdentityAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
+    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
     TensorSnapshot,
 };
 
@@ -320,7 +320,7 @@ impl SafetensorsStore {
     }
 
     /// Set the adapter for loading tensors (converting from source format to Burn).
-    pub fn with_from_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+    pub fn with_from_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
         match &mut self {
             #[cfg(feature = "std")]
             Self::File(p) => p.from_adapter = Box::new(adapter),
@@ -330,7 +330,7 @@ impl SafetensorsStore {
     }
 
     /// Set the adapter for saving tensors (converting from Burn to target format).
-    pub fn with_to_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+    pub fn with_to_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
         match &mut self {
             #[cfg(feature = "std")]
             Self::File(p) => p.to_adapter = Box::new(adapter),
@@ -370,8 +370,8 @@ pub struct FileStore {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
-    from_adapter: Box<dyn Adapter>,
-    to_adapter: Box<dyn Adapter>,
+    from_adapter: Box<dyn ModuleAdapter>,
+    to_adapter: Box<dyn ModuleAdapter>,
 }
 
 /// Memory-based store.
@@ -383,8 +383,8 @@ pub struct MemoryStore {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
-    from_adapter: Box<dyn Adapter>,
-    to_adapter: Box<dyn Adapter>,
+    from_adapter: Box<dyn ModuleAdapter>,
+    to_adapter: Box<dyn ModuleAdapter>,
 }
 
 impl Default for MemoryStore {
@@ -598,7 +598,7 @@ impl SafetensorsStore {
         }
     }
 
-    fn get_from_adapter(&self) -> &dyn Adapter {
+    fn get_from_adapter(&self) -> &dyn ModuleAdapter {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => p.from_adapter.as_ref(),
@@ -606,7 +606,7 @@ impl SafetensorsStore {
         }
     }
 
-    fn get_to_adapter(&self) -> &dyn Adapter {
+    fn get_to_adapter(&self) -> &dyn ModuleAdapter {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => p.to_adapter.as_ref(),
