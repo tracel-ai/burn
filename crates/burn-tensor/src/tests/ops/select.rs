@@ -287,7 +287,9 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 1, 0], &device);
         let values = TestTensorBool::<1>::from_data([false, true, true], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         // Manual default implementation logic
         let int_tensor = tensor.int();
@@ -295,7 +297,9 @@ mod tests {
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -308,14 +312,18 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, false], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         let int_tensor = tensor.int();
         let int_values = values.int();
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -328,14 +336,18 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 0, 0], &device);
         let values = TestTensorBool::<1>::from_data([true, true, true], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         let int_tensor = tensor.int();
         let int_values = values.int();
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -348,14 +360,18 @@ mod tests {
         let indices = TestTensorInt::from_data([0], &device);
         let values = TestTensorBool::<1>::from_data([true], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         let int_tensor = tensor.int();
         let int_values = values.int();
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -368,14 +384,18 @@ mod tests {
         let indices = TestTensorInt::<1>::from_data([] as [i32; 0], &device);
         let values = TestTensorBool::<1>::from_data([] as [bool; 0], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         let int_tensor = tensor.int();
         let int_values = values.int();
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -388,14 +408,18 @@ mod tests {
         let indices = TestTensorInt::from_data([0, 2], &device);
         let values = TestTensorBool::<1>::from_data([false, false], &device);
 
-        let optimized_result = tensor.clone().select_assign(0, indices.clone(), values.clone());
+        let optimized_result = tensor
+            .clone()
+            .select_assign(0, indices.clone(), values.clone());
 
         let int_tensor = tensor.int();
         let int_values = values.int();
         let assigned = int_tensor.select_assign(0, indices, int_values);
         let default_result = assigned.greater_elem(0);
 
-        optimized_result.into_data().assert_eq(&default_result.into_data(), false);
+        optimized_result
+            .into_data()
+            .assert_eq(&default_result.into_data(), false);
     }
 
     #[test]
@@ -429,7 +453,9 @@ mod tests {
         let default_result = assigned.greater_elem(0);
         let replacement_expected = TensorData::from([false]);
 
-        default_result.into_data().assert_eq(&replacement_expected, false);
+        default_result
+            .into_data()
+            .assert_eq(&replacement_expected, false);
     }
 
     #[test]
