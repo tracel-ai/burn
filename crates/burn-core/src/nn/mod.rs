@@ -34,6 +34,7 @@ mod pos_encoding;
 mod rnn;
 mod rope_encoding;
 mod unfold;
+mod image;
 
 pub mod norm;
 pub use norm::{batch::*, group::*, instance::*, layer::*, rms::*};
@@ -47,3 +48,4 @@ pub use pos_encoding::*;
 pub use rnn::*;
 pub use rope_encoding::*;
 pub use unfold::*;
+pub use image::*;
