@@ -43,6 +43,21 @@ impl FormatOptions {
         self.precision = Some(precision);
         self
     }
+
+    /// Get the metric name.
+    pub fn name(&self) -> &Arc<String> {
+        &self.name
+    }
+
+    /// Get the metric unit.
+    pub fn unit_value(&self) -> &Option<String> {
+        &self.unit
+    }
+
+    /// Get the precision.
+    pub fn precision_value(&self) -> Option<usize> {
+        self.precision
+    }
 }
 
 impl NumericMetricState {
