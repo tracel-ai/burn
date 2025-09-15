@@ -62,6 +62,7 @@ std = [
     "burn-cuda?/std",
     "burn-autodiff?/std",
     "burn-rocm?/std",
+    "burn-store?/std",
 ]
 
 network = ["burn-core/network"]
