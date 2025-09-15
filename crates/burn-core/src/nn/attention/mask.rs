@@ -15,6 +15,49 @@ pub fn generate_autoregressive_mask<B: Backend>(
     mask.expand([batch_size, seq_length, seq_length])
 }
 
+/// Generate a windowed causal attention mask with optional sink tokens.
+///
+/// - Allows attending to at most `sink_tokens` tokens at the start, plus the
+///   last `window_len` tokens before the current position (inclusive).
+/// - When `window_len` is `None`, this reduces to a full causal mask.
+pub fn generate_windowed_causal_mask<B: Backend>(
+    batch_size: usize,
+    seq_length: usize,
+    window_len: Option<usize>,
+    sink_tokens: usize,
+    device: &B::Device,
+) -> Tensor<B, 3, Bool> {
+    // Base full-causal mask for future positions (True = masked).
+    let base = Tensor::<B, 2, Bool>::tril_mask([seq_length, seq_length], 0, device);
+
+    if let Some(w) = window_len {
+        // Build per-row mask to zero out keys older than i - w, except sink region.
+        let mut mask = Tensor::<B, 3, Bool>::empty([1, seq_length, seq_length], device);
+        for i in 0..seq_length {
+            // Positions allowed: [0..sink_tokens) U [max(0, i-w) .. i]
+            let start = i.saturating_sub(w);
+            let mut row = Tensor::<B, 1, Bool>::full([seq_length], true, device);
+            if sink_tokens > 0 {
+                row = row.slice_assign(0..sink_tokens, Tensor::full([sink_tokens], false, device));
+            }
+            let to_i = Tensor::<B, 1, Bool>::full([i + 1], false, device); // unmask [0..i]
+            row = row.slice_assign(0..i + 1, to_i);
+            if start > 0 {
+                let rem = Tensor::<B, 1, Bool>::full([start], true, device); // re-mask [0..start)
+                row = row.slice_assign(0..start, rem);
+            }
+            // `row` already masks the future and out-of-window positions.
+            mask = mask.slice_assign(
+                [0..1, i..i + 1, 0..seq_length],
+                row.reshape([1, 1, seq_length]),
+            );
+        }
+        mask.expand([batch_size, seq_length, seq_length])
+    } else {
+        base.expand([batch_size, seq_length, seq_length])
+    }
+}
+
 /// Generate a padding attention mask.
 pub struct GeneratePaddingMask<B: Backend> {
     /// The generated tensor.
@@ -125,4 +168,7 @@ mod tests {
             false,
         );
     }
+
+    // Additional windowed causal mask tests are in integration tests under
+    // crates/burn-core/tests/attention_mask.rs
 }
