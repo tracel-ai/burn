@@ -14,6 +14,7 @@
   - [Tensor](./building-blocks/tensor.md)
   - [Autodiff](./building-blocks/autodiff.md)
   - [Module](./building-blocks/module.md)
+  - [3D Video Patch Embedding](./building-blocks/video-patch-embedding.md)
   - [Learner](./building-blocks/learner.md)
   - [Metric](./building-blocks/metric.md)
   - [Config](./building-blocks/config.md)
