@@ -93,7 +93,7 @@
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Persistence
-//!   - `persist`: Enables model persistence with SafeTensors format and PyTorch interoperability
+//!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `server`: Enables the remote server.

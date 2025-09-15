@@ -1,4 +1,4 @@
-//! SafeTensors persister implementation using the official safetensors crate.
+//! SafeTensors store implementation using the official safetensors crate.
 
 use crate::{
     Adapter, ApplyResult, IdentityAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
@@ -75,28 +75,28 @@ impl From<std::io::Error> for SafetensorsError {
     }
 }
 
-/// SafeTensors persister supporting both file and memory storage.
+/// SafeTensors store supporting both file and memory storage.
 pub enum SafetensorsStore {
     /// File-based storage.
     #[cfg(feature = "std")]
-    File(FilePersister),
+    File(FileStore),
 
     /// Memory-based storage.
-    Memory(MemoryPersister),
+    Memory(MemoryStore),
 }
 
 impl Default for SafetensorsStore {
-    /// Create a default memory-based persister.
+    /// Create a default memory-based store.
     fn default() -> Self {
         Self::from_bytes(None)
     }
 }
 
 impl SafetensorsStore {
-    /// Create a persister for loading from or saving to a file.
+    /// Create a store for loading from or saving to a file.
     #[cfg(feature = "std")]
     pub fn from_file(path: impl Into<std::path::PathBuf>) -> Self {
-        Self::File(FilePersister {
+        Self::File(FileStore {
             path: path.into(),
             filter: PathFilter::new(),
             remapper: KeyRemapper::new(),
@@ -108,9 +108,9 @@ impl SafetensorsStore {
         })
     }
 
-    /// Create a persister for working with bytes in memory.
+    /// Create a store for working with bytes in memory.
     pub fn from_bytes(bytes: Option<Vec<u8>>) -> Self {
-        Self::Memory(MemoryPersister {
+        Self::Memory(MemoryStore {
             data: bytes.map(Arc::new),
             filter: PathFilter::new(),
             #[cfg(feature = "std")]
@@ -139,7 +139,7 @@ impl SafetensorsStore {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsStore::from_file("model.safetensors")
+    /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
     /// ```
@@ -172,7 +172,7 @@ impl SafetensorsStore {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsStore::from_file("model.safetensors")
+    /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
     /// ```
@@ -205,7 +205,7 @@ impl SafetensorsStore {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsStore::from_file("model.safetensors")
+    /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
     pub fn with_predicate(mut self, predicate: fn(&str, &str) -> bool) -> Self {
@@ -254,7 +254,7 @@ impl SafetensorsStore {
     ///
     /// # Example
     /// ```ignore
-    /// let persister = SafetensorsStore::from_file("model.safetensors")
+    /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
     /// ```
@@ -339,19 +339,19 @@ impl SafetensorsStore {
         self
     }
 
-    /// Get saved bytes from memory-based persister.
+    /// Get saved bytes from memory-based store.
     ///
     /// # Example
     /// ```ignore
-    /// let mut persister = SafetensorsStore::from_bytes(None);
-    /// model.collect_to(&mut persister)?;
-    /// let bytes = persister.get_bytes()?;
+    /// let mut store = SafetensorsStore::from_bytes(None);
+    /// model.collect_to(&mut store)?;
+    /// let bytes = store.get_bytes()?;
     /// ```
     pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsError> {
         match self {
             #[cfg(feature = "std")]
             Self::File(_) => Err(SafetensorsError::Other(
-                "Cannot get bytes from file-based persister".to_string(),
+                "Cannot get bytes from file-based store".to_string(),
             )),
             Self::Memory(p) => p
                 .data()
@@ -361,9 +361,9 @@ impl SafetensorsStore {
     }
 }
 
-/// File-based persister.
+/// File-based store.
 #[cfg(feature = "std")]
-pub struct FilePersister {
+pub struct FileStore {
     path: std::path::PathBuf,
     filter: PathFilter,
     remapper: KeyRemapper,
@@ -374,8 +374,8 @@ pub struct FilePersister {
     to_adapter: Box<dyn Adapter>,
 }
 
-/// Memory-based persister.
-pub struct MemoryPersister {
+/// Memory-based store.
+pub struct MemoryStore {
     data: Option<Arc<Vec<u8>>>,
     filter: PathFilter,
     #[cfg(feature = "std")]
@@ -387,7 +387,7 @@ pub struct MemoryPersister {
     to_adapter: Box<dyn Adapter>,
 }
 
-impl Default for MemoryPersister {
+impl Default for MemoryStore {
     fn default() -> Self {
         Self {
             data: None,
@@ -403,7 +403,7 @@ impl Default for MemoryPersister {
     }
 }
 
-impl MemoryPersister {
+impl MemoryStore {
     #[cfg(test)]
     pub(crate) fn data(&self) -> Option<Arc<Vec<u8>>> {
         self.data.clone()
