@@ -34,6 +34,9 @@ pub mod module;
 /// Neural network module.
 pub mod nn;
 
+/// Diffusion utilities (guidance, schedulers, etc.).
+pub mod diffusion;
+
 /// Module for the recorder.
 pub mod record;
 
