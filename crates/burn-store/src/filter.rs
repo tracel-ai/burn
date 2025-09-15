@@ -13,7 +13,7 @@ use regex::Regex;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust,ignore
 /// // Create a filter that matches encoder paths or any weight path
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")

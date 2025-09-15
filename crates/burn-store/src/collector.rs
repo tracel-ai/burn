@@ -14,21 +14,21 @@ use burn_core::module::{ModuleVisitor, ParamId};
 /// # Examples
 ///
 /// ## Collect all tensors
-/// ```ignore
+/// ```rust,ignore
 /// let collector = Collector::new();
 /// module.visit(&mut collector);
 /// let all_tensors = collector.tensors;
 /// ```
 ///
 /// ## Filter with single pattern
-/// ```ignore
+/// ```rust,ignore
 /// let collector = Collector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
 /// module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
 ///
 /// ## Filter with multiple patterns (OR union)
-/// ```ignore
+/// ```rust,ignore
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
 ///     .with_regex(r".*\.bias$");    // OR match any bias tensors
@@ -67,7 +67,7 @@ impl Collector {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust,ignore
     /// use burn_store::PathFilter;
     ///
     /// // Use PathFilter builder

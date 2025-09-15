@@ -67,7 +67,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust,ignore
     /// use burn_store::PathFilter;
     ///
     /// // Apply only encoder tensors

@@ -138,7 +138,7 @@ impl SafetensorsStore {
     /// Multiple patterns can be added and they work with OR logic.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,ignore
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
@@ -171,7 +171,7 @@ impl SafetensorsStore {
     /// Add an exact full path to match.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,ignore
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
@@ -204,7 +204,7 @@ impl SafetensorsStore {
     /// The predicate receives the tensor path and container path.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,ignore
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
@@ -253,7 +253,7 @@ impl SafetensorsStore {
     /// Add a regex pattern to remap tensor names during load/save.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,ignore
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
@@ -342,7 +342,7 @@ impl SafetensorsStore {
     /// Get saved bytes from memory-based store.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,ignore
     /// let mut store = SafetensorsStore::from_bytes(None);
     /// model.collect_to(&mut store)?;
     /// let bytes = store.get_bytes()?;

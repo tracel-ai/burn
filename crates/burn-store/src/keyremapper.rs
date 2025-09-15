@@ -12,7 +12,7 @@ use crate::TensorSnapshot;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust,ignore
 /// use burn_store::KeyRemapper;
 ///
 /// // Create a key remapper
