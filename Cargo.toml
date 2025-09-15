@@ -48,6 +48,7 @@ data-encoding = { version = "2.9.0", default-features = false, features = [
     "alloc",
 ] }
 dirs = "6.0.0"
+encoding_rs = "0.8.33"
 fake = "4.4.0"
 flate2 = "1.1.2"
 float-cmp = "0.10.0"
@@ -82,7 +83,7 @@ rstest = "0.25.0"
 rusqlite = "0.37.0"
 rust-format = "0.3.4"
 sanitize-filename = "0.6.0"
-serde_bytes = { version = "0.11.17", default-features = false, features = [
+serde_bytes = { version = "0.11.18", default-features = false, features = [
     "alloc",
 ] } # alloc for no_std
 serde_rusqlite = "0.40.0"
@@ -103,7 +104,7 @@ tokio-util = "0.7"
 tracing-appender = "0.2.3"
 tracing-core = "0.1.34"
 tracing-subscriber = "0.3.20"
-zip = "4.6.1"
+zip = "4.6.0"
 
 # Async handling
 async-channel = "2.5"
@@ -146,7 +147,7 @@ serde = { version = "1.0.219", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.142", default-features = false }
+serde_json = { version = "1.0.145", default-features = false }
 uuid = { version = "1.18.0", default-features = false }
 
 libc = "0.2.175"
@@ -161,9 +162,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b8f477ca0b5a9f66ad5eb291b221e50945e22af4" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b8f477ca0b5a9f66ad5eb291b221e50945e22af4" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b8f477ca0b5a9f66ad5eb291b221e50945e22af4" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3770b479443368f13a727e145779ce711a8a9cc6" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3770b479443368f13a727e145779ce711a8a9cc6" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3770b479443368f13a727e145779ce711a8a9cc6" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
