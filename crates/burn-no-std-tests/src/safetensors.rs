@@ -1,4 +1,4 @@
-// Test SafeTensors persistence in no-std environment
+// Test SafeTensors storage in no-std environment
 
 use burn::{
     module::Module,
@@ -8,7 +8,7 @@ use burn::{
 
 use burn_store::{ModuleSnapshot, SafetensorsStore};
 
-/// Simple model for testing SafeTensors persistence
+/// Simple model for testing SafeTensors storage
 #[derive(Module, Debug)]
 pub struct TestModel<B: Backend> {
     linear1: nn::Linear<B>,

@@ -47,7 +47,7 @@
 //! use burn_store::{SafetensorsStore, PyTorchToBurnAdapter};
 //!
 //! // Load a PyTorch model with automatic conversion
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_from_adapter(PyTorchToBurnAdapter);
 //!
 //! // The adapter will:

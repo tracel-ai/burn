@@ -144,14 +144,14 @@ pub trait ModuleSnapshoter {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If all tensors were successfully collected and storeed
+    /// * `Ok(())` - If all tensors were successfully collected and stored
     /// * `Err(Self::Error)` - If an error occurred during collection or writing
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error>;
 
-    /// Load storeed tensor data and apply it to a module.
+    /// Load stored tensor data and apply it to a module.
     ///
     /// This method reads tensor data from storage and applies it to the provided
     /// module. The operation is flexible and can handle partial matches, missing

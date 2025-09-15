@@ -151,7 +151,7 @@
 //!     // Disable validation for faster loading
 //!     .validate(false);
 //!
-//! // Use the configured persister
+//! // Use the configured store
 //! model.collect_to(&mut store)?;  // For saving
 //! // or
 //! model.apply_from(&mut store)?;   // For loading
