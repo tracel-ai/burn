@@ -82,7 +82,7 @@ rstest = "0.25.0"
 rusqlite = "0.37.0"
 rust-format = "0.3.4"
 sanitize-filename = "0.6.0"
-serde_bytes = { version = "0.11.17", default-features = false, features = [
+serde_bytes = { version = "0.11.18", default-features = false, features = [
     "alloc",
 ] } # alloc for no_std
 serde_rusqlite = "0.40.0"
