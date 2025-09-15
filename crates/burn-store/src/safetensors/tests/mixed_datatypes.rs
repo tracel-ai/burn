@@ -204,7 +204,7 @@ mod tests {
         // requires all tensors in a model instance to share the same floating-point precision.
         // This is determined at the backend level (e.g., NdArray<f32> or NdArray<f64>).
         //
-        // However, for persistence purposes, SafeTensors can correctly save and load tensors
+        // However, for storage purposes, SafeTensors can correctly save and load tensors
         // with their original precision, preserving the data type information in the file format.
         // This test demonstrates that different precision backends work correctly with SafeTensors.
 

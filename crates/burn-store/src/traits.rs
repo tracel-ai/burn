@@ -6,7 +6,7 @@ use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::Module;
 use burn_tensor::backend::Backend;
 
-/// Extension trait for modules that provides tensor persistence functionality.
+/// Extension trait for modules that provides tensor storage functionality.
 ///
 /// This trait provides convenient methods to collect and apply tensor views from any Burn module.
 /// Collection operations create lightweight tensor views without immediately copying data.
@@ -94,12 +94,12 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a [`ModuleSnapshoter`] that will collect and save the tensors
-    fn collect_to<P>(&self, persister: &mut P) -> Result<(), P::Error>
+    /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will collect and save the tensors
+    fn collect_to<P>(&self, store: &mut P) -> Result<(), P::Error>
     where
         P: ModuleSnapshoter,
     {
-        persister.collect_from(self)
+        store.collect_from(self)
     }
 
     /// Applies tensor data from a [`ModuleSnapshoter`] for loading.
@@ -109,32 +109,32 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// # Arguments
     ///
-    /// * `persister` - A mutable reference to a [`ModuleSnapshoter`] that will load and apply tensors
-    fn apply_from<P>(&mut self, persister: &mut P) -> Result<ApplyResult, P::Error>
+    /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will load and apply tensors
+    fn apply_from<P>(&mut self, store: &mut P) -> Result<ApplyResult, P::Error>
     where
         P: ModuleSnapshoter,
     {
-        persister.apply_to(self)
+        store.apply_to(self)
     }
 }
 
-/// A trait for handling module persistence operations.
+/// A trait for handling module storage operations.
 ///
 /// `ModuleSnapshoter` provides a unified interface for saving and loading module
 /// tensor data with support for various storage formats and advanced features like filtering,
 /// remapping, and metadata handling.
 pub trait ModuleSnapshoter {
-    /// The error type that can be returned during persistence operations.
+    /// The error type that can be returned during storage operations.
     ///
     /// This should be a format-specific error type that provides detailed
     /// information about what went wrong (e.g., I/O errors, format violations,
     /// unsupported tensor types).
     type Error: core::fmt::Debug + core::fmt::Display;
 
-    /// Collect tensor data from a module and persist it to storage.
+    /// Collect tensor data from a module and store it to storage.
     ///
     /// This method traverses the module structure, collects all tensor data
-    /// according to the persister's configuration (filters, remapping, etc.),
+    /// according to the store's configuration (filters, remapping, etc.),
     /// and writes it to the underlying storage.
     ///
     /// # Arguments
@@ -144,14 +144,14 @@ pub trait ModuleSnapshoter {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If all tensors were successfully collected and persisted
+    /// * `Ok(())` - If all tensors were successfully collected and storeed
     /// * `Err(Self::Error)` - If an error occurred during collection or writing
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error>;
 
-    /// Load persisted tensor data and apply it to a module.
+    /// Load storeed tensor data and apply it to a module.
     ///
     /// This method reads tensor data from storage and applies it to the provided
     /// module. The operation is flexible and can handle partial matches, missing

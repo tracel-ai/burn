@@ -23,13 +23,13 @@
 //! use burn_store::ModuleSnapshot;
 //!
 //! // Save a model to a file
-//! let mut persister = SafetensorsStore::from_file("model.safetensors");
-//! model.collect_to(&mut persister)?;
+//! let mut store = SafetensorsStore::from_file("model.safetensors");
+//! model.collect_to(&mut store)?;
 //!
 //! // Load a model from a file  
-//! let mut persister = SafetensorsStore::from_file("model.safetensors");
+//! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut persister)?;
+//! model.apply_from(&mut store)?;
 //! ```
 //!
 //! ## Memory-Based Operations
@@ -39,14 +39,14 @@
 //! use burn_store::ModuleSnapshot;
 //!
 //! // Save to memory buffer
-//! let mut persister = SafetensorsStore::from_bytes(None);
-//! model.collect_to(&mut persister)?;
-//! let bytes = persister.get_bytes()?;
+//! let mut store = SafetensorsStore::from_bytes(None);
+//! model.collect_to(&mut store)?;
+//! let bytes = store.get_bytes()?;
 //!
 //! // Load from memory buffer
-//! let mut persister = SafetensorsStore::from_bytes(Some(bytes));
+//! let mut store = SafetensorsStore::from_bytes(Some(bytes));
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut persister)?;
+//! model.apply_from(&mut store)?;
 //! ```
 //!
 //! ## Advanced Features
@@ -58,25 +58,25 @@
 //! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Filter with regex patterns (OR logic - matches any pattern)
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")     // Match all encoder tensors
 //!     .with_regex(r".*\.bias$");        // OR match any bias tensors
 //!
 //! // Filter with exact paths
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_full_path("encoder.weight")
 //!     .with_full_path("encoder.bias")
 //!     .with_full_paths(vec!["decoder.scale", "decoder.norm"]);
 //!
 //! // Custom filter logic with predicate
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_predicate(|path, _dtype| {
 //!         // Only save layer weights (not biases)
 //!         path.contains("layer") && path.ends_with("weight")
 //!     });
 //!
 //! // Combine multiple filter methods
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")           // All encoder tensors
 //!     .with_full_path("decoder.scale")       // Plus specific decoder.scale
 //!     .with_predicate(|path, _| {            // Plus any projection tensors
@@ -84,7 +84,7 @@
 //!     });
 //!
 //! // Save or load all tensors (no filtering)
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .match_all();
 //! ```
 //!
@@ -98,7 +98,7 @@
 //! use burn_store::KeyRemapper;
 //!
 //! // Using builder pattern for common remapping patterns
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
 //!     .with_key_pattern(r"\.gamma$", ".weight")                // X.gamma -> X.weight  
 //!     .with_key_pattern(r"\.beta$", ".bias");                  // X.beta -> X.bias
@@ -109,7 +109,7 @@
 //!     .add_pattern(r"^(.*)\.running_mean$", "$1.mean")?     // layer.running_mean -> layer.mean
 //!     .add_pattern(r"^(.*)\.running_var$", "$1.variance")?; // layer.running_var -> layer.variance
 //!
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .remap(remapper);
 //! ```
 //!
@@ -122,18 +122,18 @@
 //! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Loading PyTorch model into Burn
-//! let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
+//! let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
 //!     .with_from_adapter(PyTorchToBurnAdapter)  // Transposes linear weights, renames norm params
 //!     .allow_partial(true);                     // PyTorch models may have extra tensors
 //!
 //! let mut burn_model = Model::new(&device);
-//! burn_model.apply_from(&mut persister)?;
+//! burn_model.apply_from(&mut store)?;
 //!
 //! // Saving Burn model for PyTorch
-//! let mut persister = SafetensorsStore::from_file("for_pytorch.safetensors")
+//! let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
 //!     .with_to_adapter(BurnToPyTorchAdapter);   // Transposes weights back, renames for PyTorch
 //!
-//! burn_model.collect_to(&mut persister)?;
+//! burn_model.collect_to(&mut store)?;
 //! ```
 //!
 //! ### Additional Configuration Options
@@ -142,7 +142,7 @@
 //! use burn_store::ModuleSnapshot;
 //! use burn_store::safetensors::SafetensorsStore;
 //!
-//! let mut persister = SafetensorsStore::from_file("model.safetensors")
+//! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     // Add custom metadata
 //!     .metadata("version", "1.0.0")
 //!     .metadata("framework", "burn")
@@ -152,9 +152,9 @@
 //!     .validate(false);
 //!
 //! // Use the configured persister
-//! model.collect_to(&mut persister)?;  // For saving
+//! model.collect_to(&mut store)?;  // For saving
 //! // or
-//! model.apply_from(&mut persister)?;   // For loading
+//! model.apply_from(&mut store)?;   // For loading
 //! ```
 //!
 //! # Efficient Loading with SafeTensors
@@ -162,11 +162,11 @@
 //! SafeTensors provides efficient tensor loading through its zero-copy design:
 //!
 //! ```rust,ignore
-//! let mut persister = SafetensorsStore::from_file("large_model.safetensors");
+//! let mut store = SafetensorsStore::from_file("large_model.safetensors");
 //! // Uses memory mapping (when available) for zero-copy access
 //! // Falls back to buffered reading when mmap is not available
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut persister)?;
+//! model.apply_from(&mut store)?;
 //! ```
 //!
 //! The safetensors approach provides:
@@ -183,19 +183,19 @@
 //! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Open a file - uses safetensors' efficient header reading
-//! let persister = SafetensorsStore::from_file("large_model.safetensors");
+//! let store = SafetensorsStore::from_file("large_model.safetensors");
 //!
 //! // List all tensor names from the metadata
-//! let tensor_names = persister.list_tensors()?;
+//! let tensor_names = store.list_tensors()?;
 //! println!("Model contains {} tensors", tensor_names.len());
 //!
 //! // Get tensor metadata without loading tensor data
-//! if let Some((shape, dtype)) = persister.tensor_info("encoder.weight")? {
+//! if let Some((shape, dtype)) = store.tensor_info("encoder.weight")? {
 //!     println!("Encoder weight shape: {:?}, dtype: {:?}", shape, dtype);
 //! }
 //!
 //! // Selectively load tensors - safetensors handles efficient access
-//! let encoder_tensors = persister.load_tensors(&[
+//! let encoder_tensors = store.load_tensors(&[
 //!     "encoder.weight",
 //!     "encoder.bias",
 //!     "encoder.norm"
@@ -209,7 +209,7 @@
 //!     2 => vec!["decoder.layer1", "decoder.layer2"],
 //!     _ => vec!["head.weight", "head.bias"],
 //! };
-//! let worker_tensors = persister.load_tensors(&worker_layers)?;
+//! let worker_tensors = store.load_tensors(&worker_layers)?;
 //! ```
 //!
 //! # Builder Pattern API Reference
@@ -243,7 +243,7 @@
 //! All methods return `Self` for chaining:
 //!
 //! ```rust,ignore
-//! let persister = SafetensorsStore::from_file("model.safetensors")
+//! let store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")
 //!     .with_key_pattern(r"\.gamma$", ".weight")
 //!     .with_from_adapter(PyTorchToBurnAdapter)
@@ -260,19 +260,19 @@
 //! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Save to bytes with filtering and remapping
-//! let mut persister = SafetensorsStore::from_bytes(None)
+//! let mut store = SafetensorsStore::from_bytes(None)
 //!     .with_regex(r"^encoder\..*")                       // Only save encoder tensors
 //!     .with_key_pattern(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
-//! model.collect_to(&mut persister)?;
-//! let bytes = persister.get_bytes()?;
+//! model.collect_to(&mut store)?;
+//! let bytes = store.get_bytes()?;
 //!
 //! // Load from bytes (allow partial since we only saved encoder)
-//! let mut persister = SafetensorsStore::from_bytes(Some(bytes))
+//! let mut store = SafetensorsStore::from_bytes(Some(bytes))
 //!     .with_key_pattern(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
 //!     .allow_partial(true);
 //! let mut model = Model::new(&device);
-//! let result = model.apply_from(&mut persister)?;
+//! let result = model.apply_from(&mut store)?;
 //! println!("Applied {} tensors", result.applied.len());
 //! ```
 //!
@@ -285,7 +285,7 @@
 //! use burn_store::safetensors::SafetensorsStore;
 //!
 //! // Load PyTorch model with all transformations
-//! let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
+//! let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
 //!     // Use PyTorch adapter for automatic transformations
 //!     .with_from_adapter(PyTorchToBurnAdapter)
 //!     // Only load transformer layers
@@ -299,7 +299,7 @@
 //!     .metadata("converted_by", "burn-store");
 //!
 //! let mut model = TransformerModel::new(&device);
-//! let result = model.apply_from(&mut persister)?;
+//! let result = model.apply_from(&mut store)?;
 //!
 //! println!("Successfully loaded {} tensors", result.applied.len());
 //! if !result.missing.is_empty() {
