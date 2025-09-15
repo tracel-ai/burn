@@ -125,17 +125,24 @@ impl PathFilter {
 
     /// Check if a path matches this filter (assumes empty container path for backward compatibility)
     pub fn matches(&self, path: &str) -> bool {
-        self.matches_with_container_path(path, "")
+        self.matches_with_container_path_str(path, "")
     }
 
     /// Check if a path and container type match this filter (for backward compatibility)
     pub fn matches_with_container(&self, path: &str, container_type: &str) -> bool {
         // For backward compatibility, treat single container type as the full path
-        self.matches_with_container_path(path, container_type)
+        self.matches_with_container_path_str(path, container_type)
     }
 
-    /// Check if a path and container path (dot-notated) match this filter
-    pub fn matches_with_container_path(&self, path: &str, container_path: &str) -> bool {
+    /// Check if a path and container path match this filter
+    pub fn matches_with_container_path(&self, path: &[String], container_stack: &[String]) -> bool {
+        let path_str = path.join(".");
+        let container_path = container_stack.join(".");
+        self.matches_with_container_path_str(&path_str, &container_path)
+    }
+
+    /// Check if a path and container path (dot-notated strings) match this filter
+    pub fn matches_with_container_path_str(&self, path: &str, container_path: &str) -> bool {
         // If match_all is set, always return true
         if self.match_all {
             return true;
@@ -520,22 +527,18 @@ mod tests {
                 && parts[2] == "Linear"
         });
 
-        assert!(
-            nested_filter.matches_with_container_path(
-                "encoder.weight",
-                "Model.TransformerBlock.Linear.Param"
-            )
-        );
+        assert!(nested_filter.matches_with_container_path_str(
+            "encoder.weight",
+            "Model.TransformerBlock.Linear.Param"
+        ));
         assert!(
             !nested_filter
-                .matches_with_container_path("decoder.weight", "Model.Decoder.Linear.Param")
+                .matches_with_container_path_str("decoder.weight", "Model.Decoder.Linear.Param")
         );
-        assert!(
-            !nested_filter.matches_with_container_path(
-                "encoder.weight",
-                "Model.TransformerBlock.Conv2d.Param"
-            )
-        );
+        assert!(!nested_filter.matches_with_container_path_str(
+            "encoder.weight",
+            "Model.TransformerBlock.Conv2d.Param"
+        ));
 
         // Filter that checks for specific depth in hierarchy
         let depth_filter = PathFilter::new().with_predicate(|_path, container_path| {
@@ -543,13 +546,13 @@ mod tests {
             parts.len() == 4 && parts.get(2) == Some(&"Linear")
         });
 
-        assert!(depth_filter.matches_with_container_path(
+        assert!(depth_filter.matches_with_container_path_str(
             "model.layer.weight",
             "Model.TransformerBlock.Linear.Param"
         ));
         assert!(
             !depth_filter
-                .matches_with_container_path("model.weight", "Model.TransformerBlock.Conv2d")
+                .matches_with_container_path_str("model.weight", "Model.TransformerBlock.Conv2d")
         ); // Too shallow
 
         // Filter that checks any Linear in the path (not just the last)
@@ -557,13 +560,19 @@ mod tests {
             .with_predicate(|_path, container_path| container_path.contains("Linear"));
 
         assert!(
-            any_linear
-                .matches_with_container_path("some.path", "Model.TransformerBlock.Linear.Param")
+            any_linear.matches_with_container_path_str(
+                "some.path",
+                "Model.TransformerBlock.Linear.Param"
+            )
         );
-        assert!(any_linear.matches_with_container_path("other.path", "Model.Decoder.Linear.Param"));
         assert!(
-            !any_linear
-                .matches_with_container_path("conv.path", "Model.TransformerBlock.Conv2d.Param")
+            any_linear.matches_with_container_path_str("other.path", "Model.Decoder.Linear.Param")
+        );
+        assert!(
+            !any_linear.matches_with_container_path_str(
+                "conv.path",
+                "Model.TransformerBlock.Conv2d.Param"
+            )
         );
     }
 
@@ -575,8 +584,10 @@ mod tests {
         });
 
         // Test with matches_with_container_path
-        assert!(dot_filter.matches_with_container_path("weight", "Model.TransformerBlock.Linear"));
-        assert!(!dot_filter.matches_with_container_path("weight", "Model.Decoder.Linear"));
+        assert!(
+            dot_filter.matches_with_container_path_str("weight", "Model.TransformerBlock.Linear")
+        );
+        assert!(!dot_filter.matches_with_container_path_str("weight", "Model.Decoder.Linear"));
 
         // Filter that checks for specific patterns in container path
         let pattern_filter = PathFilter::new().with_predicate(|_path, container_path| {
@@ -585,10 +596,11 @@ mod tests {
         });
 
         assert!(
-            pattern_filter.matches_with_container_path("weight", "Model.TransformerBlock.Linear")
+            pattern_filter
+                .matches_with_container_path_str("weight", "Model.TransformerBlock.Linear")
         );
-        assert!(pattern_filter.matches_with_container_path("weight", "Model.ResBlock.Conv2d"));
-        assert!(!pattern_filter.matches_with_container_path("weight", "Model.Linear.Param"));
+        assert!(pattern_filter.matches_with_container_path_str("weight", "Model.ResBlock.Conv2d"));
+        assert!(!pattern_filter.matches_with_container_path_str("weight", "Model.Linear.Param"));
 
         // Filter combining path and container path patterns
         let combined = PathFilter::new().with_predicate(|path, container_path| {
@@ -599,11 +611,13 @@ mod tests {
         });
 
         assert!(
-            combined.matches_with_container_path("layer.weight", "Model.TransformerBlock.Linear")
+            combined
+                .matches_with_container_path_str("layer.weight", "Model.TransformerBlock.Linear")
         );
         assert!(
-            !combined.matches_with_container_path("layer.bias", "Model.TransformerBlock.Linear")
+            !combined
+                .matches_with_container_path_str("layer.bias", "Model.TransformerBlock.Linear")
         );
-        assert!(!combined.matches_with_container_path("layer.weight", "Model.Decoder.Linear"));
+        assert!(!combined.matches_with_container_path_str("layer.weight", "Model.Decoder.Linear"));
     }
 }

@@ -207,11 +207,11 @@ impl<B: Backend> Applier<B> {
     }
 
     /// Check if a tensor at the given path should be applied
-    fn should_apply(&self, path: &str, container_path: &str) -> bool {
+    fn should_apply(&self, path: &[String], container_stack: &[String]) -> bool {
         // If filter is present, use it; otherwise apply all
         match &self.filter {
             None => true,
-            Some(f) => f.matches_with_container_path(path, container_path),
+            Some(f) => f.matches_with_container_path(path, container_stack),
         }
     }
 
@@ -258,16 +258,15 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
     }
 
     fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        let path = self.current_path();
-        if path.is_empty() {
+        if self.path_stack.is_empty() {
             return tensor;
         }
 
+        let path = self.current_path();
         self.visited_paths.insert(path.clone());
-        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path, &container_path) {
+            if !self.should_apply(&self.path_stack, &self.container_stack) {
                 self.skipped.insert(path);
                 return tensor;
             }
@@ -299,16 +298,15 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         _id: ParamId,
         tensor: Tensor<B, D, Int>,
     ) -> Tensor<B, D, Int> {
-        let path = self.current_path();
-        if path.is_empty() {
+        if self.path_stack.is_empty() {
             return tensor;
         }
 
+        let path = self.current_path();
         self.visited_paths.insert(path.clone());
-        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path, &container_path) {
+            if !self.should_apply(&self.path_stack, &self.container_stack) {
                 self.skipped.insert(path);
                 return tensor;
             }
@@ -340,16 +338,15 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         _id: ParamId,
         tensor: Tensor<B, D, Bool>,
     ) -> Tensor<B, D, Bool> {
-        let path = self.current_path();
-        if path.is_empty() {
+        if self.path_stack.is_empty() {
             return tensor;
         }
 
+        let path = self.current_path();
         self.visited_paths.insert(path.clone());
-        let container_path = self.container_stack.join(".");
 
         if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&path, &container_path) {
+            if !self.should_apply(&self.path_stack, &self.container_stack) {
                 self.skipped.insert(path);
                 return tensor;
             }

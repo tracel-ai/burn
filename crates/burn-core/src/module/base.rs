@@ -3,7 +3,7 @@ use crate::{
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Int, Tensor, ops::Device};
 
@@ -254,13 +254,15 @@ pub trait ModuleVisitor<B: Backend> {
     /// Visit a float tensor with its full module path.
     ///
     /// # Parameters
-    /// - `path`: The full path to the tensor (e.g., "encoder.layer1.weight")
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
     /// - `id`: The unique identifier of the parameter
     /// - `tensor`: The float tensor to visit
     #[allow(unused_variables)]
     fn visit_float_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D>,
     ) {
@@ -269,13 +271,15 @@ pub trait ModuleVisitor<B: Backend> {
     /// Visit an int tensor with its full module path.
     ///
     /// # Parameters
-    /// - `path`: The full path to the tensor (e.g., "encoder.layer1.weight")
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
     /// - `id`: The unique identifier of the parameter
     /// - `tensor`: The integer tensor to visit
     #[allow(unused_variables)]
     fn visit_int_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D, Int>,
     ) {
@@ -284,13 +288,15 @@ pub trait ModuleVisitor<B: Backend> {
     /// Visit a bool tensor with its full module path.
     ///
     /// # Parameters
-    /// - `path`: The full path to the tensor (e.g., "encoder.layer1.weight")
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
     /// - `id`: The unique identifier of the parameter
     /// - `tensor`: The boolean tensor to visit
     #[allow(unused_variables)]
     fn visit_bool_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D, Bool>,
     ) {

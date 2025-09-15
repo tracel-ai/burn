@@ -85,15 +85,11 @@ impl Collector {
         }
     }
 
-    fn current_path(&self) -> String {
-        self.path_stack.join(".")
-    }
-
-    fn should_collect(&self, path: &str, container_path: &str) -> bool {
+    fn should_collect(&self, path: &[String], container_stack: &[String]) -> bool {
         // If filter is present, use it; otherwise collect all
         match &self.filter {
             None => true,
-            Some(f) => f.matches_with_container_path(path, container_path),
+            Some(f) => f.matches_with_container_path(path, container_stack),
         }
     }
 }
@@ -110,9 +106,9 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
-        let path = self.current_path();
-        let container_path = self.container_stack.join(".");
-        if !path.is_empty() && self.should_collect(&path, &container_path) {
+        if !self.path_stack.is_empty()
+            && self.should_collect(&self.path_stack, &self.container_stack)
+        {
             self.tensors.push(TensorSnapshot::from_float(
                 tensor,
                 self.path_stack.clone(),
@@ -123,9 +119,9 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
-        let path = self.current_path();
-        let container_path = self.container_stack.join(".");
-        if !path.is_empty() && self.should_collect(&path, &container_path) {
+        if !self.path_stack.is_empty()
+            && self.should_collect(&self.path_stack, &self.container_stack)
+        {
             self.tensors.push(TensorSnapshot::from_int(
                 tensor,
                 self.path_stack.clone(),
@@ -136,9 +132,9 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
-        let path = self.current_path();
-        let container_path = self.container_stack.join(".");
-        if !path.is_empty() && self.should_collect(&path, &container_path) {
+        if !self.path_stack.is_empty()
+            && self.should_collect(&self.path_stack, &self.container_stack)
+        {
             self.tensors.push(TensorSnapshot::from_bool(
                 tensor,
                 self.path_stack.clone(),
@@ -150,18 +146,15 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
 
     fn visit_float_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D>,
     ) {
         // For path-based visits, we use the current container stack for filtering
-        let container_path = self.container_stack.join(".");
-        if self.should_collect(path, &container_path) {
-            // For path-based visits, we need to construct the path stack from the path string
-            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
+        if self.should_collect(path, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_float(
                 tensor,
-                path_parts,
+                path.to_vec(),
                 self.container_stack.clone(),
                 id,
             ));
@@ -170,16 +163,14 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
 
     fn visit_int_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D, Int>,
     ) {
-        let container_path = self.container_stack.join(".");
-        if self.should_collect(path, &container_path) {
-            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
+        if self.should_collect(path, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_int(
                 tensor,
-                path_parts,
+                path.to_vec(),
                 self.container_stack.clone(),
                 id,
             ));
@@ -188,16 +179,14 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
 
     fn visit_bool_with_path<const D: usize>(
         &mut self,
-        path: &str,
+        path: &[String],
         id: ParamId,
         tensor: &Tensor<B, D, Bool>,
     ) {
-        let container_path = self.container_stack.join(".");
-        if self.should_collect(path, &container_path) {
-            let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
+        if self.should_collect(path, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_bool(
                 tensor,
-                path_parts,
+                path.to_vec(),
                 self.container_stack.clone(),
                 id,
             ));
@@ -225,7 +214,11 @@ mod tests {
         let id = ParamId::new();
 
         // Collect a tensor
-        collector.visit_float_with_path("model.weight", id, &tensor);
+        collector.visit_float_with_path(
+            &vec!["model".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        );
 
         assert_eq!(collector.tensors.len(), 1);
         assert_eq!(collector.tensors[0].full_path(), "model.weight");
@@ -247,9 +240,17 @@ mod tests {
         let id = ParamId::new();
 
         // This should be collected
-        collector.visit_float_with_path("encoder.weight", id, &tensor);
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        );
         // This should NOT be collected
-        collector.visit_float_with_path("decoder.weight", id, &tensor);
+        collector.visit_float_with_path(
+            &vec!["decoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        );
 
         assert_eq!(collector.tensors.len(), 1);
         assert_eq!(collector.tensors[0].full_path(), "encoder.weight");
@@ -269,12 +270,28 @@ mod tests {
         let id = ParamId::new();
 
         // These should be collected
-        collector.visit_float_with_path("encoder.weight", id, &tensor); // matches first pattern
-        collector.visit_float_with_path("decoder.bias", id, &tensor); // matches second pattern
-        collector.visit_float_with_path("encoder.bias", id, &tensor); // matches both patterns
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        ); // matches first pattern
+        collector.visit_float_with_path(
+            &vec!["decoder".to_string(), "bias".to_string()],
+            id,
+            &tensor,
+        ); // matches second pattern
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "bias".to_string()],
+            id,
+            &tensor,
+        ); // matches both patterns
 
         // This should NOT be collected
-        collector.visit_float_with_path("decoder.weight", id, &tensor); // matches neither
+        collector.visit_float_with_path(
+            &vec!["decoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        ); // matches neither
 
         assert_eq!(collector.tensors.len(), 3);
         let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
@@ -298,13 +315,33 @@ mod tests {
         let id = ParamId::new();
 
         // These should be collected
-        collector.visit_float_with_path("encoder.weight", id, &tensor);
-        collector.visit_float_with_path("encoder.bias", id, &tensor);
-        collector.visit_float_with_path("decoder.bias", id, &tensor);
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "bias".to_string()],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec!["decoder".to_string(), "bias".to_string()],
+            id,
+            &tensor,
+        );
 
         // This should NOT be collected
-        collector.visit_float_with_path("decoder.weight", id, &tensor);
-        collector.visit_float_with_path("other.tensor", id, &tensor);
+        collector.visit_float_with_path(
+            &vec!["decoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec!["other".to_string(), "tensor".to_string()],
+            id,
+            &tensor,
+        );
 
         assert_eq!(collector.tensors.len(), 3);
         let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
@@ -334,13 +371,49 @@ mod tests {
         let id = ParamId::new();
 
         // These should be collected
-        collector.visit_float_with_path("model.layer1.weight", id, &tensor);
-        collector.visit_float_with_path("model.layer2.weight", id, &tensor);
+        collector.visit_float_with_path(
+            &vec![
+                "model".to_string(),
+                "layer1".to_string(),
+                "weight".to_string(),
+            ],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec![
+                "model".to_string(),
+                "layer2".to_string(),
+                "weight".to_string(),
+            ],
+            id,
+            &tensor,
+        );
 
         // These should NOT be collected
-        collector.visit_float_with_path("model.layer1.bias", id, &tensor);
-        collector.visit_float_with_path("model.layer3.weight", id, &tensor);
-        collector.visit_float_with_path("encoder.weight", id, &tensor); // wrong structure
+        collector.visit_float_with_path(
+            &vec![
+                "model".to_string(),
+                "layer1".to_string(),
+                "bias".to_string(),
+            ],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec![
+                "model".to_string(),
+                "layer3".to_string(),
+                "weight".to_string(),
+            ],
+            id,
+            &tensor,
+        );
+        collector.visit_float_with_path(
+            &vec!["encoder".to_string(), "weight".to_string()],
+            id,
+            &tensor,
+        ); // wrong structure
 
         assert_eq!(collector.tensors.len(), 2);
         let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
