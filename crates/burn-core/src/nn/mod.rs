@@ -32,6 +32,7 @@ mod linear;
 mod padding;
 mod pos_encoding;
 mod rnn;
+mod rope3d_encoding;
 mod rope_encoding;
 mod unfold;
 
@@ -46,4 +47,5 @@ pub use padding::*;
 pub use pos_encoding::*;
 pub use rnn::*;
 pub use rope_encoding::*;
+pub use rope3d_encoding::*;
 pub use unfold::*;
