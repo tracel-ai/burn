@@ -94,10 +94,8 @@ impl<B: Backend> LargeModel<B> {
 }
 
 fn create_test_file<B: Backend, M: Module<B>>(path: &PathBuf, model: M) {
-    let mut persister = SafetensorsStore::from_file(path.clone());
-    model
-        .collect_to(&mut persister)
-        .expect("Failed to save model");
+    let mut store = SafetensorsStore::from_file(path.clone());
+    model.collect_to(&mut store).expect("Failed to save model");
 }
 
 fn main() {
@@ -160,8 +158,8 @@ macro_rules! bench_backend {
                         });
                 }
 
-                #[divan::bench(name = "new_persister")]
-                fn new_persister_simple(bencher: Bencher) {
+                #[divan::bench(name = "new_store")]
+                fn new_store_simple(bencher: Bencher) {
                     let (_temp_dir, file_path, file_size) = setup_simple_model_file();
 
                     bencher
@@ -169,8 +167,8 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = SimpleModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsStore::from_file(file_path.clone());
-                            model.apply_from(&mut persister).expect("Failed to load");
+                            let mut store = SafetensorsStore::from_file(file_path.clone());
+                            model.apply_from(&mut store).expect("Failed to load");
                         });
                 }
             }
@@ -207,8 +205,8 @@ macro_rules! bench_backend {
                         });
                 }
 
-                #[divan::bench(name = "new_persister")]
-                fn new_persister_medium(bencher: Bencher) {
+                #[divan::bench(name = "new_store")]
+                fn new_store_medium(bencher: Bencher) {
                     let (_temp_dir, file_path, file_size) = setup_medium_model_file();
 
                     bencher
@@ -216,8 +214,8 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = MediumModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsStore::from_file(file_path.clone());
-                            model.apply_from(&mut persister).expect("Failed to load");
+                            let mut store = SafetensorsStore::from_file(file_path.clone());
+                            model.apply_from(&mut store).expect("Failed to load");
                         });
                 }
             }
@@ -254,8 +252,8 @@ macro_rules! bench_backend {
                         });
                 }
 
-                #[divan::bench(name = "new_persister")]
-                fn new_persister_large(bencher: Bencher) {
+                #[divan::bench(name = "new_store")]
+                fn new_store_large(bencher: Bencher) {
                     let (_temp_dir, file_path, file_size) = setup_large_model_file();
 
                     bencher
@@ -263,8 +261,8 @@ macro_rules! bench_backend {
                         .bench(|| {
                             let device: TestDevice = Default::default();
                             let mut model = LargeModel::<TestBackend>::new(&device);
-                            let mut persister = SafetensorsStore::from_file(file_path.clone());
-                            model.apply_from(&mut persister).expect("Failed to load");
+                            let mut store = SafetensorsStore::from_file(file_path.clone());
+                            model.apply_from(&mut store).expect("Failed to load");
                         });
                 }
             }

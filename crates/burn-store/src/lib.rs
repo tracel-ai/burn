@@ -1,8 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! Module persistence and serialization infrastructure.
+//! Module storage and serialization infrastructure.
 //!
-//! This module provides comprehensive functionality for persisting and loading Burn modules
+//! This module provides comprehensive functionality for storing and loading Burn modules
 //! and their tensor data. It supports bidirectional data flow with flexible filtering,
 //! remapping, and efficient memory management through lazy materialization.
 

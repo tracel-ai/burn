@@ -50,31 +50,31 @@ burn-store = { version = "0.19", features = ["std", "safetensors"] }
 use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 // Save a model
-let mut persister = SafetensorsStore::from_file("model.safetensors");
-model.collect_to(&mut persister)?;
+let mut store = SafetensorsStore::from_file("model.safetensors");
+model.collect_to(&mut store)?;
 
 // Load a model
-let mut persister = SafetensorsStore::from_file("model.safetensors");
-model.apply_from(&mut persister)?;
+let mut store = SafetensorsStore::from_file("model.safetensors");
+model.apply_from(&mut store)?;
 ```
 
 ### Filtering Tensors
 
 ```rust
 // Save only encoder layers
-let mut persister = SafetensorsStore::from_file("encoder.safetensors")
+let mut store = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .metadata("subset", "encoder_only");
 
-model.collect_to(&mut persister)?;
+model.collect_to(&mut store)?;
 
 // Load with multiple filter patterns (OR logic)
-let mut persister = SafetensorsStore::from_file("model.safetensors")
+let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_regex(r"^encoder\..*")      // Include encoder tensors
     .with_regex(r".*\.bias$")          // OR include any bias tensors
     .with_full_path("decoder.scale"); // OR include specific tensor
 
-model.apply_from(&mut persister)?;
+model.apply_from(&mut store)?;
 ```
 
 ### PyTorch Interoperability
@@ -83,24 +83,24 @@ model.apply_from(&mut persister)?;
 use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter};
 
 // Load PyTorch model into Burn
-let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
+let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
     .allow_partial(true);                     // Skip unknown PyTorch tensors
 
-burn_model.apply_from(&mut persister)?;
+burn_model.apply_from(&mut store)?;
 
 // Save Burn model for PyTorch
-let mut persister = SafetensorsStore::from_file("for_pytorch.safetensors")
+let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
     .with_to_adapter(BurnToPyTorchAdapter);   // Convert back to PyTorch format
 
-burn_model.collect_to(&mut persister)?;
+burn_model.collect_to(&mut store)?;
 ```
 
 ### Tensor Name Remapping
 
 ```rust
 // Simple pattern-based remapping
-let mut persister = SafetensorsStore::from_file("model.safetensors")
+let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_key_pattern(r"^old_model\.", "new_model.")  // old_model.X -> new_model.X
     .with_key_pattern(r"\.gamma$", ".weight")         // X.gamma -> X.weight
     .with_key_pattern(r"\.beta$", ".bias");          // X.beta -> X.bias
@@ -112,7 +112,7 @@ let remapper = KeyRemapper::new()
     .add_pattern(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")?  // h.0 -> layer0
     .add_pattern(r"^(.*?)\.attn\.", "$1.attention.")?;                  // attn -> attention
 
-let mut persister = SafetensorsStore::from_file("model.safetensors")
+let mut store = SafetensorsStore::from_file("model.safetensors")
     .remap(remapper);
 ```
 
@@ -120,15 +120,15 @@ let mut persister = SafetensorsStore::from_file("model.safetensors")
 
 ```rust
 // Save to memory buffer
-let mut persister = SafetensorsStore::from_bytes(None)
+let mut store = SafetensorsStore::from_bytes(None)
     .with_regex(r"^encoder\..*");
-model.collect_to(&mut persister)?;
-let bytes = persister.get_bytes()?;
+model.collect_to(&mut store)?;
+let bytes = store.get_bytes()?;
 
 // Load from memory buffer
-let mut persister = SafetensorsStore::from_bytes(Some(bytes))
+let mut store = SafetensorsStore::from_bytes(Some(bytes))
     .allow_partial(true);
-let result = model.apply_from(&mut persister)?;
+let result = model.apply_from(&mut store)?;
 
 println!("Loaded {} tensors", result.applied.len());
 if !result.missing.is_empty() {
@@ -143,7 +143,7 @@ use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
 use burn_store::safetensors::SafetensorsStore;
 
 // Load and convert a PyTorch transformer model
-let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
+let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     // Automatic PyTorch → Burn conversions
     .with_from_adapter(PyTorchToBurnAdapter)
     // Only load transformer layers
@@ -157,7 +157,7 @@ let mut persister = SafetensorsStore::from_file("pytorch_model.safetensors")
     .metadata("converted_by", "burn-store");
 
 let mut model = TransformerModel::new(&device);
-let result = model.apply_from(&mut persister)?;
+let result = model.apply_from(&mut store)?;
 
 println!("Successfully migrated {} tensors", result.applied.len());
 ```
@@ -193,7 +193,7 @@ The benchmarks test three model sizes (small, medium, large) and show:
 - **Memory allocation** statistics (max allocations, total allocations/deallocations)
 - Comparison between old `SafetensorsFileRecorder` and new `SafetensorsStore`
 
-Typical improvements with the new persister:
+Typical improvements with the new store:
 
 - **1.75-2.1x faster** loading on CPU backends
 - **~60% less memory usage** due to optimized allocation patterns

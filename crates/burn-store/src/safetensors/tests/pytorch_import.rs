@@ -55,12 +55,12 @@ fn multi_layer_model_import() {
     // Note: PyTorch and Burn have different conventions for linear layer weights
     // PyTorch stores as [out_features, in_features], Burn as [in_features, out_features]
     // Also, tensor names may differ (e.g., PyTorch uses different names for BatchNorm params)
-    let mut persister = SafetensorsStore::from_file(safetensors_path)
+    let mut store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
 
-    let result = model.apply_from(&mut persister).unwrap();
+    let result = model.apply_from(&mut store).unwrap();
 
     // Since we have shape mismatches with PyTorch model (transposed weights),
     // we expect some errors but should still load what we can
@@ -93,30 +93,30 @@ fn safetensors_round_trip_with_pytorch_model() {
     );
 
     // Load the model from PyTorch safetensors
-    let mut load_persister = SafetensorsStore::from_file(safetensors_path)
+    let mut load_store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
-    let load_result = model.apply_from(&mut load_persister).unwrap();
+    let load_result = model.apply_from(&mut load_store).unwrap();
     // We expect some errors due to shape mismatch but some tensors should load
     assert!(load_result.applied.len() > 0);
 
     // Save the model to memory
-    let mut save_persister = SafetensorsStore::from_bytes(None)
+    let mut save_store = SafetensorsStore::from_bytes(None)
         .metadata("source", "pytorch")
         .metadata("framework", "burn");
-    model.collect_to(&mut save_persister).unwrap();
+    model.collect_to(&mut save_store).unwrap();
 
     // Load into a new model
     let mut model2 = Net::<TestBackend>::new(&device);
-    let mut load_persister2 = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister2 {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store2 = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_store2 {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
-    let result = model2.apply_from(&mut load_persister2).unwrap();
+    let result = model2.apply_from(&mut load_store2).unwrap();
     assert!(result.applied.len() > 0);
 
     // Verify both models produce the same output
@@ -145,7 +145,7 @@ fn partial_load_from_pytorch_model() {
     );
 
     // Load only conv1 and norm1 parameters (not fc1)
-    let mut persister = SafetensorsStore::from_file(safetensors_path)
+    let mut store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true);
 
@@ -154,7 +154,7 @@ fn partial_load_from_pytorch_model() {
     // Save initial fc1 weights for comparison
     let _initial_fc1_weight = model.fc1.weight.val().to_data();
 
-    let result = model.apply_from(&mut persister).unwrap();
+    let result = model.apply_from(&mut store).unwrap();
 
     // Should load available tensors (with some errors due to shape mismatch)
     assert!(result.applied.len() > 0);
@@ -177,10 +177,10 @@ fn verify_tensor_names_from_pytorch() {
 
     // Create a model and load from PyTorch
     let mut model = Net::<TestBackend>::new(&device);
-    let mut persister = SafetensorsStore::from_file(safetensors_path)
+    let mut store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
-    let result = model.apply_from(&mut persister).unwrap();
+    let result = model.apply_from(&mut store).unwrap();
 
     // Check that we loaded some tensors (with errors due to shape mismatch)
     assert!(result.applied.len() > 0);

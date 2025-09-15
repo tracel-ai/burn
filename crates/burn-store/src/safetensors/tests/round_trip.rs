@@ -73,20 +73,20 @@ fn complex_module_round_trip() {
     let module1 = ComplexModule::<TestBackend>::new(&device);
     let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
 
-    // Save module1 using new persister API
-    let mut save_persister = SafetensorsStore::from_bytes(None);
-    module1.collect_to(&mut save_persister).unwrap();
+    // Save module1 using new store API
+    let mut save_store = SafetensorsStore::from_bytes(None);
+    module1.collect_to(&mut save_store).unwrap();
 
     // Load into module2
-    let mut load_persister = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             // Get Arc and extract data
             let data_arc = p_save.data().unwrap();
             p.set_data(data_arc.as_ref().clone());
         }
     }
-    let result = module2.apply_from(&mut load_persister).unwrap();
+    let result = module2.apply_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert!(result.applied.len() > 5);

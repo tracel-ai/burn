@@ -5,7 +5,7 @@ use burn_tensor::backend::Backend;
 
 type TestBackend = burn_ndarray::NdArray;
 
-// Integration tests demonstrating the SafeTensors persister API
+// Integration tests demonstrating the SafeTensors store API
 #[derive(Module, Debug)]
 struct IntegrationTestModel<B: Backend> {
     encoder: IntegrationEncoderModule<B>,
@@ -114,23 +114,23 @@ fn basic_usage() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save using new API
-    let mut save_persister = SafetensorsStore::from_bytes(None)
+    let mut save_store = SafetensorsStore::from_bytes(None)
         .metadata("framework", "burn")
         .metadata("version", "0.19.0");
 
     // Use collect_to method
-    model.collect_to(&mut save_persister).unwrap();
+    model.collect_to(&mut save_store).unwrap();
 
     // Load using new API
-    let mut load_persister = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
-    let result = target_model.apply_from(&mut load_persister).unwrap();
+    let result = target_model.apply_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert_eq!(result.applied.len(), 14); // All tensors should be applied
@@ -145,22 +145,22 @@ fn with_filtering() {
     let model = IntegrationTestModel::<TestBackend>::new(&device);
 
     // Save only encoder tensors using the builder pattern
-    let mut save_persister = SafetensorsStore::from_bytes(None)
+    let mut save_store = SafetensorsStore::from_bytes(None)
         .with_regex(r"^encoder\..*")
         .metadata("subset", "encoder_only");
 
-    model.collect_to(&mut save_persister).unwrap();
+    model.collect_to(&mut save_store).unwrap();
 
     // Load into new model - need to allow partial loading since we only saved encoder tensors
-    let mut load_persister = SafetensorsStore::from_bytes(None).allow_partial(true);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None).allow_partial(true);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
-    let result = target_model.apply_from(&mut load_persister).unwrap();
+    let result = target_model.apply_from(&mut load_store).unwrap();
 
     // Only encoder tensors should be applied
     assert_eq!(result.applied.len(), 6); // encoder has 6 tensors (2 layers × 2 + norm × 2)

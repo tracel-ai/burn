@@ -29,21 +29,19 @@ fn pytorch_to_burn_adapter_linear_transpose() {
     let model = TestModel::<TestBackend>::new(&device);
 
     // Save with BurnToPyTorch adapter (will transpose linear weights)
-    let mut save_persister =
-        SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
-    model.collect_to(&mut save_persister).unwrap();
+    let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
+    model.collect_to(&mut save_store).unwrap();
 
     // Load with PyTorchToBurn adapter (will transpose back)
-    let mut load_persister =
-        SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_persister).unwrap();
+    let result = model2.apply_from(&mut load_store).unwrap();
 
     // Should successfully load all tensors
     assert!(result.applied.len() > 0);
@@ -87,24 +85,22 @@ fn pytorch_to_burn_adapter_norm_rename() {
     let model = NormModel::<TestBackend>::new(&device);
 
     // Save with BurnToPyTorch adapter (will rename gamma->weight, beta->bias)
-    let mut save_persister =
-        SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
-    model.collect_to(&mut save_persister).unwrap();
+    let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
+    model.collect_to(&mut save_store).unwrap();
 
     // The saved data should have PyTorch naming convention
     // We can't directly verify the internal names, but we can verify round-trip works
 
     // Load with PyTorchToBurn adapter (will rename weight->gamma, bias->beta)
-    let mut load_persister =
-        SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
     let mut model2 = NormModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_persister).unwrap();
+    let result = model2.apply_from(&mut load_store).unwrap();
 
     // Should load successfully
     assert!(result.applied.len() > 0);
@@ -125,19 +121,19 @@ fn no_adapter_preserves_original() {
     let model = TestModel::<TestBackend>::new(&device);
 
     // Save without adapter
-    let mut save_persister = SafetensorsStore::from_bytes(None);
-    model.collect_to(&mut save_persister).unwrap();
+    let mut save_store = SafetensorsStore::from_bytes(None);
+    model.collect_to(&mut save_store).unwrap();
 
     // Load without adapter
-    let mut load_persister = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_persister {
-        if let SafetensorsStore::Memory(ref p_save) = save_persister {
+    let mut load_store = SafetensorsStore::from_bytes(None);
+    if let SafetensorsStore::Memory(ref mut p) = load_store {
+        if let SafetensorsStore::Memory(ref p_save) = save_store {
             p.set_data(p_save.data().unwrap().as_ref().clone());
         }
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_persister).unwrap();
+    let result = model2.apply_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert!(result.applied.len() > 0);
@@ -181,13 +177,13 @@ fn adapter_with_pytorch_import() {
     }
 
     // Load with PyTorchToBurn adapter
-    let mut persister = SafetensorsStore::from_file(safetensors_path)
+    let mut store = SafetensorsStore::from_file(safetensors_path)
         .with_from_adapter(PyTorchToBurnAdapter)
         .validate(false)
         .allow_partial(true);
 
     let mut model = SimpleNet::<TestBackend>::new(&device);
-    let result = model.apply_from(&mut persister).unwrap();
+    let result = model.apply_from(&mut store).unwrap();
 
     // Should load some tensors (fc1 if it exists in the file)
     // This mainly tests that the adapter works with real PyTorch files
