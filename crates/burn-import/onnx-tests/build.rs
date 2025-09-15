@@ -112,6 +112,7 @@ fn main() {
         .input("tests/expand/expand.onnx")
         .input("tests/expand/expand_tensor.onnx")
         .input("tests/expand/expand_shape.onnx")
+        .input("tests/eye_like/eye_like.onnx")
         .input("tests/flatten/flatten.onnx")
         .input("tests/flatten/flatten_2d.onnx")
         .input("tests/floor/floor.onnx")

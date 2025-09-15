@@ -42,6 +42,7 @@ pub mod equal;
 pub mod erf;
 pub mod exp;
 pub mod expand;
+pub mod eye_like;
 pub mod flatten;
 pub mod floor;
 pub mod gather;

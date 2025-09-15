@@ -67,7 +67,7 @@ functionality.
 | [Erf][52]                        | ✅             | ✅           |
 | [Exp][53]                        | ✅             | ✅           |
 | [Expand][54]                     | ✅             | ✅           |
-| [EyeLike][55]                    | ❌             | ✅           |
+| [EyeLike][55]                    | ✅             | ✅           |
 | [Flatten][56]                    | ✅             | ✅           |
 | [Floor][57]                      | ✅             | ✅           |
 | [Gather][58]                     | ✅             | ✅           |
