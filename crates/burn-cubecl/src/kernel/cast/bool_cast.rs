@@ -1,12 +1,14 @@
 use crate::{
-    BoolElement, CubeElement, CubeRuntime, kernel::utils::linear_view, ops::numeric::empty_device,
+    BoolElement, CubeElement, CubeRuntime,
+    kernel::utils::linear_view,
+    ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
 use cubecl::{
     CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
 };
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn bool_cast_kernel<B: Int, T: Numeric>(
     input: &LinearView<Line<B>>,
     output: &mut LinearView<Line<T>, ReadWrite>,
@@ -37,13 +39,17 @@ pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
     let num_elems = tensor.shape.num_elements();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    bool_cast_kernel::launch::<BT, EO, R>(
-        &tensor.client,
-        cube_count,
-        cube_dim,
-        linear_view(&tensor, &1),
-        linear_view(&output, &1),
-    );
+    let line_size = max_line_size(&tensor);
+
+    unsafe {
+        bool_cast_kernel::launch_unchecked::<BT, EO, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            linear_view(&tensor, &line_size),
+            linear_view(&output, &line_size),
+        );
+    }
 
     output
 }
