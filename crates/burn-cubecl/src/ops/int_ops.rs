@@ -180,7 +180,7 @@ where
             execute_with_dtype!(
                 int(indices.dtype),
                 I,
-                kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
             )
         )
     }

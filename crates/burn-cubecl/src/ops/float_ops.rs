@@ -254,7 +254,7 @@ where
             execute_with_dtype!(
                 float(tensor.dtype, value.dtype),
                 E,
-                kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
             )
         )
     }
