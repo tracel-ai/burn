@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Flexible and Comprehensive Deep Learning Framework in Rust"
+description = "Core traits and components for building and training deep learning models with Burn."
 documentation = "https://docs.rs/burn-core"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
@@ -15,7 +15,6 @@ version.workspace = true
 workspace = true
 
 [features]
-dataset = ["burn-dataset"]
 default = [
     "std",
     "burn-common/default",
@@ -32,6 +31,9 @@ doc = [
     "burn-dataset/doc",
     "burn-tensor/doc",
 ]
+nn = []
+dataset = ["burn-dataset"]
+
 network = ["burn-common/network"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]

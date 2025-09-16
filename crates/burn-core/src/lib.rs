@@ -32,6 +32,7 @@ pub mod grad_clipping;
 pub mod module;
 
 /// Neural network module.
+#[cfg(feature = "nn")]
 pub mod nn;
 
 /// Module for the recorder.
@@ -92,10 +93,11 @@ pub mod prelude {
     //! Structs and macros used by most projects. Add `use
     //! burn::prelude::*` to your code to quickly get started with
     //! Burn.
+    #[cfg(feature = "nn")]
+    pub use crate::nn;
     pub use crate::{
         config::Config,
         module::Module,
-        nn,
         tensor::{
             Bool, Device, ElementConversion, Float, Int, RangesArg, Shape, Tensor, TensorData,
             backend::Backend, cast::ToElement, s,
