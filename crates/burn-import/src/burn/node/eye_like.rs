@@ -28,27 +28,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
 
         // Convert mask to appropriate type based on output tensor kind
         let conversion = match self.output.kind {
-            crate::burn::TensorKind::Int => quote! { mask.int() },
-            crate::burn::TensorKind::Float => quote! { mask.float() },
-            crate::burn::TensorKind::Bool => quote! { mask },
+            crate::burn::TensorKind::Int => quote! { .int() },
+            crate::burn::TensorKind::Float => quote! { .float() },
+            crate::burn::TensorKind::Bool => quote! {},
         };
 
+        // Use diag_mask to create the diagonal matrix, then invert it
+        // diag_mask returns false on diagonal, true off-diagonal
+        // EyeLike needs true on diagonal, false off-diagonal
         quote! {
-            let #output = {
-                let shape = #input.shape();
-                let device = #input.device();
-
-                // EyeLike creates an identity matrix with the same shape as input
-                assert!(shape.dims.len() == 2, "EyeLike operation requires 2D input tensor");
-
-                // Use diag_mask to create the diagonal matrix, then invert it
-                // diag_mask returns false on diagonal, true off-diagonal
-                // EyeLike needs true on diagonal, false off-diagonal
-                let mask = Tensor::diag_mask(shape.dims, #k_offset, &device).bool_not();
-
-                // Convert boolean mask to match output tensor type
-                #conversion
-            };
+            let #output = Tensor::diag_mask(#input.shape(), #k_offset, &*self.device).bool_not()#conversion;
         }
     }
 
@@ -102,21 +91,9 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let tensor2 = {
-                        let shape = tensor1.shape();
-                        let device = tensor1.device();
-
-                        // EyeLike creates an identity matrix with the same shape as input
-                        assert!(shape.dims.len() == 2, "EyeLike operation requires 2D input tensor");
-
-                        // Use diag_mask to create the diagonal matrix, then invert it
-                        // diag_mask returns false on diagonal, true off-diagonal
-                        // EyeLike needs true on diagonal, false off-diagonal
-                        let mask = Tensor::diag_mask(shape.dims, 0i64, &device).bool_not();
-
-                        // Convert boolean mask to match output tensor type
-                        mask.float()
-                    };
+                    let tensor2 = Tensor::diag_mask(tensor1.shape(), 0i64, &*self.device)
+                        .bool_not()
+                        .float();
                     tensor2
                 }
             }

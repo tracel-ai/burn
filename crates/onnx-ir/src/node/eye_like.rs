@@ -41,6 +41,8 @@ pub fn eye_like_update_output(node: &mut Node) {
 
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
+
             let config = eye_like_config(node);
             // Output type is either specified dtype or input type
             let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
@@ -52,7 +54,7 @@ pub fn eye_like_update_output(node: &mut Node) {
             });
             log::debug!("EyeLike output tensor rank: {}", tensor.rank);
         }
-        _ => panic!("EyeLike operation requires tensor input"),
+        _ => panic!("EyeLike operation requires 2D tensor input"),
     }
 }
 
