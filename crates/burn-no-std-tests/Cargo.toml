@@ -19,5 +19,4 @@ workspace = true
 
 burn = { path = "../burn", version = "0.19.0", default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false }
-
-serde = { workspace = true }
+burn-store = { path = "../burn-store", version = "0.19.0", default-features = false }
