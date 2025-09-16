@@ -1,3 +1,4 @@
+use burn_tensor::Shape;
 use cubecl::prelude::SequenceArg;
 use cubecl::{
     prelude::ArrayArg,
@@ -29,12 +30,39 @@ pub fn linear_layout<'a, R: CubeRuntime>(
     )
 }
 
+pub fn linear_layout_ref<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    reference: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearLayoutArgs<'a, R> {
+    LinearLayoutArgs::from_shape_strides_with_reference(
+        &tensor.client,
+        &tensor.shape.dims,
+        &reference.shape.dims,
+        &tensor.strides,
+        line_size,
+    )
+}
+
 pub fn linear_view<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     line_size: &'a u8,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.dims.iter().product::<usize>();
     let layout = linear_layout(tensor, line_size);
+    let buffer = unsafe {
+        ArrayArg::from_raw_parts_and_size(&tensor.handle, len, *line_size, tensor.elem_size())
+    };
+    LinearViewLaunch::new(buffer, layout)
+}
+
+pub fn linear_view_ref<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    reference: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearViewLaunch<'a, R> {
+    let len = tensor.shape.dims.iter().product::<usize>();
+    let layout = linear_layout_ref(tensor, reference, line_size);
     let buffer = unsafe {
         ArrayArg::from_raw_parts_and_size(&tensor.handle, len, *line_size, tensor.elem_size())
     };
@@ -78,4 +106,28 @@ pub fn merge_dims<R: CubeRuntime>(
     tensor.shape.dims.remove(dim0);
     tensor.strides.remove(dim0);
     tensor
+}
+
+pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
+    let rank = tensors[0].shape.num_dims();
+    debug_assert!(
+        tensors.iter().all(|it| it.shape.num_dims() == rank),
+        "Broadcast tensors must have the same rank"
+    );
+
+    let dims = (0..rank).map(|dim| {
+        let max = tensors.iter().map(|it| it.shape.dims[dim]).max();
+        let max = max.unwrap_or(1);
+        debug_assert!(
+            tensors
+                .iter()
+                .all(|it| it.shape.dims[dim] == max || it.shape.dims[dim] == 1),
+            "Broadcast dims must be size 1"
+        );
+        max
+    });
+
+    Shape {
+        dims: dims.collect(),
+    }
 }
