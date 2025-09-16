@@ -251,7 +251,7 @@ ONNX Support 🐫
 </summary>
 <br />
 
-Burn supports importing ONNX(Open Neural Network Exchange) models, allowing you to easily port
+Burn supports importing ONNX (Open Neural Network Exchange) models, allowing you to easily port
 models from TensorFlow or PyTorch to Burn. The ONNX model is converted into Rust code that uses
 Burn's native APIs, enabling the imported model to run on any Burn backend (CPU, GPU, WebAssembly)
 and benefit from all of Burn's optimizations like automatic kernel fusion.
