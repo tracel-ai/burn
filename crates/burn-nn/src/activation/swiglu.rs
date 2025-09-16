@@ -1,11 +1,11 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn_tensor::activation::silu;
 use burn_tensor::{Tensor, backend::Backend};
 
-use crate::nn::{Initializer, Linear, LinearConfig, LinearLayout};
+use crate::{Linear, LinearConfig, LinearLayout};
 
 /// Configuration to create a [SwiGlu](SwiGlu) activation layer using the [init function](SwiGluConfig::init).
 #[derive(Config, Debug)]

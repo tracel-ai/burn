@@ -1,17 +1,17 @@
 use alloc::format;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
-use crate::nn::Initializer;
-use crate::nn::PaddingConfig3d;
+use crate::PaddingConfig3d;
+use burn_core::config::Config;
+use burn_core::module::Initializer;
+use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::module::conv3d;
 use burn_tensor::ops::ConvOptions;
 
-use crate::nn::conv::checks;
+use crate::conv::checks;
 
 /// Configuration to create a [3D convolution](Conv3d) layer, using the [init function](Conv3dConfig::init).
 #[derive(Config, Debug)]
@@ -147,7 +147,7 @@ impl<B: Backend> ModuleDisplay for Conv3d<B> {
 impl<B: Backend> Conv3d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [conv3d](crate::tensor::module::conv3d) for more information.
+    /// See [conv3d](burn_tensor::module::conv3d) for more information.
     ///
     /// # Shapes
     ///

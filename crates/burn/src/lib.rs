@@ -125,3 +125,19 @@ pub mod collective;
 pub mod store {
     pub use burn_store::*;
 }
+
+/// Neural network module.
+#[cfg(feature = "nn")]
+pub mod nn {
+    pub use burn_nn::*;
+}
+
+pub mod prelude {
+    //! Structs and macros used by most projects. Add `use
+    //! burn::prelude::*` to your code to quickly get started with
+    //! Burn.
+    pub use burn_core::prelude::*;
+
+    #[cfg(feature = "nn")]
+    pub use crate::nn::*;
+}

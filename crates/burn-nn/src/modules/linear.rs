@@ -1,13 +1,10 @@
+use burn_core as burn;
+
+use burn_core::config::Config;
+use burn_core::module::Param;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn_tensor::module::linear;
-
-use crate as burn;
-
-use crate::config::Config;
-use crate::module::Param;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn_tensor::{Tensor, backend::Backend};
-
-use crate::nn::Initializer;
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -155,10 +152,10 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use crate::module::ParamId;
-    use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-    use burn_tensor::{Shape, TensorData};
+    use burn_core::module::ParamId;
+    use burn_core::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
     use burn_tensor::ElementConversion;
+    use burn_tensor::{Shape, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 

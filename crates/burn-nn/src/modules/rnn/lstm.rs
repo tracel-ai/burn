@@ -1,10 +1,9 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::Initializer;
-use crate::nn::rnn::gate_controller::GateController;
+use crate::GateController;
+use burn_core::config::Config;
+use burn_core::module::Module;
+use burn_core::module::{Content, DisplaySettings, Initializer, ModuleDisplay};
 use burn_tensor::Tensor;
 use burn_tensor::activation;
 use burn_tensor::backend::Backend;
@@ -355,8 +354,9 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{LinearRecord, TestBackend};
+    use burn_core::module::Param;
     use burn_tensor::{Device, Distribution, TensorData};
-    use crate::{TestBackend, module::Param, nn::LinearRecord};
     use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 

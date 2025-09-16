@@ -1,8 +1,8 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::nn::loss::reduction::Reduction;
+use crate::loss::reduction::Reduction;
 
-use crate::module::Module;
+use burn_core::module::Module;
 use burn_tensor::{Tensor, backend::Backend};
 
 /// Calculate the mean squared error loss from the input logits and the targets.

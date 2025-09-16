@@ -18,14 +18,17 @@ workspace = true
 default = [
     "std",
     "burn-tensor/default",
+    "burn-core/default",
 ]
 doc = [
     "std",
     # Doc features
     "burn-tensor/doc",
+    "burn-core/doc",
 ]
 std = [
     "burn-tensor/std",
+    "burn-core/std",
     "num-traits/std",
 ]
 
@@ -57,6 +60,7 @@ test-memory-checks = ["burn-fusion/memory-checks"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
+burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
 
 num-traits = { workspace = true }
 

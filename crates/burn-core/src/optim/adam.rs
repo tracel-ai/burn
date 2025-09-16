@@ -197,9 +197,9 @@ mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
-    use crate::nn::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
+    use burn_nn::{Linear, LinearConfig, LinearRecord};
 
     const LEARNING_RATE: LearningRate = 0.01;
 

@@ -1,8 +1,6 @@
-use crate as burn;
-use crate::config::Config;
-use crate::module::Param;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::Initializer;
+use burn_core as burn;
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 /// Parametric Relu layer.
@@ -66,9 +64,9 @@ impl<B: Backend> PRelu<B> {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     ///
-    /// See also [prelu](crate::tensor::activation::prelu) for more information.
+    /// See also [prelu](burn_tensor::activation::prelu) for more information.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        crate::tensor::activation::prelu(input, self.alpha.val())
+        burn_tensor::activation::prelu(input, self.alpha.val())
     }
 }
 

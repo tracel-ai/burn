@@ -1,9 +1,9 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::{config::Config, module::Module};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
-use crate::{config::Config, module::Module};
 
 use super::Reduction;
 

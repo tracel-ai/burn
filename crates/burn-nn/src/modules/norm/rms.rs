@@ -1,12 +1,12 @@
 use burn_tensor::DType;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::nn::Initializer;
+use burn_core::config::Config;
+use burn_core::module::Initializer;
+use burn_core::module::Module;
+use burn_core::module::Param;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -96,8 +96,8 @@ impl<B: Backend> ModuleDisplay for RmsNorm<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
     use alloc::format;
+    use burn_tensor::TensorData;
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 

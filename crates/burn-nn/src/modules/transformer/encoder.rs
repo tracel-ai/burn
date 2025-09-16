@@ -1,20 +1,16 @@
-use burn_tensor::Bool;
+use burn_core as burn;
+
 use alloc::vec::Vec;
 
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::{
-    self as burn,
-    nn::{Initializer, attention::MhaCache, cache::TensorCache},
+    Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+    attention::{MhaCache, MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
+    cache::TensorCache,
 };
-use crate::{
-    config::Config,
-    nn::{
-        Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
-        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
-    },
-    tensor::{Tensor, backend::Backend},
-};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn_tensor::{Bool, Tensor, backend::Backend};
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
 #[derive(Config, Debug)]
@@ -391,8 +387,8 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{TestBackend, attention::generate_autoregressive_mask};
     use burn_tensor::Distribution;
-    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 

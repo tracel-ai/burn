@@ -1,10 +1,10 @@
-use burn_tensor::activation::hard_sigmoid;
+use burn_core as burn;
 
-use crate as burn;
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::Module;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 use burn_tensor::Tensor;
+use burn_tensor::activation::hard_sigmoid;
 use burn_tensor::backend::Backend;
 
 /// Hard Sigmoid layer.
@@ -56,7 +56,7 @@ impl ModuleDisplay for HardSigmoid {
 impl HardSigmoid {
     /// Forward pass for the Hard Sigmoid layer.
     ///
-    /// See [hard_sigmoid](crate::tensor::activation::hard_sigmoid) for more information.
+    /// See [hard_sigmoid](burn_tensor::activation::hard_sigmoid) for more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`

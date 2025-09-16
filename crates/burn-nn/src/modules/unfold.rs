@@ -1,7 +1,7 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -72,7 +72,7 @@ impl Unfold4dConfig {
 impl Unfold4d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [unfold4d](crate::tensor::module::unfold4d) for more information.
+    /// See [unfold4d](burn_tensor::module::unfold4d) for more information.
     ///
     /// # Shapes
     ///

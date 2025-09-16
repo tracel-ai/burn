@@ -1,8 +1,8 @@
-use crate as burn;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core as burn;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 
-use crate::{config::Config, module::Module};
 use alloc::vec::Vec;
+use burn_core::{config::Config, module::Module};
 use burn_tensor::activation::log_sigmoid;
 use burn_tensor::{Int, Tensor, backend::Backend};
 

@@ -1,8 +1,8 @@
-use crate as burn;
+use burn_core as burn;
 
 use burn_tensor::ops::conv::calculate_conv_padding;
 
-use crate::config::Config;
+use burn_core::config::Config;
 
 /// Padding configuration for 1D operators.
 #[derive(Config, Debug, PartialEq)]

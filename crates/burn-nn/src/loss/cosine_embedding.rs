@@ -2,12 +2,12 @@ use alloc::format;
 
 use burn_tensor::linalg::cosine_similarity;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::module::{Ignored, Module};
-use crate::nn::loss::reduction::Reduction;
+use crate::loss::reduction::Reduction;
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::module::{Ignored, Module};
 use burn_tensor::{Int, Tensor, activation::relu, backend::Backend};
 
 /// Configuration for CosineEmbeddingLoss.

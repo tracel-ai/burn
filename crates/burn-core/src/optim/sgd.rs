@@ -97,13 +97,13 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::{Linear, LinearConfig};
     use crate::{
         TestAutodiffBackend, TestBackend,
         grad_clipping::GradientClipping,
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
     };
+    use burn_nn::{Linear, LinearConfig};
 
     const LEARNING_RATE: LearningRate = 0.02;
 

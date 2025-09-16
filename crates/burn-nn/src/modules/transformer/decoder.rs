@@ -1,21 +1,18 @@
+use burn_core as burn;
+
 use alloc::vec::Vec;
 
-use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn_tensor::{Bool, Tensor, backend::Backend};
 
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn_tensor::Bool;
+use crate::cache::TensorCache;
 use crate::{
-    self as burn,
-    nn::{Initializer, attention::MhaCache, cache::TensorCache},
+    Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+    attention::{MhaCache, MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
 };
-use crate::{
-    config::Config,
-    nn::{
-        Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
-        attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
-    },
-    tensor::{Tensor, backend::Backend},
-};
+
+use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 
 /// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
 #[derive(Config, Debug)]
@@ -458,7 +455,7 @@ mod tests {
     use burn_tensor::Device;
 
     use super::*;
-    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
+    use crate::{TestBackend, attention::generate_autoregressive_mask};
 
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;

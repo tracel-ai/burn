@@ -1,9 +1,9 @@
-use crate as burn;
-use crate::nn::{
+use crate::{
     BatchNorm, BatchNormConfig, GroupNorm, GroupNormConfig, InstanceNorm, InstanceNormConfig,
     LayerNorm, LayerNormConfig, RmsNorm, RmsNormConfig,
 };
-use burn_derive::{Config, Module};
+use burn_core as burn;
+use burn_core::prelude::{Config, Module};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 

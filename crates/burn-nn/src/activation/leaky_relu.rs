@@ -1,7 +1,7 @@
-use crate as burn;
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core as burn;
+use burn_core::config::Config;
+use burn_core::module::Module;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -49,7 +49,7 @@ impl ModuleDisplay for LeakyRelu {
 impl LeakyRelu {
     /// Forward pass for the Leaky ReLu layer.
     ///
-    /// See [leaky_relu](crate::tensor::activation::leaky_relu) for more information.
+    /// See [leaky_relu](burn_tensor::activation::leaky_relu) for more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`

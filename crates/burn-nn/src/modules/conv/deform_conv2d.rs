@@ -1,17 +1,17 @@
 use alloc::format;
 use burn_tensor::ops::DeformConvOptions;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
-use crate::nn::Initializer;
-use crate::nn::PaddingConfig2d;
+use crate::PaddingConfig2d;
+use burn_core::config::Config;
+use burn_core::module::Initializer;
+use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::module::deform_conv2d;
 
-use crate::nn::conv::checks;
+use crate::conv::checks;
 
 /// Configuration to create a [deformable 2D convolution](DeformConv2d) layer, using the [init function](DeformConv2dConfig::init).
 #[derive(Config, Debug)]
@@ -149,7 +149,7 @@ impl<B: Backend> ModuleDisplay for DeformConv2d<B> {
 impl<B: Backend> DeformConv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [deform_conv2d](crate::tensor::module::deform_conv2d) for more information.
+    /// See [deform_conv2d](burn_tensor::module::deform_conv2d) for more information.
     ///
     /// # Shapes
     ///

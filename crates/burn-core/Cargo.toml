@@ -25,13 +25,11 @@ doc = [
     "std",
     "dataset",
     "audio",
-    "vision",
     # Doc features
     "burn-common/doc",
     "burn-dataset/doc",
     "burn-tensor/doc",
 ]
-nn = []
 dataset = ["burn-dataset"]
 
 network = ["burn-common/network"]

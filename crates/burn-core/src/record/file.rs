@@ -324,9 +324,11 @@ mod tests {
     use crate::{
         TestBackend,
         module::Module,
-        nn::conv::{Conv2d, Conv2dConfig},
-        nn::{Linear, LinearConfig},
         record::{BinBytesRecorder, FullPrecisionSettings},
+    };
+    use burn_nn::{
+        Linear, LinearConfig,
+        conv::{Conv2d, Conv2dConfig},
     };
     use burn_tensor::backend::Backend;
 

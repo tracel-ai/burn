@@ -31,10 +31,6 @@ pub mod grad_clipping;
 /// Module for the neural network module.
 pub mod module;
 
-/// Neural network module.
-#[cfg(feature = "nn")]
-pub mod nn;
-
 /// Module for the recorder.
 pub mod record;
 
@@ -46,7 +42,6 @@ pub mod tensor;
 pub mod vision;
 
 extern crate alloc;
-extern crate core;
 
 /// Backend for test cases
 #[cfg(all(
@@ -93,8 +88,6 @@ pub mod prelude {
     //! Structs and macros used by most projects. Add `use
     //! burn::prelude::*` to your code to quickly get started with
     //! Burn.
-    #[cfg(feature = "nn")]
-    pub use crate::nn;
     pub use crate::{
         config::Config,
         module::Module,

@@ -5,23 +5,12 @@
 
 //! Burn neural network module.
 
-// /// Re-export serde for proc macros.
-// pub use serde;
-
-// /// The configuration module.
-// pub mod config;
-
-/// Neural network module core.
-pub mod module;
-
-// /// Module for the recorder.
-// pub mod record;
-
 /// Loss module
 pub mod loss;
 
 /// Neural network modules implementations.
 pub mod modules;
+pub use modules::*;
 
 pub mod activation;
 pub use activation::{
@@ -29,9 +18,7 @@ pub use activation::{
     tanh::*,
 };
 
-mod initializer;
 mod padding;
-pub use initializer::*;
 pub use padding::*;
 
 extern crate alloc;

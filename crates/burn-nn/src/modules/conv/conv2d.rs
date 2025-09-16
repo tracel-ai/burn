@@ -1,17 +1,17 @@
 use alloc::format;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
-use crate::nn::Initializer;
-use crate::nn::PaddingConfig2d;
+use crate::PaddingConfig2d;
+use burn_core::config::Config;
+use burn_core::module::Initializer;
+use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::module::conv2d;
 use burn_tensor::ops::ConvOptions;
 
-use crate::nn::conv::checks;
+use crate::conv::checks;
 
 /// Configuration to create a [2D convolution](Conv2d) layer, using the [init function](Conv2dConfig::init).
 #[derive(Config, Debug)]
@@ -147,7 +147,7 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
 impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [conv2d](crate::tensor::module::conv2d) for more information.
+    /// See [conv2d](burn_tensor::module::conv2d) for more information.
     ///
     /// # Shapes
     /// - `input`: `[batch_size, channels_in, height_in, width_in]`

@@ -1,8 +1,8 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::Module;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -49,7 +49,7 @@ impl AdaptiveAvgPool1dConfig {
 impl AdaptiveAvgPool1d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [adaptive_avg_pool1d](crate::tensor::module::adaptive_avg_pool1d) for more information.
+    /// See [adaptive_avg_pool1d](burn_tensor::module::adaptive_avg_pool1d) for more information.
     ///
     /// # Shapes
     ///

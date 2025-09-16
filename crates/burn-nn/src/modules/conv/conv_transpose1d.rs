@@ -1,15 +1,15 @@
 use alloc::format;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::Content;
-use crate::module::DisplaySettings;
-use crate::module::Module;
-use crate::module::ModuleDisplay;
-use crate::module::Param;
-use crate::nn::Initializer;
-use crate::nn::conv::checks;
+use crate::conv::checks;
+use burn_core::config::Config;
+use burn_core::module::Content;
+use burn_core::module::DisplaySettings;
+use burn_core::module::Initializer;
+use burn_core::module::Module;
+use burn_core::module::ModuleDisplay;
+use burn_core::module::Param;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::module::conv_transpose1d;
@@ -133,7 +133,7 @@ impl ConvTranspose1dConfig {
 impl<B: Backend> ConvTranspose1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See also [conv_transpose1d](crate::tensor::module::conv_transpose1d).
+    /// See also [conv_transpose1d](burn_tensor::module::conv_transpose1d).
     ///
     /// # Shapes
     ///

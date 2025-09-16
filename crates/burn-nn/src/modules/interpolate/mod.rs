@@ -4,12 +4,15 @@ mod interpolate2d;
 pub use interpolate1d::*;
 pub use interpolate2d::*;
 
+use burn_core as burn;
+
+use burn_core::config::Config;
 use burn_tensor::ops::InterpolateMode as OpsInterpolateMode;
 
 /// Algorithm used for downsampling and upsampling
 ///
 /// This enum defines different interpolation modes for resampling data.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Config, Debug)]
 pub enum InterpolateMode {
     /// Nearest-neighbor interpolation
     ///

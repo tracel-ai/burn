@@ -27,10 +27,11 @@ mod tests {
     use crate::{
         TestBackend,
         module::{Module, Quantizer},
-        nn::{
-            Linear, LinearConfig,
-            transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
-        },
+    };
+    // TODO: either use dummy modules or move the tests to burn-nn
+    use burn_nn::{
+        Linear, LinearConfig,
+        transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     };
     use burn_tensor::{
         Device, Distribution, Tensor, Tolerance,

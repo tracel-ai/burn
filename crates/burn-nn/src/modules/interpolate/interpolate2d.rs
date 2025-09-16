@@ -2,10 +2,10 @@ use alloc::format;
 
 use burn_tensor::module::interpolate;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::InterpolateOptions;

@@ -1,10 +1,10 @@
-use crate as burn;
+use burn_core as burn;
 
-use super::Initializer;
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::Initializer;
+use burn_core::module::Module;
+use burn_core::module::Param;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 use burn_tensor::Int;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
@@ -64,7 +64,7 @@ impl EmbeddingConfig {
 impl<B: Backend> Embedding<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See also [embedding](crate::tensor::module::embedding).
+    /// See also [embedding](burn_tensor::module::embedding).
     ///
     /// # Shapes
     ///

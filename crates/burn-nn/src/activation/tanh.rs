@@ -1,6 +1,6 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::module::Module;
+use burn_core::module::Module;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -21,7 +21,7 @@ impl Tanh {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        crate::tensor::activation::tanh(input)
+        burn_tensor::activation::tanh(input)
     }
 }
 

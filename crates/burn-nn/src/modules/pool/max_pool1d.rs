@@ -1,10 +1,10 @@
-use crate as burn;
-use crate::nn::conv::checks::check_same_padding_support;
+use crate::conv::checks::check_same_padding_support;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, ModuleDisplay};
-use crate::module::{Ignored, Module};
-use crate::nn::PaddingConfig1d;
+use crate::PaddingConfig1d;
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
+use burn_core::module::{Ignored, Module};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -81,7 +81,7 @@ impl MaxPool1dConfig {
 impl MaxPool1d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [max_pool1d](crate::tensor::module::max_pool1d) for more information.
+    /// See [max_pool1d](burn_tensor::module::max_pool1d) for more information.
     ///
     /// # Shapes
     ///

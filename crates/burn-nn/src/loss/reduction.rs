@@ -1,5 +1,9 @@
+use burn_core as burn;
+
+use burn_core::config::Config;
+
 /// The reduction type for the loss.
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Config, Debug)]
 pub enum Reduction {
     /// The mean of the losses will be returned.
     Mean,

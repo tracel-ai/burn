@@ -1,7 +1,7 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Tensor};
 

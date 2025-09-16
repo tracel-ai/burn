@@ -1,13 +1,13 @@
 use alloc::format;
 
-use crate as burn;
+use burn_core as burn;
 
-use crate::{
+use crate::{PaddingConfig1d, conv::checks};
+use burn_core::{
     config::Config,
-    module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param},
-    nn::{Initializer, PaddingConfig1d, conv::checks},
-    tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions},
+    module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},
 };
+use burn_tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
@@ -142,7 +142,7 @@ impl Conv1dConfig {
 impl<B: Backend> Conv1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [conv1d](crate::tensor::module::conv1d) for more information.
+    /// See [conv1d](burn_tensor::module::conv1d) for more information.
     ///
     /// # Shapes
     ///

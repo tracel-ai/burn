@@ -1,8 +1,8 @@
-use alloc::vec::Vec;
+use burn_core as burn;
 
-use crate as burn;
-use crate::config::Config;
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use alloc::vec::Vec;
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
 use burn_tensor::Tensor;
 use burn_tensor::TensorData;

@@ -1,13 +1,11 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use crate::nn::activation::Gelu;
-use crate::nn::cache::TensorCache;
-use crate::nn::{Dropout, DropoutConfig, Initializer, Linear, LinearConfig};
-use crate::{
-    config::Config,
-    tensor::{Bool, Tensor, backend::Backend},
-};
+use crate::activation::Gelu;
+use crate::cache::TensorCache;
+use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
+use burn_core::config::Config;
+use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn_tensor::{Bool, Tensor, backend::Backend};
 
 use burn_tensor::activation::{quiet_softmax, softmax};
 #[cfg(not(feature = "std"))]
@@ -355,12 +353,12 @@ impl<B: Backend, const D: usize> MhaLinearCache<B, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Int;
-    use burn_tensor::{Distribution, Shape};
-    use crate::{TestBackend, nn::attention::generate_autoregressive_mask};
+    use crate::{TestBackend, attention::generate_autoregressive_mask};
     use alloc::vec::Vec;
+    use burn_tensor::Int;
     use burn_tensor::Tolerance;
     use burn_tensor::ops::FloatElem;
+    use burn_tensor::{Distribution, Shape};
 
     #[test]
     fn test_self_attention_shapes() {

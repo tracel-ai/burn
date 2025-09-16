@@ -1,7 +1,7 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::module::Module;
-use crate::nn::{Initializer, Linear, LinearConfig, LinearLayout};
+use crate::{Linear, LinearConfig, LinearLayout};
+use burn_core::module::{Initializer, Module};
 use burn_tensor::{Tensor, backend::Backend};
 
 /// A GateController represents a gate in an LSTM cell. An
@@ -71,8 +71,8 @@ impl<B: Backend> GateController<B> {
         d_output: usize,
         bias: bool,
         initializer: Initializer,
-        input_record: crate::nn::LinearRecord<B>,
-        hidden_record: crate::nn::LinearRecord<B>,
+        input_record: crate::LinearRecord<B>,
+        hidden_record: crate::LinearRecord<B>,
     ) -> Self {
         let l1 = LinearConfig {
             d_input,

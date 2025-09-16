@@ -8,8 +8,8 @@ mod tests {
         },
     };
     use burn_core as burn;
-    use burn_core::nn::{Linear, LinearConfig};
     use burn_ndarray::NdArrayDevice;
+    use burn_nn::{Linear, LinearConfig};
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
 

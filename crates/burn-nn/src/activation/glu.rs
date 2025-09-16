@@ -1,5 +1,6 @@
-use crate as burn;
-use crate::module::Module;
+use burn_core as burn;
+
+use burn_core::module::Module;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -33,7 +34,7 @@ impl GLU {
     /// ### Returns
     /// * A tensor with the same shape as the input, except the size along `dim` is halved.
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        crate::tensor::activation::glu(input, self.dim)
+        burn_tensor::activation::glu(input, self.dim)
     }
 }
 
