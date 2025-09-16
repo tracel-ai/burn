@@ -2,7 +2,7 @@ use burn_tensor::DType;
 use cubecl::{
     matmul::{
         MatmulInputHandleRef, Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
-        components::MatmulKind,
+        components::{AccG, MatmulKind},
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
@@ -33,7 +33,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: MatmulElement>(
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
 ) -> CubeTensor<R> {
-    let output = out.unwrap_or_else(|| init_matmul_output::<R, E::EO>(&lhs, &rhs));
+    let output = out.unwrap_or_else(|| init_matmul_output::<R, AccG<E>>(&lhs, &rhs));
 
     let client = lhs.client.clone();
 

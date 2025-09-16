@@ -13,7 +13,7 @@ use burn_cubecl::{
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
-use cubecl::{Feature, prelude::*};
+use cubecl::{features::Plane, prelude::*};
 
 use super::prefix_sum::prefix_sum;
 
@@ -471,7 +471,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
     let client = img.client.clone();
     let device = img.device.clone();
 
-    if !client.properties().feature_enabled(Feature::Plane) {
+    if !client.properties().features.plane.contains(Plane::Ops) {
         return Err("Requires plane instructions".into());
     }
 

@@ -9,9 +9,10 @@ use burn_tensor::{
     },
 };
 use cubecl::{
-    Feature, Runtime,
+    Runtime,
     client::ComputeClient,
-    ir::{ElemType, IntKind},
+    features::TypeUsage,
+    prelude::CubePrimitive,
     server::{Allocation, AllocationDescriptor},
 };
 use cubecl_quant::scheme::QuantStore;
@@ -340,10 +341,6 @@ fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
 }
 
 fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
-    client
-        .properties()
-        .feature_enabled(Feature::Type(ElemType::Int(IntKind::I8).into()))
-        && client
-            .properties()
-            .feature_enabled(Feature::DynamicLineSize)
+    i8::supported_uses(client).contains(TypeUsage::Conversion)
+        && client.properties().features.dynamic_line_size
 }

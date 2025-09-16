@@ -19,7 +19,9 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::matmul::kernels::layered::Selection;
+use cubecl::features::TypeUsage;
+use cubecl::matmul::components::AccG;
+use cubecl::matmul::components::AccS;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
 use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
@@ -31,6 +33,7 @@ use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
+use cubecl::matmul::{components::tile::loader::Filled, kernels::layered::Selection};
 use cubecl::matmul::{
     components::{LhsS, MatmulLineSizes, MatmulPrecision},
     kernels::layered::Algorithm,
@@ -441,7 +444,7 @@ impl FusedMatmul {
             FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
                 let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
 
-                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul<Filled>>>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -466,7 +469,7 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
                     FusedMatmulInputLaunch::new(
@@ -495,7 +498,7 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
                     FusedMatmulInputLaunch::new(
@@ -622,25 +625,29 @@ fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
+        && tf32::supported_uses(client).contains(TypeUsage::Conversion)
+    {
         match (
             TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
             TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
         ) {
-            (true, true) => {
-                launch_kernel_virtual::<FusedMatmulSpec<(f32, f32, tf32, tf32, MP::EA, MP::EO)>, R, A>(
-                    client, input, output, problem, line_sizes, plane_size, selection,
-                )
-            }
+            (true, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, f32, AccG<MP>, tf32, tf32, AccS<MP>)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
             (true, false) => launch_kernel_virtual::<
-                FusedMatmulSpec<(f32, RhsG<MP>, tf32, RhsS<MP>, MP::EA, MP::EO)>,
+                FusedMatmulSpec<(f32, RhsG<MP>, AccG<MP>, tf32, RhsS<MP>, AccS<MP>)>,
                 R,
                 A,
             >(
                 client, input, output, problem, line_sizes, plane_size, selection,
             ),
             (false, true) => launch_kernel_virtual::<
-                FusedMatmulSpec<(LhsG<MP>, f32, LhsS<MP>, tf32, MP::EA, MP::EO)>,
+                FusedMatmulSpec<(LhsG<MP>, f32, AccG<MP>, LhsS<MP>, tf32, AccS<MP>)>,
                 R,
                 A,
             >(

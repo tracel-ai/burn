@@ -2,7 +2,8 @@
 #![allow(
     clippy::approx_constant,
     clippy::excessive_precision,
-    clippy::identity_op
+    clippy::identity_op,
+    clippy::bool_assert_comparison
 )]
 
 extern crate alloc;

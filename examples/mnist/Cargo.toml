@@ -22,6 +22,7 @@ wgpu = ["burn/wgpu", "burn/default"]
 metal = ["burn/metal", "burn/default"]
 cuda = ["burn/cuda", "burn/default"]
 vulkan = ["burn/vulkan", "burn/default"]
+rocm = ["burn/rocm", "burn/default"]
 
 [dependencies]
 # Disable autotune default for now (convolutions not optimized)

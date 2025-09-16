@@ -3,7 +3,6 @@ mod base;
 mod builder;
 mod classification;
 mod early_stopping;
-mod epoch;
 mod regression;
 mod step;
 mod strategies;

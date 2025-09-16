@@ -5,11 +5,8 @@ use burn_tensor::{
     ops::{DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
-    convolution::components::ConvSetupError,
-    cube,
-    ir::{ElemType, StorageType},
-    prelude::*,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
+    cube, features::TypeUsage, prelude::*,
 };
 
 use crate::{
@@ -461,15 +458,8 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
-    let kind = match E::as_type_native_unchecked().elem_type() {
-        ElemType::Float(kind) => kind,
-        _ => unreachable!("Should be float"),
-    };
-    let props = client.properties();
-
-    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
-    let supports_same_type =
-        props.feature_enabled(Feature::Type(StorageType::Atomic(ElemType::Float(kind))));
+    let supports_fadd = Atomic::<f32>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
+    let supports_same_type = Atomic::<E>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
