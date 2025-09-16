@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex"]
+std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "dep:zip", "byteorder/std"]
 wgpu = ["burn-wgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 cuda = ["burn-cuda"]
@@ -28,9 +28,11 @@ burn-core = { path = "../burn-core", version = "0.19.0", default-features = fals
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
 
 # External dependencies
+byteorder = { workspace = true, default-features = false }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
 
 # Note: safetensors requires either std or alloc feature
 # We always require std for file I/O functionality

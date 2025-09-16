@@ -14,6 +14,7 @@ mod collector;
 mod filter;
 #[cfg(feature = "std")]
 mod keyremapper;
+pub mod pytorch;
 pub mod safetensors;
 mod tensor_snapshot;
 mod traits;
