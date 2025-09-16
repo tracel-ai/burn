@@ -1331,6 +1331,9 @@ where
     /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor to the original tensor using sum reduction.
     ///
+    /// # Note
+    /// For booleans, the sum operator is logical or.
+    ///
     /// # Arguments
     ///
     /// * `dim` - The dimension along which to select. Supports negative indexing.
