@@ -127,7 +127,6 @@ pub mod store {
 }
 
 /// Neural network module.
-#[cfg(feature = "nn")]
 pub mod nn {
     pub use burn_nn::*;
 }
@@ -138,6 +137,5 @@ pub mod prelude {
     //! Burn.
     pub use burn_core::prelude::*;
 
-    #[cfg(feature = "nn")]
     pub use crate::nn::*;
 }
