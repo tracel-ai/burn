@@ -33,6 +33,7 @@ pub mod conv_transpose3d;
 pub mod depth_to_space;
 pub mod dropout;
 pub mod expand;
+pub mod eye_like;
 pub mod flatten;
 pub mod gather;
 pub mod gemm;
