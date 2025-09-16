@@ -196,6 +196,18 @@ impl Clone for TensorSnapshot {
     }
 }
 
+impl core::fmt::Debug for TensorSnapshot {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("TensorSnapshot")
+            .field("dtype", &self.dtype)
+            .field("shape", &self.shape)
+            .field("path_stack", &self.path_stack)
+            .field("container_stack", &self.container_stack)
+            .field("tensor_id", &self.tensor_id)
+            .finish()
+    }
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
