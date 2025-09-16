@@ -161,6 +161,51 @@ mod tests {
             use burn::nn::conv::Conv1dConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                conv1d: Option<Conv1d<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        conv1d: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_conv1d(&mut self) {
+                    self.conv1d = None;
+                }
+                #[allow(unused)]
+                pub fn load_conv1d(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Conv1d<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(CONV1D_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let conv1d = Conv1dConfig::new(3, 3, 3)
+                        .with_stride(1)
+                        .with_padding(PaddingConfig1d::Valid)
+                        .with_dilation(1)
+                        .with_groups(1)
+                        .with_bias(true)
+                        .init(device);
+                    self.conv1d = Some(burn::module::Module::<B>::load_record(conv1d, record));
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_conv1d(device);
+                    let output = self.conv1d.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv1d: Conv1d<B>,
                 phantom: core::marker::PhantomData<B>,

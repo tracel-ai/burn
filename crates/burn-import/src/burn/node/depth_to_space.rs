@@ -89,6 +89,35 @@ mod tests {
         let expected = quote! {
             use burn::prelude::*;
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let output = {
+                        let [b, c, h, w] = input.shape().dims();
+                        input
+                            .reshape([b, 2usize, 2usize, c / (2usize * 2usize), h, w])
+                            .permute([0, 3, 4, 1, 5, 2])
+                            .reshape([b, c / (2usize * 2usize), h * 2usize, w * 2usize])
+                    };
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
@@ -132,6 +161,35 @@ mod tests {
 
         let expected = quote! {
             use burn::prelude::*;
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let output = {
+                        let [b, c, h, w] = input.shape().dims();
+                        input
+                            .reshape([b, c / (2usize * 2usize), 2usize, 2usize, h, w])
+                            .permute([0, 1, 4, 2, 5, 3])
+                            .reshape([b, c / (2usize * 2usize), h * 2usize, w * 2usize])
+                    };
+                    Some(output)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,

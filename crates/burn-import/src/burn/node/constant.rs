@@ -236,6 +236,25 @@ mod tests {
             use burn::prelude::*;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(&mut self, device: &B::Device) -> Option<#ty> {
+                    let #output: #ty = #val;
+                    Some(#output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
@@ -328,6 +347,52 @@ mod tests {
             use burn::prelude::*;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                const_tensor: Option<burn::module::Param<Tensor<B, 1>>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        const_tensor: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_const_tensor(&mut self) {
+                    self.const_tensor = None;
+                }
+                #[allow(unused)]
+                pub fn load_const_tensor(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Tensor<B, 1> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(CONST_TENSOR_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let const_tensor: burn::module::Param<Tensor<B, 1>> = burn::module::Param::uninitialized(
+                        burn::module::ParamId::new(),
+                        move |device, _require_grad| Tensor::<B, 1>::zeros([4], device),
+                        device.clone(),
+                        false,
+                    );
+                    self
+                        .const_tensor = Some(
+                        burn::module::Module::<B>::load_record(const_tensor, record),
+                    );
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 1>> {
+                    self.load_const_tensor(device);
+                    let output = self.const_tensor.take()?.val();
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 const_tensor:  burn::module::Param<Tensor<B, 1>>,
                 phantom: core::marker::PhantomData<B>,
@@ -383,6 +448,52 @@ mod tests {
         let expected = quote! {
             use burn::prelude::*;
 
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                const_tensor_int: Option<burn::module::Param<Tensor<B, 1, Int>>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        const_tensor_int: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_const_tensor_int(&mut self) {
+                    self.const_tensor_int = None;
+                }
+                #[allow(unused)]
+                pub fn load_const_tensor_int(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Tensor<B, 1, Int> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(CONST_TENSOR_INT_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let const_tensor_int: burn::module::Param<Tensor<B, 1, Int>> = burn::module::Param::uninitialized(
+                        burn::module::ParamId::new(),
+                        move |device, _require_grad| Tensor::<B, 1, Int>::zeros([3], device),
+                        device.clone(),
+                        false,
+                    );
+                    self
+                        .const_tensor_int = Some(
+                        burn::module::Module::<B>::load_record(const_tensor_int, record),
+                    );
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 1, Int>> {
+                    self.load_const_tensor_int(device);
+                    let output = self.const_tensor_int.take()?.val();
+                    Some(output)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 const_tensor_int: burn::module::Param<Tensor<B, 1, Int>>,
@@ -440,6 +551,52 @@ mod tests {
             use burn::prelude::*;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                const_tensor_3d: Option<burn::module::Param<Tensor<B, 3, Bool>>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        const_tensor_3d: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_const_tensor_3d(&mut self) {
+                    self.const_tensor_3d = None;
+                }
+                #[allow(unused)]
+                pub fn load_const_tensor_3d(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Tensor<B, 3, Bool> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(CONST_TENSOR_3D_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let const_tensor_3d: burn::module::Param<Tensor<B, 3, Bool>> = burn::module::Param::uninitialized(
+                        burn::module::ParamId::new(),
+                        move |device, _require_grad| Tensor::<B, 3, Bool>::empty([1, 3, 2], device),
+                        device.clone(),
+                        false,
+                    );
+                    self
+                        .const_tensor_3d = Some(
+                        burn::module::Module::<B>::load_record(const_tensor_3d, record),
+                    );
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 3, Bool>> {
+                    self.load_const_tensor_3d(device);
+                    let output = self.const_tensor_3d.take()?.val();
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 const_tensor_3d: burn::module::Param<Tensor<B, 3, Bool>>,
                 phantom: core::marker::PhantomData<B>,
@@ -494,6 +651,25 @@ mod tests {
         let expected = quote! {
             use burn::prelude::*;
 
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(&mut self, device: &B::Device) -> Option<[i64; 3]> {
+                    let output: [i64; 3] = [2i64, 3i64, 4i64];
+                    Some(output)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,

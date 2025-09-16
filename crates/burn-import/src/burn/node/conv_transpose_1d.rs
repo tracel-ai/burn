@@ -160,6 +160,55 @@ mod tests {
             use burn::nn::conv::ConvTranspose1dConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                conv_transpose_1d: Option<ConvTranspose1d<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        conv_transpose_1d: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_conv_transpose_1d(&mut self) {
+                    self.conv_transpose_1d = None;
+                }
+                #[allow(unused)]
+                pub fn load_conv_transpose_1d(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <ConvTranspose1d<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(CONV_TRANSPOSE_1D_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let conv_transpose_1d = ConvTranspose1dConfig::new([3, 3], 3)
+                        .with_stride(1)
+                        .with_padding(0)
+                        .with_padding_out(0)
+                        .with_dilation(1)
+                        .with_groups(1)
+                        .with_bias(true)
+                        .init(device);
+                    self
+                        .conv_transpose_1d = Some(
+                        burn::module::Module::<B>::load_record(conv_transpose_1d, record),
+                    );
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 3>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 3>> {
+                    self.load_conv_transpose_1d(device);
+                    let output = self.conv_transpose_1d.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 conv_transpose_1d: ConvTranspose1d<B>,
                 phantom: core::marker::PhantomData<B>,

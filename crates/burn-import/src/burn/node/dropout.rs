@@ -105,6 +105,41 @@ mod tests {
             use burn::nn::DropoutConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                dropout: Option<Dropout>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        dropout: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_dropout(&mut self) {
+                    self.dropout = None;
+                }
+                #[allow(unused)]
+                pub fn load_dropout(&mut self, device: &B::Device) {
+                    let dropout = DropoutConfig::new(0.5).init();
+                    self.dropout = Some(dropout);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_dropout(device);
+                    let output = self.dropout.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 dropout: Dropout,
                 phantom: core::marker::PhantomData<B>,

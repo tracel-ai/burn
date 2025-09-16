@@ -377,6 +377,11 @@ mod tests {
                 1,
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 2> {
                     let tensor2 = {
                         let leading_dim = tensor1.shape().dims[..1].iter().product::<usize>() as i32;
@@ -399,6 +404,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.erf();
 
@@ -417,6 +427,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::relu(tensor1);
@@ -438,6 +453,11 @@ mod tests {
                 0.1,
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::leaky_relu(tensor1, 0.1);
 
@@ -456,6 +476,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::sigmoid(tensor1);
@@ -478,6 +503,11 @@ mod tests {
                 0.5,
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::hard_sigmoid(tensor1, 0.2, 0.5);
 
@@ -497,6 +527,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
                 1,
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::log_softmax(tensor1, 1);
@@ -518,6 +553,11 @@ mod tests {
                 1,
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
 
@@ -537,6 +577,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.tan();
 
@@ -555,6 +600,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::tanh(tensor1);
@@ -576,6 +626,11 @@ mod tests {
                 vec![0, 3, 1, 2],
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.permute([0, 3, 1, 2]);
 
@@ -594,6 +649,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.recip();
@@ -614,6 +674,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.cos();
 
@@ -632,6 +697,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.sin();
@@ -652,6 +722,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.exp();
 
@@ -670,6 +745,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.gelu();
@@ -690,6 +770,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.log();
 
@@ -708,6 +793,11 @@ mod tests {
                 Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
                 Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, scalar1: f64) -> f64 {
                     let scalar2 = scalar1.neg();
@@ -728,6 +818,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.neg();
 
@@ -746,6 +841,11 @@ mod tests {
                 Type::Tensor(TensorType::new_bool("tensor1", 4)),
                 Type::Tensor(TensorType::new_bool("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.bool_not();
@@ -767,6 +867,11 @@ mod tests {
                 1,
                 3,
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> [i64; 2] {
                     let shape1: [i64; 2] = tensor1.dims()[1..3]
@@ -792,6 +897,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.sign();
 
@@ -810,6 +920,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Scalar(ScalarType::new("scalar1", ScalarKind::Int64)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> i64 {
                     let scalar1 = tensor1.shape.num_elements();
@@ -831,6 +946,11 @@ mod tests {
                 IsInfConfig::new(true, true),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.is_inf();
                     tensor2
@@ -846,6 +966,11 @@ mod tests {
                 Type::Tensor(TensorType::new_bool("tensor2", 4)),
                 IsInfConfig::new(false, true),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.clone().is_inf().bool_and(tensor1.greater_elem(0.0));
@@ -863,6 +988,11 @@ mod tests {
                 IsInfConfig::new(true, false),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.clone().is_inf().bool_and(tensor1.lower_elem(0.0));
                     tensor2
@@ -878,6 +1008,11 @@ mod tests {
                 Type::Tensor(TensorType::new_bool("tensor2", 4)),
                 IsInfConfig::new(false, false),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.zeros_like().bool();
@@ -895,6 +1030,11 @@ mod tests {
                 IsInfConfig::new(true, true),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, scalar1: f32) -> bool {
                     let scalar2 = scalar1.is_infinite();
                     scalar2
@@ -910,6 +1050,11 @@ mod tests {
                 Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
                 IsInfConfig::new(false, true),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, scalar1: f32) -> bool {
                     let scalar2 = scalar1.is_infinite() && scalar1.is_sign_positive();
@@ -927,6 +1072,11 @@ mod tests {
                 IsInfConfig::new(true, false),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, scalar1: f32) -> bool {
                     let scalar2 = scalar1.is_infinite() && scalar1.is_sign_negative();
                     scalar2
@@ -942,6 +1092,11 @@ mod tests {
                 Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
                 IsInfConfig::new(false, false),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, scalar1: f32) -> bool {
                     let scalar2 = false;
@@ -961,6 +1116,11 @@ mod tests {
                 Type::Tensor(TensorType::new_bool("tensor2", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
                     let tensor2 = tensor1.is_nan();
                     tensor2
@@ -975,6 +1135,11 @@ mod tests {
                 Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
                 Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, scalar1: f32) -> bool {
                     let scalar2 = scalar1.is_nan();
@@ -993,6 +1158,11 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
                 Type::Tensor(TensorType::new_float("tensor2", 4)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, ...) -> Option<...> {
+                    ...
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.abs();

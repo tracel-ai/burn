@@ -377,6 +377,31 @@ mod tests {
                 ),
             ),
             quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
+            quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
                         let q = q;
@@ -423,6 +448,49 @@ mod tests {
                     None,
                 ),
             ),
+            quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 3>,
+                    k: Tensor<B, 3>,
+                    v: Tensor<B, 3>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 3>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                        #[allow(clippy::identity_op)]
+                        let head_size = q_hidden_size / 1usize;
+                        let kv_sequence_length = k.dims()[1];
+                        #[allow(clippy::identity_op)]
+                        let v_head_size = v.dims()[2] / 1usize;
+                        let q = q
+                            .reshape([batch_size, q_sequence_length, 1usize, head_size])
+                            .permute([0, 2, 1, 3]);
+                        let k = k
+                            .reshape([batch_size, kv_sequence_length, 1usize, head_size])
+                            .permute([0, 2, 1, 3]);
+                        let v = v
+                            .reshape([batch_size, kv_sequence_length, 1usize, v_head_size])
+                            .permute([0, 2, 1, 3]);
+                        let scale = (1.0 / (head_size as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        let y = y
+                            .permute([0, 2, 1, 3])
+                            .reshape([batch_size as i32, q_sequence_length as i32, -1]);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
             quote! {
                 pub fn forward(&self, q: Tensor<B, 3>, k: Tensor<B, 3>, v: Tensor<B, 3>) -> Tensor<B, 3> {
                     let (y,) = {
@@ -487,6 +555,47 @@ mod tests {
                 ),
             ),
             quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    attn_mask: Tensor<B, 2, Bool>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk
+                            + {
+                                let float_mask = Tensor::<
+                                    B,
+                                    2,
+                                >::zeros([shape[2], shape[3]], &attn_mask.device());
+                                float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
+                            }
+                                .expand::<4, _>(shape);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
+            quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>) -> Tensor<B, 4> {
                     let (y,) = {
                         let q = q;
@@ -545,6 +654,39 @@ mod tests {
                 ),
             ),
             quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    attn_mask: Tensor<B, 2, Int>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk + attn_mask.float().expand::<4, _>(shape);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
+            quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Int>) -> Tensor<B, 4> {
                     let (y,) = {
                         let q = q;
@@ -599,6 +741,39 @@ mod tests {
                 ),
             ),
             quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    attn_mask: Tensor<B, 2>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk + attn_mask.expand::<4, _>(shape);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
+            quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2>) -> Tensor<B, 4> {
                     let (y,) = {
                         let q = q;
@@ -652,6 +827,35 @@ mod tests {
                     None,
                 ),
             ),
+            quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let capped = {
+                            let score = qk * 0.5f64;
+                            let score = score.tanh();
+                            score * 2f64
+                        };
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
@@ -708,6 +912,53 @@ mod tests {
                     None,
                 ),
             ),
+            quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    attn_mask: Tensor<B, 2, Bool>,
+                    past_key: Tensor<B, 4>,
+                    past_value: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<(Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>)> {
+                    let (y, present_key, present_value) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let present_key = Tensor::cat([past_key, k].to_vec(), 2);
+                        let k = present_key.clone();
+                        let present_value = Tensor::cat([past_value, v].to_vec(), 2);
+                        let v = present_value.clone();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let shape = {
+                            let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                            [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                        };
+                        let qk = qk
+                            + {
+                                let float_mask = Tensor::<
+                                    B,
+                                    2,
+                                >::zeros([shape[2], shape[3]], &attn_mask.device());
+                                float_mask.mask_fill(attn_mask.bool_not(), f32::NEG_INFINITY)
+                            }
+                                .expand::<4, _>(shape);
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y, present_key, present_value)
+                    };
+                    Some((y, present_key, present_value))
+                }
+            },
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>, attn_mask: Tensor<B, 2, Bool>,
                     past_key: Tensor<B, 4>, past_value: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 4>) {
@@ -778,6 +1029,47 @@ mod tests {
                     None,
                 ),
             ),
+            quote! {
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    q: Tensor<B, 4>,
+                    k: Tensor<B, 4>,
+                    v: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    let (y,) = {
+                        let q = q;
+                        let k = k;
+                        let v = v;
+                        let scale = (1.0 / (q.dims()[3] as f64).sqrt()).sqrt();
+                        let q_dims = q.dims();
+                        let k_dims = k.dims();
+                        let q_scaled = q * scale;
+                        let k_scaled = k * scale;
+                        let k_transpose = k_scaled.transpose();
+                        let qk = q_scaled.matmul(k_transpose);
+                        let qk = {
+                            let shape = {
+                                let [batch_size, q_num_heads, q_sequence_length, _] = q_dims;
+                                [batch_size, q_num_heads, q_sequence_length, k_dims[2]]
+                            };
+                            let mask = Tensor::<B, 2>::ones([shape[2], shape[3]], &qk.device());
+                            let mask = mask.tril(0).bool().bool_not();
+                            let float_mask = Tensor::<
+                                B,
+                                2,
+                            >::zeros([shape[2], shape[3]], &mask.device())
+                                .mask_fill(mask, f32::NEG_INFINITY);
+                            qk + float_mask.expand::<4, _>(shape)
+                        };
+                        let capped = qk;
+                        let scores = softmax(capped, 3);
+                        let y = scores.matmul(v);
+                        (y,)
+                    };
+                    Some(y)
+                }
+            },
             quote! {
                 pub fn forward(&self, q: Tensor<B, 4>, k: Tensor<B, 4>, v: Tensor<B, 4>) -> Tensor<B, 4> {
                     let (y,) = {
