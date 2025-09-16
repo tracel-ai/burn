@@ -78,6 +78,47 @@ mod tests {
     burn_fusion::memory_checks!();
 }
 
+#[cfg(test)]
+mod test_utils {
+    use crate as burn;
+    use crate::module::Module;
+    use crate::module::Param;
+    use burn_tensor::Tensor;
+    use burn_tensor::backend::Backend;
+    use burn_tensor::module::linear;
+
+    /// Simple linear module.
+    #[derive(Module, Debug)]
+    pub struct SimpleLinear<B: Backend> {
+        pub weight: Param<Tensor<B, 2>>,
+        pub bias: Option<Param<Tensor<B, 1>>>,
+    }
+
+    impl<B: Backend> SimpleLinear<B> {
+        pub fn new(in_features: usize, out_features: usize, device: &B::Device) -> Self {
+            let weight = Tensor::random(
+                [out_features, in_features],
+                burn_tensor::Distribution::Default,
+                device,
+            );
+            let bias = Tensor::random([out_features], burn_tensor::Distribution::Default, device);
+
+            Self {
+                weight: Param::from_tensor(weight),
+                bias: Some(Param::from_tensor(bias)),
+            }
+        }
+
+        pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+            linear(
+                input,
+                self.weight.val(),
+                self.bias.as_ref().map(|b| b.val()),
+            )
+        }
+    }
+}
+
 /// Type alias for the learning rate.
 ///
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it

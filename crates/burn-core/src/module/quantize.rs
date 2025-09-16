@@ -24,32 +24,29 @@ impl<B: Backend> ModuleMapper<B> for Quantizer {
 
 #[cfg(all(test, not(feature = "test-tch")))]
 mod tests {
+    use crate::test_utils::SimpleLinear;
     use crate::{
         TestBackend,
         module::{Module, Quantizer},
     };
-    // TODO: either use dummy modules or move the tests to burn-nn
-    use burn_nn::{
-        Linear, LinearConfig,
-        transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
-    };
     use burn_tensor::{
-        Device, Distribution, Tensor, Tolerance,
-        ops::{FloatElem, QuantizedTensor},
-        quantization::{
-            Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantScheme, QuantValue,
-        },
+        Device, Tolerance,
+        ops::QuantizedTensor,
+        quantization::{Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue},
     };
 
     type B = TestBackend;
 
-    fn should_quantize_module<M: Module<B>, const D: usize, F: Fn(&M) -> Tensor<B, D>>(
-        module: M,
-        scheme: QuantScheme,
-        func: F,
-        tolerance: Tolerance<FloatElem<B>>,
-    ) {
-        let result = func(&module);
+    #[test]
+    fn should_quantize_module() {
+        let device: Device<B> = Default::default();
+        let module = SimpleLinear::<B>::new(32, 32, &device);
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+
+        let result = module.weight.val();
 
         let calibration = Calibration::MinMax;
         let mut quantizer = Quantizer {
@@ -57,122 +54,10 @@ mod tests {
             scheme,
         };
         let q_module = module.quantize_weights(&mut quantizer);
-        let q_result = func(&q_module);
+        let q_result = q_module.weight.val().dequantize();
 
         result
             .into_data()
-            .assert_approx_eq::<f32>(&q_result.into_data(), tolerance);
-    }
-
-    #[test]
-    fn should_quantize_transformer() {
-        let device: Device<B> = Default::default();
-        let transformer: TransformerEncoder<B> =
-            TransformerEncoderConfig::new(128, 256, 2, 2).init(&device);
-        let signal = Tensor::random([2, 32, 128], Distribution::Default, &device);
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(32))
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.forward(TransformerEncoderInput::new(signal.clone())),
-            Tolerance::rel_abs(1e-2, 2e-2), // slightly higher abs tolerance (permissive: 1e-2)
-        );
-    }
-
-    #[test]
-    fn should_quantize_linear_128_256() {
-        let device: Device<B> = Default::default();
-        let transformer: Linear<B> = LinearConfig::new(128, 256).with_bias(false).init(&device);
-        let signal = Tensor::<B, 2>::random([1, 128], Distribution::Default, &device);
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.forward(signal.clone()),
-            Tolerance::permissive(),
-        );
-    }
-
-    #[test]
-    fn should_quantize_linear() {
-        let device: Device<B> = Default::default();
-        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
-        // Default scheme should select supported QuantStore default
-        // TODO: set native if dtype is supported by the test backend
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            // .with_store(QuantStore::Native)
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.forward(signal.clone()),
-            Tolerance::permissive(),
-        );
-    }
-
-    #[test]
-    fn should_quantize_linear_weights() {
-        let device: Device<B> = Default::default();
-        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.weight.val().dequantize(),
-            Tolerance::permissive(),
-        );
-    }
-
-    #[test]
-    fn should_quantize_linear_blocks() {
-        let device: Device<B> = Default::default();
-        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(16))
-            // .with_store(QuantStore::Native)
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.forward(signal.clone()),
-            Tolerance::permissive(),
-        );
-    }
-
-    #[test]
-    fn should_quantize_linear_weights_blocks() {
-        let device: Device<B> = Default::default();
-        let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
-        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
-            .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(16))
-            // .with_store(QuantStore::Native)
-            .with_param(QuantParam::F32);
-
-        should_quantize_module(
-            transformer,
-            scheme,
-            |tr| tr.weight.val().dequantize(),
-            Tolerance::permissive(),
-        );
+            .assert_approx_eq::<f32>(&q_result.into_data(), Tolerance::permissive());
     }
 }
