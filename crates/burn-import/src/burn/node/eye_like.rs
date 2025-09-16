@@ -1,13 +1,15 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
+use onnx_ir::node::eye_like::EyeLikeConfig;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{ToTokens, quote};
 
 #[derive(Debug, Clone, new)]
 pub struct EyeLikeNode {
     pub input: TensorType,
     pub output: TensorType,
+    pub config: EyeLikeConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
@@ -22,6 +24,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
+        let k_offset = self.config.k.to_token_stream();
+
+        // Convert mask to appropriate type based on output tensor kind
+        let conversion = match self.output.kind {
+            crate::burn::TensorKind::Int => quote! { mask.int() },
+            crate::burn::TensorKind::Float => quote! { mask.float() },
+            crate::burn::TensorKind::Bool => quote! { mask },
+        };
 
         quote! {
             let #output = {
@@ -31,21 +41,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for EyeLikeNode {
                 // EyeLike creates an identity matrix with the same shape as input
                 assert!(shape.dims.len() == 2, "EyeLike operation requires 2D input tensor");
 
-                let rows = shape.dims[0];
-                let cols = shape.dims[1];
+                // Use diag_mask to create the diagonal matrix, then invert it
+                // diag_mask returns false on diagonal, true off-diagonal
+                // EyeLike needs true on diagonal, false off-diagonal
+                let mask = Tensor::diag_mask(shape.dims, #k_offset, &device).bool_not();
 
-                if rows == cols {
-                    // Square matrix - use Tensor::eye directly
-                    Tensor::eye(rows, &device)
-                } else {
-                    // Rectangular matrix - create zeros and place eye in top-left
-                    let min_dim = core::cmp::min(rows, cols);
-                    let eye_matrix = Tensor::eye(min_dim, &device);
-                    let result = #input.zeros_like();
-
-                    // Use slice assignment to place the identity matrix in the top-left corner
-                    result.slice_assign([0..min_dim, 0..min_dim], eye_matrix)
-                }
+                // Convert boolean mask to match output tensor type
+                #conversion
             };
         }
     }
@@ -65,14 +67,18 @@ mod tests {
         graph::BurnGraph,
         node::{eye_like::EyeLikeNode, test::assert_tokens},
     };
+    use onnx_ir::node::eye_like::EyeLikeConfig;
 
     #[test]
     fn test_codegen_nodes() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let config = EyeLikeConfig { dtype: None, k: 0 };
+
         graph.register(EyeLikeNode::new(
             TensorType::new_float("tensor1", 2),
             TensorType::new_float("tensor2", 2),
+            config,
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -103,21 +109,13 @@ mod tests {
                         // EyeLike creates an identity matrix with the same shape as input
                         assert!(shape.dims.len() == 2, "EyeLike operation requires 2D input tensor");
 
-                        let rows = shape.dims[0];
-                        let cols = shape.dims[1];
+                        // Use diag_mask to create the diagonal matrix, then invert it
+                        // diag_mask returns false on diagonal, true off-diagonal
+                        // EyeLike needs true on diagonal, false off-diagonal
+                        let mask = Tensor::diag_mask(shape.dims, 0i64, &device).bool_not();
 
-                        if rows == cols {
-                            // Square matrix - use Tensor::eye directly
-                            Tensor::eye(rows, &device)
-                        } else {
-                            // Rectangular matrix - create zeros and place eye in top-left
-                            let min_dim = core::cmp::min(rows, cols);
-                            let eye_matrix = Tensor::eye(min_dim, &device);
-                            let result = tensor1.zeros_like();
-
-                            // Use slice assignment to place the identity matrix in the top-left corner
-                            result.slice_assign([0..min_dim, 0..min_dim], eye_matrix)
-                        }
+                        // Convert boolean mask to match output tensor type
+                        mask.float()
                     };
                     tensor2
                 }
