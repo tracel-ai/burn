@@ -67,11 +67,14 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
         );
 
         // Create and return training batch
-        TextClassificationTrainingBatch {
+        let batch = TextClassificationTrainingBatch {
             tokens: mask.tensor,
             labels: Tensor::cat(labels_list, 0),
             mask_pad: mask.mask,
-        }
+        };
+
+        B::sync(&device);
+        batch
     }
 }
 
@@ -97,9 +100,11 @@ impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
         );
 
         // Create and return inference batch
-        TextClassificationInferenceBatch {
+        let batch = TextClassificationInferenceBatch {
             tokens: mask.tensor.to_device(device),
             mask_pad: mask.mask.to_device(device),
-        }
+        };
+        B::sync(&device);
+        batch
     }
 }

@@ -437,6 +437,7 @@ where
     }
 
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
+        return false;
         if !self.handle.can_mut() || !self.is_contiguous_buffer() {
             return false;
         }
@@ -484,6 +485,7 @@ where
 
     /// Check if the tensor is safe to mutate.
     pub fn can_mut(&self) -> bool {
+        return false;
         self.handle.can_mut()
     }
 
