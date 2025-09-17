@@ -428,13 +428,6 @@ fn load_pytorch_file_with_metadata(
             version_file.read_to_end(&mut version_data)?;
             let version_str = String::from_utf8_lossy(&version_data);
             let version = version_str.trim().to_string();
-            // PyTorch uses version "1.0" for the current format
-            if version != "1.0" {
-                eprintln!(
-                    "Warning: PyTorch format version {} may not be fully supported",
-                    version
-                );
-            }
             Some(version)
         } else {
             None
