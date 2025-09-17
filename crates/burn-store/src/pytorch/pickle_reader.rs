@@ -325,6 +325,7 @@ fn rebuild_tensor_v2(
         if tuple.len() >= 3 {
             let storage_type = match &tuple[1] {
                 Object::String(s) => s.as_str(),
+                Object::Class { module_name: _, name } => name.as_str(),
                 _ => "FloatStorage",
             };
             let dtype = match storage_type {
