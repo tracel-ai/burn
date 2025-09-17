@@ -2,11 +2,11 @@ use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Ignored, Module};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 use burn::tensor::module::avg_pool1d;
 

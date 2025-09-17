@@ -1,5 +1,5 @@
-use burn_core as burn;
 use burn::module::Initializer;
+use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Module;

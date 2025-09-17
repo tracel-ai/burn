@@ -1,15 +1,15 @@
 use burn::module::{Module, Quantizer};
 // TODO: either use dummy modules or move the tests to burn-nn
-use burn_nn::{
-    Linear, LinearConfig,
-    transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
-};
 use burn::tensor::{
     Device, Distribution, Tensor, Tolerance,
     ops::{FloatElem, QuantizedTensor},
     quantization::{
         Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantScheme, QuantValue,
     },
+};
+use burn_nn::{
+    Linear, LinearConfig,
+    transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
 };
 
 #[cfg(all(

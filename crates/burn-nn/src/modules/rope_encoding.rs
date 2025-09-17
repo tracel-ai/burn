@@ -1,11 +1,11 @@
 use burn_core as burn;
 
 use alloc::vec;
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Int;
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
-use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use core::ops::Range;
 
 #[cfg(not(feature = "std"))]

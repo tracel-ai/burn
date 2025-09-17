@@ -1,10 +1,10 @@
 use burn_core as burn;
 
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 use burn::tensor::module::adaptive_avg_pool2d;
 
