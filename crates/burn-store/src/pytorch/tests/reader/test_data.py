@@ -4,7 +4,7 @@
 # ///
 """
 Generate test PyTorch .pt files for testing the burn-store PyTorch reader.
-Run with: uv run generate_test_files.py
+Run with: uv run test_files.py
 """
 
 import torch
