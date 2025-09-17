@@ -490,10 +490,11 @@ impl ModuleSnapshoter for SafetensorsStore {
         let mut snapshots = module.collect();
 
         // Apply to_adapter (for saving - convert from Burn format to target format)
+        // TODO move this to collector just like applier
         let to_adapter = self.get_to_adapter();
         snapshots = snapshots
             .into_iter()
-            .filter_map(|snapshot| to_adapter.adapt_tensor(&snapshot))
+            .map(|snapshot| to_adapter.adapt(&snapshot))
             .collect();
 
         // Apply filtering
@@ -561,15 +562,25 @@ impl ModuleSnapshoter for SafetensorsStore {
             }
         };
 
-        // Apply from_adapter (for loading - convert from source format to Burn format)
-        let from_adapter = self.get_from_adapter();
-        snapshots = snapshots
-            .into_iter()
-            .filter_map(|snapshot| from_adapter.adapt_tensor(&snapshot))
-            .collect();
+        // Apply remapping to loaded tensors
+        #[cfg(feature = "std")]
+        {
+            snapshots = match self {
+                Self::File(p) => apply_remapping(snapshots, &p.remapper),
+                Self::Memory(p) => apply_remapping(snapshots, &p.remapper),
+            };
+        }
 
-        // Apply to module
-        let result = module.apply(snapshots);
+        // Get the adapter
+        let adapter: Box<dyn ModuleAdapter> = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.from_adapter.clone(),
+            Self::Memory(p) => p.from_adapter.clone(),
+        };
+
+        // Apply to module with adapter
+        // The adapter will be applied during module traversal with proper container info
+        let result = module.apply(snapshots, Some(adapter));
 
         // Validate if needed
         if self.get_validate() && !result.errors.is_empty() {
@@ -628,14 +639,6 @@ impl SafetensorsStore {
             #[cfg(feature = "std")]
             Self::File(p) => p.allow_partial,
             Self::Memory(p) => p.allow_partial,
-        }
-    }
-
-    fn get_from_adapter(&self) -> &dyn ModuleAdapter {
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.from_adapter.as_ref(),
-            Self::Memory(p) => p.from_adapter.as_ref(),
         }
     }
 
@@ -730,7 +733,7 @@ fn safetensors_to_snapshots_lazy(
             dtype,
             shape,
             path_parts,
-            vec!["SafeTensor".to_string()],
+            vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
         );
         snapshots.push(snapshot);
@@ -785,7 +788,7 @@ fn safetensors_to_snapshots_lazy_file(
             dtype,
             shape,
             path_parts,
-            vec!["SafeTensor".to_string()],
+            vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
         );
         snapshots.push(snapshot);

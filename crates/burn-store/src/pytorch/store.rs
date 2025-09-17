@@ -1,8 +1,8 @@
 //! PyTorch store implementation for saving and loading models in PyTorch format.
 
 use crate::{
-    ApplyResult, KeyRemapper, ModuleAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
-    PyTorchToBurnAdapter, TensorSnapshot,
+    ApplyResult, KeyRemapper, ModuleSnapshot, ModuleSnapshoter, PathFilter, PyTorchToBurnAdapter,
+    TensorSnapshot,
 };
 
 use alloc::format;
@@ -289,7 +289,8 @@ impl ModuleSnapshoter for PytorchStore {
                 // Parse the key into path parts (split by '.')
                 let path_parts: Vec<String> = key.split('.').map(|s| s.to_string()).collect();
 
-                // Update the snapshot's path and container stacks
+                // Set the path stack from the key
+                // Note: container_stack should NOT be set here - it will be managed by the module during apply
                 snapshot.path_stack = Some(path_parts);
                 snapshot.container_stack = None;
                 snapshot.tensor_id = None;
@@ -298,21 +299,15 @@ impl ModuleSnapshoter for PytorchStore {
             })
             .collect();
 
-        // Apply PyTorchToBurnAdapter (for loading - convert from PyTorch format to Burn format)
-        let adapter = PyTorchToBurnAdapter;
-        snapshots = snapshots
-            .into_iter()
-            .filter_map(|snapshot| adapter.adapt_tensor(&snapshot))
-            .collect();
-
         // Apply filtering
         snapshots = self.apply_filter(snapshots);
 
         // Apply remapping
         snapshots = self.apply_remapping(snapshots);
 
-        // Apply to module
-        let result = module.apply(snapshots);
+        // Apply to module with adapter
+        // The adapter will be applied during module traversal with proper container info
+        let result = module.apply(snapshots, Some(Box::new(PyTorchToBurnAdapter)));
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {

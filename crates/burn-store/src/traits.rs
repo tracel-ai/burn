@@ -2,17 +2,17 @@ use alloc::vec::Vec;
 
 use super::applier::{Applier, ApplyResult};
 use crate::collector::Collector;
-use crate::{PathFilter, TensorSnapshot};
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::Module;
 use burn_tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor storage functionality.
 ///
-/// This trait provides convenient methods to collect and apply tensor views from any Burn module.
-/// Collection operations create lightweight tensor views without immediately copying data.
-/// Apply operations apply tensor data from views to the corresponding tensors in the module.
+/// This trait provides convenient methods to collect and apply tensor snapshots from any Burn module.
+/// Collection operations create lightweight tensor snapshots without immediately copying data.
+/// Apply operations apply tensor data from snapshots to the corresponding tensors in the module.
 pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
-    /// Collects tensor views for inspection without copying data.
+    /// Collects tensor snapshots for inspection without copying data.
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
     /// Each `TensorSnapshot` contains the full path accessible via `snapshot.full_path()`.
@@ -22,7 +22,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
         collector.tensors
     }
 
-    /// Collects tensor views with a [`PathFilter`].
+    /// Collects tensor snapshots with a [`PathFilter`].
     ///
     /// This provides flexible filtering using `PathFilter`'s capabilities
     /// including regex patterns, exact paths, and predicates.
@@ -36,34 +36,40 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
         collector.tensors
     }
 
-    /// Applies tensor views directly to the module.
+    /// Applies tensor snapshots to the module.
     ///
     /// This is the primary apply method that applies tensor data from `TensorSnapshot`s
-    /// to the corresponding tensors in the module. The views are typically obtained
-    /// from `collect()`.
+    /// to the corresponding tensors in the module. The snapshots are typically obtained
+    /// from `collect()` or loaded from storage.
     ///
     /// # Arguments
     ///
-    /// * `views` - A vector of TensorSnapshot objects
+    /// * `snapshots` - A vector of TensorSnapshot objects
+    /// * `adapter` - Optional adapter to transform tensors based on container types
     ///
     /// # Returns
     ///
     /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    fn apply(&mut self, views: Vec<TensorSnapshot>) -> ApplyResult {
-        let mut applier = Applier::new(views);
+    fn apply(
+        &mut self,
+        snapshots: Vec<TensorSnapshot>,
+        adapter: Option<Box<dyn ModuleAdapter>>,
+    ) -> ApplyResult {
+        let mut applier = Applier::new(snapshots, adapter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
 
-    /// Applies tensor views with a [`PathFilter`].
+    /// Applies tensor snapshots with a [`PathFilter`].
     ///
     /// This provides flexible filtering using `PathFilter`'s capabilities.
     ///
     /// # Arguments
     ///
-    /// * `views` - A vector of TensorSnapshot objects
+    /// * `snapshots` - A vector of TensorSnapshot objects
     /// * `filter` - A [`PathFilter`] to determine which tensors to apply
+    /// * `adapter` - Optional adapter to transform tensors based on container types
     ///
     /// # Examples
     ///
@@ -72,22 +78,29 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-    /// let result = model.apply_with_filter(views, filter);
+    /// let result = model.apply_with_filter(snapshots, filter, None);
     ///
     /// // Apply with complex filter
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_regex(r"^decoder\..*")
     ///     .with_full_path("head.weight");
-    /// let result = model.apply_with_filter(views, filter);
+    /// let result = model.apply_with_filter(snapshots, filter, None);
     /// ```
-    fn apply_with_filter(&mut self, views: Vec<TensorSnapshot>, filter: PathFilter) -> ApplyResult {
-        let mut applier = Applier::with_filter(views, filter);
+    ///
+    //TODO make filter optional
+    fn apply_with_filter(
+        &mut self,
+        snapshots: Vec<TensorSnapshot>,
+        filter: PathFilter,
+        adapter: Option<Box<dyn ModuleAdapter>>,
+    ) -> ApplyResult {
+        let mut applier = Applier::with_filter(snapshots, filter, adapter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }
 
-    /// Collects tensor views into a [`ModuleSnapshoter`] for saving.
+    /// Collects tensor snapshots into a [`ModuleSnapshoter`] for saving.
     ///
     /// This method allows using a `ModuleSnapshoter` implementation to handle the
     /// collection and writing logic in a configurable way.
