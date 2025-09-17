@@ -571,8 +571,6 @@ fn rebuild_tensor_v2(
 
 pub struct Stack {
     stack: Vec<Object>,
-    #[allow(dead_code)]
-    metastack: Vec<Vec<Object>>,
     memo: HashMap<u32, Object>,
     data_files: HashMap<String, Vec<u8>>,
 }
@@ -587,7 +585,6 @@ impl Stack {
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
-            metastack: Vec::new(),
             memo: HashMap::new(),
             data_files: HashMap::new(),
         }
