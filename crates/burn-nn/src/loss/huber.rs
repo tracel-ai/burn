@@ -1,9 +1,9 @@
 use burn_core as burn;
 
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::{config::Config, module::Module};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::{config::Config, module::Module};
 
 use super::Reduction;
 
@@ -141,9 +141,9 @@ impl HuberLoss {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
+    use burn::tensor::TensorData;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

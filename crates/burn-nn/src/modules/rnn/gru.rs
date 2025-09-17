@@ -1,13 +1,13 @@
 use burn_core as burn;
 
 use super::gate_controller::GateController;
-use burn_core::config::Config;
-use burn_core::module::Initializer;
-use burn_core::module::Module;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::activation;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Initializer;
+use burn::module::Module;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::activation;
+use burn::tensor::backend::Backend;
 
 /// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
 #[derive(Config, Debug)]
@@ -243,9 +243,9 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::{LinearRecord, TestBackend};
-    use burn_core::module::Param;
-    use burn_tensor::{Distribution, TensorData};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::module::Param;
+    use burn::tensor::{Distribution, TensorData};
+    use burn::tensor::{Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestBackend>;
 

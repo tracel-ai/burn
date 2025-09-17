@@ -1,9 +1,9 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn_tensor::backend::Backend;
-use burn_tensor::{Distribution, Tensor};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
 #[derive(Config, Debug)]
@@ -77,7 +77,7 @@ impl ModuleDisplay for Dropout {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Shape;
+    use burn::tensor::Shape;
 
     #[cfg(feature = "std")]
     use crate::{TestAutodiffBackend, TestBackend};

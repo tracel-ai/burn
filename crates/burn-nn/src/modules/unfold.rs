@@ -1,12 +1,12 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-use burn_tensor::module::unfold4d;
-use burn_tensor::ops::UnfoldOptions;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::tensor::module::unfold4d;
+use burn::tensor::ops::UnfoldOptions;
 
 /// Configuration to create an [unfold 4d](Unfold4d) layer using the [init function](Unfold4dConfig::init).
 #[derive(Config, Debug)]
@@ -72,7 +72,7 @@ impl Unfold4dConfig {
 impl Unfold4d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [unfold4d](burn_tensor::module::unfold4d) for more information.
+    /// See [unfold4d](burn::tensor::module::unfold4d) for more information.
     ///
     /// # Shapes
     ///

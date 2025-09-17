@@ -1,11 +1,11 @@
 use burn_core as burn;
 
 use crate::norm::group_norm;
-use burn_core::config::Config;
-use burn_core::module::Initializer;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::module::{Module, Param};
-use burn_tensor::{Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::Initializer;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Module, Param};
+use burn::tensor::{Tensor, backend::Backend};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -103,8 +103,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use alloc::format;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

@@ -1,14 +1,14 @@
 use alloc::format;
 
-use burn_tensor::linalg::cosine_similarity;
+use burn::tensor::linalg::cosine_similarity;
 
 use burn_core as burn;
 
 use crate::loss::reduction::Reduction;
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::module::{Ignored, Module};
-use burn_tensor::{Int, Tensor, activation::relu, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Ignored, Module};
+use burn::tensor::{Int, Tensor, activation::relu, backend::Backend};
 
 /// Configuration for CosineEmbeddingLoss.
 #[derive(Config, Debug)]
@@ -169,8 +169,8 @@ impl CosineEmbeddingLoss {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

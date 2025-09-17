@@ -1,8 +1,8 @@
 use burn_core as burn;
 
-use burn_core::module::Module;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::module::Module;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Applies the tanh activation function element-wise
 /// See also [tanh](burn::tensor::activation::tanh)
@@ -21,7 +21,7 @@ impl Tanh {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        burn_tensor::activation::tanh(input)
+        burn::tensor::activation::tanh(input)
     }
 }
 

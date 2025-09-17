@@ -1,12 +1,12 @@
 use burn_core as burn;
 
 use crate::GateController;
-use burn_core::config::Config;
-use burn_core::module::Module;
-use burn_core::module::{Content, DisplaySettings, Initializer, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::activation;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Module;
+use burn::module::{Content, DisplaySettings, Initializer, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::activation;
+use burn::tensor::backend::Backend;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 pub struct LstmState<B: Backend, const D: usize> {
@@ -355,9 +355,9 @@ impl<B: Backend> BiLstm<B> {
 mod tests {
     use super::*;
     use crate::{LinearRecord, TestBackend};
-    use burn_core::module::Param;
-    use burn_tensor::{Device, Distribution, TensorData};
-    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    use burn::module::Param;
+    use burn::tensor::{Device, Distribution, TensorData};
+    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
-        use burn_tensor::Shape;
+        use burn::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
         let shape: Shape = [8, 10, 64].into();

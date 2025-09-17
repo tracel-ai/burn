@@ -1,14 +1,14 @@
 use alloc::format;
 
-use burn_tensor::module::interpolate;
+use burn::tensor::module::interpolate;
 
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-use burn_tensor::ops::InterpolateOptions;
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::tensor::ops::InterpolateOptions;
 
 use super::InterpolateMode;
 
@@ -170,7 +170,7 @@ impl ModuleDisplay for Interpolate1d {
 #[cfg(test)]
 mod tests {
 
-    use burn_tensor::Distribution;
+    use burn::tensor::Distribution;
 
     use super::*;
     use crate::TestBackend;

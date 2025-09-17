@@ -1,7 +1,9 @@
-use alloc::vec::Vec;
-use burn_tensor::ops::IntElem;
+use burn_core as burn;
 
-use burn_tensor::{Bool, ElementConversion, Int, Shape, Tensor, TensorData, backend::Backend};
+use alloc::vec::Vec;
+use burn::tensor::ops::IntElem;
+
+use burn::tensor::{Bool, ElementConversion, Int, Shape, Tensor, TensorData, backend::Backend};
 
 /// Generate an autoregressive attention mask.
 ///
@@ -77,8 +79,8 @@ pub fn generate_padding_mask<B: Backend>(
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
     use alloc::vec;
+    use burn::tensor::TensorData;
 
     #[test]
     fn test_generate_autoregressive_mask() {

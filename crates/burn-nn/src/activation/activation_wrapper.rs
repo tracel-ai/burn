@@ -4,10 +4,10 @@ use crate::activation::{
     Gelu, HardSigmoid, HardSigmoidConfig, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu,
     Sigmoid, SwiGlu, SwiGluConfig, Tanh,
 };
-use burn_core::config::Config;
-use burn_core::module::Module;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Module;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// [`Activation`] Configuration.
 #[derive(Config, Debug)]
@@ -177,7 +177,7 @@ impl<B: Backend> Activation<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_core::prelude::Module;
+    use burn::module::Module;
 
     fn make_input<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
         Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], device)

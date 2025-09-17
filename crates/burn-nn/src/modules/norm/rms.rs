@@ -1,14 +1,14 @@
-use burn_tensor::DType;
+use burn::tensor::DType;
 
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Initializer;
-use burn_core::module::Module;
-use burn_core::module::Param;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Initializer;
+use burn::module::Module;
+use burn::module::Param;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
 #[derive(Config, Debug)]
@@ -97,8 +97,8 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use alloc::format;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

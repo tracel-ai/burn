@@ -1,8 +1,8 @@
 use burn_core as burn;
 
-use burn_core::module::Module;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::module::Module;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
 /// See also [gelu](burn::tensor::activation::gelu)
@@ -22,7 +22,7 @@ impl Gelu {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        burn_tensor::activation::gelu(input)
+        burn::tensor::activation::gelu(input)
     }
 }
 

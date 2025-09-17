@@ -3,11 +3,11 @@ use burn_core as burn;
 use crate::activation::Gelu;
 use crate::cache::TensorCache;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::{Bool, Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::{Bool, Tensor, backend::Backend};
 
-use burn_tensor::activation::{quiet_softmax, softmax};
+use burn::tensor::activation::{quiet_softmax, softmax};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -355,10 +355,10 @@ mod tests {
     use super::*;
     use crate::{TestBackend, attention::generate_autoregressive_mask};
     use alloc::vec::Vec;
-    use burn_tensor::Int;
-    use burn_tensor::Tolerance;
-    use burn_tensor::ops::FloatElem;
-    use burn_tensor::{Distribution, Shape};
+    use burn::tensor::Int;
+    use burn::tensor::Tolerance;
+    use burn::tensor::ops::FloatElem;
+    use burn::tensor::{Distribution, Shape};
 
     #[test]
     fn test_self_attention_shapes() {

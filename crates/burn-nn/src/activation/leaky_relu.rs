@@ -1,11 +1,11 @@
+use burn::config::Config;
+use burn::module::Module;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 use burn_core as burn;
-use burn_core::config::Config;
-use burn_core::module::Module;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
 
-use burn_tensor::activation::leaky_relu;
+use burn::tensor::activation::leaky_relu;
 
 /// Leaky ReLu layer.
 ///
@@ -49,7 +49,7 @@ impl ModuleDisplay for LeakyRelu {
 impl LeakyRelu {
     /// Forward pass for the Leaky ReLu layer.
     ///
-    /// See [leaky_relu](burn_tensor::activation::leaky_relu) for more information.
+    /// See [leaky_relu](burn::tensor::activation::leaky_relu) for more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`
@@ -63,8 +63,8 @@ impl LeakyRelu {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

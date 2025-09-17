@@ -1,8 +1,8 @@
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 use burn_core as burn;
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
 /// Parametric Relu layer.
 ///
 /// Should be created using [PReluConfig]
@@ -64,9 +64,9 @@ impl<B: Backend> PRelu<B> {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     ///
-    /// See also [prelu](burn_tensor::activation::prelu) for more information.
+    /// See also [prelu](burn::tensor::activation::prelu) for more information.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        burn_tensor::activation::prelu(input, self.alpha.val())
+        burn::tensor::activation::prelu(input, self.alpha.val())
     }
 }
 

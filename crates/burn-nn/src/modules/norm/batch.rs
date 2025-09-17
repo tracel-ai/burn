@@ -1,12 +1,12 @@
 use burn_core as burn;
 
-use burn_core::module::Initializer;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::{
+use burn::module::Initializer;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::{Tensor, backend::Backend};
+use burn::{
     config::Config,
     module::{Module, Param, RunningState},
 };
-use burn_tensor::{Tensor, backend::Backend};
 
 /// [`BatchNorm`] Configuration.
 ///
@@ -214,9 +214,9 @@ impl<B: Backend> ModuleDisplay for BatchNorm<B> {
 mod tests_1d {
     use super::*;
     use crate::TestAutodiffBackend;
-    use burn_core::module::AutodiffModule;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::module::AutodiffModule;
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestAutodiffBackend>;
 
     #[test]
@@ -277,9 +277,9 @@ mod tests_1d {
 mod tests_2d {
     use super::*;
     use crate::TestAutodiffBackend;
-    use burn_core::module::AutodiffModule;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::module::AutodiffModule;
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestAutodiffBackend>;
 
     #[test]

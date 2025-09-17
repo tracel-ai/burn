@@ -1,9 +1,9 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::activation::silu;
-use burn_tensor::{Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::activation::silu;
+use burn::tensor::{Tensor, backend::Backend};
 
 use crate::{Linear, LinearConfig, LinearLayout};
 
@@ -97,7 +97,7 @@ impl<B: Backend> SwiGlu<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

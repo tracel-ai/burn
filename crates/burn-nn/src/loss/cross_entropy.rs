@@ -3,10 +3,10 @@ use burn_core as burn;
 use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::{config::Config, module::Module};
-use burn_tensor::activation::log_softmax;
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::activation::log_softmax;
+use burn::tensor::{Bool, Int, Tensor, backend::Backend};
+use burn::{config::Config, module::Module};
 
 /// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
@@ -243,8 +243,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{Distribution, TensorData, loss::cross_entropy_with_logits, ops::IntElem};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{Distribution, TensorData, loss::cross_entropy_with_logits, ops::IntElem};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     macro_rules! setup {

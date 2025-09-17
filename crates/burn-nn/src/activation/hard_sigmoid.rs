@@ -1,11 +1,11 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Module;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::activation::hard_sigmoid;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Module;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Tensor;
+use burn::tensor::activation::hard_sigmoid;
+use burn::tensor::backend::Backend;
 
 /// Hard Sigmoid layer.
 ///
@@ -56,7 +56,7 @@ impl ModuleDisplay for HardSigmoid {
 impl HardSigmoid {
     /// Forward pass for the Hard Sigmoid layer.
     ///
-    /// See [hard_sigmoid](burn_tensor::activation::hard_sigmoid) for more information.
+    /// See [hard_sigmoid](burn::tensor::activation::hard_sigmoid) for more information.
     ///
     /// # Shapes
     /// - input: `[..., any]`
@@ -70,8 +70,8 @@ impl HardSigmoid {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

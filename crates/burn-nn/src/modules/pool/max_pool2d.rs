@@ -2,13 +2,13 @@ use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::module::{Ignored, Module};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Ignored, Module};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
-use burn_tensor::module::max_pool2d;
+use burn::tensor::module::max_pool2d;
 
 /// Configuration to create a [2D max pooling](MaxPool2d) layer using the [init function](MaxPool2dConfig::init).
 #[derive(Debug, Config)]
@@ -81,7 +81,7 @@ impl MaxPool2dConfig {
 impl MaxPool2d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [max_pool2d](burn_tensor::module::max_pool2d) for more information.
+    /// See [max_pool2d](burn::tensor::module::max_pool2d) for more information.
     ///
     /// # Shapes
     ///

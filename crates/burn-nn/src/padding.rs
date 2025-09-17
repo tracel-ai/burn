@@ -1,8 +1,7 @@
 use burn_core as burn;
 
-use burn_tensor::ops::conv::calculate_conv_padding;
-
-use burn_core::config::Config;
+use burn::config::Config;
+use burn::tensor::ops::conv::calculate_conv_padding;
 
 /// Padding configuration for 1D operators.
 #[derive(Config, Debug, PartialEq)]

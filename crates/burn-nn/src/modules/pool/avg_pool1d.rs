@@ -2,13 +2,13 @@ use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_core::module::{Ignored, Module};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::module::{Ignored, Module};
 
-use burn_tensor::module::avg_pool1d;
+use burn::tensor::module::avg_pool1d;
 
 /// Configuration to create a [1D avg pooling](AvgPool1d) layer using the [init function](AvgPool1dConfig::init).
 #[derive(Config, Debug)]
@@ -89,7 +89,7 @@ impl AvgPool1dConfig {
 impl AvgPool1d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [avg_pool1d](burn_tensor::module::avg_pool1d) for more information.
+    /// See [avg_pool1d](burn::tensor::module::avg_pool1d) for more information.
     ///
     /// # Shapes
     ///

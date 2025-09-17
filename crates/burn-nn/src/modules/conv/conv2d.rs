@@ -3,13 +3,13 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
-use burn_core::config::Config;
-use burn_core::module::Initializer;
-use burn_core::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-use burn_tensor::module::conv2d;
-use burn_tensor::ops::ConvOptions;
+use burn::config::Config;
+use burn::module::Initializer;
+use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::tensor::module::conv2d;
+use burn::tensor::ops::ConvOptions;
 
 use crate::conv::checks;
 
@@ -147,7 +147,7 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
 impl<B: Backend> Conv2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [conv2d](burn_tensor::module::conv2d) for more information.
+    /// See [conv2d](burn::tensor::module::conv2d) for more information.
     ///
     /// # Shapes
     /// - `input`: `[batch_size, channels_in, height_in, width_in]`
@@ -183,12 +183,12 @@ impl<B: Backend> Conv2d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::ops::FloatElem;
-    use burn_tensor::{ElementConversion, Tolerance};
+    use burn::tensor::ops::FloatElem;
+    use burn::tensor::{ElementConversion, Tolerance};
 
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
+    use burn::tensor::TensorData;
     type FT = FloatElem<TestBackend>; // Float test
 
     #[test]

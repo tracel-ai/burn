@@ -1,15 +1,15 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Initializer;
-use burn_core::module::Module;
-use burn_core::module::Param;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Int;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Initializer;
+use burn::module::Module;
+use burn::module::Param;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Int;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
-use burn_tensor::module::embedding;
+use burn::tensor::module::embedding;
 
 /// Configuration to create an [Embedding](Embedding) layer using the [init function](EmbeddingConfig::init).
 #[derive(Config, Debug)]
@@ -64,7 +64,7 @@ impl EmbeddingConfig {
 impl<B: Backend> Embedding<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See also [embedding](burn_tensor::module::embedding).
+    /// See also [embedding](burn::tensor::module::embedding).
     ///
     /// # Shapes
     ///
@@ -79,8 +79,8 @@ impl<B: Backend> Embedding<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

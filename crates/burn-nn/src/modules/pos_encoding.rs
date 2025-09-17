@@ -1,12 +1,12 @@
 use burn_core as burn;
 
 use alloc::vec::Vec;
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
-use burn_tensor::Tensor;
-use burn_tensor::TensorData;
-use burn_tensor::backend::Backend;
+use burn::tensor::Tensor;
+use burn::tensor::TensorData;
+use burn::tensor::backend::Backend;
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -187,7 +187,7 @@ mod tests {
 
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

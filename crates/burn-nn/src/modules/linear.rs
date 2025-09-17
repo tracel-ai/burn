@@ -1,10 +1,10 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Param;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::module::linear;
-use burn_tensor::{Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::Param;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::module::linear;
+use burn::tensor::{Tensor, backend::Backend};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -152,11 +152,11 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_core::module::ParamId;
-    use burn_core::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-    use burn_tensor::ElementConversion;
-    use burn_tensor::{Shape, TensorData};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::module::ParamId;
+    use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+    use burn::tensor::ElementConversion;
+    use burn::tensor::{Shape, TensorData};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]
@@ -317,7 +317,7 @@ mod tests {
         let device = Default::default();
         let config_col = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
         let linear_col = config_col.init::<TestBackend>(&device);
-        let signal = Tensor::<_, 2>::random([8, 6], burn_tensor::Distribution::Default, &device);
+        let signal = Tensor::<_, 2>::random([8, 6], burn::tensor::Distribution::Default, &device);
         let value = linear_col.forward(signal.clone());
 
         let data_1 = value.into_data();

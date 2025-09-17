@@ -8,9 +8,9 @@ use crate::{
     attention::{MhaCache, MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
     cache::TensorCache,
 };
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::{Bool, Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::{Bool, Tensor, backend::Backend};
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
 #[derive(Config, Debug)]
@@ -388,8 +388,8 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
 mod tests {
     use super::*;
     use crate::{TestBackend, attention::generate_autoregressive_mask};
-    use burn_tensor::Distribution;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Distribution;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

@@ -1,14 +1,14 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Content;
-use burn_core::module::DisplaySettings;
-use burn_core::module::Initializer;
-use burn_core::module::Module;
-use burn_core::module::ModuleDisplay;
-use burn_core::module::Param;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Content;
+use burn::module::DisplaySettings;
+use burn::module::Initializer;
+use burn::module::Module;
+use burn::module::ModuleDisplay;
+use burn::module::Param;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer using the [init function](LayerNormConfig::init).
 #[derive(Debug, Config)]
@@ -96,8 +96,8 @@ impl<B: Backend> ModuleDisplay for LayerNorm<B> {
 mod tests {
     use super::*;
     use alloc::format;
-    use burn_tensor::TensorData;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[cfg(feature = "std")]

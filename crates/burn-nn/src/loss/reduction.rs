@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
+use burn::config::Config;
 
 /// The reduction type for the loss.
 #[derive(Config, Debug)]

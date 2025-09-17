@@ -937,7 +937,6 @@ dependencies = [
  "burn-rocm",
  "burn-router",
  "burn-tch",
- "burn-tensor",
  "burn-wgpu",
  "num-traits",
  "rstest",

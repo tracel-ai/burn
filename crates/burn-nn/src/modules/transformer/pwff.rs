@@ -1,9 +1,9 @@
 use burn_core as burn;
 
 use crate::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig};
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::{Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::{Tensor, backend::Backend};
 
 /// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).
 #[derive(Config, Debug)]

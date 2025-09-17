@@ -1,5 +1,7 @@
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn_core as burn;
+
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 pub(crate) enum CacheState<T> {
     Value(T),

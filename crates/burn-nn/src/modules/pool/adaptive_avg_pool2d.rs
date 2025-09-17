@@ -1,12 +1,12 @@
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_core::module::Module;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::config::Config;
+use burn::module::Module;
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
 
-use burn_tensor::module::adaptive_avg_pool2d;
+use burn::tensor::module::adaptive_avg_pool2d;
 
 /// Configuration to create a [2D adaptive avg pooling](AdaptiveAvgPool2d) layer using the [init function](AdaptiveAvgPool2dConfig::init).
 #[derive(Config, Debug)]
@@ -51,7 +51,7 @@ impl AdaptiveAvgPool2dConfig {
 impl AdaptiveAvgPool2d {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [adaptive_avg_pool2d](burn_tensor::module::adaptive_avg_pool2d) for more information.
+    /// See [adaptive_avg_pool2d](burn::tensor::module::adaptive_avg_pool2d) for more information.
     ///
     /// # Shapes
     ///

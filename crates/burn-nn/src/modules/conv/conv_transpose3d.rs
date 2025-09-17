@@ -3,17 +3,17 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::conv::checks;
-use burn_core::config::Config;
-use burn_core::module::Content;
-use burn_core::module::DisplaySettings;
-use burn_core::module::Initializer;
-use burn_core::module::Module;
-use burn_core::module::ModuleDisplay;
-use burn_core::module::Param;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-use burn_tensor::module::conv_transpose3d;
-use burn_tensor::ops::ConvTransposeOptions;
+use burn::config::Config;
+use burn::module::Content;
+use burn::module::DisplaySettings;
+use burn::module::Initializer;
+use burn::module::Module;
+use burn::module::ModuleDisplay;
+use burn::module::Param;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
+use burn::tensor::module::conv_transpose3d;
+use burn::tensor::ops::ConvTransposeOptions;
 
 /// Configuration to create an [3D transposed convolution](ConvTranspose3d) layer
 /// using the [init function](ConvTranspose3dConfig::init).
@@ -135,7 +135,7 @@ impl ConvTranspose3dConfig {
 impl<B: Backend> ConvTranspose3d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See also [conv_transpose3d](burn_tensor::module::conv_transpose3d).
+    /// See also [conv_transpose3d](burn::tensor::module::conv_transpose3d).
     ///
     /// # Shapes
     ///
@@ -159,12 +159,12 @@ impl<B: Backend> ConvTranspose3d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
+    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
+    use burn::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

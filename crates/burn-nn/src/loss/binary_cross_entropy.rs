@@ -1,10 +1,10 @@
 use burn_core as burn;
-use burn_core::module::{Content, DisplaySettings, ModuleDisplay};
 
 use alloc::vec::Vec;
-use burn_core::{config::Config, module::Module};
-use burn_tensor::activation::log_sigmoid;
-use burn_tensor::{Int, Tensor, backend::Backend};
+use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::activation::log_sigmoid;
+use burn::tensor::{Int, Tensor, backend::Backend};
+use burn::{config::Config, module::Module};
 
 /// Configuration to create a [Binary Cross-entropy loss](BinaryCrossEntropyLoss) using the [init function](BinaryCrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
@@ -164,8 +164,8 @@ impl<B: Backend> BinaryCrossEntropyLoss<B> {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::{TensorData, activation::sigmoid};
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{TensorData, activation::sigmoid};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

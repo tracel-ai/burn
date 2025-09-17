@@ -1,8 +1,8 @@
 use burn_core as burn;
 
-use burn_core::module::Module;
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::module::Module;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Applies the gated linear unit function.
 ///
@@ -34,7 +34,7 @@ impl GLU {
     /// ### Returns
     /// * A tensor with the same shape as the input, except the size along `dim` is halved.
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        burn_tensor::activation::glu(input, self.dim)
+        burn::tensor::activation::glu(input, self.dim)
     }
 }
 

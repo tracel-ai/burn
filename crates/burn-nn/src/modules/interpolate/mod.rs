@@ -6,8 +6,8 @@ pub use interpolate2d::*;
 
 use burn_core as burn;
 
-use burn_core::config::Config;
-use burn_tensor::ops::InterpolateMode as OpsInterpolateMode;
+use burn::config::Config;
+use burn::tensor::ops::InterpolateMode as OpsInterpolateMode;
 
 /// Algorithm used for downsampling and upsampling
 ///

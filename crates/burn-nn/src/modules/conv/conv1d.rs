@@ -3,11 +3,11 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::{PaddingConfig1d, conv::checks};
-use burn_core::{
+use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
+use burn::{
     config::Config,
     module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},
 };
-use burn_tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
@@ -142,7 +142,7 @@ impl Conv1dConfig {
 impl<B: Backend> Conv1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
-    /// See [conv1d](burn_tensor::module::conv1d) for more information.
+    /// See [conv1d](burn::tensor::module::conv1d) for more information.
     ///
     /// # Shapes
     ///
@@ -165,12 +165,12 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{ElementConversion, ops::FloatElem};
+    use burn::tensor::{ElementConversion, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     use super::*;
     use crate::TestBackend;
-    use burn_tensor::TensorData;
+    use burn::tensor::TensorData;
 
     #[test]
     fn initializer_default() {

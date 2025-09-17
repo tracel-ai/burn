@@ -2,9 +2,9 @@ use burn_core as burn;
 
 use alloc::vec::Vec;
 
-use burn_core::config::Config;
-use burn_core::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn_tensor::{Bool, Tensor, backend::Backend};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::{Bool, Tensor, backend::Backend};
 
 use crate::cache::TensorCache;
 use crate::{
@@ -452,12 +452,12 @@ impl<B: Backend> TransformerDecoder<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Device;
+    use burn::tensor::Device;
 
     use super::*;
     use crate::{TestBackend, attention::generate_autoregressive_mask};
 
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
     #[test]

@@ -1,11 +1,12 @@
+use burn_core as burn;
+
 use crate::{
     BatchNorm, BatchNormConfig, GroupNorm, GroupNormConfig, InstanceNorm, InstanceNormConfig,
     LayerNorm, LayerNormConfig, RmsNorm, RmsNormConfig,
 };
-use burn_core as burn;
-use burn_core::prelude::{Config, Module};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::prelude::{Config, Module};
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// ['Normalization'] Configuration.
 ///

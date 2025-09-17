@@ -1,8 +1,9 @@
 use alloc::vec;
+use burn_core as burn;
 
 use super::{CacheState, TensorCache};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 impl<B: Backend, const D: usize> TensorCache<B, D> {
     pub(crate) fn forward_autoregressive<F>(
