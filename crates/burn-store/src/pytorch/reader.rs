@@ -30,7 +30,9 @@
 use crate::TensorSnapshot;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use burn_core::record::serde::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use burn_tensor::TensorData;
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
@@ -51,6 +53,8 @@ pub enum Error {
     InvalidFormat(String),
     /// Key not found
     KeyNotFound(String),
+    /// Serde deserialization error
+    Serde(burn_core::record::serde::error::Error),
 }
 
 impl From<std::io::Error> for Error {
@@ -71,6 +75,12 @@ impl From<zip::result::ZipError> for Error {
     }
 }
 
+impl From<burn_core::record::serde::error::Error> for Error {
+    fn from(e: burn_core::record::serde::error::Error) -> Self {
+        Error::Serde(e)
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -87,6 +97,7 @@ impl std::fmt::Display for Error {
                 "Key '{}' not found in PyTorch file. Available keys may be listed with the keys() method.",
                 key
             ),
+            Error::Serde(e) => write!(f, "Serde deserialization error: {}", e),
         }
     }
 }
@@ -284,6 +295,56 @@ impl PytorchReader {
         top_level_key: Option<&str>,
     ) -> Result<PickleValue> {
         read_pickle_as_value(path.as_ref(), top_level_key)
+    }
+
+    /// Load and deserialize configuration data from a PyTorch file
+    ///
+    /// This method reads configuration or metadata stored in PyTorch checkpoint files
+    /// and deserializes it into the specified type. It's particularly useful for
+    /// extracting model configurations that might be saved alongside model weights.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the PyTorch file (.pt or .pth)
+    /// * `top_level_key` - Optional key to extract specific data within the pickle file.
+    ///   If `None`, the entire content is deserialized.
+    ///
+    /// # Type Parameters
+    /// * `D` - The target type to deserialize into. Must implement `DeserializeOwned`.
+    ///
+    /// # Returns
+    /// A `Result` containing the deserialized configuration data, or an `Error` if
+    /// reading or deserialization fails.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use burn_store::pytorch::PytorchReader;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Debug, Deserialize)]
+    /// struct ModelConfig {
+    ///     hidden_size: usize,
+    ///     num_layers: usize,
+    /// }
+    ///
+    /// let config: ModelConfig = PytorchReader::load_config("model.pth", Some("config"))?;
+    /// ```
+    pub fn load_config<D, P>(path: P, top_level_key: Option<&str>) -> Result<D>
+    where
+        D: DeserializeOwned,
+        P: AsRef<Path>,
+    {
+        // Read the PyTorch file and extract the pickle data
+        let pickle_value = Self::read_pickle_data(path, top_level_key)?;
+
+        // Convert PickleValue to NestedValue
+        let nested_value = convert_pickle_to_nested_value(pickle_value)?;
+
+        // Create a deserializer with the default adapter
+        let deserializer = Deserializer::<DefaultAdapter>::new(nested_value, false);
+
+        // Deserialize the nested value into the target type
+        let value = D::deserialize(deserializer)?;
+        Ok(value)
     }
 }
 
@@ -782,6 +843,36 @@ fn object_to_pickle_value(obj: Object) -> Result<PickleValue> {
         Object::Class { .. } | Object::Build { .. } | Object::Reduce { .. } => {
             // Complex objects are represented as None for simplicity
             PickleValue::None
+        }
+    })
+}
+
+/// Convert PickleValue to NestedValue for deserialization
+fn convert_pickle_to_nested_value(value: PickleValue) -> Result<NestedValue> {
+    Ok(match value {
+        PickleValue::None => NestedValue::Default(None),
+        PickleValue::Bool(b) => NestedValue::Bool(b),
+        PickleValue::Int(i) => NestedValue::I64(i),
+        PickleValue::Float(f) => NestedValue::F64(f),
+        PickleValue::String(s) => NestedValue::String(s),
+        PickleValue::List(list) => {
+            let mut vec = Vec::new();
+            for item in list {
+                vec.push(convert_pickle_to_nested_value(item)?);
+            }
+            NestedValue::Vec(vec)
+        }
+        PickleValue::Dict(dict) => {
+            let mut map = HashMap::new();
+            for (k, v) in dict {
+                map.insert(k, convert_pickle_to_nested_value(v)?);
+            }
+            NestedValue::Map(map)
+        }
+        PickleValue::Bytes(data) => {
+            // Convert bytes to a list of u8 values
+            let vec: Vec<NestedValue> = data.into_iter().map(NestedValue::U8).collect();
+            NestedValue::Vec(vec)
         }
     })
 }
