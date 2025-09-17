@@ -12,7 +12,9 @@ use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
 use rand::SeedableRng;
 
-pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
+
+/// The seed for the ndarray backend.
+pub static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,4 +146,15 @@ where
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
     }
+
+    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+    //     match handle.handle {
+    //         HandleKind::Complex(handle) => handle,
+    //         _ => panic!("Expected complex handle, got {}", handle.handle.name()),
+    //     }
+    // }
+
+    // fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+    //     HandleKind::Complex(tensor)
+    // }
 }
