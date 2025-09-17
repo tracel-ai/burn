@@ -133,6 +133,41 @@ mod tests {
             use burn::nn::pool::AdaptiveAvgPool2dConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                global_avg_pool1: Option<AdaptiveAvgPool2d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        global_avg_pool1: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_global_avg_pool1(&mut self) {
+                    self.global_avg_pool1 = None;
+                }
+                #[allow(unused)]
+                pub fn load_global_avg_pool1(&mut self, device: &B::Device) {
+                    let global_avg_pool1 = AdaptiveAvgPool2dConfig::new([1, 1]).init();
+                    self.global_avg_pool1 = Some(global_avg_pool1);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_global_avg_pool1(device);
+                    let output = self.global_avg_pool1.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 global_avg_pool1: AdaptiveAvgPool2d,
                 phantom: core::marker::PhantomData<B>,
@@ -180,6 +215,41 @@ mod tests {
             use burn::nn::pool::AdaptiveAvgPool1d;
             use burn::nn::pool::AdaptiveAvgPool1dConfig;
 
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                global_avg_pool1: Option<AdaptiveAvgPool1d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        global_avg_pool1: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_global_avg_pool1(&mut self) {
+                    self.global_avg_pool1 = None;
+                }
+                #[allow(unused)]
+                pub fn load_global_avg_pool1(&mut self, device: &B::Device) {
+                    let global_avg_pool1 = AdaptiveAvgPool1dConfig::new(1).init();
+                    self.global_avg_pool1 = Some(global_avg_pool1);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 3>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 3>> {
+                    self.load_global_avg_pool1(device);
+                    let output = self.global_avg_pool1.take()?.forward(input);
+                    Some(output)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 global_avg_pool1: AdaptiveAvgPool1d,

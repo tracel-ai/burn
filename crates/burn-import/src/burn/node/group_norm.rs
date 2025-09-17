@@ -152,6 +152,45 @@ mod tests {
             use burn::nn::GroupNormConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                norm: Option<GroupNorm<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        norm: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_norm(&mut self) {
+                    self.norm = None;
+                }
+                #[allow(unused)]
+                pub fn load_norm(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <GroupNorm<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(NORM_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let norm = GroupNormConfig::new(6, 128).with_epsilon(0.00001f64).init(device);
+                    self.norm = Some(burn::module::Module::<B>::load_record(norm, record));
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_norm(device);
+                    let output = self.norm.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 norm: GroupNorm<B>,
                 phantom: core::marker::PhantomData<B>,
@@ -204,6 +243,48 @@ mod tests {
             use burn::nn::GroupNorm;
             use burn::nn::GroupNormConfig;
 
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                norm: Option<GroupNorm<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        norm: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_norm(&mut self) {
+                    self.norm = None;
+                }
+                #[allow(unused)]
+                pub fn load_norm(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <GroupNorm<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(NORM_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let norm = GroupNormConfig::new(6, 128).with_epsilon(0.00001f64).init(device);
+                    self.norm = Some(burn::module::Module::<B>::load_record(norm, record));
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_norm(device);
+                    let output = {
+                        let dtype = input.dtype();
+                        self.norm.take()?.forward(input.cast(burn::tensor::DType::F32)).cast(dtype)
+                    };
+                    Some(output)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 norm: GroupNorm<B>,

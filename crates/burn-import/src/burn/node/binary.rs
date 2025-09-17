@@ -760,6 +760,13 @@ mod tests {
           Type::Tensor(TensorType::new_float("tensor3", 4)),
         ),
         quote! {
+            pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>, device: &B::Device) -> Option<Tensor<B, 4>> {
+                let tensor3 = tensor1.$burn_operator(tensor2);
+
+                Some(tensor3)
+            }
+        },
+        quote! {
             pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                 let tensor3 = tensor1.$burn_operator(tensor2);
 
@@ -784,6 +791,13 @@ mod tests {
                     Type::Tensor(TensorType::new_float("tensor3", 4)),
                 ),
                 quote! {
+                    pub fn memory_efficient_forward(&mut self, scalar1: f32, tensor1: Tensor<B, 4>, device: &B::Device) -> Option<Tensor<B, 4>> {
+                        let tensor3 = tensor1.$burn_operator(scalar1);
+
+                        Some(tensor3)
+                    }
+                },
+                quote! {
                     pub fn forward(&self, scalar1: f32, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                         let tensor3 = tensor1.$burn_operator(scalar1);
 
@@ -804,6 +818,13 @@ mod tests {
                     Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
                     Type::Scalar(ScalarType::new("scalar3", ScalarKind::Float32)),
                 ),
+                quote! {
+                    pub fn memory_efficient_forward(&mut self, scalar1: f32, scalar2: f32, device: &B::Device) -> Option<f32> {
+                        let scalar3 = scalar1 $scalar_operator scalar2;
+
+                        Some(scalar3)
+                    }
+                },
                 quote! {
                     pub fn forward(&self, scalar1: f32, scalar2: f32) -> f32 {
                         let scalar3 = scalar1 $scalar_operator scalar2;
@@ -965,6 +986,30 @@ mod tests {
         let expected = quote! {
             use burn::prelude::*;
 
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4, Bool>> {
+                    let tensor3 = tensor1.equal(tensor2);
+                    Some(tensor3)
+                }
+            }
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
@@ -1128,6 +1173,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor3", 3)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 2>, device: &B::Device) -> Option<Tensor<B, 3>> {
+                    let tensor3 = tensor1.add(tensor2.unsqueeze::<3usize>());
+
+                    Some(tensor3)
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 2>) -> Tensor<B, 3> {
                     let tensor3 = tensor1.add(tensor2.unsqueeze_dims(&[0isize]));
 
@@ -1148,6 +1200,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 3)),
                 Type::Tensor(TensorType::new_float("tensor3", 3)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 3>, device: &B::Device) -> Option<Tensor<B, 3>> {
+                    let tensor3 = tensor1.unsqueeze::<3usize>().sub(tensor2);
+
+                    Some(tensor3)
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 3>) -> Tensor<B, 3> {
                     let tensor3 = tensor1.unsqueeze_dims(&[0isize]).sub(tensor2);
@@ -1170,6 +1229,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor3", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 2>, device: &B::Device) -> Option<Tensor<B, 4>> {
+                    let tensor3 = tensor1.mul(tensor2.unsqueeze::<4usize>());
+
+                    Some(tensor3)
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 2>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.mul(tensor2.unsqueeze_dims(&[0isize, 1isize]));
 
@@ -1191,6 +1257,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor3", 4)),
             ),
             quote! {
+                pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 1>, tensor2: Tensor<B, 4>, device: &B::Device) -> Option<Tensor<B, 4>> {
+                    let tensor3 = tensor1.unsqueeze::<4usize>().div(tensor2);
+
+                    Some(tensor3)
+                }
+            },
+            quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 1>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).div(tensor2);
 
@@ -1211,6 +1284,13 @@ mod tests {
                 Type::Tensor(TensorType::new_float("tensor2", 3)),
                 Type::Tensor(TensorType::new_float("tensor3", 3)),
             ),
+            quote! {
+                pub fn memory_efficient_forward(&mut self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 3>, device: &B::Device) -> Option<Tensor<B, 3>> {
+                    let tensor3 = tensor1.add(tensor2);
+
+                    Some(tensor3)
+                }
+            },
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 3>) -> Tensor<B, 3> {
                     let tensor3 = tensor1.add(tensor2);

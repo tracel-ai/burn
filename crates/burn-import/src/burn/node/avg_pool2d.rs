@@ -121,6 +121,45 @@ mod tests {
             use burn::nn::pool::AvgPool2dConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                avg_pool2d: Option<AvgPool2d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        avg_pool2d: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_avg_pool2d(&mut self) {
+                    self.avg_pool2d = None;
+                }
+                #[allow(unused)]
+                pub fn load_avg_pool2d(&mut self, device: &B::Device) {
+                    let avg_pool2d = AvgPool2dConfig::new([3, 3])
+                        .with_strides([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
+                        .with_count_include_pad(true)
+                        .init();
+                    self.avg_pool2d = Some(avg_pool2d);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_avg_pool2d(device);
+                    let output = self.avg_pool2d.take()?.forward(input);
+                    Some(output)
+                }
+            }
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 avg_pool2d: AvgPool2d,
                 phantom: core::marker::PhantomData<B>,
