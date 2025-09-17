@@ -1,5 +1,6 @@
+use burn_core as burn;
+
 use burn::module::{Module, Quantizer};
-// TODO: either use dummy modules or move the tests to burn-nn
 use burn::tensor::{
     Device, Distribution, Tensor, Tolerance,
     ops::{FloatElem, QuantizedTensor},
