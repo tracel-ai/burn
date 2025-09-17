@@ -13,18 +13,16 @@ interoperability, and advanced tensor management.
 ### Core Capabilities
 
 - **SafeTensors Format** - Industry-standard format for secure and efficient tensor serialization
-- **Zero-Copy Loading** - Memory-mapped files and lazy tensor materialization for optimal
-  performance
+- **PyTorch Support** - Direct loading of PyTorch .pth/.pt files with automatic weight transformation
+- **Zero-Copy Loading** - Memory-mapped files and lazy tensor materialization for optimal performance
 - **Cross-Framework Support** - Seamless PyTorch ↔ Burn model conversion with automatic adaptations
-- **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
-  predicates
+- **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
 - **No-std Support** - Core functionality available in embedded and WASM environments
 
 ### Advanced Features
 
-- **Framework Adapters** - Automatic weight transposition and parameter renaming for PyTorch
-  compatibility
+- **Framework Adapters** - Automatic weight transposition and parameter renaming for PyTorch compatibility
 - **Lazy Transformations** - Chain tensor transformations without materializing intermediate data
 - **Partial Loading** - Continue loading even when some tensors are missing
 - **Custom Metadata** - Attach version info, training details, or other metadata to saved models
@@ -80,9 +78,16 @@ model.apply_from(&mut store)?;
 ### PyTorch Interoperability
 
 ```rust
-use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter};
+use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter, PytorchStore};
 
-// Load PyTorch model into Burn
+// Load PyTorch .pth file directly
+let mut store = PytorchStore::from_file("pytorch_model.pth")
+    .with_top_level_key("state_dict")         // Access nested state dict
+    .allow_partial(true);                     // Skip unknown tensors
+
+burn_model.apply_from(&mut store)?;
+
+// Load PyTorch model from SafeTensors
 let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
     .allow_partial(true);                     // Skip unknown PyTorch tensors
@@ -103,7 +108,7 @@ burn_model.collect_to(&mut store)?;
 let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_key_remapping(r"^old_model\.", "new_model.")  // old_model.X -> new_model.X
     .with_key_remapping(r"\.gamma$", ".weight")         // X.gamma -> X.weight
-    .with_key_remapping(r"\.beta$", ".bias");          // X.beta -> X.bias
+    .with_key_remapping(r"\.beta$", ".bias");           // X.beta -> X.bias
 
 // Complex remapping with KeyRemapper
 use burn_store::KeyRemapper;
@@ -114,6 +119,11 @@ let remapper = KeyRemapper::new()
 
 let mut store = SafetensorsStore::from_file("model.safetensors")
     .remap(remapper);
+
+// Combining with PyTorch loading
+let mut store = PytorchStore::from_file("model.pth")
+    .with_key_remapping(r"^model\.", "")           // Remove model. prefix
+    .with_key_remapping(r"norm(\d+)", "norm_$1");  // norm1 -> norm_1
 ```
 
 ### Memory Operations
@@ -139,27 +149,77 @@ if !result.missing.is_empty() {
 ### Complete Example: Migrating PyTorch Models
 
 ```rust
-use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
-use burn_store::safetensors::SafetensorsStore;
+use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore};
 
-// Load and convert a PyTorch transformer model
-let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
-    // Automatic PyTorch → Burn conversions
-    .with_from_adapter(PyTorchToBurnAdapter)
+// Load directly from PyTorch .pth file
+let mut store = PytorchStore::from_file("pytorch_transformer.pth")
+    // Access the state dict
+    .with_top_level_key("state_dict")
     // Only load transformer layers
     .with_regex(r"^transformer\..*")
-    // Rename layer structure
+    // Rename layer structure to match Burn model
     .with_key_remapping(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
+    // Rename attention layers
+    .with_key_remapping(r"\.attn\.", ".attention.")
     // Handle missing tensors gracefully
-    .allow_partial(true)
-    // Add conversion metadata
-    .metadata("source", "pytorch")
-    .metadata("converted_by", "burn-store");
+    .allow_partial(true);
 
 let mut model = TransformerModel::new(&device);
 let result = model.apply_from(&mut store)?;
 
 println!("Successfully migrated {} tensors", result.applied.len());
+if !result.errors.is_empty() {
+    println!("Errors: {:?}", result.errors);
+}
+
+// Save the migrated model in SafeTensors format
+let mut save_store = SafetensorsStore::from_file("migrated_model.safetensors")
+    .metadata("source", "pytorch")
+    .metadata("converted_by", "burn-store");
+
+model.collect_to(&mut save_store)?;
+```
+
+## Advanced Usage
+
+### Custom Filtering with Predicates
+
+```rust
+// Custom filter function
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .with_predicate(|path, _container| {
+        // Only load tensors with specific characteristics
+        path.contains("weight") && !path.contains("bias")
+    });
+```
+
+### Working with Containers
+
+```rust
+// Filter based on container types (Linear, Conv2d, etc.)
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .with_predicate(|_path, container| {
+        // Only load Linear layer parameters
+        container.split('.').last() == Some("Linear")
+    });
+```
+
+### Handling Load Results
+
+```rust
+let result = model.apply_from(&mut store)?;
+
+// Detailed result information
+println!("Applied: {} tensors", result.applied.len());
+println!("Skipped: {} tensors", result.skipped.len());
+println!("Missing: {:?}", result.missing);
+println!("Unused: {:?}", result.unused);
+
+if !result.errors.is_empty() {
+    for (path, error) in &result.errors {
+        eprintln!("Error loading {}: {}", path, error);
+    }
+}
 ```
 
 ## Benchmarks
@@ -203,7 +263,7 @@ Typical improvements with the new store:
 
 ### Builder Methods
 
-The `SafetensorsStore` provides a fluent API for configuration:
+The stores provide a fluent API for configuration:
 
 #### Filtering
 
@@ -215,7 +275,7 @@ The `SafetensorsStore` provides a fluent API for configuration:
 
 #### Remapping
 
-- `with_key_remapping(from, to)` - Regex-based renaming
+- `with_key_remapping(from, to)` - Regex-based tensor renaming
 - `remap(KeyRemapper)` - Complex remapping rules
 
 #### Adapters
@@ -225,6 +285,11 @@ The `SafetensorsStore` provides a fluent API for configuration:
 
 #### Configuration
 
-- `metadata(key, value)` - Add custom metadata
+- `metadata(key, value)` - Add custom metadata (SafeTensors only)
 - `allow_partial(bool)` - Continue on missing tensors
 - `validate(bool)` - Toggle validation
+- `with_top_level_key(key)` - Access nested dict in PyTorch files
+
+## License
+
+This project is dual-licensed under MIT and Apache-2.0. See [LICENSE](https://github.com/Tracel-AI/burn/blob/main/LICENSE) for details.

@@ -1,10 +1,78 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! Module storage and serialization infrastructure.
+//! # Burn Store
 //!
-//! This module provides comprehensive functionality for storing and loading Burn modules
-//! and their tensor data. It supports bidirectional data flow with flexible filtering,
-//! remapping, and efficient memory management through lazy materialization.
+//! Advanced model storage and serialization infrastructure for the Burn deep learning framework.
+//!
+//! This crate provides comprehensive functionality for storing and loading Burn modules
+//! and their tensor data, with support for cross-framework interoperability, flexible filtering,
+//! and efficient memory management through lazy materialization.
+//!
+//! ## Key Features
+//!
+//! - **SafeTensors Format**: Industry-standard format for secure and efficient tensor serialization
+//! - **PyTorch Compatibility**: Load PyTorch models directly into Burn with automatic weight transformation
+//! - **Zero-Copy Loading**: Memory-mapped files and lazy tensor materialization for optimal performance
+//! - **Flexible Filtering**: Load/save specific model subsets using regex, exact paths, or custom predicates
+//! - **Tensor Remapping**: Rename tensors during load/save operations for framework compatibility
+//! - **No-std Support**: Core functionality available in embedded and WASM environments
+//!
+//! ## Quick Start
+//!
+//! ### Basic Save and Load
+//!
+//! ```rust,ignore
+//! use burn_store::{ModuleSnapshot, SafetensorsStore};
+//!
+//! // Save a model
+//! let mut store = SafetensorsStore::from_file("model.safetensors");
+//! model.collect_to(&mut store)?;
+//!
+//! // Load a model
+//! let mut store = SafetensorsStore::from_file("model.safetensors");
+//! model.apply_from(&mut store)?;
+//! ```
+//!
+//! ### Loading PyTorch Models
+//!
+//! ```rust,ignore
+//! use burn_store::{PytorchStore, PyTorchToBurnAdapter};
+//!
+//! // Load PyTorch model with automatic weight transformation
+//! let mut store = PytorchStore::from_file("pytorch_model.pth")
+//!     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
+//!     .allow_partial(true);                     // Skip unknown tensors
+//!
+//! model.apply_from(&mut store)?;
+//! ```
+//!
+//! ### Filtering and Remapping
+//!
+//! ```rust,ignore
+//! use burn_store::SafetensorsStore;
+//!
+//! // Save only specific layers with renaming
+//! let mut store = SafetensorsStore::from_file("encoder.safetensors")
+//!     .with_regex(r"^encoder\..*")                         // Filter: only encoder layers
+//!     .with_key_remapping(r"^encoder\.", "transformer.")   // Rename: encoder.X -> transformer.X
+//!     .metadata("subset", "encoder_only");
+//!
+//! model.collect_to(&mut store)?;
+//! ```
+//!
+//! ## Core Components
+//!
+//! - [`ModuleSnapshot`]: Extension trait for Burn modules providing `collect()` and `apply()` methods
+//! - [`SafetensorsStore`]: Primary storage implementation supporting the SafeTensors format
+//! - [`PytorchStore`]: PyTorch model loader supporting .pth and .pt files
+//! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving
+//! - [`KeyRemapper`]: Advanced tensor name remapping with regex patterns
+//! - [`ModuleAdapter`]: Framework adapters for cross-framework compatibility
+//!
+//! ## Feature Flags
+//!
+//! - `std`: Enables file I/O and other std-only features (default)
+//! - `safetensors`: Enables SafeTensors format support (default)
 
 extern crate alloc;
 
@@ -29,4 +97,5 @@ pub use tensor_snapshot::TensorSnapshot;
 pub use traits::ModuleSnapshot;
 pub use traits::ModuleSnapshoter;
 
+pub use pytorch::*;
 pub use safetensors::*;
