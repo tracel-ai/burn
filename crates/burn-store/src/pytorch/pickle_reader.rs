@@ -325,7 +325,10 @@ fn rebuild_tensor_v2(
         if tuple.len() >= 3 {
             let storage_type = match &tuple[1] {
                 Object::String(s) => s.as_str(),
-                Object::Class { module_name: _, name } => name.as_str(),
+                Object::Class {
+                    module_name: _,
+                    name,
+                } => name.as_str(),
                 _ => "FloatStorage",
             };
             let dtype = match storage_type {
@@ -417,12 +420,12 @@ fn rebuild_tensor_v2(
                 possible_keys
             } else {
                 // Fallback: look for any file that could be our storage
+                // Only match files in a data directory with the exact storage key as filename
                 data_files
                     .keys()
                     .filter(|k| {
-                        // Try to match based on the storage key alone
-                        // This handles cases where the path structure varies
-                        k.split('/').last() == Some(&storage_key.as_str())
+                        // Ensure it's in a data directory and has the exact storage key as filename
+                        k.contains("/data/") && k.split('/').last() == Some(&storage_key.as_str())
                     })
                     .cloned()
                     .collect()
