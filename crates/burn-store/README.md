@@ -80,7 +80,7 @@ model.apply_from(&mut store)?;
 ```rust
 use burn_store::{PyTorchToBurnAdapter, BurnToPyTorchAdapter, PytorchStore};
 
-// Load PyTorch .pth file directly
+// Load PyTorch .pth file directly (PyTorchToBurnAdapter is applied automatically)
 let mut store = PytorchStore::from_file("pytorch_model.pth")
     .with_top_level_key("state_dict")         // Access nested state dict
     .allow_partial(true);                     // Skip unknown tensors
@@ -149,9 +149,9 @@ if !result.missing.is_empty() {
 ### Complete Example: Migrating PyTorch Models
 
 ```rust
-use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore};
+use burn_store::{ModuleSnapshot, PytorchStore};
 
-// Load directly from PyTorch .pth file
+// Load directly from PyTorch .pth file (automatic PyTorchToBurnAdapter)
 let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     // Access the state dict
     .with_top_level_key("state_dict")

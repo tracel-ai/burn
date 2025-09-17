@@ -61,7 +61,11 @@ impl From<std::io::Error> for PytorchError {
 
 /// PyTorch store for file-based storage only.
 ///
-/// This store allows loading models from PyTorch checkpoint files (.pt/.pth).
+/// This store allows loading models from PyTorch checkpoint files (.pt/.pth)
+/// with automatic weight transformation using `PyTorchToBurnAdapter`.
+/// Linear weights are automatically transposed and normalization parameters
+/// are renamed (gamma -> weight, beta -> bias).
+///
 /// Note that saving to PyTorch format is not yet supported.
 pub struct PytorchStore {
     pub(crate) path: PathBuf,
@@ -305,8 +309,10 @@ impl ModuleSnapshoter for PytorchStore {
         // Apply remapping
         snapshots = self.apply_remapping(snapshots);
 
-        // Apply to module with adapter
-        // The adapter will be applied during module traversal with proper container info
+        // Apply to module with PyTorchToBurnAdapter (always used for PyTorch files)
+        // This adapter handles:
+        // - Transposing linear weights from PyTorch format to Burn format
+        // - Renaming normalization parameters (gamma -> weight, beta -> bias)
         let result = module.apply(snapshots, None, Some(Box::new(PyTorchToBurnAdapter)));
 
         // Validate if needed

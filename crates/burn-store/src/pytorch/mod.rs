@@ -6,7 +6,10 @@
 //! ## Features
 //!
 //! - **Direct .pth/.pt file loading**: Load PyTorch checkpoint and state dict files
-//! - **Automatic weight transformation**: Linear layers are automatically transposed for Burn compatibility
+//! - **Automatic weight transformation**: `PyTorchToBurnAdapter` is applied by default:
+//!   - Linear layer weights are automatically transposed
+//!   - Normalization parameters are renamed (gamma → weight, beta → bias)
+//!   - Conv2d weights maintain their format
 //! - **Flexible filtering**: Load only specific layers or parameters
 //! - **Key remapping**: Rename tensors during loading to match your model structure
 //! - **Partial loading**: Continue even when some tensors are missing
@@ -14,9 +17,9 @@
 //! ## Example
 //!
 //! ```rust,ignore
-//! use burn_store::{PytorchStore, PyTorchToBurnAdapter};
+//! use burn_store::PytorchStore;
 //!
-//! // Load a PyTorch model
+//! // Load a PyTorch model (PyTorchToBurnAdapter is applied automatically)
 //! let mut store = PytorchStore::from_file("model.pth")
 //!     .with_top_level_key("state_dict")              // Access nested state dict
 //!     .with_regex(r"^encoder\..*")                   // Only load encoder layers

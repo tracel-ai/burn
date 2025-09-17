@@ -36,12 +36,12 @@
 //! ### Loading PyTorch Models
 //!
 //! ```rust,ignore
-//! use burn_store::{PytorchStore, PyTorchToBurnAdapter};
+//! use burn_store::PytorchStore;
 //!
-//! // Load PyTorch model with automatic weight transformation
+//! // Load PyTorch model (automatic weight transformation via PyTorchToBurnAdapter)
 //! let mut store = PytorchStore::from_file("pytorch_model.pth")
-//!     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
-//!     .allow_partial(true);                     // Skip unknown tensors
+//!     .with_top_level_key("state_dict")  // Access nested state dict if needed
+//!     .allow_partial(true);               // Skip unknown tensors
 //!
 //! model.apply_from(&mut store)?;
 //! ```
