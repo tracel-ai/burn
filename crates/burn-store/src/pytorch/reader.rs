@@ -95,22 +95,70 @@ impl std::error::Error for Error {}
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Metadata about a PyTorch file
+#[derive(Debug, Clone)]
+pub struct PytorchMetadata {
+    /// Format version (e.g., "1.0" for modern ZIP format)
+    pub format_version: Option<String>,
+    /// File format type
+    pub format_type: FileFormat,
+    /// Byte order (endianness)
+    pub byte_order: ByteOrder,
+    /// Whether the file has storage alignment information
+    pub has_storage_alignment: bool,
+    /// PyTorch version that saved the file (if available)
+    pub pytorch_version: Option<String>,
+    /// Number of tensors in the file
+    pub tensor_count: usize,
+    /// Total size of tensor data in bytes (approximate)
+    pub total_data_size: Option<usize>,
+}
+
+/// File format type
+#[derive(Debug, Clone, PartialEq)]
+pub enum FileFormat {
+    /// ZIP-based format (PyTorch 1.6+)
+    Zip,
+    /// Legacy format (PyTorch 0.1.10 - 1.5)
+    Legacy,
+    /// Simple pickle file
+    Pickle,
+}
+
+/// Byte order (endianness)
+#[derive(Debug, Clone, PartialEq)]
+pub enum ByteOrder {
+    LittleEndian,
+    BigEndian,
+}
+
 /// PyTorch checkpoint reader
 pub struct PytorchReader {
     tensors: HashMap<String, TensorSnapshot>,
+    metadata: PytorchMetadata,
 }
 
 impl PytorchReader {
     /// Load a PyTorch checkpoint file (.pt or .pth)
     pub fn new(path: &Path) -> Result<Self> {
-        let tensors = load_pytorch_file(path)?;
-        Ok(Self { tensors })
+        let (tensors, metadata) = load_pytorch_file_with_metadata(path, None)?;
+        Ok(Self { tensors, metadata })
     }
 
     /// Load from a reader with an optional top-level key
     pub fn from_reader<R: Read>(reader: R, top_level_key: Option<&str>) -> Result<Self> {
+        // For reader-based loading, we don't have full metadata access
         let tensors = load_from_reader(reader, top_level_key)?;
-        Ok(Self { tensors })
+        let metadata = PytorchMetadata {
+            format_version: None,
+            format_type: FileFormat::Pickle, // Default assumption
+            byte_order: ByteOrder::LittleEndian,
+            has_storage_alignment: false,
+            pytorch_version: None,
+            tensor_count: tensors.len(),
+            total_data_size: None,
+        };
+        Ok(Self { tensors, metadata })
     }
 
     /// Get all tensor names
@@ -135,8 +183,28 @@ impl PytorchReader {
 
     /// Load with a specific top-level key (e.g., "state_dict")
     pub fn with_top_level_key(path: &Path, key: &str) -> Result<Self> {
-        let tensors = load_pytorch_file_with_key(path, Some(key))?;
-        Ok(Self { tensors })
+        let (tensors, metadata) = load_pytorch_file_with_metadata(path, Some(key))?;
+        Ok(Self { tensors, metadata })
+    }
+
+    /// Get metadata about the loaded file
+    pub fn metadata(&self) -> &PytorchMetadata {
+        &self.metadata
+    }
+
+    /// Get format type
+    pub fn format_type(&self) -> &FileFormat {
+        &self.metadata.format_type
+    }
+
+    /// Get byte order
+    pub fn byte_order(&self) -> &ByteOrder {
+        &self.metadata.byte_order
+    }
+
+    /// Get format version (if available)
+    pub fn format_version(&self) -> Option<&str> {
+        self.metadata.format_version.as_deref()
     }
 }
 
@@ -150,6 +218,15 @@ pub fn load_pytorch_file_with_key(
     path: &Path,
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, TensorSnapshot>> {
+    let (tensors, _) = load_pytorch_file_with_metadata(path, top_level_key)?;
+    Ok(tensors)
+}
+
+/// Load a PyTorch file with metadata
+pub fn load_pytorch_file_with_metadata(
+    path: &Path,
+    top_level_key: Option<&str>,
+) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
     // First, try to read as a zip file
     if let Ok(file) = File::open(path)
         && let Ok(mut archive) = zip::ZipArchive::new(BufReader::new(file))
@@ -196,8 +273,60 @@ pub fn load_pytorch_file_with_key(
             ));
         }
 
+        // Check for format version (optional)
+        let format_version = if let Ok(mut version_file) = archive.by_name(".format_version") {
+            let mut version_data = Vec::new();
+            version_file.read_to_end(&mut version_data)?;
+            let version_str = String::from_utf8_lossy(&version_data);
+            let version = version_str.trim().to_string();
+            // PyTorch uses version "1.0" for the current format
+            if version != "1.0" {
+                eprintln!(
+                    "Warning: PyTorch format version {} may not be fully supported",
+                    version
+                );
+            }
+            Some(version)
+        } else {
+            None
+        };
+
+        // Check for byteorder file to detect endianness
+        let is_big_endian = if let Ok(mut byteorder_file) = archive.by_name("byteorder") {
+            let mut byteorder_data = Vec::new();
+            byteorder_file.read_to_end(&mut byteorder_data)?;
+            let byteorder_str = String::from_utf8_lossy(&byteorder_data);
+            byteorder_str.trim() == "big"
+        } else {
+            false // Default to little-endian if no byteorder file
+        };
+
+        if is_big_endian {
+            // Big-endian files are not yet supported as they require different byte order conversion
+            // TODO: To support big-endian files, we need to:
+            // 1. Pass endianness info through to pickle_reader
+            // 2. Use from_be_bytes instead of from_le_bytes for tensor data
+            // 3. Handle byte swapping for all numeric types (f32, f64, i32, etc.)
+            return Err(Error::InvalidFormat(
+                "Big-endian PyTorch files are not yet supported. The file was saved on a big-endian system and requires byte order conversion.".to_string()
+            ));
+        }
+
+        // Check for storage alignment file
+        let has_storage_alignment = archive.by_name(".storage_alignment").is_ok();
+
+        // Check for PyTorch version (if saved)
+        let pytorch_version = if let Ok(mut version_file) = archive.by_name("version") {
+            let mut version_data = Vec::new();
+            version_file.read_to_end(&mut version_data)?;
+            Some(String::from_utf8_lossy(&version_data).trim().to_string())
+        } else {
+            None
+        };
+
         // Also read the data files for tensor storage
         let mut data_files: HashMap<String, Vec<u8>> = HashMap::new();
+        let mut total_data_size = 0usize;
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
             let name = file.name().to_string();
@@ -210,6 +339,7 @@ pub fn load_pytorch_file_with_key(
             if is_data_file && !name.ends_with(".pkl") && !name.ends_with("/") {
                 let mut contents = Vec::new();
                 file.read_to_end(&mut contents)?;
+                total_data_size += contents.len();
                 data_files.insert(name, contents);
             }
         }
@@ -219,7 +349,24 @@ pub fn load_pytorch_file_with_key(
         let obj = read_pickle_with_data(&mut pickle_reader, &data_files)?;
 
         // Extract tensors with their data
-        return extract_tensors_with_data(obj, top_level_key);
+        let tensors = extract_tensors_with_data(obj, top_level_key)?;
+
+        // Create metadata
+        let metadata = PytorchMetadata {
+            format_version,
+            format_type: FileFormat::Zip,
+            byte_order: if is_big_endian {
+                ByteOrder::BigEndian
+            } else {
+                ByteOrder::LittleEndian
+            },
+            has_storage_alignment,
+            pytorch_version,
+            tensor_count: tensors.len(),
+            total_data_size: Some(total_data_size),
+        };
+
+        return Ok((tensors, metadata));
     }
 
     // If not a zip or zip reading failed, try reading as a plain pickle file
@@ -252,14 +399,27 @@ pub fn load_pytorch_file_with_key(
     // The pattern is: 0x80 0x02 0x8a 0x0a (PROTO 2, LONG1 with 10 bytes)
     // followed by 10 bytes of magic number, then 0x2e (STOP)
     if is_legacy_format {
-        return load_legacy_pytorch_file(path, top_level_key);
+        return load_legacy_pytorch_file_with_metadata(path, top_level_key);
     }
 
     // Standard pickle file
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     let obj = read_pickle(&mut reader)?;
-    extract_tensors_with_data(obj, top_level_key)
+    let tensors = extract_tensors_with_data(obj, top_level_key)?;
+
+    // Create metadata for pickle format
+    let metadata = PytorchMetadata {
+        format_version: None,
+        format_type: FileFormat::Pickle,
+        byte_order: ByteOrder::LittleEndian, // Pickle files are typically little-endian
+        has_storage_alignment: false,
+        pytorch_version: None,
+        tensor_count: tensors.len(),
+        total_data_size: None,
+    };
+
+    Ok((tensors, metadata))
 }
 
 /// Load from a reader
@@ -345,6 +505,15 @@ fn load_legacy_pytorch_file(
     path: &Path,
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, TensorSnapshot>> {
+    let (tensors, _) = load_legacy_pytorch_file_with_metadata(path, top_level_key)?;
+    Ok(tensors)
+}
+
+/// Load a legacy PyTorch file with metadata
+fn load_legacy_pytorch_file_with_metadata(
+    path: &Path,
+    top_level_key: Option<&str>,
+) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 
@@ -405,7 +574,20 @@ fn load_legacy_pytorch_file(
     let main_obj = read_pickle_with_data(&mut reader, &storage_map)?;
 
     // Extract tensors normally
-    extract_tensors_with_data(main_obj, top_level_key)
+    let tensors = extract_tensors_with_data(main_obj, top_level_key)?;
+
+    // Create metadata for legacy format
+    let metadata = PytorchMetadata {
+        format_version: None, // Legacy format doesn't have version files
+        format_type: FileFormat::Legacy,
+        byte_order: ByteOrder::LittleEndian, // Legacy format is little-endian
+        has_storage_alignment: false,
+        pytorch_version: None, // Could parse from protocol version, but not reliable
+        tensor_count: tensors.len(),
+        total_data_size: Some(data_size as usize),
+    };
+
+    Ok((tensors, metadata))
 }
 
 /// Read tensors from a PyTorch file into memory

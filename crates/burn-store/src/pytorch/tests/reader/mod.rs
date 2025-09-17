@@ -1,6 +1,7 @@
 //! Tests for PyTorch file reader functionality
 
 use crate::pytorch::{PytorchReader, read_pytorch_tensors};
+use crate::pytorch::reader::{FileFormat, ByteOrder};
 use burn_tensor::DType;
 use std::path::PathBuf;
 
@@ -580,6 +581,38 @@ fn test_legacy_shared_storage() {
             }
         }
     }
+}
+
+#[test]
+fn test_metadata_zip_format() {
+    // Test that metadata is properly populated for ZIP format files
+    let path = test_data_path("float32.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load float32.pt");
+
+    // Check metadata
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Zip);
+    assert_eq!(metadata.byte_order, ByteOrder::LittleEndian);
+    assert_eq!(metadata.tensor_count, 1);
+    assert!(metadata.total_data_size.is_some());
+
+    // Check accessor methods
+    assert_eq!(reader.format_type(), &FileFormat::Zip);
+    assert_eq!(reader.byte_order(), &ByteOrder::LittleEndian);
+}
+
+#[test]
+fn test_metadata_legacy_format() {
+    // Test that metadata is properly populated for legacy format files
+    let path = test_data_path("simple_legacy.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load legacy file");
+
+    // Check metadata
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Legacy);
+    assert_eq!(metadata.byte_order, ByteOrder::LittleEndian);
+    assert_eq!(metadata.tensor_count, 3); // weight, bias, running_mean
+    assert!(metadata.total_data_size.is_some());
 }
 
 #[test]
