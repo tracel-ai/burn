@@ -21,6 +21,9 @@ pub use activation::{
 mod padding;
 pub use padding::*;
 
+// For backward compat, `burn::nn::Initializer`
+pub use burn_core::module::Initializer;
+
 extern crate alloc;
 
 /// Backend for test cases
