@@ -493,10 +493,38 @@ fn rebuild_tensor_v2(
                             values.resize(num_elements, 0);
                             return TensorData::new(values, shape_clone.clone());
                         }
-                        DType::Bool => {
+                        DType::I32 => {
                             let mut values = Vec::with_capacity(num_elements);
                             for i in 0..elements_to_read {
-                                values.push(data_slice[i] != 0);
+                                let mut bytes = [0u8; 4];
+                                bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
+                                values.push(i32::from_le_bytes(bytes));
+                            }
+                            values.resize(num_elements, 0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        DType::I16 => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for i in 0..elements_to_read {
+                                let mut bytes = [0u8; 2];
+                                bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                                values.push(i16::from_le_bytes(bytes));
+                            }
+                            values.resize(num_elements, 0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        DType::I8 => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for &byte in data_slice.iter().take(elements_to_read) {
+                                values.push(byte as i8);
+                            }
+                            values.resize(num_elements, 0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        DType::Bool => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for &byte in data_slice.iter().take(elements_to_read) {
+                                values.push(byte != 0);
                             }
                             values.resize(num_elements, false);
                             return TensorData::new(values, shape_clone.clone());
