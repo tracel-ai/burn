@@ -1,9 +1,9 @@
-use burn_tensor::Shape;
+use crate::tensor::Shape;
 
 use crate::config::Config;
 use crate::module::{Param, ParamId};
-use burn_tensor::backend::Backend;
-use burn_tensor::{Distribution, Tensor, s};
+use crate::tensor::backend::Backend;
+use crate::tensor::{Distribution, Tensor, s};
 
 use crate as burn;
 
