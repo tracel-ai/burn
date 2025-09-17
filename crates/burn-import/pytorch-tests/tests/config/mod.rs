@@ -21,7 +21,7 @@ struct NetConfig {
 
 #[cfg(test)]
 mod tests {
-    use burn_import::pytorch::config_from_file;
+    use burn_import::pytorch::load_config_from_file;
 
     use super::*;
 
@@ -46,7 +46,7 @@ mod tests {
         };
         let path = "tests/config/weights_with_config.pt";
         let top_level_key = Some("my_config");
-        let config: NetConfig = config_from_file(path, top_level_key).unwrap();
+        let config: NetConfig = load_config_from_file(path, top_level_key).unwrap();
 
         assert_eq!(config, config_expected);
     }

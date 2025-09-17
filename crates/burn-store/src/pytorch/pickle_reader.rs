@@ -9,9 +9,7 @@ use burn_core::module::ParamId;
 use burn_tensor::{DType, TensorData};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
-use std::io::{self, BufRead, Read};
-
-const VERBOSE: bool = false;
+use std::io::{self, BufRead};
 
 /// Error type for pickle operations
 #[derive(Debug)]
@@ -165,6 +163,7 @@ pub enum Object {
     List(Vec<Object>),
     Dict(HashMap<String, Object>),
     Persistent(Vec<u8>),
+    PersistentTuple(Vec<Object>),
     Reduce {
         callable: Box<Object>,
         args: Box<Object>,
@@ -176,7 +175,11 @@ pub enum Object {
     TorchParam(TensorSnapshot),
 }
 
-fn rebuild_from_type_v2(o: Object, memo: &mut HashMap<u32, Object>) -> Result<Object> {
+fn rebuild_from_type_v2(
+    o: Object,
+    memo: &mut HashMap<u32, Object>,
+    data_files: &HashMap<String, Vec<u8>>,
+) -> Result<Object> {
     let args = if let Object::Tuple(args) = o {
         if args.is_empty() {
             return Err(Error::InvalidData(
@@ -195,13 +198,23 @@ fn rebuild_from_type_v2(o: Object, memo: &mut HashMap<u32, Object>) -> Result<Ob
         Object::Class { module_name, name } => {
             let module_name = module_name.as_str();
             let name = name.as_str();
-            let args = Object::Tuple(args[1..].to_vec());
+            // For rebuild_tensor_v2, the args might already be in a tuple
+            let actual_args = if args.len() == 2 && matches!(&args[1], Object::Tuple(_)) {
+                // If there's only one arg and it's a tuple, use it directly
+                args[1].clone()
+            } else {
+                // Otherwise, wrap the remaining args in a tuple
+                Object::Tuple(args[1..].to_vec())
+            };
             if module_name == "torch._utils" && name == "_rebuild_tensor_v2" {
-                rebuild_tensor_v2(args, memo)
+                rebuild_tensor_v2(actual_args, memo, data_files)
             } else if module_name == "torch._tensor" && name == "_rebuild_from_type_v2" {
-                rebuild_from_type_v2(args, memo)
+                rebuild_from_type_v2(actual_args, memo, data_files)
             } else if module_name == "torch._utils" && name == "_rebuild_parameter" {
-                rebuild_parameter(args, memo)
+                rebuild_parameter(actual_args, memo, data_files)
+            } else if module_name == "collections" && name == "OrderedDict" {
+                // OrderedDict is treated as a regular Dict in our implementation
+                Ok(Object::Dict(HashMap::new()))
             } else {
                 Err(Error::UnsupportedType(format!("{}.{}", module_name, name)))
             }
@@ -213,7 +226,11 @@ fn rebuild_from_type_v2(o: Object, memo: &mut HashMap<u32, Object>) -> Result<Ob
     }
 }
 
-fn rebuild_parameter(args: Object, memo: &mut HashMap<u32, Object>) -> Result<Object> {
+fn rebuild_parameter(
+    args: Object,
+    memo: &mut HashMap<u32, Object>,
+    data_files: &HashMap<String, Vec<u8>>,
+) -> Result<Object> {
     let args = if let Object::Tuple(args) = args {
         if args.is_empty() {
             return Err(Error::InvalidData(
@@ -232,14 +249,18 @@ fn rebuild_parameter(args: Object, memo: &mut HashMap<u32, Object>) -> Result<Ob
         Object::Reduce {
             callable: _,
             args: _,
-        } => rebuild_from_type_v2(data.clone(), memo)?,
+        } => rebuild_from_type_v2(data.clone(), memo, data_files)?,
         _ => data.clone(),
     };
     Ok(tensor)
 }
 
-fn rebuild_tensor_v2(args: Object, _memo: &mut HashMap<u32, Object>) -> Result<Object> {
-    // args is (layout, shape, stride, _requires_grad, _backward_hooks)
+fn rebuild_tensor_v2(
+    args: Object,
+    _memo: &mut HashMap<u32, Object>,
+    data_files: &HashMap<String, Vec<u8>>,
+) -> Result<Object> {
+    // args is (storage, storage_offset, shape, stride, requires_grad, backward_hooks)
     let args = if let Object::Tuple(args) = args {
         args
     } else {
@@ -256,8 +277,10 @@ fn rebuild_tensor_v2(args: Object, _memo: &mut HashMap<u32, Object>) -> Result<O
         )));
     }
 
-    let persistent_id = match &args[0] {
-        Object::Persistent(data) => data.clone(),
+    // First argument is the storage (persistent ID)
+    let (storage_info, storage_tuple) = match &args[0] {
+        Object::Persistent(data) => (data.clone(), None),
+        Object::PersistentTuple(tuple) => (vec![], Some(tuple.clone())),
         _ => {
             return Err(Error::InvalidData(format!(
                 "rebuild_tensor_v2: expected persistent id got {:?}",
@@ -266,6 +289,13 @@ fn rebuild_tensor_v2(args: Object, _memo: &mut HashMap<u32, Object>) -> Result<O
         }
     };
 
+    // Second argument is storage offset
+    let storage_offset = match &args[1] {
+        Object::Int(offset) => *offset as usize,
+        _ => 0,
+    };
+
+    // Third argument is shape
     let shape = match &args[2] {
         Object::Tuple(shape) => shape
             .iter()
@@ -282,17 +312,208 @@ fn rebuild_tensor_v2(args: Object, _memo: &mut HashMap<u32, Object>) -> Result<O
         }
     };
 
-    // For now, we'll just store the persistent ID and shape
-    // The actual data will need to be loaded from the zip file separately
+    // Fourth argument is stride (we don't use it but validate it exists)
+    let _stride = match &args[3] {
+        Object::Tuple(_) => true,
+        _ => false,
+    };
+
+    // Parse the storage info to extract dtype and storage key
+    // The persistent ID is typically a tuple like: ('storage', 'FloatStorage', '0', 'cpu', 4)
+    let (dtype, storage_key) = if let Some(tuple) = storage_tuple {
+        // Direct tuple access
+        if tuple.len() >= 3 {
+            let storage_type = match &tuple[1] {
+                Object::String(s) => s.as_str(),
+                _ => "FloatStorage",
+            };
+            let dtype = match storage_type {
+                "FloatStorage" => DType::F32,
+                "DoubleStorage" => DType::F64,
+                "HalfStorage" => DType::F16,
+                "BFloat16Storage" => DType::BF16,
+                "LongStorage" => DType::I64,
+                "IntStorage" => DType::I32,
+                "ShortStorage" => DType::I16,
+                "CharStorage" | "ByteStorage" => DType::I8,
+                _ => DType::F32, // Default to F32
+            };
+            let key = match &tuple[2] {
+                Object::String(s) => s.clone(),
+                _ => "0".to_string(),
+            };
+            (dtype, key)
+        } else {
+            (DType::F32, "0".to_string())
+        }
+    } else if !storage_info.is_empty() {
+        // Legacy string-based parsing
+        let storage_str = String::from_utf8_lossy(&storage_info);
+        if storage_str.starts_with("Tuple(") {
+            // Parse from the debug representation we stored
+            let parts: Vec<&str> = storage_str
+                .trim_start_matches("Tuple(")
+                .trim_end_matches(")")
+                .split(", ")
+                .map(|s| {
+                    let trimmed = s.trim_matches('"');
+                    if let Some(inner) = trimmed
+                        .strip_prefix("Object::String(\"")
+                        .and_then(|s| s.strip_suffix("\")"))
+                    {
+                        inner
+                    } else {
+                        trimmed
+                    }
+                })
+                .collect();
+
+            if parts.len() >= 3 {
+                let dtype = match parts[1] {
+                    "FloatStorage" => DType::F32,
+                    "DoubleStorage" => DType::F64,
+                    "HalfStorage" => DType::F16,
+                    "BFloat16Storage" => DType::BF16,
+                    "LongStorage" => DType::I64,
+                    "IntStorage" => DType::I32,
+                    "ShortStorage" => DType::I16,
+                    "CharStorage" | "ByteStorage" => DType::I8,
+                    _ => DType::F32, // Default to F32
+                };
+                (dtype, parts[2].to_string())
+            } else {
+                (DType::F32, "0".to_string())
+            }
+        } else {
+            (DType::F32, "0".to_string())
+        }
+    } else {
+        (DType::F32, "0".to_string())
+    };
+
+    // Clone data for the closure
+    let data_files = data_files.clone();
     let shape_clone = shape.clone();
+
+    // Create a TensorSnapshot with a closure that loads the actual data
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
-            // This will be filled in when we actually load the data
-            // Create a dummy tensor data with correct shape
+            // Look for the data file in various locations
+            // We need to try multiple patterns since PyTorch files have varying structures
+            let possible_keys: Vec<String> = data_files
+                .keys()
+                .filter(|k| {
+                    // Match patterns like "data/0", "archive/data/0", "integer/data/0"
+                    // Check if this is the right data file by matching the storage key
+                    k.ends_with(&format!("/data/{}", storage_key))
+                        || k.as_str() == &format!("data/{}", storage_key)
+                })
+                .cloned()
+                .collect();
+
+            // Use the found keys or look for all matching patterns
+            let standard_keys = if !possible_keys.is_empty() {
+                possible_keys
+            } else {
+                // Fallback: look for any file that could be our storage
+                data_files
+                    .keys()
+                    .filter(|k| {
+                        // Try to match based on the storage key alone
+                        // This handles cases where the path structure varies
+                        k.split('/').last() == Some(&storage_key.as_str())
+                    })
+                    .cloned()
+                    .collect()
+            };
+
+            for key in &standard_keys {
+                if let Some(data) = data_files.get(key) {
+                    // Parse the binary data based on dtype
+                    let num_elements = shape_clone.iter().product::<usize>().max(1);
+
+                    // Calculate expected size and actual element count
+                    let element_size = match dtype {
+                        DType::F64 => 8,
+                        DType::F32 => 4,
+                        DType::F16 | DType::BF16 => 2,
+                        DType::I64 => 8,
+                        DType::I32 => 4,
+                        DType::I16 => 2,
+                        DType::I8 | DType::U8 => 1,
+                        _ => 4,
+                    };
+
+                    // Apply storage offset
+                    let offset_bytes = storage_offset * element_size;
+                    if offset_bytes >= data.len() {
+                        return TensorData::new(vec![0.0f32; num_elements], shape_clone.clone());
+                    }
+
+                    let data_slice = &data[offset_bytes..];
+                    let available_elements = data_slice.len() / element_size;
+                    let elements_to_read = num_elements.min(available_elements);
+
+                    // Convert bytes to the appropriate type
+                    match dtype {
+                        DType::F32 => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for i in 0..elements_to_read {
+                                let bytes = [
+                                    data_slice[i * 4],
+                                    data_slice[i * 4 + 1],
+                                    data_slice[i * 4 + 2],
+                                    data_slice[i * 4 + 3],
+                                ];
+                                values.push(f32::from_le_bytes(bytes));
+                            }
+                            // Pad with zeros if needed
+                            values.resize(num_elements, 0.0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        DType::F64 => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for i in 0..elements_to_read {
+                                let mut bytes = [0u8; 8];
+                                bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                                values.push(f64::from_le_bytes(bytes));
+                            }
+                            values.resize(num_elements, 0.0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        DType::I64 => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for i in 0..elements_to_read {
+                                let mut bytes = [0u8; 8];
+                                bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                                values.push(i64::from_le_bytes(bytes));
+                            }
+                            values.resize(num_elements, 0);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
+                        _ => {
+                            // For other types, default to f32 zeros for now
+                            return TensorData::new(
+                                vec![0.0f32; num_elements],
+                                shape_clone.clone(),
+                            );
+                        }
+                    }
+                }
+            }
+
+            // If no data file found, return zeros of the appropriate type
             let num_elements = shape_clone.iter().product::<usize>().max(1);
-            TensorData::new(vec![0.0f32; num_elements], shape_clone.clone())
+            match dtype {
+                DType::I64 => TensorData::new(vec![0i64; num_elements], shape_clone.clone()),
+                DType::I32 => TensorData::new(vec![0i32; num_elements], shape_clone.clone()),
+                DType::I16 => TensorData::new(vec![0i16; num_elements], shape_clone.clone()),
+                DType::I8 => TensorData::new(vec![0i8; num_elements], shape_clone.clone()),
+                DType::F64 => TensorData::new(vec![0.0f64; num_elements], shape_clone.clone()),
+                _ => TensorData::new(vec![0.0f32; num_elements], shape_clone.clone()),
+            }
         }),
-        DType::F32, // Default, will be updated when loading actual data
+        dtype,
         shape,
         vec![],
         vec![],
@@ -302,8 +523,10 @@ fn rebuild_tensor_v2(args: Object, _memo: &mut HashMap<u32, Object>) -> Result<O
 
 pub struct Stack {
     stack: Vec<Object>,
+    #[allow(dead_code)]
     metastack: Vec<Vec<Object>>,
     memo: HashMap<u32, Object>,
+    data_files: HashMap<String, Vec<u8>>,
 }
 
 impl Default for Stack {
@@ -318,6 +541,7 @@ impl Stack {
             stack: Vec::new(),
             metastack: Vec::new(),
             memo: HashMap::new(),
+            data_files: HashMap::new(),
         }
     }
 
@@ -387,9 +611,6 @@ impl Stack {
 fn read_global<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let module_name = buf_to_str(&read_to_newline(r)?)?;
     let name = buf_to_str(&read_to_newline(r)?)?;
-    if VERBOSE {
-        println!("  global {module_name} {name}");
-    }
     stack.push(Object::Class { module_name, name });
     Ok(())
 }
@@ -418,65 +639,53 @@ fn read_string<R: BufRead>(r: &mut R, stack: &mut Stack, len: usize) -> Result<(
     let mut data = vec![0u8; len];
     r.read_exact(&mut data)?;
     let s = buf_to_str(&data)?;
-    if VERBOSE {
-        println!("  string {s:?}");
-    }
     stack.push(Object::String(s));
     Ok(())
 }
 
 fn read_bin_int<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let v = r.read_i32::<LittleEndian>()?;
-    if VERBOSE {
-        println!("  int {v}");
-    }
     stack.push(Object::Int(v as i64));
     Ok(())
 }
 
 fn read_bin_int1<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let v = r.read_u8()?;
-    if VERBOSE {
-        println!("  int {v}");
-    }
     stack.push(Object::Int(v as i64));
     Ok(())
 }
 
 fn read_bin_int2<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let v = r.read_u16::<LittleEndian>()?;
-    if VERBOSE {
-        println!("  int {v}");
-    }
     stack.push(Object::Int(v as i64));
     Ok(())
 }
 
 fn read_bin_float<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
-    let v = r.read_f64::<LittleEndian>()?;
-    if VERBOSE {
-        println!("  float {v}");
-    }
+    // Python's BINFLOAT uses big-endian encoding
+    let v = r.read_f64::<byteorder::BigEndian>()?;
     stack.push(Object::Float(v));
     Ok(())
 }
 
 pub fn read_pickle<R: BufRead>(r: &mut R) -> Result<Object> {
+    read_pickle_with_data(r, &HashMap::new())
+}
+
+pub fn read_pickle_with_data<R: BufRead>(
+    r: &mut R,
+    data_files: &HashMap<String, Vec<u8>>,
+) -> Result<Object> {
     let mut stack = Stack::new();
+    stack.data_files = data_files.clone();
     loop {
         let op_code = r.read_u8()?;
-        if VERBOSE {
-            println!("op_code {op_code}");
-        }
         let op_code = OpCode::try_from(op_code).map_err(Error::InvalidOpCode)?;
         match op_code {
             OpCode::Proto => {
                 let version = r.read_u8()?;
                 if version > 5 {
                     return Err(Error::InvalidProtocol(version));
-                }
-                if VERBOSE {
-                    println!("  proto {version}");
                 }
             }
             OpCode::Global => read_global(r, &mut stack)?,
@@ -591,36 +800,67 @@ pub fn read_pickle<R: BufRead>(r: &mut R) -> Result<Object> {
             OpCode::Mark => stack.push_mark(),
             OpCode::BinPersId => {
                 let pid = stack.pop()?;
-                if let Object::String(s) = pid {
-                    stack.push(Object::Persistent(s.into_bytes()));
-                } else {
-                    return Err(Error::InvalidData(
-                        "persistent id must be a string".to_string(),
-                    ));
+                match pid {
+                    Object::String(s) => {
+                        stack.push(Object::Persistent(s.into_bytes()));
+                    }
+                    Object::Tuple(tuple) => {
+                        // The persistent ID is a tuple (e.g., ('storage', 'FloatStorage', '0', 'cpu', 4))
+                        // Store it as a PersistentTuple for proper handling
+                        stack.push(Object::PersistentTuple(tuple));
+                    }
+                    _ => {
+                        return Err(Error::InvalidData(format!(
+                            "persistent id must be a string or tuple, got {:?}",
+                            pid
+                        )));
+                    }
                 }
             }
             OpCode::Reduce => {
                 let args = stack.pop()?;
                 let callable = stack.pop()?;
-                let obj = Object::Reduce {
-                    callable: Box::new(callable.clone()),
-                    args: Box::new(args.clone()),
-                };
-                let obj =
-                    rebuild_from_type_v2(Object::Tuple(vec![callable, args]), &mut stack.memo)?;
-                stack.push(obj);
+
+                // Check if this is an OrderedDict
+                if let Object::Class { module_name, name } = &callable {
+                    if module_name == "collections" && name == "OrderedDict" {
+                        // OrderedDict is created with empty args, just push an empty dict
+                        stack.push(Object::Dict(HashMap::new()));
+                    } else {
+                        let _obj = Object::Reduce {
+                            callable: Box::new(callable.clone()),
+                            args: Box::new(args.clone()),
+                        };
+                        let obj = rebuild_from_type_v2(
+                            Object::Tuple(vec![callable, args]),
+                            &mut stack.memo,
+                            &stack.data_files,
+                        )?;
+                        stack.push(obj);
+                    }
+                } else {
+                    let _obj = Object::Reduce {
+                        callable: Box::new(callable.clone()),
+                        args: Box::new(args.clone()),
+                    };
+                    let obj = rebuild_from_type_v2(
+                        Object::Tuple(vec![callable, args]),
+                        &mut stack.memo,
+                        &stack.data_files,
+                    )?;
+                    stack.push(obj);
+                }
             }
             OpCode::Build => {
                 let args = stack.pop()?;
                 let obj = stack.pop()?;
                 match obj {
-                    Object::Dict(_) => {
+                    Object::Dict(mut dict) => {
                         // For dicts, BUILD updates with the args
-                        if let Object::Dict(update) = args
-                            && let Object::Dict(dict) = stack.last_mut()?
-                        {
+                        if let Object::Dict(update) = args {
                             dict.extend(update);
                         }
+                        stack.push(Object::Dict(dict));
                     }
                     _ => {
                         stack.push(Object::Build {
