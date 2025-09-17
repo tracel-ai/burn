@@ -337,6 +337,7 @@ fn rebuild_tensor_v2(
                 "IntStorage" => DType::I32,
                 "ShortStorage" => DType::I16,
                 "CharStorage" | "ByteStorage" => DType::I8,
+                "BoolStorage" => DType::Bool,
                 _ => DType::F32, // Default to F32
             };
             let key = match &tuple[2] {
@@ -441,7 +442,7 @@ fn rebuild_tensor_v2(
                         DType::I64 => 8,
                         DType::I32 => 4,
                         DType::I16 => 2,
-                        DType::I8 | DType::U8 => 1,
+                        DType::I8 | DType::U8 | DType::Bool => 1,
                         _ => 4,
                     };
 
@@ -492,6 +493,14 @@ fn rebuild_tensor_v2(
                             values.resize(num_elements, 0);
                             return TensorData::new(values, shape_clone.clone());
                         }
+                        DType::Bool => {
+                            let mut values = Vec::with_capacity(num_elements);
+                            for i in 0..elements_to_read {
+                                values.push(data_slice[i] != 0);
+                            }
+                            values.resize(num_elements, false);
+                            return TensorData::new(values, shape_clone.clone());
+                        }
                         _ => {
                             // For other types, default to f32 zeros for now
                             return TensorData::new(
@@ -511,6 +520,7 @@ fn rebuild_tensor_v2(
                 DType::I16 => TensorData::new(vec![0i16; num_elements], shape_clone.clone()),
                 DType::I8 => TensorData::new(vec![0i8; num_elements], shape_clone.clone()),
                 DType::F64 => TensorData::new(vec![0.0f64; num_elements], shape_clone.clone()),
+                DType::Bool => TensorData::new(vec![false; num_elements], shape_clone.clone()),
                 _ => TensorData::new(vec![0.0f32; num_elements], shape_clone.clone()),
             }
         }),
