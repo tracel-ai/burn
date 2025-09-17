@@ -31,7 +31,6 @@ use crate::TensorSnapshot;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::record::serde::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
-use burn_tensor::TensorData;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
@@ -875,25 +874,4 @@ fn convert_pickle_to_nested_value(value: PickleValue) -> Result<NestedValue> {
             NestedValue::Vec(vec)
         }
     })
-}
-
-/// Internal convenience function to read all tensors from a PyTorch file into memory
-#[allow(dead_code)]
-fn read_pytorch_tensors(
-    path: &Path,
-    top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorData>> {
-    let reader = if let Some(key) = top_level_key {
-        PytorchReader::with_top_level_key(path, key)?
-    } else {
-        PytorchReader::new(path)?
-    };
-    let snapshots = reader.into_tensors();
-    let mut tensors = HashMap::new();
-
-    for (key, snapshot) in snapshots {
-        tensors.insert(key, snapshot.to_data());
-    }
-
-    Ok(tensors)
 }
