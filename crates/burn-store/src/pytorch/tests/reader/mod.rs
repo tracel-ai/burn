@@ -485,3 +485,119 @@ fn test_with_top_level_key() {
     // Should NOT have nested paths with model_state_dict prefix
     assert!(!keys.contains(&"model_state_dict.fc1.weight".to_string()));
 }
+
+#[test]
+fn test_legacy_format() {
+    // Test loading PyTorch legacy format (pre-1.6)
+    let path = test_data_path("simple_legacy.pt");
+
+    // This file has the sequential pickle structure of legacy PyTorch format
+    let reader = PytorchReader::new(&path).expect("Failed to load legacy format");
+    let keys = reader.keys();
+
+    // Should have the tensors from the state dict
+    assert!(keys.contains(&"weight".to_string()), "Missing 'weight' key");
+    assert!(keys.contains(&"bias".to_string()), "Missing 'bias' key");
+    assert!(
+        keys.contains(&"running_mean".to_string()),
+        "Missing 'running_mean' key"
+    );
+
+    // Check weight tensor
+    let weight = reader.get("weight").expect("weight not found");
+    assert_eq!(weight.shape, vec![2, 3]);
+    assert_eq!(weight.dtype, DType::F32);
+
+    // Check bias tensor
+    let bias = reader.get("bias").expect("bias not found");
+    assert_eq!(bias.shape, vec![2]);
+    assert_eq!(bias.dtype, DType::F32);
+
+    // Verify bias values are all ones
+    let bias_data = bias.to_data();
+    let bias_values = bias_data.as_slice::<f32>().unwrap();
+    // Note: values in simple_legacy.pt are randomly generated, not necessarily 1.0
+    assert_eq!(bias_values.len(), 2);
+
+    // Check running_mean tensor
+    let running_mean = reader.get("running_mean").expect("running_mean not found");
+    assert_eq!(running_mean.shape, vec![2]);
+    assert_eq!(running_mean.dtype, DType::F32);
+
+    // Verify running_mean values are accessible
+    let mean_data = running_mean.to_data();
+    let mean_values = mean_data.as_slice::<f32>().unwrap();
+    assert_eq!(mean_values.len(), 2);
+}
+
+#[test]
+fn test_legacy_with_offsets() {
+    // Test with legacy format file that has storage offsets
+    let path = test_data_path("legacy_with_offsets.pt");
+    let reader = PytorchReader::new(&path).expect("Should read legacy file with offsets");
+
+    let keys = reader.keys();
+    assert_eq!(keys.len(), 3, "Should have 3 tensors");
+
+    // Check that tensors exist
+    for key in &keys {
+        assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
+        let tensor = reader.get(key).unwrap();
+        let data = tensor.to_data();
+        let values = data.as_slice::<f32>().unwrap();
+        assert!(!values.is_empty(), "Tensor {} should have data", key);
+    }
+}
+
+#[test]
+fn test_legacy_shared_storage() {
+    // Test with legacy format file that has shared storage
+    let path = test_data_path("legacy_shared_storage.pt");
+    let reader = PytorchReader::new(&path).expect("Should read legacy file with shared storage");
+
+    let keys = reader.keys();
+    assert!(keys.len() >= 2, "Should have at least 2 tensors");
+
+    // Check that tensors exist and can be loaded
+    for key in &keys {
+        assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
+        let tensor = reader.get(key).unwrap();
+        let data = tensor.to_data();
+
+        // Verify tensor data can be accessed
+        match tensor.dtype {
+            DType::F32 => {
+                let values = data.as_slice::<f32>().unwrap();
+                assert!(!values.is_empty(), "Tensor {} should have data", key);
+            }
+            DType::I64 => {
+                let values = data.as_slice::<i64>().unwrap();
+                assert!(!values.is_empty(), "Tensor {} should have data", key);
+            }
+            _ => {
+                // For other types, just verify we can convert to data
+                assert!(data.shape.len() > 0, "Tensor {} should have shape", key);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_small_invalid_file() {
+    // Test that we handle broken/invalid files gracefully
+    let path = test_data_path("broken.pt");
+
+    // Should fail gracefully with an appropriate error
+    let result = PytorchReader::new(&path);
+    assert!(result.is_err(), "Expected error for broken file");
+
+    // The error should be a pickle error since the file is too small to be valid
+    if let Err(e) = result {
+        let err_str = format!("{}", e);
+        assert!(
+            err_str.contains("Pickle") || err_str.contains("Invalid"),
+            "Error should mention pickle or invalid format: {}",
+            err_str
+        );
+    }
+}

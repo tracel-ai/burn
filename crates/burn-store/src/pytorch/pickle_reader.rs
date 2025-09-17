@@ -35,14 +35,36 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::InvalidOpCode(code) => write!(f, "Invalid opcode: {}", code),
-            Error::InvalidProtocol(proto) => write!(f, "Invalid protocol: {}", proto),
-            Error::UnexpectedOpCode(op) => write!(f, "Unexpected opcode: {:?}", op),
-            Error::UnsupportedType(ty) => write!(f, "Unsupported type: {}", ty),
-            Error::InvalidData(msg) => write!(f, "Invalid data: {}", msg),
-            Error::StackUnderflow => write!(f, "Stack underflow"),
-            Error::MemoNotFound(idx) => write!(f, "Memo index not found: {}", idx),
-            Error::InvalidShapeOrType => write!(f, "Invalid tensor shape or type"),
+            Error::InvalidOpCode(code) => write!(
+                f,
+                "Invalid pickle opcode: 0x{:02x}. The file may be corrupted or use an unsupported pickle protocol.",
+                code
+            ),
+            Error::InvalidProtocol(proto) => write!(
+                f,
+                "Invalid or unsupported pickle protocol version: {}. Supported versions are 2-5.",
+                proto
+            ),
+            Error::UnexpectedOpCode(op) => {
+                write!(f, "Unexpected pickle opcode {:?} in current context", op)
+            }
+            Error::UnsupportedType(ty) => write!(
+                f,
+                "Unsupported Python type '{}'. This may indicate a full model save rather than a state_dict.",
+                ty
+            ),
+            Error::InvalidData(msg) => write!(f, "Invalid data in pickle file: {}", msg),
+            Error::StackUnderflow => {
+                write!(f, "Pickle stack underflow - the file may be corrupted")
+            }
+            Error::MemoNotFound(idx) => write!(
+                f,
+                "Pickle memo reference {} not found - the file may be corrupted",
+                idx
+            ),
+            Error::InvalidShapeOrType => {
+                write!(f, "Invalid tensor shape or data type in PyTorch file")
+            }
         }
     }
 }
@@ -64,7 +86,9 @@ pub enum OpCode {
     Reduce = b'R',
     Mark = b'(',
     BinUnicode = b'X',
+    ShortBinString = b'U',
     BinInt = b'J',
+    Int = b'I',
     Tuple = b't',
     BinPersId = b'Q',
     BinInt1 = b'K',
@@ -104,7 +128,9 @@ impl TryFrom<u8> for OpCode {
             b'R' => Ok(Self::Reduce),
             b'(' => Ok(Self::Mark),
             b'X' => Ok(Self::BinUnicode),
+            b'U' => Ok(Self::ShortBinString),
             b'J' => Ok(Self::BinInt),
+            b'I' => Ok(Self::Int),
             b't' => Ok(Self::Tuple),
             b'Q' => Ok(Self::BinPersId),
             b'K' => Ok(Self::BinInt1),
@@ -393,163 +419,146 @@ fn rebuild_tensor_v2(
         (DType::F32, "0".to_string())
     };
 
-    // Clone data for the closure
-    let data_files = data_files.clone();
+    // Only clone the specific storage data needed for this tensor
+    // This avoids cloning the entire HashMap for each tensor
+    let storage_data = {
+        // Look for the storage key in various patterns
+        let exact_key = format!("data/{}", storage_key);
+        if let Some(data) = data_files.get(&exact_key) {
+            Some(data.clone())
+        } else {
+            // Try other patterns
+            data_files
+                .iter()
+                .find(|(key, _)| {
+                    key.ends_with(&format!("/data/{}", storage_key))
+                        || (key.contains("/data/") && key.rsplit('/').next() == Some(&storage_key))
+                })
+                .map(|(_, data)| data.clone())
+        }
+    };
+
     let shape_clone = shape.clone();
 
     // Create a TensorSnapshot with a closure that loads the actual data
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
-            // Look for the data file in various locations
-            // We need to try multiple patterns since PyTorch files have varying structures
-            let possible_keys: Vec<String> = data_files
-                .keys()
-                .filter(|k| {
-                    // Match patterns like "data/0", "archive/data/0", "integer/data/0"
-                    // Check if this is the right data file by matching the storage key
-                    k.ends_with(&format!("/data/{}", storage_key))
-                        || k.as_str() == format!("data/{}", storage_key)
-                })
-                .cloned()
-                .collect();
+            if let Some(data) = &storage_data {
+                // Parse the binary data based on dtype
+                let num_elements = shape_clone.iter().product::<usize>().max(1);
 
-            // Use the found keys or look for all matching patterns
-            let standard_keys = if !possible_keys.is_empty() {
-                possible_keys
-            } else {
-                // Fallback: look for any file that could be our storage
-                // Only match files in a data directory with the exact storage key as filename
-                data_files
-                    .keys()
-                    .filter(|k| {
-                        // Ensure it's in a data directory and has the exact storage key as filename
-                        k.contains("/data/") && k.rsplit('/').next() == Some(storage_key.as_str())
-                    })
-                    .cloned()
-                    .collect()
-            };
+                // Calculate expected size and actual element count
+                let element_size = match dtype {
+                    DType::F64 => 8,
+                    DType::F32 => 4,
+                    DType::F16 | DType::BF16 => 2,
+                    DType::I64 => 8,
+                    DType::I32 => 4,
+                    DType::I16 => 2,
+                    DType::I8 | DType::U8 | DType::Bool => 1,
+                    _ => 4,
+                };
 
-            for key in &standard_keys {
-                if let Some(data) = data_files.get(key) {
-                    // Parse the binary data based on dtype
-                    let num_elements = shape_clone.iter().product::<usize>().max(1);
+                // Apply storage offset
+                let offset_bytes = storage_offset * element_size;
+                if offset_bytes >= data.len() {
+                    return TensorData::new(vec![0.0f32; num_elements], shape_clone.clone());
+                }
 
-                    // Calculate expected size and actual element count
-                    let element_size = match dtype {
-                        DType::F64 => 8,
-                        DType::F32 => 4,
-                        DType::F16 | DType::BF16 => 2,
-                        DType::I64 => 8,
-                        DType::I32 => 4,
-                        DType::I16 => 2,
-                        DType::I8 | DType::U8 | DType::Bool => 1,
-                        _ => 4,
-                    };
+                let data_slice = &data[offset_bytes..];
+                let available_elements = data_slice.len() / element_size;
+                let elements_to_read = num_elements.min(available_elements);
 
-                    // Apply storage offset
-                    let offset_bytes = storage_offset * element_size;
-                    if offset_bytes >= data.len() {
-                        return TensorData::new(vec![0.0f32; num_elements], shape_clone.clone());
+                // Convert bytes to the appropriate type
+                match dtype {
+                    DType::F32 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let bytes = [
+                                data_slice[i * 4],
+                                data_slice[i * 4 + 1],
+                                data_slice[i * 4 + 2],
+                                data_slice[i * 4 + 3],
+                            ];
+                            values.push(f32::from_le_bytes(bytes));
+                        }
+                        // Pad with zeros if needed
+                        values.resize(num_elements, 0.0);
+                        TensorData::new(values, shape_clone.clone())
                     }
-
-                    let data_slice = &data[offset_bytes..];
-                    let available_elements = data_slice.len() / element_size;
-                    let elements_to_read = num_elements.min(available_elements);
-
-                    // Convert bytes to the appropriate type
-                    match dtype {
-                        DType::F32 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for i in 0..elements_to_read {
-                                let bytes = [
-                                    data_slice[i * 4],
-                                    data_slice[i * 4 + 1],
-                                    data_slice[i * 4 + 2],
-                                    data_slice[i * 4 + 3],
-                                ];
-                                values.push(f32::from_le_bytes(bytes));
-                            }
-                            // Pad with zeros if needed
-                            values.resize(num_elements, 0.0);
-                            return TensorData::new(values, shape_clone.clone());
+                    DType::F64 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 8];
+                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            values.push(f64::from_le_bytes(bytes));
                         }
-                        DType::F64 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for i in 0..elements_to_read {
-                                let mut bytes = [0u8; 8];
-                                bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
-                                values.push(f64::from_le_bytes(bytes));
-                            }
-                            values.resize(num_elements, 0.0);
-                            return TensorData::new(values, shape_clone.clone());
+                        values.resize(num_elements, 0.0);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    DType::I64 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 8];
+                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            values.push(i64::from_le_bytes(bytes));
                         }
-                        DType::I64 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for i in 0..elements_to_read {
-                                let mut bytes = [0u8; 8];
-                                bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
-                                values.push(i64::from_le_bytes(bytes));
-                            }
-                            values.resize(num_elements, 0);
-                            return TensorData::new(values, shape_clone.clone());
+                        values.resize(num_elements, 0);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    DType::I32 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 4];
+                            bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
+                            values.push(i32::from_le_bytes(bytes));
                         }
-                        DType::I32 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for i in 0..elements_to_read {
-                                let mut bytes = [0u8; 4];
-                                bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
-                                values.push(i32::from_le_bytes(bytes));
-                            }
-                            values.resize(num_elements, 0);
-                            return TensorData::new(values, shape_clone.clone());
+                        values.resize(num_elements, 0);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    DType::I16 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 2];
+                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            values.push(i16::from_le_bytes(bytes));
                         }
-                        DType::I16 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for i in 0..elements_to_read {
-                                let mut bytes = [0u8; 2];
-                                bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
-                                values.push(i16::from_le_bytes(bytes));
-                            }
-                            values.resize(num_elements, 0);
-                            return TensorData::new(values, shape_clone.clone());
+                        values.resize(num_elements, 0);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    DType::I8 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for &byte in data_slice.iter().take(elements_to_read) {
+                            values.push(byte as i8);
                         }
-                        DType::I8 => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for &byte in data_slice.iter().take(elements_to_read) {
-                                values.push(byte as i8);
-                            }
-                            values.resize(num_elements, 0);
-                            return TensorData::new(values, shape_clone.clone());
+                        values.resize(num_elements, 0);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    DType::Bool => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for &byte in data_slice.iter().take(elements_to_read) {
+                            values.push(byte != 0);
                         }
-                        DType::Bool => {
-                            let mut values = Vec::with_capacity(num_elements);
-                            for &byte in data_slice.iter().take(elements_to_read) {
-                                values.push(byte != 0);
-                            }
-                            values.resize(num_elements, false);
-                            return TensorData::new(values, shape_clone.clone());
-                        }
-                        _ => {
-                            // For other types, default to f32 zeros for now
-                            return TensorData::new(
-                                vec![0.0f32; num_elements],
-                                shape_clone.clone(),
-                            );
-                        }
+                        values.resize(num_elements, false);
+                        TensorData::new(values, shape_clone.clone())
+                    }
+                    _ => {
+                        // For other types, default to f32 zeros for now
+                        TensorData::new(vec![0.0f32; num_elements], shape_clone.clone())
                     }
                 }
-            }
-
-            // If no data file found, return zeros of the appropriate type
-            let num_elements = shape_clone.iter().product::<usize>().max(1);
-            match dtype {
-                DType::I64 => TensorData::new(vec![0i64; num_elements], shape_clone.clone()),
-                DType::I32 => TensorData::new(vec![0i32; num_elements], shape_clone.clone()),
-                DType::I16 => TensorData::new(vec![0i16; num_elements], shape_clone.clone()),
-                DType::I8 => TensorData::new(vec![0i8; num_elements], shape_clone.clone()),
-                DType::F64 => TensorData::new(vec![0.0f64; num_elements], shape_clone.clone()),
-                DType::Bool => TensorData::new(vec![false; num_elements], shape_clone.clone()),
-                _ => TensorData::new(vec![0.0f32; num_elements], shape_clone.clone()),
+            } else {
+                // If no data file found, return zeros of the appropriate type
+                let num_elements = shape_clone.iter().product::<usize>().max(1);
+                match dtype {
+                    DType::I64 => TensorData::new(vec![0i64; num_elements], shape_clone.clone()),
+                    DType::I32 => TensorData::new(vec![0i32; num_elements], shape_clone.clone()),
+                    DType::I16 => TensorData::new(vec![0i16; num_elements], shape_clone.clone()),
+                    DType::I8 => TensorData::new(vec![0i8; num_elements], shape_clone.clone()),
+                    DType::F64 => TensorData::new(vec![0.0f64; num_elements], shape_clone.clone()),
+                    DType::Bool => TensorData::new(vec![false; num_elements], shape_clone.clone()),
+                    _ => TensorData::new(vec![0.0f32; num_elements], shape_clone.clone()),
+                }
             }
         }),
         dtype,
@@ -653,14 +662,15 @@ fn read_long1<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     r.read_exact(&mut data)?;
     // Handle little-endian signed integer
     let mut value = 0i64;
-    for (i, &byte) in data.iter().enumerate() {
-        value |= (byte as i64) << (i * 8);
+    for (i, &byte) in data.iter().enumerate().take(8) {
+        // Only process up to 8 bytes for i64, and use wrapping to avoid overflow
+        value |= (byte as i64).wrapping_shl((i as u32) * 8);
     }
     // Handle sign extension for negative numbers
     if len < 8 && data.last().is_some_and(|&b| b & 0x80 != 0) {
         // Sign extend
         for i in len..8 {
-            value |= 0xff << (i * 8);
+            value |= 0xffi64.wrapping_shl((i as u32) * 8);
         }
     }
     stack.push(Object::Int(value));
@@ -678,6 +688,17 @@ fn read_string<R: BufRead>(r: &mut R, stack: &mut Stack, len: usize) -> Result<(
 fn read_bin_int<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let v = r.read_i32::<LittleEndian>()?;
     stack.push(Object::Int(v as i64));
+    Ok(())
+}
+
+fn read_int<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
+    // INT opcode reads an integer as ASCII string followed by newline
+    let line = read_to_newline(r)?;
+    let s = buf_to_str(&line)?;
+    let v = s
+        .parse::<i64>()
+        .map_err(|e| Error::InvalidData(format!("Invalid INT value '{}': {}", s, e)))?;
+    stack.push(Object::Int(v));
     Ok(())
 }
 
@@ -722,11 +743,16 @@ pub fn read_pickle_with_data<R: BufRead>(
             }
             OpCode::Global => read_global(r, &mut stack)?,
             OpCode::BinInt => read_bin_int(r, &mut stack)?,
+            OpCode::Int => read_int(r, &mut stack)?,
             OpCode::BinInt1 => read_bin_int1(r, &mut stack)?,
             OpCode::BinInt2 => read_bin_int2(r, &mut stack)?,
             OpCode::BinFloat => read_bin_float(r, &mut stack)?,
             OpCode::BinUnicode => {
                 let len = r.read_u32::<LittleEndian>()? as usize;
+                read_string(r, &mut stack, len)?
+            }
+            OpCode::ShortBinString => {
+                let len = r.read_u8()? as usize;
                 read_string(r, &mut stack, len)?
             }
             OpCode::Long1 => read_long1(r, &mut stack)?,

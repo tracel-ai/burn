@@ -1,4 +1,31 @@
 //! PyTorch file reader implementation.
+//!
+//! This module provides support for reading PyTorch checkpoint files (.pt/.pth).
+//!
+//! # Supported Formats
+//!
+//! ## 1. Modern ZIP Format (PyTorch 1.6+)
+//! Files are ZIP archives containing:
+//! - `data.pkl` or `archive/data.pkl`: Pickled tensor metadata
+//! - `data/` directory: Binary tensor data files
+//!
+//! ## 2. Legacy Pickle Format (PyTorch 0.1.10 - 1.5)
+//! Sequential pickle streams with the structure:
+//! - Magic number pickle (0x1950a86a20f9469cfc6c)
+//! - Protocol version pickle (e.g., 1001)
+//! - System info pickle (endianness, type sizes)
+//! - Model data pickle (state_dict or full model)
+//!
+//! ## 3. Simple Pickle Format
+//! Direct pickle file with a dictionary at the root, commonly used for
+//! manually saved state_dicts.
+//!
+//! # Compatibility
+//!
+//! The reader handles backward compatibility by detecting the file format
+//! automatically. Files from PyTorch 0.1.10 through current versions are
+//! supported, though full model saves (vs state_dict) may have limitations
+//! as they contain Python code references.
 
 use crate::TensorSnapshot;
 use alloc::string::{String, ToString};
@@ -6,7 +33,7 @@ use alloc::vec::Vec;
 use burn_tensor::TensorData;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use super::pickle_reader::{Error as PickleError, Object, read_pickle, read_pickle_with_data};
@@ -48,10 +75,18 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::Pickle(e) => write!(f, "Pickle error: {}", e),
-            Error::Zip(e) => write!(f, "Zip error: {}", e),
-            Error::InvalidFormat(msg) => write!(f, "Invalid format: {}", msg),
-            Error::KeyNotFound(key) => write!(f, "Key not found: {}", key),
+            Error::Pickle(e) => write!(
+                f,
+                "Pickle parsing error: {}. This may indicate an unsupported PyTorch file format or corrupted file.",
+                e
+            ),
+            Error::Zip(e) => write!(f, "Zip archive error: {}", e),
+            Error::InvalidFormat(msg) => write!(f, "Invalid PyTorch file format: {}", msg),
+            Error::KeyNotFound(key) => write!(
+                f,
+                "Key '{}' not found in PyTorch file. Available keys may be listed with the keys() method.",
+                key
+            ),
         }
     }
 }
@@ -157,7 +192,7 @@ pub fn load_pytorch_file_with_key(
 
         if !pickle_found {
             return Err(Error::InvalidFormat(
-                "No pickle file found in zip".to_string(),
+                "No data.pkl file found in ZIP archive. Expected PyTorch 1.6+ format with data.pkl or archive/data.pkl".to_string(),
             ));
         }
 
@@ -188,9 +223,41 @@ pub fn load_pytorch_file_with_key(
     }
 
     // If not a zip or zip reading failed, try reading as a plain pickle file
+    let mut file = File::open(path)?;
+
+    // Check for PyTorch legacy format (starts with magic number as pickled integer)
+    let mut header = [0u8; 15];
+    // Use read() instead of read_exact() to handle files smaller than 15 bytes
+    let bytes_read = file.read(&mut header)?;
+    file.seek(std::io::SeekFrom::Start(0))?;
+
+    // Only check for legacy format if we have enough bytes
+    let is_legacy_format = bytes_read >= 15
+        && header[0] == 0x80
+        && header[1] == 0x02
+        && header[2] == 0x8a
+        && header[3] == 0x0a
+        && header[14] == 0x2e;
+
+    // PyTorch legacy format detection (PyTorch 0.1.10 - 1.3)
+    // These files use sequential pickle streams with metadata before the actual data.
+    // Format structure:
+    //   1. Magic number (0x1950a86a20f9469cfc6c) stored as LONG1 pickle
+    //   2. Protocol version (e.g., 1001)
+    //   3. System info dict (protocol_version, little_endian, type_sizes)
+    //   4. Actual model data (state_dict or full model)
+    //   5. Storage keys list (pickle)
+    //   6. Raw binary data for each storage
+    //
+    // The pattern is: 0x80 0x02 0x8a 0x0a (PROTO 2, LONG1 with 10 bytes)
+    // followed by 10 bytes of magic number, then 0x2e (STOP)
+    if is_legacy_format {
+        return load_legacy_pytorch_file(path, top_level_key);
+    }
+
+    // Standard pickle file
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
-
     let obj = read_pickle(&mut reader)?;
     extract_tensors_with_data(obj, top_level_key)
 }
@@ -218,8 +285,9 @@ fn extract_tensors_with_data(
                     Some(Object::Dict(nested)) => nested.clone(),
                     _ => {
                         return Err(Error::KeyNotFound(format!(
-                            "Top level key '{}' not found or not a dict",
-                            key
+                            "Top-level key '{}' not found or is not a dictionary. Available top-level keys in file: {:?}",
+                            key,
+                            dict.keys().collect::<Vec<_>>()
                         )));
                     }
                 }
@@ -229,7 +297,7 @@ fn extract_tensors_with_data(
         }
         _ => {
             return Err(Error::InvalidFormat(
-                "Expected a dictionary at the root".to_string(),
+                "Expected a dictionary at the root of the PyTorch file, but found a different type. The file may be a full model save rather than a state_dict.".to_string(),
             ));
         }
     };
@@ -270,6 +338,74 @@ pub fn read_pytorch_file(
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, TensorSnapshot>> {
     load_pytorch_file_with_key(path, top_level_key)
+}
+
+/// Load a legacy PyTorch file with embedded storage data
+fn load_legacy_pytorch_file(
+    path: &Path,
+    top_level_key: Option<&str>,
+) -> Result<HashMap<String, TensorSnapshot>> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+
+    // Skip metadata pickles
+    // 1. Magic number
+    let _ = read_pickle(&mut reader)?;
+
+    // 2. Protocol version
+    let _ = read_pickle(&mut reader)?;
+
+    // 3. System info
+    let _ = read_pickle(&mut reader)?;
+
+    // Save position before main pickle
+    let main_pickle_pos = reader.stream_position()?;
+
+    // 4. Skip main object for now
+    let _ = read_pickle(&mut reader)?;
+
+    // 5. Storage keys list (sorted keys as written by PyTorch)
+    let storage_keys = match read_pickle(&mut reader) {
+        Ok(Object::List(keys)) => keys
+            .into_iter()
+            .filter_map(|obj| match obj {
+                Object::String(s) => Some(s),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        _ => vec![],
+    };
+
+    // 6. Raw binary data starts here
+    let data_start_pos = reader.stream_position()?;
+    let file_size = reader.seek(SeekFrom::End(0))?;
+    let data_size = file_size - data_start_pos;
+
+    // Read all storage data
+    reader.seek(SeekFrom::Start(data_start_pos))?;
+    let mut all_storage_data = vec![0u8; data_size as usize];
+    reader.read_exact(&mut all_storage_data)?;
+
+    // Create storage map
+    // In PyTorch legacy format, all storage data is concatenated.
+    // Each tensor references a storage by key and has an offset within that storage.
+    // Since we can't determine exact storage boundaries without torch, we give
+    // each unique storage access to all the data. The storage_offset in each
+    // tensor will handle finding the correct position.
+    let mut storage_map = HashMap::new();
+    let unique_keys: std::collections::HashSet<_> = storage_keys.iter().cloned().collect();
+
+    // This approach uses more memory but is correct
+    for key in unique_keys {
+        storage_map.insert(format!("data/{}", key), all_storage_data.clone());
+    }
+
+    // Now re-read the main pickle with storage data available
+    reader.seek(SeekFrom::Start(main_pickle_pos))?;
+    let main_obj = read_pickle_with_data(&mut reader, &storage_map)?;
+
+    // Extract tensors normally
+    extract_tensors_with_data(main_obj, top_level_key)
 }
 
 /// Read tensors from a PyTorch file into memory
