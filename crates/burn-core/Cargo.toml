@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Core traits and components for building and training deep learning models with Burn."
+description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 documentation = "https://docs.rs/burn-core"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
