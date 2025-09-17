@@ -96,13 +96,16 @@ impl std::error::Error for Error {}
 type Result<T> = std::result::Result<T, Error>;
 
 /// Metadata about a PyTorch file
+///
+/// Contains information about the file format, version, and other properties
+/// that can be useful for debugging or compatibility checking.
 #[derive(Debug, Clone)]
 pub struct PytorchMetadata {
     /// Format version (e.g., "1.0" for modern ZIP format)
     pub format_version: Option<String>,
-    /// File format type
+    /// File format type (ZIP, Legacy, or Pickle)
     pub format_type: FileFormat,
-    /// Byte order (endianness)
+    /// Byte order (endianness) - currently only LittleEndian is supported
     pub byte_order: ByteOrder,
     /// Whether the file has storage alignment information
     pub has_storage_alignment: bool,
@@ -110,8 +113,20 @@ pub struct PytorchMetadata {
     pub pytorch_version: Option<String>,
     /// Number of tensors in the file
     pub tensor_count: usize,
-    /// Total size of tensor data in bytes (approximate)
+    /// Total size of tensor data in bytes (if available)
     pub total_data_size: Option<usize>,
+}
+
+impl PytorchMetadata {
+    /// Check if this is a modern format file (ZIP-based, PyTorch 1.6+)
+    pub fn is_modern_format(&self) -> bool {
+        matches!(self.format_type, FileFormat::Zip)
+    }
+
+    /// Check if this is a legacy format file (PyTorch 0.1.10 - 1.5)
+    pub fn is_legacy_format(&self) -> bool {
+        matches!(self.format_type, FileFormat::Legacy)
+    }
 }
 
 /// File format type
@@ -133,19 +148,74 @@ pub enum ByteOrder {
 }
 
 /// PyTorch checkpoint reader
+///
+/// This is the main interface for reading PyTorch checkpoint files (.pt/.pth).
+/// It supports multiple PyTorch formats including modern ZIP-based format (1.6+),
+/// legacy format (0.1.10-1.5), and simple pickle files.
+///
+/// # Example
+/// ```ignore
+/// use burn_store::pytorch::PytorchReader;
+///
+/// // Load a checkpoint file
+/// let reader = PytorchReader::new("model.pt")?;
+///
+/// // Get tensor names
+/// let keys = reader.keys();
+///
+/// // Access a specific tensor
+/// if let Some(tensor) = reader.get("conv1.weight") {
+///     let data = tensor.to_data(); // Materializes the tensor
+/// }
+///
+/// // Check file metadata
+/// println!("Format: {:?}", reader.format_type());
+/// println!("Tensor count: {}", reader.metadata().tensor_count);
+/// ```
 pub struct PytorchReader {
     tensors: HashMap<String, TensorSnapshot>,
     metadata: PytorchMetadata,
 }
 
 impl PytorchReader {
-    /// Load a PyTorch checkpoint file (.pt or .pth)
-    pub fn new(path: &Path) -> Result<Self> {
-        let (tensors, metadata) = load_pytorch_file_with_metadata(path, None)?;
+    /// Load a PyTorch checkpoint file
+    ///
+    /// # Arguments
+    /// * `path` - Path to the PyTorch file (.pt or .pth)
+    ///
+    /// # Returns
+    /// A `PytorchReader` with lazy-loaded tensors and metadata
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let (tensors, metadata) = load_pytorch_file_with_metadata(path.as_ref(), None)?;
         Ok(Self { tensors, metadata })
     }
 
-    /// Load from a reader with an optional top-level key
+    /// Load a PyTorch checkpoint with a specific top-level key
+    ///
+    /// Many PyTorch checkpoints store the model weights under a specific key
+    /// like "state_dict", "model", or "model_state_dict".
+    ///
+    /// # Arguments
+    /// * `path` - Path to the PyTorch file
+    /// * `key` - Top-level key to extract (e.g., "state_dict")
+    ///
+    /// # Example
+    /// ```ignore
+    /// let reader = PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")?;
+    /// ```
+    pub fn with_top_level_key<P: AsRef<Path>>(path: P, key: &str) -> Result<Self> {
+        let (tensors, metadata) = load_pytorch_file_with_metadata(path.as_ref(), Some(key))?;
+        Ok(Self { tensors, metadata })
+    }
+
+    /// Load from a reader
+    ///
+    /// This method is useful when loading from non-file sources like memory buffers.
+    /// Note: Metadata detection is limited when loading from a reader.
+    ///
+    /// # Arguments
+    /// * `reader` - Any type implementing `Read`
+    /// * `top_level_key` - Optional key to extract
     pub fn from_reader<R: Read>(reader: R, top_level_key: Option<&str>) -> Result<Self> {
         // For reader-based loading, we don't have full metadata access
         let tensors = load_from_reader(reader, top_level_key)?;
@@ -181,49 +251,68 @@ impl PytorchReader {
         self.tensors
     }
 
-    /// Load with a specific top-level key (e.g., "state_dict")
-    pub fn with_top_level_key(path: &Path, key: &str) -> Result<Self> {
-        let (tensors, metadata) = load_pytorch_file_with_metadata(path, Some(key))?;
-        Ok(Self { tensors, metadata })
-    }
-
     /// Get metadata about the loaded file
+    ///
+    /// Provides information about the file format, version, endianness, etc.
     pub fn metadata(&self) -> &PytorchMetadata {
         &self.metadata
     }
 
-    /// Get format type
-    pub fn format_type(&self) -> &FileFormat {
-        &self.metadata.format_type
+    /// Get the number of tensors in the file
+    pub fn len(&self) -> usize {
+        self.tensors.len()
     }
 
-    /// Get byte order
-    pub fn byte_order(&self) -> &ByteOrder {
-        &self.metadata.byte_order
+    /// Check if the file contains no tensors
+    pub fn is_empty(&self) -> bool {
+        self.tensors.is_empty()
     }
 
-    /// Get format version (if available)
-    pub fn format_version(&self) -> Option<&str> {
-        self.metadata.format_version.as_deref()
+    /// Read raw pickle data from a PyTorch file
+    ///
+    /// This is useful for extracting configuration or metadata that isn't tensor data.
+    /// Returns a simplified JSON-like structure that can be easily converted to other formats.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the PyTorch file
+    /// * `top_level_key` - Optional key to extract from the top-level dictionary
+    ///
+    /// # Returns
+    /// A `PickleValue` representing the pickle data structure
+    pub fn read_pickle_data<P: AsRef<Path>>(
+        path: P,
+        top_level_key: Option<&str>,
+    ) -> Result<PickleValue> {
+        read_pickle_as_value(path.as_ref(), top_level_key)
     }
 }
 
-/// Load a PyTorch file and return the tensors
-pub fn load_pytorch_file(path: &Path) -> Result<HashMap<String, TensorSnapshot>> {
-    load_pytorch_file_with_key(path, None)
+/// Simplified representation of pickle data
+///
+/// This enum provides a JSON-like structure that's easier to work with
+/// than the internal pickle Object type.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PickleValue {
+    /// None/null value
+    None,
+    /// Boolean value
+    Bool(bool),
+    /// Integer value
+    Int(i64),
+    /// Floating point value
+    Float(f64),
+    /// String value
+    String(String),
+    /// List/array of values
+    List(Vec<PickleValue>),
+    /// Dictionary/map of string keys to values
+    Dict(HashMap<String, PickleValue>),
+    /// Binary data
+    Bytes(Vec<u8>),
 }
 
-/// Load a PyTorch file with an optional top-level key
-pub fn load_pytorch_file_with_key(
-    path: &Path,
-    top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorSnapshot>> {
-    let (tensors, _) = load_pytorch_file_with_metadata(path, top_level_key)?;
-    Ok(tensors)
-}
-
-/// Load a PyTorch file with metadata
-pub fn load_pytorch_file_with_metadata(
+/// Internal function to load a PyTorch file with metadata
+fn load_pytorch_file_with_metadata(
     path: &Path,
     top_level_key: Option<&str>,
 ) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
@@ -492,23 +581,6 @@ fn extract_tensors_recursive(
     }
 }
 
-/// High-level function to read all tensors from a PyTorch file
-pub fn read_pytorch_file(
-    path: &Path,
-    top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorSnapshot>> {
-    load_pytorch_file_with_key(path, top_level_key)
-}
-
-/// Load a legacy PyTorch file with embedded storage data
-fn load_legacy_pytorch_file(
-    path: &Path,
-    top_level_key: Option<&str>,
-) -> Result<HashMap<String, TensorSnapshot>> {
-    let (tensors, _) = load_legacy_pytorch_file_with_metadata(path, top_level_key)?;
-    Ok(tensors)
-}
-
 /// Load a legacy PyTorch file with metadata
 fn load_legacy_pytorch_file_with_metadata(
     path: &Path,
@@ -590,13 +662,142 @@ fn load_legacy_pytorch_file_with_metadata(
     Ok((tensors, metadata))
 }
 
-/// Read tensors from a PyTorch file into memory
-/// This is a convenience function that materializes all tensor data
-pub fn read_pytorch_tensors(
+/// Read pickle data from a PyTorch file as a simplified value
+fn read_pickle_as_value(path: &Path, top_level_key: Option<&str>) -> Result<PickleValue> {
+    use crate::pytorch::pickle_reader::read_pickle;
+
+    // Try to open as ZIP first
+    if let Ok(file) = File::open(path)
+        && let Ok(mut archive) = zip::ZipArchive::new(BufReader::new(file))
+    {
+        // Read pickle data from ZIP
+        let mut pickle_data = Vec::new();
+
+        // Try standard locations
+        for pickle_path in &["data.pkl", "archive/data.pkl"] {
+            if let Ok(mut pickle_file) = archive.by_name(pickle_path) {
+                pickle_file.read_to_end(&mut pickle_data)?;
+                break;
+            }
+        }
+
+        // If not found, search for any .pkl file
+        if pickle_data.is_empty() {
+            for i in 0..archive.len() {
+                let file = archive.by_index(i)?;
+                let name = file.name().to_string();
+                drop(file);
+
+                if name.ends_with("data.pkl") {
+                    let mut file = archive.by_index(i)?;
+                    file.read_to_end(&mut pickle_data)?;
+                    break;
+                }
+            }
+        }
+
+        if !pickle_data.is_empty() {
+            let mut reader = BufReader::new(pickle_data.as_slice());
+            let obj = read_pickle(&mut reader)?;
+            return convert_object_to_value(obj, top_level_key);
+        }
+    }
+
+    // Try as plain pickle file
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let obj = read_pickle(&mut reader)?;
+    convert_object_to_value(obj, top_level_key)
+}
+
+/// Convert internal Object to public PickleValue
+fn convert_object_to_value(obj: Object, top_level_key: Option<&str>) -> Result<PickleValue> {
+    use crate::pytorch::pickle_reader::Object;
+
+    // If a top-level key is specified, extract it first
+    if let Some(key) = top_level_key
+        && let Object::Dict(dict) = obj
+    {
+        if let Some(value) = dict.get(key) {
+            return object_to_pickle_value(value.clone());
+        } else {
+            return Err(Error::KeyNotFound(format!(
+                "Key '{}' not found in pickle data",
+                key
+            )));
+        }
+    }
+
+    object_to_pickle_value(obj)
+}
+
+/// Convert Object to PickleValue
+fn object_to_pickle_value(obj: Object) -> Result<PickleValue> {
+    use crate::pytorch::pickle_reader::Object;
+
+    Ok(match obj {
+        Object::None => PickleValue::None,
+        Object::Bool(b) => PickleValue::Bool(b),
+        Object::Int(i) => PickleValue::Int(i),
+        Object::Float(f) => PickleValue::Float(f),
+        Object::String(s) => PickleValue::String(s),
+        Object::Persistent(data) => {
+            // Persistent data is raw bytes
+            PickleValue::Bytes(data)
+        }
+        Object::PersistentTuple(tuple) => {
+            // Convert persistent tuples to lists
+            let mut values = Vec::new();
+            for item in tuple {
+                values.push(object_to_pickle_value(item)?);
+            }
+            PickleValue::List(values)
+        }
+        Object::List(list) => {
+            let mut values = Vec::new();
+            for item in list {
+                values.push(object_to_pickle_value(item)?);
+            }
+            PickleValue::List(values)
+        }
+        Object::Dict(dict) => {
+            let mut map = HashMap::new();
+            for (k, v) in dict {
+                map.insert(k, object_to_pickle_value(v)?);
+            }
+            PickleValue::Dict(map)
+        }
+        Object::Tuple(tuple) => {
+            // Convert tuples to lists in the public API
+            let mut values = Vec::new();
+            for item in tuple {
+                values.push(object_to_pickle_value(item)?);
+            }
+            PickleValue::List(values)
+        }
+        Object::TorchParam(_) => {
+            // Skip tensor parameters in config reading
+            PickleValue::None
+        }
+        Object::Class { .. } | Object::Build { .. } | Object::Reduce { .. } => {
+            // Complex objects are represented as None for simplicity
+            PickleValue::None
+        }
+    })
+}
+
+/// Internal convenience function to read all tensors from a PyTorch file into memory
+#[allow(dead_code)]
+fn read_pytorch_tensors(
     path: &Path,
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, TensorData>> {
-    let snapshots = read_pytorch_file(path, top_level_key)?;
+    let reader = if let Some(key) = top_level_key {
+        PytorchReader::with_top_level_key(path, key)?
+    } else {
+        PytorchReader::new(path)?
+    };
+    let snapshots = reader.into_tensors();
     let mut tensors = HashMap::new();
 
     for (key, snapshot) in snapshots {

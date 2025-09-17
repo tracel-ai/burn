@@ -23,7 +23,7 @@ use serde::de::DeserializeOwned;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Store error: {0}")]
-    Store(#[from] burn_store::pytorch::ReaderError),
+    Store(#[from] burn_store::pytorch::PytorchError),
 
     #[error("Serde error: {0}")]
     Serde(#[from] burn::record::serde::error::Error),

@@ -1,7 +1,8 @@
 //! Tests for PyTorch file reader functionality
 
-use crate::pytorch::{PytorchReader, read_pytorch_tensors};
-use crate::pytorch::reader::{FileFormat, ByteOrder};
+use crate::pytorch::PytorchReader;
+// Import internal types for testing only
+use crate::pytorch::reader::{ByteOrder, FileFormat};
 use burn_tensor::DType;
 use std::path::PathBuf;
 
@@ -453,16 +454,18 @@ fn test_complex_structure() {
 
 #[test]
 fn test_read_pytorch_tensors_convenience() {
-    // Test the convenience function that loads tensors directly into memory
+    // Test reading and materializing tensors into memory
     let path = test_data_path("state_dict.pt");
-    let tensors = read_pytorch_tensors(&path, None).expect("Failed to read tensors");
+    let reader = PytorchReader::new(&path).expect("Failed to read file");
 
-    assert_eq!(tensors.len(), 4);
-    assert!(tensors.contains_key("weight"));
-    assert!(tensors.contains_key("bias"));
+    let keys = reader.keys();
+    assert_eq!(keys.len(), 4);
+    assert!(keys.contains(&"weight".to_string()));
+    assert!(keys.contains(&"bias".to_string()));
 
-    // Check that data is materialized
-    let weight_data = &tensors["weight"];
+    // Check that data can be materialized
+    let weight = reader.get("weight").unwrap();
+    let weight_data = weight.to_data();
     assert_eq!(weight_data.shape, vec![3, 4]);
     assert_eq!(weight_data.dtype, DType::F32);
 }
@@ -596,9 +599,9 @@ fn test_metadata_zip_format() {
     assert_eq!(metadata.tensor_count, 1);
     assert!(metadata.total_data_size.is_some());
 
-    // Check accessor methods
-    assert_eq!(reader.format_type(), &FileFormat::Zip);
-    assert_eq!(reader.byte_order(), &ByteOrder::LittleEndian);
+    // Check that metadata is accessible
+    assert!(metadata.is_modern_format());
+    assert!(!metadata.is_legacy_format());
 }
 
 #[test]
@@ -632,5 +635,199 @@ fn test_small_invalid_file() {
             "Error should mention pickle or invalid format: {}",
             err_str
         );
+    }
+}
+
+#[test]
+fn test_read_pickle_data_basic() {
+    use crate::pytorch::PickleValue;
+
+    // Test reading pickle data from a checkpoint file
+    let path = test_data_path("checkpoint.pt");
+
+    // Read the entire pickle data
+    let data = PytorchReader::read_pickle_data(&path, None).expect("Failed to read pickle data");
+
+    // Should be a dictionary at the root
+    if let PickleValue::Dict(dict) = data {
+        // Check that expected keys exist
+        assert!(dict.contains_key("model_state_dict"));
+        assert!(dict.contains_key("optimizer_state_dict"));
+        assert!(dict.contains_key("epoch"));
+        assert!(dict.contains_key("loss"));
+
+        // Check epoch value
+        if let Some(PickleValue::Int(epoch)) = dict.get("epoch") {
+            assert_eq!(*epoch, 42);
+        } else {
+            panic!("Expected epoch to be an integer");
+        }
+
+        // Check loss value
+        if let Some(PickleValue::Float(loss)) = dict.get("loss") {
+            assert!(*loss > 0.0 && *loss < 1.0, "Loss should be between 0 and 1");
+        } else {
+            panic!("Expected loss to be a float");
+        }
+    } else {
+        panic!("Expected root to be a dictionary");
+    }
+}
+
+#[test]
+fn test_read_pickle_data_with_key() {
+    use crate::pytorch::PickleValue;
+
+    // Test reading specific key from checkpoint
+    let path = test_data_path("checkpoint.pt");
+
+    // Read only the model_state_dict
+    let data = PytorchReader::read_pickle_data(&path, Some("model_state_dict"))
+        .expect("Failed to read pickle data with key");
+
+    // Should get the model_state_dict directly
+    if let PickleValue::Dict(dict) = data {
+        // Should have model weights
+        assert!(dict.contains_key("fc1.weight"));
+        assert!(dict.contains_key("fc1.bias"));
+        assert!(dict.contains_key("fc2.weight"));
+        assert!(dict.contains_key("fc2.bias"));
+
+        // Should NOT have optimizer keys
+        assert!(!dict.contains_key("optimizer_state_dict"));
+        assert!(!dict.contains_key("epoch"));
+    } else {
+        panic!("Expected model_state_dict to be a dictionary");
+    }
+}
+
+#[test]
+fn test_read_pickle_data_nested_structure() {
+    use crate::pytorch::PickleValue;
+
+    // Test reading nested dictionary structure
+    let path = test_data_path("nested_dict.pt");
+
+    let data =
+        PytorchReader::read_pickle_data(&path, None).expect("Failed to read nested structure");
+
+    if let PickleValue::Dict(dict) = data {
+        // nested_dict.pt has a nested structure, not flat keys
+        // It should have layer1 and layer2 as nested dicts
+        assert!(dict.len() > 0, "Dictionary should not be empty");
+
+        // The structure depends on how the file was saved
+        // It could be flat keys like "layer1.weight" or nested dicts
+        // Just verify it's a valid dict structure
+        for (_key, value) in dict.iter() {
+            // Values could be None (tensors), nested dicts, or other types
+            assert!(
+                matches!(value, PickleValue::None | PickleValue::Dict(_)),
+                "Values should be None or nested dicts"
+            );
+        }
+    } else {
+        panic!("Expected nested_dict to be a dictionary");
+    }
+}
+
+#[test]
+fn test_read_pickle_data_types() {
+    use crate::pytorch::PickleValue;
+
+    // Test various data types in mixed_types.pt
+    let path = test_data_path("mixed_types.pt");
+
+    let data = PytorchReader::read_pickle_data(&path, None).expect("Failed to read mixed types");
+
+    if let PickleValue::Dict(dict) = data {
+        // The file contains different tensor types
+        assert!(dict.len() >= 3, "Should have at least 3 tensor types");
+
+        // All tensor values should be None in pickle data
+        for (_key, value) in dict.iter() {
+            // All values should be None (tensors are not included in pickle data)
+            assert!(
+                matches!(value, PickleValue::None),
+                "Tensors should be None in pickle data"
+            );
+        }
+    } else {
+        panic!("Expected mixed_types to be a dictionary");
+    }
+}
+
+#[test]
+fn test_read_pickle_data_key_not_found() {
+    // Test error handling when key doesn't exist
+    let path = test_data_path("checkpoint.pt");
+
+    let result = PytorchReader::read_pickle_data(&path, Some("nonexistent_key"));
+    assert!(result.is_err());
+
+    if let Err(e) = result {
+        let err_str = format!("{}", e);
+        assert!(
+            err_str.contains("not found"),
+            "Error should mention key not found: {}",
+            err_str
+        );
+    }
+}
+
+#[test]
+fn test_read_pickle_data_simple_pickle() {
+    use crate::pytorch::PickleValue;
+
+    // Test reading a simple pickle file (not ZIP)
+    // Note: simple_legacy.pt is a legacy format file, not a simple pickle
+    // It may return None because legacy format reading is different
+    let path = test_data_path("state_dict.pt"); // Use a proper simple pickle file
+
+    let data = PytorchReader::read_pickle_data(&path, None).expect("Failed to read simple pickle");
+
+    // Should contain state dict entries
+    if let PickleValue::Dict(dict) = data {
+        // state_dict.pt has weight, bias, running_mean, running_var
+        assert!(dict.len() >= 3);
+        assert!(dict.contains_key("weight"));
+        assert!(dict.contains_key("bias"));
+
+        // All tensor values should be None in pickle data
+        for (_key, value) in dict.iter() {
+            assert!(matches!(value, PickleValue::None));
+        }
+    } else {
+        panic!("Expected state_dict to contain a dictionary");
+    }
+}
+
+#[test]
+fn test_pickle_value_conversion() {
+    use crate::pytorch::PickleValue;
+
+    // Test that PickleValue provides useful data structures
+    let path = test_data_path("checkpoint.pt");
+    let data = PytorchReader::read_pickle_data(&path, None).unwrap();
+
+    // Test pattern matching and data extraction
+    match data {
+        PickleValue::Dict(dict) => {
+            // Extract epoch as integer
+            if let Some(PickleValue::Int(epoch)) = dict.get("epoch") {
+                assert!(*epoch >= 0);
+            }
+
+            // Extract loss as float
+            if let Some(PickleValue::Float(loss)) = dict.get("loss") {
+                assert!(loss.is_finite());
+            }
+
+            // Test nested access
+            if let Some(PickleValue::Dict(model_dict)) = dict.get("model_state_dict") {
+                assert!(!model_dict.is_empty());
+            }
+        }
+        _ => panic!("Unexpected root type"),
     }
 }
