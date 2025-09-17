@@ -125,3 +125,9 @@ pub mod collective;
 pub mod store {
     pub use burn_store::*;
 }
+
+/// CubeCL module re-export.
+#[cfg(feature = "cubecl")]
+pub mod cubecl {
+    pub use cubecl::*;
+}
