@@ -486,16 +486,14 @@ impl ModuleSnapshoter for SafetensorsStore {
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
-        // Collect tensor snapshots from module
-        let mut snapshots = module.collect(None);
-
-        // Apply to_adapter (for saving - convert from Burn format to target format)
-        // TODO move this to collector just like applier
-        let to_adapter = self.get_to_adapter();
-        snapshots = snapshots
-            .into_iter()
-            .map(|snapshot| to_adapter.adapt(&snapshot))
-            .collect();
+        // Collect tensor snapshots from module with adapter
+        // The to_adapter converts from Burn format to target format for saving
+        let to_adapter = match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.to_adapter.clone(),
+            Self::Memory(p) => p.to_adapter.clone(),
+        };
+        let mut snapshots = module.collect(None, Some(to_adapter));
 
         // Apply filtering
         snapshots = apply_filter(snapshots, self.get_filter());
@@ -639,14 +637,6 @@ impl SafetensorsStore {
             #[cfg(feature = "std")]
             Self::File(p) => p.allow_partial,
             Self::Memory(p) => p.allow_partial,
-        }
-    }
-
-    fn get_to_adapter(&self) -> &dyn ModuleAdapter {
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.to_adapter.as_ref(),
-            Self::Memory(p) => p.to_adapter.as_ref(),
         }
     }
 }

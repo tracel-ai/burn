@@ -1,9 +1,10 @@
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
-use crate::{PathFilter, TensorSnapshot};
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::{ModuleVisitor, ParamId};
 
 /// Collects tensor views from modules without copying data.
@@ -42,42 +43,58 @@ pub struct Collector {
     path_stack: Vec<String>,
     container_stack: Vec<String>,
     filter: Option<PathFilter>,
+    adapter: Option<Box<dyn ModuleAdapter>>,
 }
 
 impl Default for Collector {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None)
     }
 }
 
 impl Collector {
-    /// Create a new tensor view collector with an optional filter.
+    /// Create a new tensor view collector with an optional filter and adapter.
     ///
     /// # Arguments
     ///
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to collect.
     ///   When `None`, all tensors are collected.
+    /// * `adapter` - Optional adapter to transform tensors based on container types.
+    ///   Applied to all collected tensors before returning.
     ///
     /// # Examples
     ///
     /// ```rust,ignore
     /// use burn_store::{Collector, PathFilter};
     ///
-    /// // Collect all tensors
-    /// let collector = Collector::new(None);
+    /// // Collect all tensors without adapter
+    /// let collector = Collector::new(None, None);
     ///
-    /// // Use PathFilter builder
+    /// // Use PathFilter builder with adapter
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = Collector::new(Some(filter));
+    /// let collector = Collector::new(Some(filter), Some(adapter));
     /// ```
-    pub fn new(filter: Option<PathFilter>) -> Self {
+    pub fn new(filter: Option<PathFilter>, adapter: Option<Box<dyn ModuleAdapter>>) -> Self {
         Self {
             tensors: Vec::new(),
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter,
+            adapter,
+        }
+    }
+
+    /// Apply the adapter to collected tensors and return the result.
+    pub fn into_tensors(self) -> Vec<TensorSnapshot> {
+        if let Some(adapter) = self.adapter {
+            self.tensors
+                .into_iter()
+                .map(|snapshot| adapter.adapt(&snapshot))
+                .collect()
+        } else {
+            self.tensors
         }
     }
 
@@ -206,7 +223,7 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
-        let mut collector = Collector::new(None);
+        let mut collector = Collector::new(None, None);
         let id = ParamId::new();
 
         // Collect a tensor
@@ -232,7 +249,7 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
-        let mut collector = Collector::new(Some(filter));
+        let mut collector = Collector::new(Some(filter), None);
         let id = ParamId::new();
 
         // This should be collected
@@ -262,7 +279,7 @@ mod tests {
         let filter = PathFilter::new()
             .with_regex(r"^encoder\..*") // Match encoder.*
             .with_regex(r".*\.bias$"); // Match *.bias
-        let mut collector = Collector::new(Some(filter));
+        let mut collector = Collector::new(Some(filter), None);
         let id = ParamId::new();
 
         // These should be collected
@@ -307,7 +324,7 @@ mod tests {
             path.starts_with("encoder.") || path == "decoder.bias"
         }
         let filter = PathFilter::new().with_predicate(filter_fn);
-        let mut collector = Collector::new(Some(filter));
+        let mut collector = Collector::new(Some(filter), None);
         let id = ParamId::new();
 
         // These should be collected
@@ -363,7 +380,7 @@ mod tests {
             (parts[1] == "layer1" || parts[1] == "layer2") && parts[2] == "weight"
         }
         let filter = PathFilter::new().with_predicate(complex_filter);
-        let mut collector = Collector::new(Some(filter));
+        let mut collector = Collector::new(Some(filter), None);
         let id = ParamId::new();
 
         // These should be collected
@@ -626,7 +643,7 @@ mod tests {
         let device = Default::default();
         let model = DeepModel::<TestBackend>::new(&device);
 
-        let mut collector = Collector::new(None);
+        let mut collector = Collector::new(None, None);
         model.visit(&mut collector);
 
         let views = collector.tensors;
@@ -678,7 +695,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r"^backbone\.encoder\..*");
-            let mut collector = Collector::new(Some(filter));
+            let mut collector = Collector::new(Some(filter), None);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // Only encoder tensors
         }
@@ -687,7 +704,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.block1\..*");
-            let mut collector = Collector::new(Some(filter));
+            let mut collector = Collector::new(Some(filter), None);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 8); // block1 in both encoder and decoder
         }
@@ -696,7 +713,7 @@ mod tests {
         #[cfg(target_has_atomic = "ptr")]
         {
             let filter = PathFilter::new().with_regex(r".*\.weight$");
-            let mut collector = Collector::new(Some(filter));
+            let mut collector = Collector::new(Some(filter), None);
             model.visit(&mut collector);
             assert_eq!(collector.tensors.len(), 9); // All weight tensors
         }
@@ -708,7 +725,7 @@ mod tests {
                 .with_regex(r"^backbone\.encoder\.block1\..*") // All encoder.block1 tensors
                 .with_regex(r"^backbone\.decoder\..*\.bias$") // All decoder biases
                 .with_regex(r"^head\.weight$"); // Head weight only
-            let mut collector = Collector::new(Some(filter));
+            let mut collector = Collector::new(Some(filter), None);
             model.visit(&mut collector);
 
             // Should have:
@@ -758,7 +775,7 @@ mod tests {
         let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -774,7 +791,7 @@ mod tests {
         let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -806,7 +823,7 @@ mod tests {
         let module = VecModule::<TestBackend>::new(&device, 3);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -847,7 +864,7 @@ mod tests {
         let module = ArrayModule::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -877,7 +894,7 @@ mod tests {
         // Test variant A
         let module_a = EnumModule::<TestBackend>::LayerA(LinearConfig::new(10, 20).init(&device));
         let views_a: HashMap<String, TensorSnapshot> = module_a
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -890,7 +907,7 @@ mod tests {
         // Test variant B
         let module_b = EnumModule::<TestBackend>::LayerB(LinearConfig::new(10, 20).init(&device));
         let views_b: HashMap<String, TensorSnapshot> = module_b
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -921,7 +938,7 @@ mod tests {
         let model = ModelWithLinear::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -969,7 +986,7 @@ mod tests {
         let model = ComplexModel::<TestBackend>::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
-            .collect(None)
+            .collect(None, None)
             .into_iter()
             .map(|v| (v.full_path(), v))
             .collect();
@@ -1010,7 +1027,7 @@ mod tests {
             container_path.split('.').last() == Some("Linear")
         });
 
-        let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter));
+        let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None);
 
         // All collected tensors should be from Linear modules
         for view in linear_views.iter() {

@@ -21,10 +21,16 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to collect.
     ///   When `None`, all tensors are collected.
-    fn collect(&self, filter: Option<PathFilter>) -> Vec<TensorSnapshot> {
-        let mut collector = Collector::new(filter);
+    /// * `adapter` - Optional adapter to transform tensors based on container types.
+    ///   Applied to all collected tensors before returning.
+    fn collect(
+        &self,
+        filter: Option<PathFilter>,
+        adapter: Option<Box<dyn ModuleAdapter>>,
+    ) -> Vec<TensorSnapshot> {
+        let mut collector = Collector::new(filter, adapter);
         self.visit(&mut collector);
-        collector.tensors
+        collector.into_tensors()
     }
 
     /// Applies tensor snapshots to the module.
