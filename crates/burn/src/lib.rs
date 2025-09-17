@@ -137,5 +137,5 @@ pub mod prelude {
     //! Burn.
     pub use burn_core::prelude::*;
 
-    pub use crate::nn::*;
+    pub use crate::nn;
 }
