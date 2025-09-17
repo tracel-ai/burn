@@ -487,7 +487,7 @@ impl ModuleSnapshoter for SafetensorsStore {
         module: &M,
     ) -> Result<(), Self::Error> {
         // Collect tensor snapshots from module
-        let mut snapshots = module.collect();
+        let mut snapshots = module.collect(None);
 
         // Apply to_adapter (for saving - convert from Burn format to target format)
         // TODO move this to collector just like applier
@@ -580,7 +580,7 @@ impl ModuleSnapshoter for SafetensorsStore {
 
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
-        let result = module.apply(snapshots, Some(adapter));
+        let result = module.apply(snapshots, None, Some(adapter));
 
         // Validate if needed
         if self.get_validate() && !result.errors.is_empty() {

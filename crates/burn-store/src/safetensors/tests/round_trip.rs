@@ -93,7 +93,7 @@ fn complex_module_round_trip() {
     assert_eq!(result.errors.len(), 0);
 
     // Verify data was imported correctly
-    let module2_views = module2.collect();
+    let module2_views = module2.collect(None);
     let encoder_weight = module2_views
         .iter()
         .find(|v| v.full_path() == "encoder.weight")

@@ -1,6 +1,5 @@
 mod adapter;
 mod adapter_container_test;
-mod container_stack_debug;
 mod container_stack_test;
 mod error_handling;
 mod file_io;

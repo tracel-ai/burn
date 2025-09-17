@@ -120,31 +120,17 @@ pub struct Applier<B: Backend> {
 }
 
 impl<B: Backend> Applier<B> {
-    /// Create a new applier with snapshots and optional adapter
-    pub fn new(views: Vec<TensorSnapshot>, adapter: Option<Box<dyn ModuleAdapter>>) -> Self {
-        let views_map: HashMap<String, TensorSnapshot> = views
-            .into_iter()
-            .map(|view| (view.full_path(), view))
-            .collect();
-
-        Self {
-            snapshots: views_map,
-            path_stack: Vec::new(),
-            container_stack: Vec::new(),
-            filter: None,
-            adapter,
-            applied: Vec::new(),
-            skipped: HashSet::new(),
-            errors: Vec::new(),
-            visited_paths: HashSet::new(),
-            _backend: core::marker::PhantomData,
-        }
-    }
-
-    /// Create a new applier with filter and adapter
-    pub fn with_filter(
+    /// Create a new applier with snapshots, optional filter, and optional adapter
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - A vector of TensorSnapshot objects to apply
+    /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
+    ///   When `None`, all available tensors are applied.
+    /// * `adapter` - Optional adapter to transform tensors based on container types
+    pub fn new(
         views: Vec<TensorSnapshot>,
-        filter: PathFilter,
+        filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
     ) -> Self {
         let views_map: HashMap<String, TensorSnapshot> = views
@@ -156,7 +142,7 @@ impl<B: Backend> Applier<B> {
             snapshots: views_map,
             path_stack: Vec::new(),
             container_stack: Vec::new(),
-            filter: Some(filter),
+            filter,
             adapter,
             applied: Vec::new(),
             skipped: HashSet::new(),

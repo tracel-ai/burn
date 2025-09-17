@@ -16,22 +16,13 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
     /// Each `TensorSnapshot` contains the full path accessible via `snapshot.full_path()`.
-    fn collect(&self) -> Vec<TensorSnapshot> {
-        let mut collector = Collector::new();
-        self.visit(&mut collector);
-        collector.tensors
-    }
-
-    /// Collects tensor snapshots with a [`PathFilter`].
-    ///
-    /// This provides flexible filtering using `PathFilter`'s capabilities
-    /// including regex patterns, exact paths, and predicates.
     ///
     /// # Arguments
     ///
-    /// * `filter` - A [`PathFilter`] to determine which tensors to collect
-    fn collect_with_filter(&self, filter: PathFilter) -> Vec<TensorSnapshot> {
-        let mut collector = Collector::with_filter(filter);
+    /// * `filter` - An optional [`PathFilter`] to determine which tensors to collect.
+    ///   When `None`, all tensors are collected.
+    fn collect(&self, filter: Option<PathFilter>) -> Vec<TensorSnapshot> {
+        let mut collector = Collector::new(filter);
         self.visit(&mut collector);
         collector.tensors
     }
@@ -45,57 +36,41 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
     /// # Arguments
     ///
     /// * `snapshots` - A vector of TensorSnapshot objects
+    /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
+    ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
     ///
     /// # Returns
     ///
     /// An [`ApplyResult`] containing information about applied, skipped, missing,
     /// and unused tensors, as well as any errors encountered.
-    fn apply(
-        &mut self,
-        snapshots: Vec<TensorSnapshot>,
-        adapter: Option<Box<dyn ModuleAdapter>>,
-    ) -> ApplyResult {
-        let mut applier = Applier::new(snapshots, adapter);
-        *self = self.clone().map(&mut applier);
-        applier.into_result()
-    }
-
-    /// Applies tensor snapshots with a [`PathFilter`].
-    ///
-    /// This provides flexible filtering using `PathFilter`'s capabilities.
-    ///
-    /// # Arguments
-    ///
-    /// * `snapshots` - A vector of TensorSnapshot objects
-    /// * `filter` - A [`PathFilter`] to determine which tensors to apply
-    /// * `adapter` - Optional adapter to transform tensors based on container types
     ///
     /// # Examples
     ///
     /// ```rust,ignore
     /// use burn_store::PathFilter;
     ///
+    /// // Apply all tensors
+    /// let result = model.apply(snapshots, None, None);
+    ///
     /// // Apply only encoder tensors
     /// let filter = PathFilter::new().with_regex(r"^encoder\..*");
-    /// let result = model.apply_with_filter(snapshots, filter, None);
+    /// let result = model.apply(snapshots, Some(filter), None);
     ///
     /// // Apply with complex filter
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_regex(r"^decoder\..*")
     ///     .with_full_path("head.weight");
-    /// let result = model.apply_with_filter(snapshots, filter, None);
+    /// let result = model.apply(snapshots, Some(filter), None);
     /// ```
-    ///
-    //TODO make filter optional
-    fn apply_with_filter(
+    fn apply(
         &mut self,
         snapshots: Vec<TensorSnapshot>,
-        filter: PathFilter,
+        filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
     ) -> ApplyResult {
-        let mut applier = Applier::with_filter(snapshots, filter, adapter);
+        let mut applier = Applier::new(snapshots, filter, adapter);
         *self = self.clone().map(&mut applier);
         applier.into_result()
     }

@@ -307,7 +307,7 @@ impl ModuleSnapshoter for PytorchStore {
 
         // Apply to module with adapter
         // The adapter will be applied during module traversal with proper container info
-        let result = module.apply(snapshots, Some(Box::new(PyTorchToBurnAdapter)));
+        let result = module.apply(snapshots, None, Some(Box::new(PyTorchToBurnAdapter)));
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {
