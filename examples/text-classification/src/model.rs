@@ -64,6 +64,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
+        B::sync(&device);
 
         // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);
@@ -105,6 +106,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
+        B::sync(&device);
 
         // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);

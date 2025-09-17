@@ -24,6 +24,7 @@ impl<B: Backend> ItemLazy for ClassificationOutput<B> {
     type ItemSync = ClassificationOutput<NdArray>;
 
     fn sync(self) -> Self::ItemSync {
+        B::sync(&self.loss.device());
         let [output, loss, targets] = Transaction::default()
             .register(self.output)
             .register(self.loss)
