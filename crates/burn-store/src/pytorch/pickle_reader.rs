@@ -313,10 +313,7 @@ fn rebuild_tensor_v2(
     };
 
     // Fourth argument is stride (we don't use it but validate it exists)
-    let _stride = match &args[3] {
-        Object::Tuple(_) => true,
-        _ => false,
-    };
+    let _stride = matches!(&args[3], Object::Tuple(_));
 
     // Parse the storage info to extract dtype and storage key
     // The persistent ID is typically a tuple like: ('storage', 'FloatStorage', '0', 'cpu', 4)
@@ -410,7 +407,7 @@ fn rebuild_tensor_v2(
                     // Match patterns like "data/0", "archive/data/0", "integer/data/0"
                     // Check if this is the right data file by matching the storage key
                     k.ends_with(&format!("/data/{}", storage_key))
-                        || k.as_str() == &format!("data/{}", storage_key)
+                        || k.as_str() == format!("data/{}", storage_key)
                 })
                 .cloned()
                 .collect();
@@ -425,7 +422,7 @@ fn rebuild_tensor_v2(
                     .keys()
                     .filter(|k| {
                         // Ensure it's in a data directory and has the exact storage key as filename
-                        k.contains("/data/") && k.split('/').last() == Some(&storage_key.as_str())
+                        k.contains("/data/") && k.rsplit('/').next() == Some(storage_key.as_str())
                     })
                     .cloned()
                     .collect()
@@ -580,13 +577,6 @@ impl Stack {
         let result = self.stack.split_off(marker_pos + 1);
         self.stack.pop(); // Remove the marker
         Ok(result)
-    }
-
-    fn last(&self) -> Result<&Object> {
-        match self.stack.last() {
-            None => Err(Error::StackUnderflow),
-            Some(o) => Ok(o),
-        }
     }
 
     fn last_mut(&mut self) -> Result<&mut Object> {

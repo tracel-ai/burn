@@ -184,7 +184,7 @@ pub fn load_pytorch_file_with_key(
         let obj = read_pickle_with_data(&mut pickle_reader, &data_files)?;
 
         // Extract tensors with their data
-        return extract_tensors_with_data(obj, top_level_key, data_files);
+        return extract_tensors_with_data(obj, top_level_key);
     }
 
     // If not a zip or zip reading failed, try reading as a plain pickle file
@@ -192,7 +192,7 @@ pub fn load_pytorch_file_with_key(
     let mut reader = BufReader::new(file);
 
     let obj = read_pickle(&mut reader)?;
-    extract_tensors_with_data(obj, top_level_key, HashMap::new())
+    extract_tensors_with_data(obj, top_level_key)
 }
 
 /// Load from a reader
@@ -202,14 +202,13 @@ fn load_from_reader<R: Read>(
 ) -> Result<HashMap<String, TensorSnapshot>> {
     let mut buf_reader = BufReader::new(reader);
     let obj = read_pickle(&mut buf_reader)?;
-    extract_tensors_with_data(obj, top_level_key, HashMap::new())
+    extract_tensors_with_data(obj, top_level_key)
 }
 
 /// Extract tensors from a parsed pickle object
 fn extract_tensors_with_data(
     obj: Object,
     top_level_key: Option<&str>,
-    data_files: HashMap<String, Vec<u8>>,
 ) -> Result<HashMap<String, TensorSnapshot>> {
     let dict = match obj {
         Object::Dict(dict) => {
@@ -236,12 +235,7 @@ fn extract_tensors_with_data(
     };
 
     let mut tensors = HashMap::new();
-    extract_tensors_recursive(
-        &Object::Dict(dict),
-        String::new(),
-        &mut tensors,
-        &data_files,
-    );
+    extract_tensors_recursive(&Object::Dict(dict), String::new(), &mut tensors);
     Ok(tensors)
 }
 
@@ -250,7 +244,6 @@ fn extract_tensors_recursive(
     obj: &Object,
     path: String,
     tensors: &mut HashMap<String, TensorSnapshot>,
-    data_files: &HashMap<String, Vec<u8>>,
 ) {
     match obj {
         Object::Dict(dict) => {
@@ -260,12 +253,11 @@ fn extract_tensors_recursive(
                 } else {
                     format!("{}.{}", path, key)
                 };
-                extract_tensors_recursive(value, new_path, tensors, data_files);
+                extract_tensors_recursive(value, new_path, tensors);
             }
         }
         Object::TorchParam(snapshot) => {
-            // TODO: If we have data files, we should update the snapshot with actual data
-            // For now, we just use the snapshot as-is
+            // The TensorSnapshot already contains the data loading closure
             tensors.insert(path, snapshot.clone());
         }
         _ => {}
