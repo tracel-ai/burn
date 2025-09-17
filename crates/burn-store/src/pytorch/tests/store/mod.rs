@@ -66,7 +66,7 @@ mod basic_tests {
 
     #[test]
     fn test_store_with_remapping() {
-        let store = PytorchStore::from_file("model.pth").with_key_pattern(r"^old\.", "new.");
+        let store = PytorchStore::from_file("model.pth").with_key_remapping(r"^old\.", "new.");
 
         assert!(!store.remapper.is_empty());
     }
@@ -204,8 +204,8 @@ mod linear_model_tests {
         };
 
         let mut store = PytorchStore::from_file(path)
-            .with_key_pattern(r"^fc1\.", "linear1.")
-            .with_key_pattern(r"^fc2\.", "linear2.")
+            .with_key_remapping(r"^fc1\.", "linear1.")
+            .with_key_remapping(r"^fc2\.", "linear2.")
             .allow_partial(true);
 
         let result = store.apply_to::<TestBackend, _>(&mut model);
@@ -350,8 +350,8 @@ mod complex_model_tests {
 
         // Chain multiple remappings
         let mut store = PytorchStore::from_file(path)
-            .with_key_pattern(r"^fc1\.", "convolution1.")
-            .with_key_pattern(r"^fc2\.", "linear2.")
+            .with_key_remapping(r"^fc1\.", "convolution1.")
+            .with_key_remapping(r"^fc2\.", "linear2.")
             .allow_partial(true);
 
         let result = store.apply_to::<TestBackend, _>(&mut model);

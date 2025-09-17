@@ -271,11 +271,11 @@ impl SafetensorsStore {
     /// # Example
     /// ```rust,ignore
     /// let store = SafetensorsStore::from_file("model.safetensors")
-    ///     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
-    ///     .with_key_pattern(r"\.gamma$", ".weight");               // X.gamma -> X.weight
+    ///     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
+    ///     .with_key_remapping(r"\.gamma$", ".weight");               // X.gamma -> X.weight
     /// ```
     #[cfg(feature = "std")]
-    pub fn with_key_pattern(
+    pub fn with_key_remapping(
         mut self,
         from_pattern: impl AsRef<str>,
         to_pattern: impl Into<String>,

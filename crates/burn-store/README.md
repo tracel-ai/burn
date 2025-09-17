@@ -101,9 +101,9 @@ burn_model.collect_to(&mut store)?;
 ```rust
 // Simple pattern-based remapping
 let mut store = SafetensorsStore::from_file("model.safetensors")
-    .with_key_pattern(r"^old_model\.", "new_model.")  // old_model.X -> new_model.X
-    .with_key_pattern(r"\.gamma$", ".weight")         // X.gamma -> X.weight
-    .with_key_pattern(r"\.beta$", ".bias");          // X.beta -> X.bias
+    .with_key_remapping(r"^old_model\.", "new_model.")  // old_model.X -> new_model.X
+    .with_key_remapping(r"\.gamma$", ".weight")         // X.gamma -> X.weight
+    .with_key_remapping(r"\.beta$", ".bias");          // X.beta -> X.bias
 
 // Complex remapping with KeyRemapper
 use burn_store::KeyRemapper;
@@ -149,7 +149,7 @@ let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     // Only load transformer layers
     .with_regex(r"^transformer\..*")
     // Rename layer structure
-    .with_key_pattern(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
+    .with_key_remapping(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
     // Handle missing tensors gracefully
     .allow_partial(true)
     // Add conversion metadata
@@ -215,7 +215,7 @@ The `SafetensorsStore` provides a fluent API for configuration:
 
 #### Remapping
 
-- `with_key_pattern(from, to)` - Regex-based renaming
+- `with_key_remapping(from, to)` - Regex-based renaming
 - `remap(KeyRemapper)` - Complex remapping rules
 
 #### Adapters
