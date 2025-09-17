@@ -940,7 +940,6 @@ dependencies = [
  "burn-tensor",
  "burn-wgpu",
  "num-traits",
- "portable-atomic-util",
  "rstest",
 ]
 
