@@ -168,18 +168,18 @@ pub fn cross(lhs: CandleTensor, rhs: CandleTensor, dim: usize) -> CandleTensor {
 
     // Broadcast the shapes except along dim
     let mut broadcast_shape = vec![0; ndims];
-    for i in 0..ndims {
+    for (i, item) in broadcast_shape.iter_mut().enumerate().take(ndims) {
         if i == dim {
-            broadcast_shape[i] = shape_lhs.dims[i]; // already checked to be 3
+            *item = shape_lhs.dims[i];
         } else {
             let l = shape_lhs.dims[i];
             let r = shape_rhs.dims[i];
             if l == r {
-                broadcast_shape[i] = l;
+                *item = l;
             } else if l == 1 {
-                broadcast_shape[i] = r;
+                *item = r;
             } else if r == 1 {
-                broadcast_shape[i] = l;
+                *item = l;
             } else {
                 panic!("Tensors are not broadcastable along dimension {}", i);
             }
