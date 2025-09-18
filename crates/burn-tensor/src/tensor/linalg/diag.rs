@@ -4,7 +4,7 @@ use crate::check::TensorCheck;
 use crate::tensor::{Int, Shape, Tensor};
 use crate::{BasicOps, TensorKind};
 
-/// Returns the diag of the of a matrix.
+/// Returns the diag of a matrix.
 ///
 /// For batched inputs, returns of each matrix in the batch independently.
 ///
@@ -16,9 +16,7 @@ use crate::{BasicOps, TensorKind};
 /// * `tensor` - The input tensor with at least 2 dimensions.
 ///
 /// # Returns
-/// Tensor with rank D - 1, where the last two matrix dimensions are replaced by a single
-/// dimension containing the diagonal elements
-///
+/// A tensor of rank `D - 1`, where the last dimension contains the diagonal elements of the input.
 pub fn diag<B: Backend, const D: usize, const DO: usize, K>(
     tensor: Tensor<B, D, K>,
 ) -> Tensor<B, DO, K>
