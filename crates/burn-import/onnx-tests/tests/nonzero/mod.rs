@@ -11,7 +11,7 @@ include_models!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{Tensor, Int, Bool};
+    use burn::tensor::{Bool, Int, Tensor};
 
     use crate::backend::TestBackend;
 
@@ -34,15 +34,8 @@ mod tests {
         let output = model.forward(input);
 
         // Expected indices in row-major order: [0,1], [1,2], [2,0], [2,3]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [0, 1],
-                [1, 2],
-                [2, 0],
-                [2, 3],
-            ],
-            &device,
-        );
+        let expected =
+            Tensor::<TestBackend, 2, Int>::from_ints([[0, 1], [1, 2], [2, 0], [2, 3]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -54,24 +47,12 @@ mod tests {
 
         // Create a 2x3 int tensor with some non-zero values
         // Expected nonzero indices: (0,0), (1,2)
-        let input = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [5, 0, 0],
-                [0, 0, -3],
-            ],
-            &device,
-        );
+        let input = Tensor::<TestBackend, 2, Int>::from_ints([[5, 0, 0], [0, 0, -3]], &device);
 
         let output = model.forward(input);
 
         // Expected indices: [0,0], [1,2]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [0, 0],
-                [1, 2],
-            ],
-            &device,
-        );
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 0], [1, 2]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -84,24 +65,14 @@ mod tests {
         // Create a 2x2 bool tensor
         // Expected nonzero indices: (0,1), (1,0)
         let input = Tensor::<TestBackend, 2, Bool>::from_bool(
-            [
-                [false, true],
-                [true, false],
-            ]
-            .into(),
+            [[false, true], [true, false]].into(),
             &device,
         );
 
         let output = model.forward(input);
 
         // Expected indices: [0,1], [1,0]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [0, 1],
-                [1, 0],
-            ],
-            &device,
-        );
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 1], [1, 0]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -113,22 +84,12 @@ mod tests {
 
         // Create a 1D tensor with some non-zero values
         // Expected nonzero indices: 1, 3, 5
-        let input = Tensor::<TestBackend, 1>::from_floats(
-            [0.0, 2.0, 0.0, -1.0, 0.0, 3.5],
-            &device,
-        );
+        let input = Tensor::<TestBackend, 1>::from_floats([0.0, 2.0, 0.0, -1.0, 0.0, 3.5], &device);
 
         let output = model.forward(input);
 
         // Expected indices: 1, 3, 5
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [1],
-                [3],
-                [5],
-            ],
-            &device,
-        );
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[1], [3], [5]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -142,14 +103,8 @@ mod tests {
         // Expected nonzero indices: (0,0,1), (1,1,2)
         let input = Tensor::<TestBackend, 3>::from_floats(
             [
-                [
-                    [0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0],
-                ],
-                [
-                    [0.0, 0.0, 0.0],
-                    [0.0, 0.0, 2.0],
-                ],
+                [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 2.0]],
             ],
             &device,
         );
@@ -157,13 +112,7 @@ mod tests {
         let output = model.forward(input);
 
         // Expected indices: [0,0,1], [1,1,2]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
-            [
-                [0, 0, 1],
-                [1, 1, 2],
-            ],
-            &device,
-        );
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 0, 1], [1, 1, 2]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -174,13 +123,8 @@ mod tests {
         let model = nonzero_empty::Model::<TestBackend>::new(&device);
 
         // Create a tensor with all zeros
-        let input = Tensor::<TestBackend, 2>::from_floats(
-            [
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0],
-            ],
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 2>::from_floats([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], &device);
 
         let output = model.forward(input);
 

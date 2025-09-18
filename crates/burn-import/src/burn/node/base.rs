@@ -14,13 +14,14 @@ use super::{
     global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, identity::IdentityNode,
     instance_norm::InstanceNormNode, layer_norm::LayerNormNode, linear::LinearNode,
     matmul::MatmulNode, matmul_integer::MatMulIntegerNode, max_pool1d::MaxPool1dNode,
-    max_pool2d::MaxPool2dNode, mean::MeanNode, nonzero::NonZeroNode, one_hot::OneHotNode, pad::PadNode, prelu::PReluNode,
-    random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
-    random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
-    range::RangeNode, reduce::ReduceNode, reshape::ReshapeNode, resize::ResizeNode,
-    round::RoundNode, slice::SliceNode, space_to_depth::SpaceToDepthNode, split::SplitNode,
-    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode,
-    unary::UnaryNode, unsqueeze::UnsqueezeNode, where_op::WhereNode,
+    max_pool2d::MaxPool2dNode, mean::MeanNode, nonzero::NonZeroNode, one_hot::OneHotNode,
+    pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode,
+    random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
+    random_uniform_like::RandomUniformLikeNode, range::RangeNode, reduce::ReduceNode,
+    reshape::ReshapeNode, resize::ResizeNode, round::RoundNode, slice::SliceNode,
+    space_to_depth::SpaceToDepthNode, split::SplitNode, squeeze::SqueezeNode, sum::SumNode,
+    tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    where_op::WhereNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
