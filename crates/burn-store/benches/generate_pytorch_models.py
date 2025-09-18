@@ -40,23 +40,22 @@ class SimpleModel(nn.Module):
     """Simple model matching the Rust SimpleModel structure."""
     def __init__(self):
         super().__init__()
-        self.linear1 = nn.Linear(256, 512)
-        self.linear2 = nn.Linear(512, 1024)
+        self.fc1 = nn.Linear(784, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        x = self.linear1(x)
-        x = self.linear2(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
         return x
 
 class MediumModel(nn.Module):
     """Medium model with various layer types matching the Rust MediumModel."""
     def __init__(self):
         super().__init__()
-        self.linear1 = nn.Linear(512, 1024)
-        self.linear2 = nn.Linear(1024, 2048)
-        self.linear3 = nn.Linear(2048, 4096)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=5, padding=2)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.fc1 = nn.Linear(1024, 256)
+        self.fc2 = nn.Linear(256, 10)
 
     def forward(self, x):
         # Forward pass implementation (not used for benchmarking)

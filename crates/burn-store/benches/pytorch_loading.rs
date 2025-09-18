@@ -6,6 +6,9 @@
 //! 1. The old PyTorchFileRecorder from burn-import
 //! 2. The new PytorchStore from burn-store
 //!
+//! The benchmark tests a single model size (configurable via environment variable)
+//! across different backends and loading methods.
+//!
 //! Before running these benchmarks, generate the PyTorch model files:
 //! ```bash
 //! cd crates/burn-store
@@ -14,7 +17,12 @@
 //!
 //! Then run the benchmarks:
 //! ```bash
+//! # Run with default (small) model
 //! cargo bench --bench pytorch_loading
+//!
+//! # Run with specific model size
+//! MODEL_SIZE=medium cargo bench --bench pytorch_loading
+//! MODEL_SIZE=large cargo bench --bench pytorch_loading
 //! ```
 //!
 //! Run with specific backends:
@@ -53,46 +61,54 @@ type CandleBackend = burn_candle::Candle<f32, i64>;
 type TchBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(feature = "metal")]
-type MetalBackend = burn_wgpu::Metal;
+type MetalBackend = burn_metal::Metal;
 
-// Simple model for basic benchmarks
+// Model size enum
+#[derive(Debug, Clone, Copy)]
+enum ModelSize {
+    Small,
+    Medium,
+    Large,
+}
+
+impl ModelSize {
+    fn all() -> &'static [Self] {
+        &[Self::Small, Self::Medium, Self::Large]
+    }
+}
+
+// Simple model for testing (small)
 #[derive(Module, Debug)]
 struct SimpleModel<B: Backend> {
-    linear1: nn::Linear<B>,
-    linear2: nn::Linear<B>,
+    fc1: nn::Linear<B>,
+    fc2: nn::Linear<B>,
 }
 
 impl<B: Backend> SimpleModel<B> {
     fn new(device: &B::Device) -> Self {
         Self {
-            linear1: nn::LinearConfig::new(256, 512).init(device),
-            linear2: nn::LinearConfig::new(512, 1024).init(device),
+            fc1: nn::LinearConfig::new(784, 128).init(device),
+            fc2: nn::LinearConfig::new(128, 10).init(device),
         }
     }
 }
 
-// Medium model with various layer types
+// Medium model to test typical workloads
 #[derive(Module, Debug)]
 struct MediumModel<B: Backend> {
-    linear1: nn::Linear<B>,
-    linear2: nn::Linear<B>,
-    linear3: nn::Linear<B>,
     conv1: nn::conv::Conv2d<B>,
     conv2: nn::conv::Conv2d<B>,
+    fc1: nn::Linear<B>,
+    fc2: nn::Linear<B>,
 }
 
 impl<B: Backend> MediumModel<B> {
     fn new(device: &B::Device) -> Self {
         Self {
-            linear1: nn::LinearConfig::new(512, 1024).init(device),
-            linear2: nn::LinearConfig::new(1024, 2048).init(device),
-            linear3: nn::LinearConfig::new(2048, 4096).init(device),
-            conv1: nn::conv::Conv2dConfig::new([3, 64], [3, 3])
-                .with_padding(nn::PaddingConfig2d::Same)
-                .init(device),
-            conv2: nn::conv::Conv2dConfig::new([64, 128], [5, 5])
-                .with_padding(nn::PaddingConfig2d::Same)
-                .init(device),
+            conv1: nn::conv::Conv2dConfig::new([3, 32], [3, 3]).init(device),
+            conv2: nn::conv::Conv2dConfig::new([32, 64], [3, 3]).init(device),
+            fc1: nn::LinearConfig::new(1024, 256).init(device),
+            fc2: nn::LinearConfig::new(256, 10).init(device),
         }
     }
 }
@@ -132,6 +148,22 @@ fn get_model_dir() -> PathBuf {
 
     // If none exist, use the first one (will fail with clear error)
     possible_dirs[0].clone()
+}
+
+/// Get model file paths based on size
+fn get_model_paths(size: ModelSize) -> (PathBuf, PathBuf, PathBuf) {
+    let model_dir = get_model_dir();
+    let prefix = match size {
+        ModelSize::Small => "simple_model",
+        ModelSize::Medium => "medium_model",
+        ModelSize::Large => "large_model",
+    };
+
+    (
+        model_dir.join(format!("{}_state_dict.pth", prefix)),
+        model_dir.join(format!("{}_checkpoint.pth", prefix)),
+        model_dir.join(format!("{}_wrapped.pth", prefix)),
+    )
 }
 
 /// Check if model files exist and provide helpful error message
@@ -176,6 +208,7 @@ fn main() {
     match check_model_files() {
         Ok(dir) => {
             println!("✅ Found PyTorch model files in: {}", dir.display());
+            println!("📊 Benchmarking all model sizes: small, medium, large");
             println!("\n🚀 Running PyTorch loading benchmarks...\n");
 
             println!("Available backends:");
@@ -211,178 +244,90 @@ macro_rules! bench_backend {
             type TestBackend = $backend;
             type TestDevice = <TestBackend as Backend>::Device;
 
-            #[divan::bench_group(sample_count = 30)]
-            mod small_model {
-                use super::*;
+            #[divan::bench(sample_count = 20, args = ModelSize::all())]
+            fn old_recorder(bencher: Bencher, model_size: &ModelSize) {
+                let (_, checkpoint_path, _) = get_model_paths(*model_size);
 
-                fn get_simple_model_paths() -> (PathBuf, PathBuf, PathBuf) {
-                    let model_dir = check_model_files().expect("Model files not found");
-                    (
-                        model_dir.join("simple_model_state_dict.pth"),
-                        model_dir.join("simple_model_checkpoint.pth"),
-                        model_dir.join("simple_model_wrapped.pth"),
-                    )
+                // Skip if file doesn't exist
+                if !checkpoint_path.exists() {
+                    eprintln!("Skipping: {} not found", checkpoint_path.display());
+                    return;
                 }
 
-                #[divan::bench(name = "old_recorder_state_dict")]
-                fn old_recorder_state_dict(bencher: Bencher) {
-                    let (state_dict_path, _, _) = get_simple_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
+                let file_size = fs::metadata(&checkpoint_path).unwrap().len();
 
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-                            let load_args = LoadArgs::new(state_dict_path.clone());
-                            let record = recorder.load(load_args, &device).expect("Failed to load");
-                            let _model =
-                                SimpleModel::<TestBackend>::new(&device).load_record(record);
-                        });
-                }
+                bencher
+                    .counter(divan::counter::BytesCount::new(file_size))
+                    .bench(|| {
+                        let device: TestDevice = Default::default();
+                        let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
+                        let load_args = LoadArgs::new(checkpoint_path.clone())
+                            .with_top_level_key("model_state_dict");
 
-                #[divan::bench(name = "new_store_state_dict")]
-                fn new_store_state_dict(bencher: Bencher) {
-                    let (state_dict_path, _, _) = get_simple_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let mut model = SimpleModel::<TestBackend>::new(&device);
-                            let mut store = PytorchStore::from_file(state_dict_path.clone())
-                                .allow_partial(true);
-                            model.apply_from(&mut store).expect("Failed to load");
-                        });
-                }
-
-                #[divan::bench(name = "old_recorder_checkpoint")]
-                fn old_recorder_checkpoint(bencher: Bencher) {
-                    let (_, checkpoint_path, _) = get_simple_model_paths();
-                    let file_size = fs::metadata(&checkpoint_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-                            let load_args = LoadArgs::new(checkpoint_path.clone())
-                                .with_top_level_key("model_state_dict");
-                            let record = recorder.load(load_args, &device).expect("Failed to load");
-                            let _model =
-                                SimpleModel::<TestBackend>::new(&device).load_record(record);
-                        });
-                }
-
-                #[divan::bench(name = "new_store_checkpoint")]
-                fn new_store_checkpoint(bencher: Bencher) {
-                    let (_, checkpoint_path, _) = get_simple_model_paths();
-                    let file_size = fs::metadata(&checkpoint_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let mut model = SimpleModel::<TestBackend>::new(&device);
-                            let mut store = PytorchStore::from_file(checkpoint_path.clone())
-                                .with_top_level_key("model_state_dict")
-                                .allow_partial(true);
-                            model.apply_from(&mut store).expect("Failed to load");
-                        });
-                }
+                        match model_size {
+                            ModelSize::Small => {
+                                let record =
+                                    recorder.load(load_args, &device).expect("Failed to load");
+                                let _model =
+                                    SimpleModel::<TestBackend>::new(&device).load_record(record);
+                            }
+                            ModelSize::Medium => {
+                                let record =
+                                    recorder.load(load_args, &device).expect("Failed to load");
+                                let _model =
+                                    MediumModel::<TestBackend>::new(&device).load_record(record);
+                            }
+                            ModelSize::Large => {
+                                let record =
+                                    recorder.load(load_args, &device).expect("Failed to load");
+                                let _model =
+                                    LargeModel::<TestBackend>::new(&device).load_record(record);
+                            }
+                        }
+                    });
             }
 
-            #[divan::bench_group(sample_count = 20)]
-            mod medium_model {
-                use super::*;
+            #[divan::bench(sample_count = 20, args = ModelSize::all())]
+            fn new_store(bencher: Bencher, model_size: &ModelSize) {
+                let (_, checkpoint_path, _) = get_model_paths(*model_size);
 
-                fn get_medium_model_paths() -> (PathBuf, PathBuf) {
-                    let model_dir = check_model_files().expect("Model files not found");
-                    (
-                        model_dir.join("medium_model_state_dict.pth"),
-                        model_dir.join("medium_model_checkpoint.pth"),
-                    )
+                // Skip if file doesn't exist
+                if !checkpoint_path.exists() {
+                    eprintln!("Skipping: {} not found", checkpoint_path.display());
+                    return;
                 }
 
-                #[divan::bench(name = "old_recorder")]
-                fn old_recorder_medium(bencher: Bencher) {
-                    let (state_dict_path, _) = get_medium_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
+                let file_size = fs::metadata(&checkpoint_path).unwrap().len();
 
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-                            let load_args = LoadArgs::new(state_dict_path.clone());
-                            let record = recorder.load(load_args, &device).expect("Failed to load");
-                            let _model =
-                                MediumModel::<TestBackend>::new(&device).load_record(record);
-                        });
-                }
+                bencher
+                    .counter(divan::counter::BytesCount::new(file_size))
+                    .bench(|| {
+                        let device: TestDevice = Default::default();
 
-                #[divan::bench(name = "new_store")]
-                fn new_store_medium(bencher: Bencher) {
-                    let (state_dict_path, _) = get_medium_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let mut model = MediumModel::<TestBackend>::new(&device);
-                            let mut store = PytorchStore::from_file(state_dict_path.clone())
-                                .allow_partial(true);
-                            model.apply_from(&mut store).expect("Failed to load");
-                        });
-                }
-            }
-
-            #[divan::bench_group(sample_count = 10)]
-            mod large_model {
-                use super::*;
-
-                fn get_large_model_paths() -> (PathBuf, PathBuf) {
-                    let model_dir = check_model_files().expect("Model files not found");
-                    (
-                        model_dir.join("large_model_state_dict.pth"),
-                        model_dir.join("large_model_checkpoint.pth"),
-                    )
-                }
-
-                #[divan::bench(name = "old_recorder")]
-                fn old_recorder_large(bencher: Bencher) {
-                    let (state_dict_path, _) = get_large_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-                            let load_args = LoadArgs::new(state_dict_path.clone());
-                            let record = recorder.load(load_args, &device).expect("Failed to load");
-                            let _model =
-                                LargeModel::<TestBackend>::new(&device).load_record(record);
-                        });
-                }
-
-                #[divan::bench(name = "new_store")]
-                fn new_store_large(bencher: Bencher) {
-                    let (state_dict_path, _) = get_large_model_paths();
-                    let file_size = fs::metadata(&state_dict_path).unwrap().len();
-
-                    bencher
-                        .counter(divan::counter::BytesCount::new(file_size))
-                        .bench(|| {
-                            let device: TestDevice = Default::default();
-                            let mut model = LargeModel::<TestBackend>::new(&device);
-                            let mut store = PytorchStore::from_file(state_dict_path.clone())
-                                .allow_partial(true);
-                            model.apply_from(&mut store).expect("Failed to load");
-                        });
-                }
+                        match model_size {
+                            ModelSize::Small => {
+                                let mut model = SimpleModel::<TestBackend>::new(&device);
+                                let mut store = PytorchStore::from_file(checkpoint_path.clone())
+                                    .with_top_level_key("model_state_dict")
+                                    .allow_partial(true);
+                                model.apply_from(&mut store).expect("Failed to load");
+                            }
+                            ModelSize::Medium => {
+                                let mut model = MediumModel::<TestBackend>::new(&device);
+                                let mut store = PytorchStore::from_file(checkpoint_path.clone())
+                                    .with_top_level_key("model_state_dict")
+                                    .allow_partial(true);
+                                model.apply_from(&mut store).expect("Failed to load");
+                            }
+                            ModelSize::Large => {
+                                let mut model = LargeModel::<TestBackend>::new(&device);
+                                let mut store = PytorchStore::from_file(checkpoint_path.clone())
+                                    .with_top_level_key("model_state_dict")
+                                    .allow_partial(true);
+                                model.apply_from(&mut store).expect("Failed to load");
+                            }
+                        }
+                    });
             }
         }
     };
