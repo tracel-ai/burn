@@ -67,3 +67,7 @@ harness = false
 [[bench]]
 name = "resnet18_loading"
 harness = false
+
+[[bench]]
+name = "unified_loading"
+harness = false

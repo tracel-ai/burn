@@ -6,7 +6,7 @@ use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, Recorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_store::ModuleSnapshot;
-use burn_store::safetensors::SafetensorsStore;
+use burn_store::SafetensorsStore;
 use divan::{AllocProfiler, Bencher};
 use std::fs;
 use std::path::PathBuf;
