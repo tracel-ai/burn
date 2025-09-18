@@ -2,6 +2,7 @@
 // This hardcodes objects that are required for tensor reading, we may want to make this a bit more
 // composable/tensor agnostic at some point.
 use crate::TensorSnapshot;
+use crate::pytorch::lazy_data::LazyDataSource;
 use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -10,6 +11,7 @@ use burn_tensor::{DType, TensorData};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::HashMap;
 use std::io::{self, BufRead};
+use std::sync::Arc;
 
 /// Error type for pickle operations
 #[derive(Debug)]
@@ -204,7 +206,7 @@ pub enum Object {
 fn rebuild_from_type_v2(
     o: Object,
     memo: &mut HashMap<u32, Object>,
-    data_files: &HashMap<String, Vec<u8>>,
+    data_source: &Arc<LazyDataSource>,
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = o {
         if args.is_empty() {
@@ -233,11 +235,11 @@ fn rebuild_from_type_v2(
                 Object::Tuple(args[1..].to_vec())
             };
             if module_name == "torch._utils" && name == "_rebuild_tensor_v2" {
-                rebuild_tensor_v2(actual_args, memo, data_files)
+                rebuild_tensor_v2(actual_args, memo, data_source)
             } else if module_name == "torch._tensor" && name == "_rebuild_from_type_v2" {
-                rebuild_from_type_v2(actual_args, memo, data_files)
+                rebuild_from_type_v2(actual_args, memo, data_source)
             } else if module_name == "torch._utils" && name == "_rebuild_parameter" {
-                rebuild_parameter(actual_args, memo, data_files)
+                rebuild_parameter(actual_args, memo, data_source)
             } else if module_name == "collections" && name == "OrderedDict" {
                 // OrderedDict is treated as a regular Dict in our implementation
                 Ok(Object::Dict(HashMap::new()))
@@ -255,7 +257,7 @@ fn rebuild_from_type_v2(
 fn rebuild_parameter(
     args: Object,
     memo: &mut HashMap<u32, Object>,
-    data_files: &HashMap<String, Vec<u8>>,
+    data_source: &Arc<LazyDataSource>,
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = args {
         if args.is_empty() {
@@ -275,7 +277,7 @@ fn rebuild_parameter(
         Object::Reduce {
             callable: _,
             args: _,
-        } => rebuild_from_type_v2(data.clone(), memo, data_files)?,
+        } => rebuild_from_type_v2(data.clone(), memo, data_source)?,
         _ => data.clone(),
     };
     Ok(tensor)
@@ -284,7 +286,7 @@ fn rebuild_parameter(
 fn rebuild_tensor_v2(
     args: Object,
     _memo: &mut HashMap<u32, Object>,
-    data_files: &HashMap<String, Vec<u8>>,
+    data_source: &Arc<LazyDataSource>,
 ) -> Result<Object> {
     // args is (storage, storage_offset, shape, stride, requires_grad, backward_hooks)
     let args = if let Object::Tuple(args) = args {
@@ -419,31 +421,33 @@ fn rebuild_tensor_v2(
         (DType::F32, "0".to_string())
     };
 
-    // Only clone the specific storage data needed for this tensor
-    // This avoids cloning the entire HashMap for each tensor
-    let storage_data = {
-        // Look for the storage key in various patterns
+    // Create a clone of the data source for the closure
+    let data_source_clone = data_source.clone();
+    let shape_clone = shape.clone();
+
+    // Find the correct data file key
+    let data_file_key = {
         let exact_key = format!("data/{}", storage_key);
-        if let Some(data) = data_files.get(&exact_key) {
-            Some(data.clone())
+        if data_source.contains(&exact_key) {
+            exact_key
         } else {
             // Try other patterns
-            data_files
-                .iter()
-                .find(|(key, _)| {
+            data_source
+                .keys()
+                .into_iter()
+                .find(|key| {
                     key.ends_with(&format!("/data/{}", storage_key))
                         || (key.contains("/data/") && key.rsplit('/').next() == Some(&storage_key))
                 })
-                .map(|(_, data)| data.clone())
+                .unwrap_or_else(|| format!("data/{}", storage_key))
         }
     };
 
-    let shape_clone = shape.clone();
-
-    // Create a TensorSnapshot with a closure that loads the actual data
+    // Create a TensorSnapshot with a closure that loads the actual data on-demand
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
-            if let Some(data) = &storage_data {
+            // Load data only when needed
+            if let Ok(data) = data_source_clone.read(&data_file_key) {
                 // Parse the binary data based on dtype
                 let num_elements = shape_clone.iter().product::<usize>().max(1);
 
@@ -572,7 +576,7 @@ fn rebuild_tensor_v2(
 pub struct Stack {
     stack: Vec<Object>,
     memo: HashMap<u32, Object>,
-    data_files: HashMap<String, Vec<u8>>,
+    data_source: Arc<LazyDataSource>,
 }
 
 impl Default for Stack {
@@ -583,10 +587,16 @@ impl Default for Stack {
 
 impl Stack {
     pub fn new() -> Self {
+        // For cases where no data source is needed (pure pickle without tensor data)
+        // we use a dummy file source that will never be accessed
+        Self::with_data_source(Arc::new(LazyDataSource::from_file("/dev/null", 0, 0)))
+    }
+
+    pub fn with_data_source(data_source: Arc<LazyDataSource>) -> Self {
         Self {
             stack: Vec::new(),
             memo: HashMap::new(),
-            data_files: HashMap::new(),
+            data_source,
         }
     }
 
@@ -719,15 +729,15 @@ fn read_bin_float<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
 }
 
 pub fn read_pickle<R: BufRead>(r: &mut R) -> Result<Object> {
-    read_pickle_with_data(r, &HashMap::new())
+    // For pure pickle without tensor data, use a dummy data source
+    read_pickle_with_data(r, Arc::new(LazyDataSource::from_file("/dev/null", 0, 0)))
 }
 
 pub fn read_pickle_with_data<R: BufRead>(
     r: &mut R,
-    data_files: &HashMap<String, Vec<u8>>,
+    data_source: Arc<LazyDataSource>,
 ) -> Result<Object> {
-    let mut stack = Stack::new();
-    stack.data_files = data_files.clone();
+    let mut stack = Stack::with_data_source(data_source);
     loop {
         let op_code = r.read_u8()?;
         let op_code = OpCode::try_from(op_code).map_err(Error::InvalidOpCode)?;
@@ -889,7 +899,7 @@ pub fn read_pickle_with_data<R: BufRead>(
                         let obj = rebuild_from_type_v2(
                             Object::Tuple(vec![callable, args]),
                             &mut stack.memo,
-                            &stack.data_files,
+                            &stack.data_source,
                         )?;
                         stack.push(obj);
                     }
@@ -901,7 +911,7 @@ pub fn read_pickle_with_data<R: BufRead>(
                     let obj = rebuild_from_type_v2(
                         Object::Tuple(vec![callable, args]),
                         &mut stack.memo,
-                        &stack.data_files,
+                        &stack.data_source,
                     )?;
                     stack.push(obj);
                 }

@@ -35,6 +35,7 @@
 //! }
 //! ```
 
+pub mod lazy_data;
 pub mod pickle_reader;
 pub mod reader;
 pub mod store;
