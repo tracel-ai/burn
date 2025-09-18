@@ -49,67 +49,35 @@ type TchBackend = burn_tch::LibTorch<f32>;
 #[cfg(feature = "metal")]
 type MetalBackend = burn_metal::Metal;
 
-// Deep model matching the Python script structure
+// Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
-struct DeepModel<B: Backend> {
+struct LargeModel<B: Backend> {
     layers: Vec<nn::Linear<B>>,
 }
 
-impl<B: Backend> DeepModel<B> {
+impl<B: Backend> LargeModel<B> {
     fn new(device: &B::Device) -> Self {
         let mut layers = Vec::new();
-        let mut layer_configs = Vec::new();
-
-        // First 10 layers: gradually increase from 512 to 1024
-        for i in 0..10 {
-            let in_size = if i == 0 { 512 } else { 512 + i * 50 };
-            let out_size = 512 + (i + 1) * 50;
-            layer_configs.push((in_size, out_size));
+        // Create a model with 20 layers - same as safetensor_loading benchmark
+        for i in 0..20 {
+            let in_size = if i == 0 { 1024 } else { 2048 };
+            layers.push(nn::LinearConfig::new(in_size, 2048).init(device));
         }
-
-        // Middle 35 layers: even larger layers for more parameters
-        for i in 0..35 {
-            if i % 3 == 0 {
-                layer_configs.push((2048, 3072));
-            } else if i % 3 == 1 {
-                layer_configs.push((3072, 2048));
-            } else {
-                layer_configs.push((2048, 2048));
-            }
-        }
-
-        // Last 10 layers: gradually decrease back to 512
-        let mut prev_out_size = 2048;
-        for i in 0..10 {
-            let in_size = prev_out_size;
-            let mut out_size = 1024 - (i + 1) * 50;
-            if out_size < 512 {
-                out_size = 512;
-            }
-            layer_configs.push((in_size, out_size));
-            prev_out_size = out_size;
-        }
-
-        // Create the layers
-        for (in_size, out_size) in layer_configs {
-            layers.push(nn::LinearConfig::new(in_size, out_size).init(device));
-        }
-
         Self { layers }
     }
 }
 
 /// Get the path to the model files
 fn get_model_dir() -> PathBuf {
-    std::env::temp_dir().join("unified_bench_models")
+    std::env::temp_dir().join("simple_bench_models")
 }
 
 /// Get paths to the model files
 fn get_model_paths() -> (PathBuf, PathBuf) {
     let dir = get_model_dir();
     (
-        dir.join("deep_model.safetensors"),
-        dir.join("deep_model.pt"),
+        dir.join("large_model.safetensors"),
+        dir.join("large_model.pt"),
     )
 }
 
@@ -199,7 +167,7 @@ macro_rules! bench_backend {
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
                         let device: TestDevice = Default::default();
-                        let mut model = DeepModel::<TestBackend>::new(&device);
+                        let mut model = LargeModel::<TestBackend>::new(&device);
                         let mut store = SafetensorsStore::from_file(st_path.clone())
                             .with_from_adapter(PyTorchToBurnAdapter);
                         model.apply_from(&mut store).expect("Failed to load");
@@ -219,7 +187,7 @@ macro_rules! bench_backend {
                         let record = recorder
                             .load(st_path.clone().into(), &device)
                             .expect("Failed to load");
-                        let _model = DeepModel::<TestBackend>::new(&device).load_record(record);
+                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
                     });
             }
 
@@ -232,7 +200,7 @@ macro_rules! bench_backend {
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
                         let device: TestDevice = Default::default();
-                        let mut model = DeepModel::<TestBackend>::new(&device);
+                        let mut model = LargeModel::<TestBackend>::new(&device);
                         let mut store = PytorchStore::from_file(pt_path.clone())
                             .with_top_level_key("model_state_dict")
                             .allow_partial(true);
@@ -253,7 +221,7 @@ macro_rules! bench_backend {
                         let load_args =
                             LoadArgs::new(pt_path.clone()).with_top_level_key("model_state_dict");
                         let record = recorder.load(load_args, &device).expect("Failed to load");
-                        let _model = DeepModel::<TestBackend>::new(&device).load_record(record);
+                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
                     });
             }
         }

@@ -224,40 +224,24 @@ if !result.errors.is_empty() {
 
 ## Benchmarks
 
-The crate includes comprehensive benchmarks comparing the new `SafetensorsStore` with the legacy
-`SafetensorsFileRecorder`. Benchmarks support multiple backends and include memory allocation
-tracking.
-
-### Running Benchmarks
-
 ```bash
-# Run with default backend (NdArray CPU)
-cargo bench --bench safetensor_loading
+# Generate model files first (one-time setup)
+cd crates/burn-store
+uv run benches/generate_unified_models.py
+
+# Run unified benchmark with default backend (NdArray CPU)
+cargo bench --bench unified_loading
 
 # Run with specific backend
-cargo bench --bench safetensor_loading --features metal    # Apple GPU
-cargo bench --bench safetensor_loading --features candle   # Candle backend
-cargo bench --bench safetensor_loading --features wgpu     # WGPU
-cargo bench --bench safetensor_loading --features cuda     # NVIDIA GPU
-cargo bench --bench safetensor_loading --features tch      # LibTorch
+cargo bench --bench unified_loading --features metal    # Apple GPU
+cargo bench --bench unified_loading --features wgpu     # WebGPU
+cargo bench --bench unified_loading --features cuda     # NVIDIA GPU
+cargo bench --bench unified_loading --features candle   # Candle backend
+cargo bench --bench unified_loading --features tch      # LibTorch
 
 # Run with multiple backends
-cargo bench --bench safetensor_loading --features "metal candle"
+cargo bench --bench unified_loading --features "wgpu metal"
 ```
-
-### Benchmark Results
-
-The benchmarks test three model sizes (small, medium, large) and show:
-
-- **Execution time** and **throughput** (MB/s)
-- **Memory allocation** statistics (max allocations, total allocations/deallocations)
-- Comparison between old `SafetensorsFileRecorder` and new `SafetensorsStore`
-
-Typical improvements with the new store:
-
-- **1.75-2.1x faster** loading on CPU backends
-- **~60% less memory usage** due to optimized allocation patterns
-- Better performance scaling with larger models
 
 ## API Overview
 

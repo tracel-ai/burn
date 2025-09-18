@@ -57,14 +57,6 @@ divan = "0.1"
 tempfile = { workspace = true }
 
 [[bench]]
-name = "safetensor_loading"
-harness = false
-
-[[bench]]
-name = "pytorch_loading"
-harness = false
-
-[[bench]]
 name = "resnet18_loading"
 harness = false
 
