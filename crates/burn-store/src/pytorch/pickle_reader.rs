@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 /// Error type for pickle operations
 #[derive(Debug)]
-pub enum Error {
+pub enum PickleError {
     Io(io::Error),
     InvalidOpCode(u8),
     InvalidProtocol(u8),
@@ -27,53 +27,53 @@ pub enum Error {
     InvalidShapeOrType,
 }
 
-impl From<io::Error> for Error {
+impl From<io::Error> for PickleError {
     fn from(e: io::Error) -> Self {
-        Error::Io(e)
+        PickleError::Io(e)
     }
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for PickleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::InvalidOpCode(code) => write!(
+            PickleError::Io(e) => write!(f, "IO error: {}", e),
+            PickleError::InvalidOpCode(code) => write!(
                 f,
                 "Invalid pickle opcode: 0x{:02x}. The file may be corrupted or use an unsupported pickle protocol.",
                 code
             ),
-            Error::InvalidProtocol(proto) => write!(
+            PickleError::InvalidProtocol(proto) => write!(
                 f,
                 "Invalid or unsupported pickle protocol version: {}. Supported versions are 2-5.",
                 proto
             ),
-            Error::UnexpectedOpCode(op) => {
+            PickleError::UnexpectedOpCode(op) => {
                 write!(f, "Unexpected pickle opcode {:?} in current context", op)
             }
-            Error::UnsupportedType(ty) => write!(
+            PickleError::UnsupportedType(ty) => write!(
                 f,
                 "Unsupported Python type '{}'. This may indicate a full model save rather than a state_dict.",
                 ty
             ),
-            Error::InvalidData(msg) => write!(f, "Invalid data in pickle file: {}", msg),
-            Error::StackUnderflow => {
+            PickleError::InvalidData(msg) => write!(f, "Invalid data in pickle file: {}", msg),
+            PickleError::StackUnderflow => {
                 write!(f, "Pickle stack underflow - the file may be corrupted")
             }
-            Error::MemoNotFound(idx) => write!(
+            PickleError::MemoNotFound(idx) => write!(
                 f,
                 "Pickle memo reference {} not found - the file may be corrupted",
                 idx
             ),
-            Error::InvalidShapeOrType => {
+            PickleError::InvalidShapeOrType => {
                 write!(f, "Invalid tensor shape or data type in PyTorch file")
             }
         }
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for PickleError {}
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, PickleError>;
 
 // https://docs.juliahub.com/Pickle/LAUNc/0.1.0/opcode/
 #[repr(u8)]
@@ -173,7 +173,8 @@ fn read_to_newline<R: BufRead>(r: &mut R) -> Result<Vec<u8>> {
 }
 
 fn buf_to_str(buf: &[u8]) -> Result<String> {
-    String::from_utf8(buf.to_vec()).map_err(|e| Error::InvalidData(format!("Invalid UTF-8: {}", e)))
+    String::from_utf8(buf.to_vec())
+        .map_err(|e| PickleError::InvalidData(format!("Invalid UTF-8: {}", e)))
 }
 
 #[derive(Debug, Clone)]
@@ -210,13 +211,13 @@ fn rebuild_from_type_v2(
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = o {
         if args.is_empty() {
-            return Err(Error::InvalidData(
+            return Err(PickleError::InvalidData(
                 "rebuild_from_type_v2: empty args".to_string(),
             ));
         }
         args
     } else {
-        return Err(Error::InvalidData(format!(
+        return Err(PickleError::InvalidData(format!(
             "rebuild_from_type_v2: expected tuple got {:?}",
             o
         )));
@@ -244,10 +245,13 @@ fn rebuild_from_type_v2(
                 // OrderedDict is treated as a regular Dict in our implementation
                 Ok(Object::Dict(HashMap::new()))
             } else {
-                Err(Error::UnsupportedType(format!("{}.{}", module_name, name)))
+                Err(PickleError::UnsupportedType(format!(
+                    "{}.{}",
+                    module_name, name
+                )))
             }
         }
-        _ => Err(Error::InvalidData(format!(
+        _ => Err(PickleError::InvalidData(format!(
             "rebuild_from_type_v2: expected class got {:?}",
             func
         ))),
@@ -261,13 +265,13 @@ fn rebuild_parameter(
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = args {
         if args.is_empty() {
-            return Err(Error::InvalidData(
+            return Err(PickleError::InvalidData(
                 "rebuild_parameter: empty args".to_string(),
             ));
         }
         args
     } else {
-        return Err(Error::InvalidData(format!(
+        return Err(PickleError::InvalidData(format!(
             "rebuild_parameter: expected tuple got {:?}",
             args
         )));
@@ -292,14 +296,14 @@ fn rebuild_tensor_v2(
     let args = if let Object::Tuple(args) = args {
         args
     } else {
-        return Err(Error::InvalidData(format!(
+        return Err(PickleError::InvalidData(format!(
             "rebuild_tensor_v2: expected tuple got {:?}",
             args
         )));
     };
 
     if args.len() < 5 {
-        return Err(Error::InvalidData(format!(
+        return Err(PickleError::InvalidData(format!(
             "rebuild_tensor_v2: expected at least 5 args, got {}",
             args.len()
         )));
@@ -310,7 +314,7 @@ fn rebuild_tensor_v2(
         Object::Persistent(data) => (data.clone(), None),
         Object::PersistentTuple(tuple) => (vec![], Some(tuple.clone())),
         _ => {
-            return Err(Error::InvalidData(format!(
+            return Err(PickleError::InvalidData(format!(
                 "rebuild_tensor_v2: expected persistent id got {:?}",
                 args[0]
             )));
@@ -329,11 +333,13 @@ fn rebuild_tensor_v2(
             .iter()
             .map(|x| match x {
                 Object::Int(i) => Ok(*i as usize),
-                _ => Err(Error::InvalidData("shape must contain ints".to_string())),
+                _ => Err(PickleError::InvalidData(
+                    "shape must contain ints".to_string(),
+                )),
             })
             .collect::<Result<Vec<_>>>()?,
         _ => {
-            return Err(Error::InvalidData(format!(
+            return Err(PickleError::InvalidData(format!(
                 "rebuild_tensor_v2: expected shape tuple got {:?}",
                 args[2]
             )));
@@ -425,7 +431,7 @@ fn rebuild_tensor_v2(
     let data_source = match data_source {
         Some(ds) => ds.clone(),
         None => {
-            return Err(Error::InvalidData(
+            return Err(PickleError::InvalidData(
                 "Cannot load tensor data without a data source".to_string(),
             ));
         }
@@ -628,14 +634,14 @@ impl Stack {
 
     fn pop(&mut self) -> Result<Object> {
         match self.stack.pop() {
-            None => Err(Error::StackUnderflow),
+            None => Err(PickleError::StackUnderflow),
             Some(o) => Ok(o),
         }
     }
 
     fn top(&self) -> Result<Object> {
         match self.stack.last() {
-            None => Err(Error::StackUnderflow),
+            None => Err(PickleError::StackUnderflow),
             Some(o) => Ok(o.clone()),
         }
     }
@@ -648,7 +654,7 @@ impl Stack {
                 matches!(o, Object::Class { module_name, name }
                 if module_name == "mark" && name == "mark")
             })
-            .ok_or(Error::InvalidData("marker not found".to_string()))?;
+            .ok_or(PickleError::InvalidData("marker not found".to_string()))?;
 
         let result = self.stack.split_off(marker_pos + 1);
         self.stack.pop(); // Remove the marker
@@ -657,7 +663,7 @@ impl Stack {
 
     fn last_mut(&mut self) -> Result<&mut Object> {
         match self.stack.last_mut() {
-            None => Err(Error::StackUnderflow),
+            None => Err(PickleError::StackUnderflow),
             Some(o) => Ok(o),
         }
     }
@@ -670,7 +676,10 @@ impl Stack {
     }
 
     fn memo_get(&self, idx: u32) -> Result<Object> {
-        self.memo.get(&idx).cloned().ok_or(Error::MemoNotFound(idx))
+        self.memo
+            .get(&idx)
+            .cloned()
+            .ok_or(PickleError::MemoNotFound(idx))
     }
 
     fn memo_put(&mut self, idx: u32, obj: Object) {
@@ -726,7 +735,7 @@ fn read_int<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
     let s = buf_to_str(&line)?;
     let v = s
         .parse::<i64>()
-        .map_err(|e| Error::InvalidData(format!("Invalid INT value '{}': {}", s, e)))?;
+        .map_err(|e| PickleError::InvalidData(format!("Invalid INT value '{}': {}", s, e)))?;
     stack.push(Object::Int(v));
     Ok(())
 }
@@ -885,12 +894,12 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
     };
     loop {
         let op_code = r.read_u8()?;
-        let op_code = OpCode::try_from(op_code).map_err(Error::InvalidOpCode)?;
+        let op_code = OpCode::try_from(op_code).map_err(PickleError::InvalidOpCode)?;
         match op_code {
             OpCode::Proto => {
                 let version = r.read_u8()?;
                 if version > 5 {
-                    return Err(Error::InvalidProtocol(version));
+                    return Err(PickleError::InvalidProtocol(version));
                 }
             }
             OpCode::Global => read_global(r, &mut stack)?,
@@ -937,14 +946,14 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                 let value = stack.pop()?;
                 match stack.last_mut()? {
                     Object::List(list) => list.push(value),
-                    _ => return Err(Error::UnexpectedOpCode(op_code)),
+                    _ => return Err(PickleError::UnexpectedOpCode(op_code)),
                 }
             }
             OpCode::Appends => {
                 let objs = stack.pop_to_marker()?;
                 match stack.last_mut()? {
                     Object::List(list) => list.extend(objs),
-                    _ => return Err(Error::UnexpectedOpCode(op_code)),
+                    _ => return Err(PickleError::UnexpectedOpCode(op_code)),
                 }
             }
             OpCode::SetItem => {
@@ -955,18 +964,18 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                         if let Object::String(key) = key {
                             dict.insert(key, value);
                         } else {
-                            return Err(Error::InvalidData(
+                            return Err(PickleError::InvalidData(
                                 "dict key must be a string".to_string(),
                             ));
                         }
                     }
-                    _ => return Err(Error::UnexpectedOpCode(op_code)),
+                    _ => return Err(PickleError::UnexpectedOpCode(op_code)),
                 }
             }
             OpCode::SetItems => {
                 let mut objs = stack.pop_to_marker()?;
                 if objs.len() % 2 != 0 {
-                    return Err(Error::InvalidData(
+                    return Err(PickleError::InvalidData(
                         "setitems requires even number of objects".to_string(),
                     ));
                 }
@@ -978,13 +987,13 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                             if let Object::String(key) = key {
                                 dict.insert(key, value);
                             } else {
-                                return Err(Error::InvalidData(
+                                return Err(PickleError::InvalidData(
                                     "dict key must be a string".to_string(),
                                 ));
                             }
                         }
                     }
-                    _ => return Err(Error::UnexpectedOpCode(op_code)),
+                    _ => return Err(PickleError::UnexpectedOpCode(op_code)),
                 }
             }
             OpCode::BinPut => {
@@ -1020,7 +1029,7 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                         stack.push(Object::PersistentTuple(tuple));
                     }
                     _ => {
-                        return Err(Error::InvalidData(format!(
+                        return Err(PickleError::InvalidData(format!(
                             "persistent id must be a string or tuple, got {:?}",
                             pid
                         )));
@@ -1093,7 +1102,7 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                 let objs = stack.pop_to_marker()?;
                 let mut dict = HashMap::new();
                 if objs.len() % 2 != 0 {
-                    return Err(Error::InvalidData(
+                    return Err(PickleError::InvalidData(
                         "dict requires even number of objects".to_string(),
                     ));
                 }
@@ -1101,7 +1110,9 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                     if let Object::String(key) = &chunk[0] {
                         dict.insert(key.clone(), chunk[1].clone());
                     } else {
-                        return Err(Error::InvalidData("dict key must be a string".to_string()));
+                        return Err(PickleError::InvalidData(
+                            "dict key must be a string".to_string(),
+                        ));
                     }
                 }
                 stack.push(Object::Dict(dict));

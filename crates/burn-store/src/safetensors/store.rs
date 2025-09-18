@@ -29,7 +29,7 @@ type Arc<T> = Box<T>;
 
 /// Errors that can occur during SafeTensors operations.
 #[derive(Debug)]
-pub enum SafetensorsError {
+pub enum SafetensorsStoreError {
     /// SafeTensors crate error.
     Safetensors(safetensors::SafeTensorError),
 
@@ -47,7 +47,7 @@ pub enum SafetensorsError {
     Other(String),
 }
 
-impl fmt::Display for SafetensorsError {
+impl fmt::Display for SafetensorsStoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Safetensors(e) => write!(f, "SafeTensors error: {}", e),
@@ -60,18 +60,18 @@ impl fmt::Display for SafetensorsError {
     }
 }
 
-impl core::error::Error for SafetensorsError {}
+impl core::error::Error for SafetensorsStoreError {}
 
-impl From<safetensors::SafeTensorError> for SafetensorsError {
+impl From<safetensors::SafeTensorError> for SafetensorsStoreError {
     fn from(e: safetensors::SafeTensorError) -> Self {
-        SafetensorsError::Safetensors(e)
+        SafetensorsStoreError::Safetensors(e)
     }
 }
 
 #[cfg(feature = "std")]
-impl From<std::io::Error> for SafetensorsError {
+impl From<std::io::Error> for SafetensorsStoreError {
     fn from(e: std::io::Error) -> Self {
-        SafetensorsError::Io(e)
+        SafetensorsStoreError::Io(e)
     }
 }
 
@@ -381,16 +381,16 @@ impl SafetensorsStore {
     /// model.collect_to(&mut store)?;
     /// let bytes = store.get_bytes()?;
     /// ```
-    pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsError> {
+    pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsStoreError> {
         match self {
             #[cfg(feature = "std")]
-            Self::File(_) => Err(SafetensorsError::Other(
+            Self::File(_) => Err(SafetensorsStoreError::Other(
                 "Cannot get bytes from file-based store".to_string(),
             )),
             Self::Memory(p) => p
                 .data()
                 .map(|arc| arc.as_ref().clone())
-                .ok_or_else(|| SafetensorsError::Other("No data available".to_string())),
+                .ok_or_else(|| SafetensorsStoreError::Other("No data available".to_string())),
         }
     }
 }
@@ -480,7 +480,7 @@ impl safetensors::View for TensorSnapshotAdapter {
 }
 
 impl ModuleSnapshoter for SafetensorsStore {
-    type Error = SafetensorsError;
+    type Error = SafetensorsStoreError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
@@ -545,6 +545,7 @@ impl ModuleSnapshoter for SafetensorsStore {
         module: &mut M,
     ) -> Result<ApplyResult, Self::Error> {
         // Convert to tensor snapshots with lazy loading
+        #[allow(unused_mut)]
         let mut snapshots = match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
@@ -555,7 +556,7 @@ impl ModuleSnapshoter for SafetensorsStore {
                 let data_arc = p
                     .data
                     .clone()
-                    .ok_or_else(|| SafetensorsError::Other("No data loaded".to_string()))?;
+                    .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
                 safetensors_to_snapshots_lazy(data_arc)?
             }
         };
@@ -582,14 +583,14 @@ impl ModuleSnapshoter for SafetensorsStore {
 
         // Validate if needed
         if self.get_validate() && !result.errors.is_empty() {
-            return Err(SafetensorsError::ValidationFailed(format!(
+            return Err(SafetensorsStoreError::ValidationFailed(format!(
                 "Import errors: {:?}",
                 result.errors
             )));
         }
 
         if !self.get_allow_partial() && !result.missing.is_empty() {
-            return Err(SafetensorsError::TensorNotFound(format!(
+            return Err(SafetensorsStoreError::TensorNotFound(format!(
                 "Missing tensors: {:?}",
                 result.missing
             )));
@@ -669,7 +670,7 @@ fn apply_remapping(snapshots: Vec<TensorSnapshot>, remapper: &KeyRemapper) -> Ve
 /// Convert TensorSnapshots to safetensors format lazily.
 fn snapshots_to_safetensors(
     snapshots: Vec<TensorSnapshot>,
-) -> Result<Vec<(String, TensorSnapshotAdapter)>, SafetensorsError> {
+) -> Result<Vec<(String, TensorSnapshotAdapter)>, SafetensorsStoreError> {
     let mut tensors = Vec::new();
 
     for snapshot in snapshots {
@@ -684,7 +685,7 @@ fn snapshots_to_safetensors(
 /// Convert safetensors to TensorSnapshots with lazy loading.
 fn safetensors_to_snapshots_lazy(
     data_arc: Arc<Vec<u8>>,
-) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
+) -> Result<Vec<TensorSnapshot>, SafetensorsStoreError> {
     // Parse to get metadata
     let tensors = safetensors::SafeTensors::deserialize(&data_arc)?;
     let mut snapshots = Vec::new();
@@ -737,7 +738,7 @@ fn safetensors_to_snapshots_lazy(
 #[cfg(feature = "std")]
 fn safetensors_to_snapshots_lazy_file(
     path: &std::path::Path,
-) -> Result<Vec<TensorSnapshot>, SafetensorsError> {
+) -> Result<Vec<TensorSnapshot>, SafetensorsStoreError> {
     // Always use memory mapping for the most efficient access
     use memmap2::MmapOptions;
 
@@ -788,7 +789,7 @@ fn safetensors_to_snapshots_lazy_file(
 }
 
 /// Helper to convert safetensors Dtype to burn DType.
-fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, SafetensorsError> {
+fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, SafetensorsStoreError> {
     use safetensors::Dtype;
 
     match dtype {
@@ -804,7 +805,7 @@ fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, Safetens
         Dtype::U32 => Ok(DType::U32),
         Dtype::U8 => Ok(DType::U8),
         Dtype::BOOL => Ok(DType::Bool),
-        _ => Err(SafetensorsError::Other(format!(
+        _ => Err(SafetensorsStoreError::Other(format!(
             "Unsupported dtype: {:?}",
             dtype
         ))),
@@ -812,7 +813,7 @@ fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, Safetens
 }
 
 /// Helper to convert DType to safetensors Dtype.
-fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsError> {
+fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsStoreError> {
     use safetensors::Dtype;
 
     match dtype {
@@ -826,12 +827,12 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsE
         DType::I8 => Ok(Dtype::I8),
         DType::U64 => Ok(Dtype::U64),
         DType::U32 => Ok(Dtype::U32),
-        DType::U16 => Err(SafetensorsError::Other(
+        DType::U16 => Err(SafetensorsStoreError::Other(
             "U16 dtype not yet supported in safetensors".to_string(),
         )),
         DType::U8 => Ok(Dtype::U8),
         DType::Bool => Ok(Dtype::BOOL),
-        DType::QFloat(_) => Err(SafetensorsError::Other(
+        DType::QFloat(_) => Err(SafetensorsStoreError::Other(
             "Quantized tensors not yet supported in safetensors".to_string(),
         )),
     }

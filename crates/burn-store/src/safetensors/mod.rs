@@ -26,7 +26,7 @@
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! model.collect_to(&mut store)?;
 //!
-//! // Load a model from a file  
+//! // Load a model from a file
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! let mut model = Model::new(&device);
 //! model.apply_from(&mut store)?;
@@ -100,7 +100,7 @@
 //! // Using builder pattern for common remapping patterns
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
-//!     .with_key_remapping(r"\.gamma$", ".weight")                // X.gamma -> X.weight  
+//!     .with_key_remapping(r"\.gamma$", ".weight")                // X.gamma -> X.weight
 //!     .with_key_remapping(r"\.beta$", ".bias");                  // X.beta -> X.bias
 //!
 //! // Or using a pre-configured KeyRemapper for complex transformations
@@ -323,7 +323,7 @@
 
 mod store;
 
-pub use store::{SafetensorsError, SafetensorsStore};
+pub use store::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(test)]
 mod tests;

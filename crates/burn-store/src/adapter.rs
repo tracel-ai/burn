@@ -5,8 +5,12 @@
 //! - Normalization parameter naming (weight/bias vs gamma/beta)
 
 use crate::TensorSnapshot;
+
+use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::ToString;
+use alloc::vec;
+
 use burn_tensor::TensorData;
 
 // Module type names as they appear in the container_type field

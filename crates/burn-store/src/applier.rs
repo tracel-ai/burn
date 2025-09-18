@@ -1,7 +1,9 @@
 //! Applier that correctly applies tensor snapshots with adapter support
 
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, ParamId};

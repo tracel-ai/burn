@@ -44,8 +44,5 @@ pub mod store;
 pub mod tests;
 
 // Main public interface
-pub use reader::{PickleValue, PytorchReader};
-pub use store::{PytorchError as PytorchStoreError, PytorchStore};
-
-// Re-export error type for convenience
-pub use reader::Error as PytorchError;
+pub use reader::{PytorchError, PytorchReader};
+pub use store::{PytorchStore, PytorchStoreError};

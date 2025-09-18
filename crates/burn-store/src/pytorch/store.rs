@@ -12,11 +12,11 @@ use burn_tensor::backend::Backend;
 use core::fmt;
 use std::path::PathBuf;
 
-use super::reader::{Error as ReaderError, PytorchReader};
+use super::reader::{PytorchError as ReaderError, PytorchReader};
 
 /// Errors that can occur during PyTorch operations.
 #[derive(Debug)]
-pub enum PytorchError {
+pub enum PytorchStoreError {
     /// Reader error.
     Reader(ReaderError),
 
@@ -33,7 +33,7 @@ pub enum PytorchError {
     Other(String),
 }
 
-impl fmt::Display for PytorchError {
+impl fmt::Display for PytorchStoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Reader(e) => write!(f, "PyTorch reader error: {}", e),
@@ -45,17 +45,17 @@ impl fmt::Display for PytorchError {
     }
 }
 
-impl std::error::Error for PytorchError {}
+impl std::error::Error for PytorchStoreError {}
 
-impl From<ReaderError> for PytorchError {
+impl From<ReaderError> for PytorchStoreError {
     fn from(e: ReaderError) -> Self {
-        PytorchError::Reader(e)
+        PytorchStoreError::Reader(e)
     }
 }
 
-impl From<std::io::Error> for PytorchError {
+impl From<std::io::Error> for PytorchStoreError {
     fn from(e: std::io::Error) -> Self {
-        PytorchError::Io(e)
+        PytorchStoreError::Io(e)
     }
 }
 
@@ -261,14 +261,14 @@ impl PytorchStore {
 }
 
 impl ModuleSnapshoter for PytorchStore {
-    type Error = PytorchError;
+    type Error = PytorchStoreError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         _module: &M,
     ) -> Result<(), Self::Error> {
         // Saving to PyTorch format is not yet supported
-        Err(PytorchError::Other(
+        Err(PytorchStoreError::Other(
             "Saving to PyTorch format is not yet supported. Use other formats for saving."
                 .to_string(),
         ))
@@ -317,14 +317,14 @@ impl ModuleSnapshoter for PytorchStore {
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {
-            return Err(PytorchError::ValidationFailed(format!(
+            return Err(PytorchStoreError::ValidationFailed(format!(
                 "Import errors: {:?}",
                 result.errors
             )));
         }
 
         if !self.allow_partial && !result.missing.is_empty() {
-            return Err(PytorchError::TensorNotFound(format!(
+            return Err(PytorchStoreError::TensorNotFound(format!(
                 "Missing tensors: {:?}",
                 result.missing
             )));

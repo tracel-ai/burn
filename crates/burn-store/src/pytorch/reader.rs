@@ -38,12 +38,12 @@ use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use super::lazy_data::LazyDataSource;
-use super::pickle_reader::{Error as PickleError, Object, read_pickle, read_pickle_with_data};
+use super::pickle_reader::{Object, PickleError, read_pickle, read_pickle_with_data};
 use std::sync::Arc;
 
 /// Error type for PyTorch file operations
 #[derive(Debug)]
-pub enum Error {
+pub enum PytorchError {
     /// IO error
     Io(std::io::Error),
     /// Pickle parsing error
@@ -58,54 +58,54 @@ pub enum Error {
     Serde(burn_core::record::serde::error::Error),
 }
 
-impl From<std::io::Error> for Error {
+impl From<std::io::Error> for PytorchError {
     fn from(e: std::io::Error) -> Self {
-        Error::Io(e)
+        PytorchError::Io(e)
     }
 }
 
-impl From<PickleError> for Error {
+impl From<PickleError> for PytorchError {
     fn from(e: PickleError) -> Self {
-        Error::Pickle(e)
+        PytorchError::Pickle(e)
     }
 }
 
-impl From<zip::result::ZipError> for Error {
+impl From<zip::result::ZipError> for PytorchError {
     fn from(e: zip::result::ZipError) -> Self {
-        Error::Zip(e)
+        PytorchError::Zip(e)
     }
 }
 
-impl From<burn_core::record::serde::error::Error> for Error {
+impl From<burn_core::record::serde::error::Error> for PytorchError {
     fn from(e: burn_core::record::serde::error::Error) -> Self {
-        Error::Serde(e)
+        PytorchError::Serde(e)
     }
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for PytorchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::Pickle(e) => write!(
+            PytorchError::Io(e) => write!(f, "IO error: {}", e),
+            PytorchError::Pickle(e) => write!(
                 f,
                 "Pickle parsing error: {}. This may indicate an unsupported PyTorch file format or corrupted file.",
                 e
             ),
-            Error::Zip(e) => write!(f, "Zip archive error: {}", e),
-            Error::InvalidFormat(msg) => write!(f, "Invalid PyTorch file format: {}", msg),
-            Error::KeyNotFound(key) => write!(
+            PytorchError::Zip(e) => write!(f, "Zip archive error: {}", e),
+            PytorchError::InvalidFormat(msg) => write!(f, "Invalid PyTorch file format: {}", msg),
+            PytorchError::KeyNotFound(key) => write!(
                 f,
                 "Key '{}' not found in PyTorch file. Available keys may be listed with the keys() method.",
                 key
             ),
-            Error::Serde(e) => write!(f, "Serde deserialization error: {}", e),
+            PytorchError::Serde(e) => write!(f, "Serde deserialization error: {}", e),
         }
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for PytorchError {}
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, PytorchError>;
 
 /// Metadata about a PyTorch file
 ///
@@ -419,7 +419,7 @@ fn load_pytorch_file_with_metadata(
         }
 
         if !pickle_found {
-            return Err(Error::InvalidFormat(
+            return Err(PytorchError::InvalidFormat(
                 "No data.pkl file found in ZIP archive. Expected PyTorch 1.6+ format with data.pkl or archive/data.pkl".to_string(),
             ));
         }
@@ -451,7 +451,7 @@ fn load_pytorch_file_with_metadata(
             // 1. Pass endianness info through to pickle_reader
             // 2. Use from_be_bytes instead of from_le_bytes for tensor data
             // 3. Handle byte swapping for all numeric types (f32, f64, i32, etc.)
-            return Err(Error::InvalidFormat(
+            return Err(PytorchError::InvalidFormat(
                 "Big-endian PyTorch files are not yet supported. The file was saved on a big-endian system and requires byte order conversion.".to_string()
             ));
         }
@@ -579,11 +579,11 @@ fn load_pytorch_file_with_metadata(
             // This pickle file contains tensor data but we're trying to read it without
             // providing a data source. This shouldn't happen in normal usage as PyTorch
             // files with actual tensor data should be in ZIP or legacy format.
-            Err(Error::InvalidFormat(
+            Err(PytorchError::InvalidFormat(
                 "Pickle file contains tensor data but no data source is available. This file should be loaded as ZIP or legacy format.".to_string()
             ))
         }
-        Err(e) => Err(Error::Pickle(e)),
+        Err(e) => Err(PytorchError::Pickle(e)),
     }
 }
 
@@ -602,11 +602,11 @@ fn load_from_reader<R: Read>(
                 .contains("Cannot load tensor data without a data source") =>
         {
             // This reader contains tensor data but we can't load it without a file path
-            Err(Error::InvalidFormat(
+            Err(PytorchError::InvalidFormat(
                 "Reader contains tensor data but no data source is available. Use file-based loading instead.".to_string()
             ))
         }
-        Err(e) => Err(Error::Pickle(e)),
+        Err(e) => Err(PytorchError::Pickle(e)),
     }
 }
 
@@ -622,7 +622,7 @@ fn extract_tensors_with_data(
                 match dict.get(key) {
                     Some(Object::Dict(nested)) => nested.clone(),
                     _ => {
-                        return Err(Error::KeyNotFound(format!(
+                        return Err(PytorchError::KeyNotFound(format!(
                             "Top-level key '{}' not found or is not a dictionary. Available top-level keys in file: {:?}",
                             key,
                             dict.keys().collect::<Vec<_>>()
@@ -634,7 +634,7 @@ fn extract_tensors_with_data(
             }
         }
         _ => {
-            return Err(Error::InvalidFormat(
+            return Err(PytorchError::InvalidFormat(
                 "Expected a dictionary at the root of the PyTorch file, but found a different type. The file may be a full model save rather than a state_dict.".to_string(),
             ));
         }
@@ -681,7 +681,7 @@ fn load_legacy_pytorch_file_with_metadata(
     // Skip metadata pickles
     // 1. Magic number
     let _ = read_pickle(&mut reader).map_err(|e| {
-        Error::InvalidFormat(format!(
+        PytorchError::InvalidFormat(format!(
             "Failed to read magic number from legacy format: {}",
             e
         ))
@@ -689,7 +689,7 @@ fn load_legacy_pytorch_file_with_metadata(
 
     // 2. Protocol version
     let _ = read_pickle(&mut reader).map_err(|e| {
-        Error::InvalidFormat(format!(
+        PytorchError::InvalidFormat(format!(
             "Failed to read protocol version from legacy format: {}",
             e
         ))
@@ -697,7 +697,7 @@ fn load_legacy_pytorch_file_with_metadata(
 
     // 3. System info
     let _ = read_pickle(&mut reader).map_err(|e| {
-        Error::InvalidFormat(format!(
+        PytorchError::InvalidFormat(format!(
             "Failed to read system info from legacy format: {}",
             e
         ))
@@ -710,7 +710,7 @@ fn load_legacy_pytorch_file_with_metadata(
     // We'll re-read it with a data source later
     use crate::pytorch::pickle_reader::skip_pickle;
     skip_pickle(&mut reader).map_err(|e| {
-        Error::InvalidFormat(format!(
+        PytorchError::InvalidFormat(format!(
             "Failed to skip main object in legacy format: {}",
             e
         ))
@@ -852,7 +852,7 @@ fn read_pickle_as_value(path: &Path, top_level_key: Option<&str>) -> Result<Pick
                 Ok(PickleValue::Dict(result))
             }
         }
-        Err(e) => Err(Error::Pickle(e)),
+        Err(e) => Err(PytorchError::Pickle(e)),
     }
 }
 
@@ -867,7 +867,7 @@ fn convert_object_to_value(obj: Object, top_level_key: Option<&str>) -> Result<P
         if let Some(value) = dict.get(key) {
             return object_to_pickle_value(value.clone());
         } else {
-            return Err(Error::KeyNotFound(format!(
+            return Err(PytorchError::KeyNotFound(format!(
                 "Key '{}' not found in pickle data",
                 key
             )));

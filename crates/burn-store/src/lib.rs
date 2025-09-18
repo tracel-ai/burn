@@ -80,10 +80,6 @@ mod adapter;
 mod applier;
 mod collector;
 mod filter;
-#[cfg(feature = "std")]
-mod keyremapper;
-pub mod pytorch;
-pub mod safetensors;
 mod tensor_snapshot;
 mod traits;
 
@@ -91,11 +87,20 @@ pub use adapter::{BurnToPyTorchAdapter, IdentityAdapter, ModuleAdapter, PyTorchT
 pub use applier::{Applier, ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
+pub use tensor_snapshot::TensorSnapshot;
+pub use traits::{ModuleSnapshot, ModuleSnapshoter};
+
+#[cfg(feature = "std")]
+mod keyremapper;
 #[cfg(feature = "std")]
 pub use keyremapper::KeyRemapper;
-pub use tensor_snapshot::TensorSnapshot;
-pub use traits::ModuleSnapshot;
-pub use traits::ModuleSnapshoter;
 
-pub use pytorch::*;
-pub use safetensors::*;
+#[cfg(feature = "pytorch")]
+pub mod pytorch;
+#[cfg(feature = "pytorch")]
+pub use pytorch::{PytorchStore, PytorchStoreError};
+
+#[cfg(feature = "safetensors")]
+mod safetensors;
+#[cfg(feature = "safetensors")]
+pub use safetensors::{SafetensorsStore, SafetensorsStoreError};

@@ -703,7 +703,7 @@ fn test_small_invalid_file() {
 
 #[test]
 fn test_read_pickle_data_basic() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test reading pickle data from a checkpoint file
     let path = test_data_path("checkpoint.pt");
@@ -739,7 +739,7 @@ fn test_read_pickle_data_basic() {
 
 #[test]
 fn test_read_pickle_data_with_key() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test reading specific key from checkpoint
     let path = test_data_path("checkpoint.pt");
@@ -766,7 +766,7 @@ fn test_read_pickle_data_with_key() {
 
 #[test]
 fn test_read_pickle_data_nested_structure() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test reading nested dictionary structure
     let path = test_data_path("nested_dict.pt");
@@ -796,7 +796,7 @@ fn test_read_pickle_data_nested_structure() {
 
 #[test]
 fn test_read_pickle_data_types() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test various data types in mixed_types.pt
     let path = test_data_path("mixed_types.pt");
@@ -840,7 +840,7 @@ fn test_read_pickle_data_key_not_found() {
 
 #[test]
 fn test_read_pickle_data_simple_pickle() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test reading a simple pickle file (not ZIP)
     // Note: simple_legacy.pt is a legacy format file, not a simple pickle
@@ -910,7 +910,7 @@ fn test_load_config_with_top_level_key() {
     let data = PytorchReader::read_pickle_data(&path2, None).unwrap();
 
     // Verify it's a dict
-    if let crate::pytorch::PickleValue::Dict(dict) = data {
+    if let crate::pytorch::reader::PickleValue::Dict(dict) = data {
         assert!(!dict.is_empty());
     } else {
         panic!("Expected a dict");
@@ -961,7 +961,7 @@ fn test_load_config_key_not_found() {
 
 #[test]
 fn test_pickle_value_conversion() {
-    use crate::pytorch::PickleValue;
+    use crate::pytorch::reader::PickleValue;
 
     // Test that PickleValue provides useful data structures
     let path = test_data_path("checkpoint.pt");
