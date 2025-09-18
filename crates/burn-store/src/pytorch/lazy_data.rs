@@ -60,6 +60,7 @@ pub struct ZipSource {
 pub struct LegacyMultiStorageSource {
     path: PathBuf,
     data_offset: u64,
+    #[allow(dead_code)]
     data_size: u64,
     // Map of storage_key -> (offset_in_blob, size)
     storage_map: RwLock<Option<HashMap<String, (u64, u64)>>>,
@@ -212,12 +213,12 @@ impl LegacyMultiStorageSource {
     }
 
     /// Read data for a specific storage key
-    /// Uses storage map if available for efficient loading, otherwise loads entire blob
+    /// Only loads the specific storage portion, never the entire blob
     pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
         // Extract numeric key from paths like "data/0" or just "0"
         let storage_key = key.split('/').next_back().unwrap_or(key);
 
-        // Try to use storage map for efficient loading
+        // Get storage map - must be available for lazy loading to work
         let storage_map = self.storage_map.read().unwrap();
         if let Some(ref map) = *storage_map
             && let Some(&(offset, size)) = map.get(storage_key)
@@ -231,14 +232,15 @@ impl LegacyMultiStorageSource {
             return Ok(buffer);
         }
 
-        // Fallback: load entire blob (for compatibility)
-        // This happens if storage map wasn't set or key not found
-        let mut file = File::open(&self.path)?;
-        file.seek(std::io::SeekFrom::Start(self.data_offset))?;
-
-        let mut buffer = vec![0u8; self.data_size as usize];
-        file.read_exact(&mut buffer)?;
-        Ok(buffer)
+        // NO FALLBACK! If we don't have storage boundaries, we cannot load data lazily
+        // The storage map MUST be built from tensor metadata for lazy loading to work
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "Storage boundaries not available for key '{}'. Cannot perform lazy loading.",
+                storage_key
+            ),
+        ))
     }
 }
 
@@ -285,11 +287,35 @@ impl LazyDataSource {
                 source.read_file_range(key, offset, length)
             }
             Self::LegacyMultiStorage(source) => {
-                // For legacy format, read the entire blob then slice it
+                // For legacy format, read only the requested range
+                let storage_key = key.split('/').next_back().unwrap_or(key);
                 let source = source.lock().unwrap();
-                let data = source.read(key)?;
-                let end = (offset + length).min(data.len());
-                Ok(data[offset.min(data.len())..end].to_vec())
+
+                // Get storage boundaries
+                let storage_map = source.storage_map.read().unwrap();
+                if let Some(ref map) = *storage_map
+                    && let Some(&(storage_offset, storage_size)) = map.get(storage_key)
+                {
+                    // Calculate actual file position
+                    let file_offset = source.data_offset + storage_offset + offset as u64;
+                    let read_length = length.min((storage_size as usize).saturating_sub(offset));
+
+                    // Read only the requested range
+                    let mut file = File::open(&source.path)?;
+                    file.seek(std::io::SeekFrom::Start(file_offset))?;
+
+                    let mut buffer = vec![0u8; read_length];
+                    file.read_exact(&mut buffer)?;
+                    Ok(buffer)
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "Storage boundaries not available for key '{}'. Cannot perform lazy loading.",
+                            storage_key
+                        ),
+                    ))
+                }
             }
         }
     }

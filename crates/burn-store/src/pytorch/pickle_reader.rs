@@ -434,8 +434,6 @@ fn rebuild_tensor_v2(
     // Create clones for the closure
     let data_source_clone = data_source.clone();
     let shape_clone = shape.clone();
-    let storage_key_clone = storage_key.clone();
-    let storage_offset_clone = storage_offset;
 
     // Find the correct data file key
     let data_file_key = {
@@ -455,18 +453,18 @@ fn rebuild_tensor_v2(
         }
     };
 
+    // Track storage usage IMMEDIATELY for lazy boundary detection
+    // This must happen BEFORE creating the closure, not inside it!
+    if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source {
+        let source = source.lock().unwrap();
+        let num_elements: usize = shape.iter().product();
+        let bytes_needed = storage_offset * dtype.size() + num_elements * dtype.size();
+        source.track_storage_usage(&storage_key, 0, bytes_needed);
+    }
+
     // Create a TensorSnapshot with a closure that loads the actual data on-demand
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
-            // Track storage usage for lazy boundary detection
-            if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source_clone {
-                let source = source.lock().unwrap();
-                let num_elements: usize = shape_clone.iter().product();
-                let bytes_needed =
-                    storage_offset_clone * dtype.size() + num_elements * dtype.size();
-                source.track_storage_usage(&storage_key_clone, 0, bytes_needed);
-            }
-
             // Load data only when needed
             if let Ok(data) = data_source_clone.read(&data_file_key) {
                 // Parse the binary data based on dtype
