@@ -619,6 +619,69 @@ fn test_metadata_legacy_format() {
 }
 
 #[test]
+fn test_legacy_metadata_detailed() {
+    // Detailed test to prove we load all metadata for legacy format files
+    let path = test_data_path("simple_legacy.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load legacy file");
+
+    // Get and examine metadata
+    let metadata = reader.metadata();
+
+    // Verify the metadata is correct for legacy format
+    assert_eq!(
+        metadata.format_type,
+        FileFormat::Legacy,
+        "Should be Legacy format"
+    );
+    assert_eq!(
+        metadata.byte_order,
+        ByteOrder::LittleEndian,
+        "Legacy format is little-endian"
+    );
+    assert_eq!(
+        metadata.tensor_count, 3,
+        "Should have 3 tensors: weight, bias, running_mean"
+    );
+    assert!(
+        metadata.total_data_size.is_some(),
+        "Should have total data size"
+    );
+    assert!(
+        metadata.total_data_size.unwrap() > 0,
+        "Data size should be positive"
+    );
+
+    // Legacy format specifics
+    assert_eq!(
+        metadata.format_version, None,
+        "Legacy format doesn't have version file"
+    );
+    assert_eq!(
+        metadata.pytorch_version, None,
+        "Legacy format doesn't store PyTorch version reliably"
+    );
+    assert!(
+        !metadata.has_storage_alignment,
+        "Legacy format doesn't have storage alignment"
+    );
+
+    // Also verify we can access the tensors
+    let keys = reader.keys();
+    assert!(
+        keys.contains(&"weight".to_string()),
+        "Should have weight tensor"
+    );
+    assert!(
+        keys.contains(&"bias".to_string()),
+        "Should have bias tensor"
+    );
+    assert!(
+        keys.contains(&"running_mean".to_string()),
+        "Should have running_mean tensor"
+    );
+}
+
+#[test]
 fn test_small_invalid_file() {
     // Test that we handle broken/invalid files gracefully
     let path = test_data_path("broken.pt");

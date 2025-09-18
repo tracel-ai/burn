@@ -17,8 +17,6 @@ use zip::ZipArchive;
 pub enum LazyDataSource {
     /// ZIP archive with lazy loading
     Zip(Arc<Mutex<ZipSource>>),
-    /// Direct file access for legacy format
-    File(Arc<Mutex<FileSource>>),
     /// Legacy format with multiple storages in single blob
     LegacyMultiStorage(Arc<Mutex<LegacyMultiStorageSource>>),
 }
@@ -28,13 +26,6 @@ pub struct ZipSource {
     path: PathBuf,
     // Cache the file list to avoid reopening archive repeatedly
     file_list: Vec<(String, u64, u64)>, // (name, offset, compressed_size)
-}
-
-/// File source for legacy format
-pub struct FileSource {
-    path: PathBuf,
-    offset: u64,
-    size: u64,
 }
 
 /// Legacy multi-storage source for old PyTorch format (pre-1.6)
@@ -65,16 +56,17 @@ pub struct FileSource {
 ///
 /// This implementation provides a best-effort approach:
 /// - Supports setting a storage map if boundaries can be determined externally
-/// - Falls back to loading the entire blob and caching it
-/// - Individual storages are cached after first access to minimize file I/O
+/// - Falls back to loading the entire blob if boundaries are unknown
 pub struct LegacyMultiStorageSource {
     path: PathBuf,
     data_offset: u64,
     data_size: u64,
     // Map of storage_key -> (offset_in_blob, size)
     storage_map: RwLock<Option<HashMap<String, (u64, u64)>>>,
-    // Cache individual storages after loading
-    cached_storages: RwLock<HashMap<String, Arc<Vec<u8>>>>,
+    // Storage keys in order (for boundary calculation)
+    storage_keys: RwLock<Option<Vec<String>>>,
+    // Track storage usage as tensors are accessed
+    storage_usage: RwLock<HashMap<String, usize>>, // key -> max_bytes_needed
 }
 
 impl ZipSource {
@@ -153,33 +145,6 @@ impl ZipSource {
     }
 }
 
-impl FileSource {
-    /// Create a new file source
-    pub fn new(path: PathBuf, offset: u64, size: u64) -> Self {
-        Self { path, offset, size }
-    }
-
-    /// Read data from the file
-    pub fn read(&self) -> std::io::Result<Vec<u8>> {
-        let mut file = File::open(&self.path)?;
-        file.seek(std::io::SeekFrom::Start(self.offset))?;
-
-        let mut buffer = vec![0u8; self.size as usize];
-        file.read_exact(&mut buffer)?;
-        Ok(buffer)
-    }
-
-    /// Read a portion of the data
-    pub fn read_range(&self, offset: usize, length: usize) -> std::io::Result<Vec<u8>> {
-        let mut file = File::open(&self.path)?;
-        file.seek(std::io::SeekFrom::Start(self.offset + offset as u64))?;
-
-        let mut buffer = vec![0u8; length.min((self.size as usize).saturating_sub(offset))];
-        file.read_exact(&mut buffer)?;
-        Ok(buffer)
-    }
-}
-
 impl LegacyMultiStorageSource {
     /// Create a new legacy multi-storage source
     pub fn new(path: PathBuf, data_offset: u64, data_size: u64) -> Self {
@@ -188,15 +153,62 @@ impl LegacyMultiStorageSource {
             data_offset,
             data_size,
             storage_map: RwLock::new(None),
-            cached_storages: RwLock::new(HashMap::new()),
+            storage_keys: RwLock::new(None),
+            storage_usage: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Set the storage map after analyzing tensor metadata
-    /// This should be called after pickle parsing to enable efficient lazy loading
-    pub fn set_storage_map(&self, map: HashMap<String, (u64, u64)>) {
-        let mut storage_map = self.storage_map.write().unwrap();
-        *storage_map = Some(map);
+    /// Set the ordered storage keys from the pickle
+    pub fn set_storage_keys(&self, keys: Vec<String>) {
+        let mut storage_keys = self.storage_keys.write().unwrap();
+        *storage_keys = Some(keys);
+    }
+
+    /// Track storage usage from tensor access
+    /// This is called from within tensor loading closures
+    pub fn track_storage_usage(&self, storage_key: &str, offset: usize, size: usize) {
+        let mut usage = self.storage_usage.write().unwrap();
+        let max_extent = offset + size;
+        usage
+            .entry(storage_key.to_string())
+            .and_modify(|current| *current = (*current).max(max_extent))
+            .or_insert(max_extent);
+
+        // Try to build storage map if we have enough information
+        self.try_build_storage_map();
+    }
+
+    /// Try to build the storage map from tracked usage
+    fn try_build_storage_map(&self) {
+        // Only build if we don't already have a map
+        if self.storage_map.read().unwrap().is_some() {
+            return;
+        }
+
+        // Check if we have storage keys
+        let keys_guard = self.storage_keys.read().unwrap();
+        if let Some(ref keys) = *keys_guard {
+            let usage = self.storage_usage.read().unwrap();
+
+            // Only build if we have usage info for all storages
+            if keys.iter().all(|k| usage.contains_key(k)) {
+                let mut map = HashMap::new();
+                let mut current_offset = 0u64;
+
+                for key in keys {
+                    if let Some(&size) = usage.get(key) {
+                        map.insert(key.clone(), (current_offset, size as u64));
+                        current_offset += size as u64;
+                    }
+                }
+
+                // Set the storage map
+                drop(keys_guard);
+                drop(usage);
+                let mut storage_map = self.storage_map.write().unwrap();
+                *storage_map = Some(map);
+            }
+        }
     }
 
     /// Read data for a specific storage key
@@ -204,14 +216,6 @@ impl LegacyMultiStorageSource {
     pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
         // Extract numeric key from paths like "data/0" or just "0"
         let storage_key = key.split('/').next_back().unwrap_or(key);
-
-        // Check cache first
-        {
-            let cache = self.cached_storages.read().unwrap();
-            if let Some(data) = cache.get(storage_key) {
-                return Ok(data.as_ref().clone());
-            }
-        }
 
         // Try to use storage map for efficient loading
         let storage_map = self.storage_map.read().unwrap();
@@ -224,14 +228,6 @@ impl LegacyMultiStorageSource {
 
             let mut buffer = vec![0u8; size as usize];
             file.read_exact(&mut buffer)?;
-
-            // Cache this storage
-            let data_arc = Arc::new(buffer.clone());
-            {
-                let mut cache = self.cached_storages.write().unwrap();
-                cache.insert(storage_key.to_string(), data_arc);
-            }
-
             return Ok(buffer);
         }
 
@@ -242,14 +238,6 @@ impl LegacyMultiStorageSource {
 
         let mut buffer = vec![0u8; self.data_size as usize];
         file.read_exact(&mut buffer)?;
-
-        // Cache as single storage "0" for compatibility
-        let data_arc = Arc::new(buffer.clone());
-        {
-            let mut cache = self.cached_storages.write().unwrap();
-            cache.insert("0".to_string(), data_arc);
-        }
-
         Ok(buffer)
     }
 }
@@ -260,15 +248,6 @@ impl LazyDataSource {
         Ok(Self::Zip(Arc::new(Mutex::new(ZipSource::new(
             path.as_ref().to_path_buf(),
         )?))))
-    }
-
-    /// Create from a file with offset and size
-    pub fn from_file(path: impl AsRef<Path>, offset: u64, size: u64) -> Self {
-        Self::File(Arc::new(Mutex::new(FileSource::new(
-            path.as_ref().to_path_buf(),
-            offset,
-            size,
-        ))))
     }
 
     /// Create from a legacy multi-storage file
@@ -291,10 +270,6 @@ impl LazyDataSource {
                 let source = source.lock().unwrap();
                 source.read_file(key)
             }
-            Self::File(source) => {
-                let source = source.lock().unwrap();
-                source.read()
-            }
             Self::LegacyMultiStorage(source) => {
                 let source = source.lock().unwrap();
                 source.read(key)
@@ -308,10 +283,6 @@ impl LazyDataSource {
             Self::Zip(source) => {
                 let source = source.lock().unwrap();
                 source.read_file_range(key, offset, length)
-            }
-            Self::File(source) => {
-                let source = source.lock().unwrap();
-                source.read_range(offset, length)
             }
             Self::LegacyMultiStorage(source) => {
                 // For legacy format, read the entire blob then slice it
@@ -330,7 +301,6 @@ impl LazyDataSource {
                 let source = source.lock().unwrap();
                 source.contains(key)
             }
-            Self::File(_) => true, // File source always has its data
             Self::LegacyMultiStorage(_) => true, // Legacy format has all data
         }
     }
@@ -342,7 +312,6 @@ impl LazyDataSource {
                 let source = source.lock().unwrap();
                 source.data_files()
             }
-            Self::File(_) => vec![],
             Self::LegacyMultiStorage(_) => vec![], // Legacy format doesn't have distinct keys
         }
     }

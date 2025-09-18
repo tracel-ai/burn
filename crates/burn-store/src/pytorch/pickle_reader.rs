@@ -206,7 +206,7 @@ pub enum Object {
 fn rebuild_from_type_v2(
     o: Object,
     memo: &mut HashMap<u32, Object>,
-    data_source: &Arc<LazyDataSource>,
+    data_source: &Option<Arc<LazyDataSource>>,
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = o {
         if args.is_empty() {
@@ -257,7 +257,7 @@ fn rebuild_from_type_v2(
 fn rebuild_parameter(
     args: Object,
     memo: &mut HashMap<u32, Object>,
-    data_source: &Arc<LazyDataSource>,
+    data_source: &Option<Arc<LazyDataSource>>,
 ) -> Result<Object> {
     let args = if let Object::Tuple(args) = args {
         if args.is_empty() {
@@ -286,7 +286,7 @@ fn rebuild_parameter(
 fn rebuild_tensor_v2(
     args: Object,
     _memo: &mut HashMap<u32, Object>,
-    data_source: &Arc<LazyDataSource>,
+    data_source: &Option<Arc<LazyDataSource>>,
 ) -> Result<Object> {
     // args is (storage, storage_offset, shape, stride, requires_grad, backward_hooks)
     let args = if let Object::Tuple(args) = args {
@@ -421,9 +421,21 @@ fn rebuild_tensor_v2(
         (DType::F32, "0".to_string())
     };
 
-    // Create a clone of the data source for the closure
+    // If no data source, we can't load tensor data
+    let data_source = match data_source {
+        Some(ds) => ds.clone(),
+        None => {
+            return Err(Error::InvalidData(
+                "Cannot load tensor data without a data source".to_string(),
+            ));
+        }
+    };
+
+    // Create clones for the closure
     let data_source_clone = data_source.clone();
     let shape_clone = shape.clone();
+    let storage_key_clone = storage_key.clone();
+    let storage_offset_clone = storage_offset;
 
     // Find the correct data file key
     let data_file_key = {
@@ -446,6 +458,15 @@ fn rebuild_tensor_v2(
     // Create a TensorSnapshot with a closure that loads the actual data on-demand
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
+            // Track storage usage for lazy boundary detection
+            if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source_clone {
+                let source = source.lock().unwrap();
+                let num_elements: usize = shape_clone.iter().product();
+                let bytes_needed =
+                    storage_offset_clone * dtype.size() + num_elements * dtype.size();
+                source.track_storage_usage(&storage_key_clone, 0, bytes_needed);
+            }
+
             // Load data only when needed
             if let Ok(data) = data_source_clone.read(&data_file_key) {
                 // Parse the binary data based on dtype
@@ -567,16 +588,16 @@ fn rebuild_tensor_v2(
         }),
         dtype,
         shape,
-        vec![],
-        vec![],
-        ParamId::new(),
+        vec![],         // path_stack
+        vec![],         // container_stack
+        ParamId::new(), // tensor_id
     )))
 }
 
 pub struct Stack {
     stack: Vec<Object>,
     memo: HashMap<u32, Object>,
-    data_source: Arc<LazyDataSource>,
+    data_source: Option<Arc<LazyDataSource>>,
 }
 
 impl Default for Stack {
@@ -588,15 +609,18 @@ impl Default for Stack {
 impl Stack {
     pub fn new() -> Self {
         // For cases where no data source is needed (pure pickle without tensor data)
-        // we use a dummy file source that will never be accessed
-        Self::with_data_source(Arc::new(LazyDataSource::from_file("/dev/null", 0, 0)))
+        Self {
+            stack: Vec::new(),
+            memo: HashMap::new(),
+            data_source: None,
+        }
     }
 
     pub fn with_data_source(data_source: Arc<LazyDataSource>) -> Self {
         Self {
             stack: Vec::new(),
             memo: HashMap::new(),
-            data_source,
+            data_source: Some(data_source),
         }
     }
 
@@ -729,15 +753,138 @@ fn read_bin_float<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
 }
 
 pub fn read_pickle<R: BufRead>(r: &mut R) -> Result<Object> {
-    // For pure pickle without tensor data, use a dummy data source
-    read_pickle_with_data(r, Arc::new(LazyDataSource::from_file("/dev/null", 0, 0)))
+    // For pure pickle without tensor data, no data source is needed
+    read_pickle_with_optional_data(r, None)
+}
+
+/// Skip over a pickle without parsing it fully
+/// This is useful for legacy format where we need to skip the main object
+/// that contains tensors but we don't have a data source yet
+pub fn skip_pickle<R: BufRead>(r: &mut R) -> Result<()> {
+    // Read the protocol marker if present
+    let mut first_byte = [0u8; 1];
+    r.read_exact(&mut first_byte)?;
+
+    if first_byte[0] == 0x80 {
+        // PROTO marker - read protocol version
+        let mut proto_version = [0u8; 1];
+        r.read_exact(&mut proto_version)?;
+    } else {
+        // Not a PROTO marker, we need to handle this byte
+        // Put it back by using a small state machine
+        // For now, we'll track that we've seen a non-proto byte
+    }
+
+    // Scan until we find STOP (0x2e) opcode
+    loop {
+        let mut byte = [0u8; 1];
+        r.read_exact(&mut byte)?;
+
+        match byte[0] {
+            0x2e => {
+                // STOP - end of pickle
+                break;
+            }
+            0x58 | 0x42 | 0x43 | 0x54 | 0x55 | 0x56 | 0x8c | 0x8d | 0x8e => {
+                // String/bytes opcodes with length prefixes
+                let length = match byte[0] {
+                    0x43 | 0x55 | 0x8c => {
+                        // SHORT versions - 1 byte length
+                        let mut len_byte = [0u8; 1];
+                        r.read_exact(&mut len_byte)?;
+                        len_byte[0] as usize
+                    }
+                    0x42 | 0x54 | 0x58 | 0x56 => {
+                        // Regular versions - 4 byte length
+                        let mut len_bytes = [0u8; 4];
+                        r.read_exact(&mut len_bytes)?;
+                        u32::from_le_bytes(len_bytes) as usize
+                    }
+                    0x8d | 0x8e => {
+                        // 8-byte length versions
+                        let mut len_bytes = [0u8; 8];
+                        r.read_exact(&mut len_bytes)?;
+                        u64::from_le_bytes(len_bytes) as usize
+                    }
+                    _ => 0,
+                };
+
+                // Skip the actual data
+                let mut skip_buf = vec![0u8; length.min(8192)];
+                let mut skipped = 0;
+                while skipped < length {
+                    let to_skip = (length - skipped).min(skip_buf.len());
+                    r.read_exact(&mut skip_buf[..to_skip])?;
+                    skipped += to_skip;
+                }
+            }
+            0x4b | 0x4d | 0x4e => {
+                // BININT1, BININT2, BININT4 - skip the integer bytes
+                let skip_count = match byte[0] {
+                    0x4b => 1,
+                    0x4d => 2,
+                    0x4e => 4,
+                    _ => 0,
+                };
+                let mut skip_buf = vec![0u8; skip_count];
+                r.read_exact(&mut skip_buf)?;
+            }
+            0x47 => {
+                // BINFLOAT - skip 8 bytes
+                let mut skip_buf = [0u8; 8];
+                r.read_exact(&mut skip_buf)?;
+            }
+            0x4a => {
+                // BININT - skip 4 bytes (signed)
+                let mut skip_buf = [0u8; 4];
+                r.read_exact(&mut skip_buf)?;
+            }
+            0x8a => {
+                // LONG1 - 1 byte length, then that many bytes
+                let mut len_byte = [0u8; 1];
+                r.read_exact(&mut len_byte)?;
+                let length = len_byte[0] as usize;
+                let mut skip_buf = vec![0u8; length];
+                r.read_exact(&mut skip_buf)?;
+            }
+            0x8b => {
+                // LONG4 - 4 byte length, then that many bytes
+                let mut len_bytes = [0u8; 4];
+                r.read_exact(&mut len_bytes)?;
+                let length = u32::from_le_bytes(len_bytes) as usize;
+                let mut skip_buf = vec![0u8; length.min(8192)];
+                let mut skipped = 0;
+                while skipped < length {
+                    let to_skip = (length - skipped).min(skip_buf.len());
+                    r.read_exact(&mut skip_buf[..to_skip])?;
+                    skipped += to_skip;
+                }
+            }
+            _ => {
+                // Other opcodes - most don't have additional data
+                // or are stack manipulation opcodes we can ignore
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn read_pickle_with_data<R: BufRead>(
     r: &mut R,
     data_source: Arc<LazyDataSource>,
 ) -> Result<Object> {
-    let mut stack = Stack::with_data_source(data_source);
+    read_pickle_with_optional_data(r, Some(data_source))
+}
+
+pub fn read_pickle_with_optional_data<R: BufRead>(
+    r: &mut R,
+    data_source: Option<Arc<LazyDataSource>>,
+) -> Result<Object> {
+    let mut stack = match data_source {
+        Some(ds) => Stack::with_data_source(ds),
+        None => Stack::new(),
+    };
     loop {
         let op_code = r.read_u8()?;
         let op_code = OpCode::try_from(op_code).map_err(Error::InvalidOpCode)?;

@@ -548,23 +548,43 @@ fn load_pytorch_file_with_metadata(
     }
 
     // Standard pickle file
+    // This might be a pickle with tensor references, so we need to handle that case
+    // For plain pickle files without a separate data section, we can't use lazy loading
+    // so we'll just create empty placeholder tensors for the structure
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
-    let obj = read_pickle(&mut reader)?;
-    let tensors = extract_tensors_with_data(obj, top_level_key)?;
 
-    // Create metadata for pickle format
-    let metadata = PytorchMetadata {
-        format_version: None,
-        format_type: FileFormat::Pickle,
-        byte_order: ByteOrder::LittleEndian, // Pickle files are typically little-endian
-        has_storage_alignment: false,
-        pytorch_version: None,
-        tensor_count: tensors.len(),
-        total_data_size: None,
-    };
-
-    Ok((tensors, metadata))
+    // Try reading without data source first
+    match read_pickle(&mut reader) {
+        Ok(obj) => {
+            let tensors = extract_tensors_with_data(obj, top_level_key)?;
+            let tensor_count = tensors.len();
+            Ok((
+                tensors,
+                PytorchMetadata {
+                    format_version: None,
+                    format_type: FileFormat::Pickle,
+                    byte_order: ByteOrder::LittleEndian,
+                    has_storage_alignment: false,
+                    pytorch_version: None,
+                    tensor_count,
+                    total_data_size: None,
+                },
+            ))
+        }
+        Err(e)
+            if e.to_string()
+                .contains("Cannot load tensor data without a data source") =>
+        {
+            // This pickle file contains tensor data but we're trying to read it without
+            // providing a data source. This shouldn't happen in normal usage as PyTorch
+            // files with actual tensor data should be in ZIP or legacy format.
+            Err(Error::InvalidFormat(
+                "Pickle file contains tensor data but no data source is available. This file should be loaded as ZIP or legacy format.".to_string()
+            ))
+        }
+        Err(e) => Err(Error::Pickle(e)),
+    }
 }
 
 /// Load from a reader
@@ -573,8 +593,21 @@ fn load_from_reader<R: Read>(
     top_level_key: Option<&str>,
 ) -> Result<HashMap<String, TensorSnapshot>> {
     let mut buf_reader = BufReader::new(reader);
-    let obj = read_pickle(&mut buf_reader)?;
-    extract_tensors_with_data(obj, top_level_key)
+
+    // Try reading without data source
+    match read_pickle(&mut buf_reader) {
+        Ok(obj) => extract_tensors_with_data(obj, top_level_key),
+        Err(e)
+            if e.to_string()
+                .contains("Cannot load tensor data without a data source") =>
+        {
+            // This reader contains tensor data but we can't load it without a file path
+            Err(Error::InvalidFormat(
+                "Reader contains tensor data but no data source is available. Use file-based loading instead.".to_string()
+            ))
+        }
+        Err(e) => Err(Error::Pickle(e)),
+    }
 }
 
 /// Extract tensors from a parsed pickle object
@@ -647,22 +680,44 @@ fn load_legacy_pytorch_file_with_metadata(
 
     // Skip metadata pickles
     // 1. Magic number
-    let _ = read_pickle(&mut reader)?;
+    let _ = read_pickle(&mut reader).map_err(|e| {
+        Error::InvalidFormat(format!(
+            "Failed to read magic number from legacy format: {}",
+            e
+        ))
+    })?;
 
     // 2. Protocol version
-    let _ = read_pickle(&mut reader)?;
+    let _ = read_pickle(&mut reader).map_err(|e| {
+        Error::InvalidFormat(format!(
+            "Failed to read protocol version from legacy format: {}",
+            e
+        ))
+    })?;
 
     // 3. System info
-    let _ = read_pickle(&mut reader)?;
+    let _ = read_pickle(&mut reader).map_err(|e| {
+        Error::InvalidFormat(format!(
+            "Failed to read system info from legacy format: {}",
+            e
+        ))
+    })?;
 
     // Save position before main pickle
     let main_pickle_pos = reader.stream_position()?;
 
-    // 4. Skip main object for now
-    let _ = read_pickle(&mut reader)?;
+    // 4. Skip main object - it might contain tensors so we can't parse it yet
+    // We'll re-read it with a data source later
+    use crate::pytorch::pickle_reader::skip_pickle;
+    skip_pickle(&mut reader).map_err(|e| {
+        Error::InvalidFormat(format!(
+            "Failed to skip main object in legacy format: {}",
+            e
+        ))
+    })?;
 
     // 5. Storage keys list (sorted keys as written by PyTorch)
-    let _storage_keys = match read_pickle(&mut reader) {
+    let storage_keys = match read_pickle(&mut reader) {
         Ok(Object::List(keys)) => keys
             .into_iter()
             .filter_map(|obj| match obj {
@@ -689,17 +744,13 @@ fn load_legacy_pytorch_file_with_metadata(
     reader.seek(SeekFrom::Start(main_pickle_pos))?;
     let main_obj = read_pickle_with_data(&mut reader, data_source.clone())?;
 
-    // Analyze tensor metadata to build storage map for efficient lazy loading
-    // This is a best-effort optimization - if we can't determine boundaries,
-    // we'll fall back to loading the entire blob
+    // Set storage keys for lazy boundary detection
+    // The boundaries will be calculated automatically as tensors are accessed
     if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source
-        && let Object::Dict(ref dict) = main_obj
+        && !storage_keys.is_empty()
     {
-        let storage_map = analyze_storage_boundaries_from_dict(dict);
-        if !storage_map.is_empty() {
-            let source = source.lock().unwrap();
-            source.set_storage_map(storage_map);
-        }
+        let source = source.lock().unwrap();
+        source.set_storage_keys(storage_keys.clone());
     }
 
     // Extract tensors normally
@@ -721,7 +772,9 @@ fn load_legacy_pytorch_file_with_metadata(
 
 /// Read pickle data from a PyTorch file as a simplified value
 fn read_pickle_as_value(path: &Path, top_level_key: Option<&str>) -> Result<PickleValue> {
-    use crate::pytorch::pickle_reader::read_pickle;
+    use crate::pytorch::lazy_data::LazyDataSource;
+    use crate::pytorch::pickle_reader::{read_pickle, read_pickle_with_data};
+    use std::sync::Arc;
 
     // Try to open as ZIP first
     if let Ok(file) = File::open(path)
@@ -754,17 +807,53 @@ fn read_pickle_as_value(path: &Path, top_level_key: Option<&str>) -> Result<Pick
         }
 
         if !pickle_data.is_empty() {
+            // Create a data source for the ZIP file
+            let data_source = LazyDataSource::from_zip(path)?;
+            let data_source_arc = Arc::new(data_source);
+
             let mut reader = BufReader::new(pickle_data.as_slice());
-            let obj = read_pickle(&mut reader)?;
+            let obj = read_pickle_with_data(&mut reader, data_source_arc)?;
             return convert_object_to_value(obj, top_level_key);
         }
     }
 
     // Try as plain pickle file
+    // First attempt without data source (for pure metadata files)
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
-    let obj = read_pickle(&mut reader)?;
-    convert_object_to_value(obj, top_level_key)
+
+    match read_pickle(&mut reader) {
+        Ok(obj) => convert_object_to_value(obj, top_level_key),
+        Err(e)
+            if e.to_string()
+                .contains("Cannot load tensor data without a data source") =>
+        {
+            // File contains tensors, need to use full PytorchReader
+            // Use the regular reader to get proper tensor handling
+            let reader = PytorchReader::new(path)?;
+
+            // Convert tensors to PickleValue structure
+            let mut result = std::collections::HashMap::new();
+            for key in reader.keys() {
+                // For pickle value extraction, we just need the structure, not the actual data
+                result.insert(
+                    key.clone(),
+                    PickleValue::String(format!("<Tensor:{}>", key)),
+                );
+            }
+
+            if let Some(key) = top_level_key {
+                Ok(PickleValue::Dict(
+                    [(key.to_string(), PickleValue::Dict(result))]
+                        .into_iter()
+                        .collect(),
+                ))
+            } else {
+                Ok(PickleValue::Dict(result))
+            }
+        }
+        Err(e) => Err(Error::Pickle(e)),
+    }
 }
 
 /// Convert internal Object to public PickleValue
@@ -871,45 +960,4 @@ fn convert_pickle_to_nested_value(value: PickleValue) -> Result<NestedValue> {
             NestedValue::Vec(vec)
         }
     })
-}
-
-/// Analyze tensor metadata from a dictionary to determine storage boundaries
-/// Returns a map of storage_key -> (offset_in_blob, size)
-fn analyze_storage_boundaries_from_dict(
-    dict: &HashMap<String, Object>,
-) -> HashMap<String, (u64, u64)> {
-    // In the legacy format, PyTorch concatenates storages in order
-    // The storage keys list tells us the order, and we can infer boundaries
-    // by analyzing how tensors use each storage
-
-    let mut storage_usage: HashMap<String, usize> = HashMap::new();
-
-    // Recursively find all tensors and track their storage usage
-    fn track_storage_usage(obj: &Object, storage_usage: &mut HashMap<String, usize>) {
-        match obj {
-            Object::Dict(dict) => {
-                for value in dict.values() {
-                    track_storage_usage(value, storage_usage);
-                }
-            }
-            Object::TorchParam(_snapshot) => {
-                // We can't reliably extract storage information from TensorSnapshot
-                // at this point because:
-                // 1. The storage key is embedded in the closure
-                // 2. The tensor hasn't been materialized yet
-                // 3. We'd need deeper integration with pickle_reader to track
-                //    storage references during tensor creation
-                //
-                // This limitation means we cannot determine storage boundaries
-                // for the legacy format without modifying the pickle parsing logic
-            }
-            _ => {}
-        }
-    }
-
-    track_storage_usage(&Object::Dict(dict.clone()), &mut storage_usage);
-
-    // Without access to the storage keys list and tensor storage references,
-    // we can't reliably determine boundaries. Return empty map to use fallback.
-    HashMap::new()
 }
