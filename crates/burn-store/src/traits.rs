@@ -12,7 +12,7 @@ use burn_tensor::backend::Backend;
 /// This trait provides convenient methods to collect and apply tensor snapshots from any Burn module.
 /// Collection operations create lightweight tensor snapshots without immediately copying data.
 /// Apply operations apply tensor data from snapshots to the corresponding tensors in the module.
-pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
+pub trait ModuleSnapshot<B: Backend>: Module<B> {
     /// Collects tensor snapshots for inspection without copying data.
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
@@ -76,9 +76,25 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> + Clone {
         snapshots: Vec<TensorSnapshot>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
-    ) -> ApplyResult {
+    ) -> ApplyResult
+    where
+        Self: Sized,
+    {
         let mut applier = Applier::new(snapshots, filter, adapter);
-        *self = self.clone().map(&mut applier);
+
+        // Use unsafe to avoid cloning the entire module, which would double the memory usage
+        // We read the module out, map it, then write it back
+        unsafe {
+            // Read the module out of self (moves it, leaving self in undefined state)
+            let module = core::ptr::read(self as *const Self);
+
+            // Map the module to create a new one with updated tensors
+            let new_module = module.map(&mut applier);
+
+            // Write the new module back to self
+            core::ptr::write(self as *mut Self, new_module);
+        }
+
         applier.into_result()
     }
 
@@ -171,5 +187,5 @@ pub trait ModuleSnapshoter {
     ) -> Result<ApplyResult, Self::Error>;
 }
 
-// Blanket implementation for all modules that implement Clone
-impl<B: Backend, M: Module<B> + Clone> ModuleSnapshot<B> for M {}
+// Blanket implementation for all modules
+impl<B: Backend, M: Module<B>> ModuleSnapshot<B> for M {}
