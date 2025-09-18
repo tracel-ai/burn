@@ -57,3 +57,7 @@ tempfile = { workspace = true }
 [[bench]]
 name = "safetensor_loading"
 harness = false
+
+[[bench]]
+name = "pytorch_loading"
+harness = false
