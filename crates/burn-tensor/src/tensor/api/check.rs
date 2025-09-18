@@ -923,6 +923,34 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn diag<const D: usize, const DO: usize>() -> Self {
+        let mut check = Self::Ok;
+
+        if D < 2 {
+            check = check.register(
+                "Diag",
+                TensorError::new(
+                    "Diagonal operations require 
+                tensors with at least 2 dimensions.",
+                )
+                .details(format!(
+                    "Got tensor with {D} dimensions,
+                expected at least 2"
+                )),
+            );
+        }
+
+        if DO != D - 1 {
+            check = check.register(
+                "Diag",
+                TensorError::new("Output rank must be input rank minus 1 for diagonal")
+                    .details(format!("Expected output rank {}, got {DO}", D - 1)),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn select_assign<const D: usize>(
         dim: usize,
         shape_indices: &Shape,
