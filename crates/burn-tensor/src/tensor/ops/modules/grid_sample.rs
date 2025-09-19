@@ -1,4 +1,7 @@
-use crate::{ElementConversion, Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
+use crate::{
+    ElementConversion, Shape, SliceInfo, TensorMetadata, backend::Backend, ops::FloatTensor,
+};
+use alloc::vec;
 
 /// Default implementation of float_grid_sample_2d with bilinear interpolation and border padding
 ///
@@ -30,12 +33,46 @@ pub fn float_grid_sample_2d_bilinear<B: Backend>(
 
     // Separate x and y coordinates
     // shape: (N, H_out, W_out, 1)
-    let grid_x_slice = &[0..n, 0..h_out, 0..w_out, 0..1];
-    let grid_y_slice = &[0..n, 0..h_out, 0..w_out, 1..2];
+    let grid_x_slice = vec![
+        SliceInfo {
+            range: 0..n,
+            step: 1,
+        },
+        SliceInfo {
+            range: 0..h_out,
+            step: 1,
+        },
+        SliceInfo {
+            range: 0..w_out,
+            step: 1,
+        },
+        SliceInfo {
+            range: 0..1,
+            step: 1,
+        },
+    ];
+    let grid_y_slice = vec![
+        SliceInfo {
+            range: 0..n,
+            step: 1,
+        },
+        SliceInfo {
+            range: 0..h_out,
+            step: 1,
+        },
+        SliceInfo {
+            range: 0..w_out,
+            step: 1,
+        },
+        SliceInfo {
+            range: 1..2,
+            step: 1,
+        },
+    ];
 
-    let grid_x = B::float_slice(grid.clone(), grid_x_slice);
+    let grid_x = B::float_slice(grid.clone(), &grid_x_slice);
     let grid_x = B::float_reshape(grid_x, Shape::new([n, 1, h_out, w_out]));
-    let grid_y = B::float_slice(grid.clone(), grid_y_slice);
+    let grid_y = B::float_slice(grid.clone(), &grid_y_slice);
     let grid_y = B::float_reshape(grid_y, Shape::new([n, 1, h_out, w_out]));
 
     // Scale grid locations from [-1, 1] and [-1, 1] to [0..W_out] and [0..H_out]

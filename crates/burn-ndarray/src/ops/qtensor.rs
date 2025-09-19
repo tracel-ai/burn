@@ -281,9 +281,13 @@ where
     }
 
     fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges
+            .iter()
+            .map(|r| burn_tensor::SliceInfo { range: r.clone(), step: 1 })
+            .collect();
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(
-                qtensor, ranges
+                qtensor, &slice_infos
             )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,

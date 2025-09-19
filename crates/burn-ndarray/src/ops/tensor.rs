@@ -203,8 +203,8 @@ where
         })
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
+    fn float_slice(tensor: FloatTensor<Self>, slice_infos: &[burn_tensor::SliceInfo]) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slice_infos))
     }
 
     fn float_slice_assign(

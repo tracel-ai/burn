@@ -70,8 +70,20 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, kernel::slice::<R, I>(tensor, ranges))
+    fn int_slice(tensor: IntTensor<Self>, slice_infos: &[burn_tensor::SliceInfo]) -> IntTensor<Self> {
+        // For now, only support step=1
+        for info in slice_infos {
+            if info.step != 1 {
+                panic!("cubecl backend does not yet support slice with step != 1");
+            }
+        }
+
+        // Convert SliceInfo to Range for step=1
+        let simple_ranges: Vec<Range<usize>> = slice_infos.iter()
+            .map(|info| info.range.clone())
+            .collect();
+
+        execute_with_dtype!(int(tensor.dtype), I, kernel::slice::<R, I>(tensor, &simple_ranges))
     }
 
     fn int_slice_assign(

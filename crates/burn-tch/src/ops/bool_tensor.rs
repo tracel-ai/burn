@@ -61,8 +61,20 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
-        TchOps::slice(tensor, ranges)
+    fn bool_slice(tensor: TchTensor, slice_infos: &[burn_tensor::SliceInfo]) -> TchTensor {
+        // For now, only support step=1
+        for info in slice_infos {
+            if info.step != 1 {
+                panic!("tch backend does not yet support slice with step != 1");
+            }
+        }
+
+        // Convert SliceInfo to Range for step=1
+        let simple_ranges: Vec<Range<usize>> = slice_infos.iter()
+            .map(|info| info.range.clone())
+            .collect();
+
+        TchOps::slice(tensor, &simple_ranges)
     }
 
     fn bool_slice_assign(

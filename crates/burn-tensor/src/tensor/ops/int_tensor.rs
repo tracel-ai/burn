@@ -78,12 +78,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indices` - The indices.
+    /// * `slice_infos` - The slice information including ranges and steps.
     ///
     /// # Returns
     ///
     /// The elements at the given indices.
-    fn int_slice(tensor: IntTensor<B>, indices: &[Range<usize>]) -> IntTensor<B>;
+    fn int_slice(tensor: IntTensor<B>, slice_infos: &[crate::SliceInfo]) -> IntTensor<B>;
 
     /// Sets the element at the given indices.
     ///

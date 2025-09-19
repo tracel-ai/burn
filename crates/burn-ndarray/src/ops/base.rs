@@ -55,8 +55,8 @@ impl<E> NdArrayOps<E>
 where
     E: Copy + Debug + burn_tensor::Element,
 {
-    pub fn slice(tensor: SharedArray<E>, ranges: &[Range<usize>]) -> SharedArray<E> {
-        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
+    pub fn slice(tensor: SharedArray<E>, slice_infos: &[burn_tensor::SliceInfo]) -> SharedArray<E> {
+        let slices = Self::to_slice_args_with_steps(slice_infos, tensor.shape().num_dims());
         tensor.slice_move(slices.as_slice()).into_shared()
     }
 
@@ -65,7 +65,8 @@ where
         ranges: &[Range<usize>],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
-        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
+        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges.iter().map(|r| burn_tensor::SliceInfo { range: r.clone(), step: 1 }).collect();
+        let slices = Self::to_slice_args_with_steps(&slice_infos, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
         array.into_shared()
@@ -97,20 +98,52 @@ where
         Self::concatenate(&arrays, dim)
     }
 
-    fn to_slice_args(ranges: &[Range<usize>], ndims: usize) -> Vec<SliceInfoElem> {
+    fn to_slice_args_with_steps(slice_infos: &[burn_tensor::SliceInfo], ndims: usize) -> Vec<SliceInfoElem> {
         let mut slices = vec![SliceInfoElem::NewAxis; ndims];
         for i in 0..ndims {
-            if i >= ranges.len() {
+            if i >= slice_infos.len() {
                 slices[i] = SliceInfoElem::Slice {
                     start: 0,
                     end: None,
                     step: 1,
                 }
             } else {
-                slices[i] = SliceInfoElem::Slice {
-                    start: ranges[i].start as isize,
-                    end: Some(ranges[i].end as isize),
-                    step: 1,
+                let info = &slice_infos[i];
+                // ndarray's semantics for negative steps:
+                // s![a..b;-k] means: take the range [a..b), but iterate backwards with step k
+                // - The range [a..b) defines which elements to consider
+                // - With negative step, we start from the END of that range and go backwards
+                //
+                // Examples:
+                // - s![2..8;-2] -> range [2,3,4,5,6,7], traverse from 7 backwards by 2 -> [7,5,3]
+                // - s![0..5;-1] -> range [0,1,2,3,4], traverse from 4 backwards by 1 -> [4,3,2,1,0]
+                //
+                // This matches Burn's intended semantics perfectly!
+                if info.step < 0 {
+                    let range_len = info.range.end - info.range.start;
+
+                    if range_len == 0 {
+                        // Empty range
+                        slices[i] = SliceInfoElem::Slice {
+                            start: 0,
+                            end: Some(0),
+                            step: 1,
+                        }
+                    } else {
+                        // ndarray handles negative steps by passing the range and step as-is
+                        // The SliceInfoElem with negative step tells ndarray to traverse backwards
+                        slices[i] = SliceInfoElem::Slice {
+                            start: info.range.start as isize,
+                            end: Some(info.range.end as isize),
+                            step: info.step,
+                        }
+                    }
+                } else {
+                    slices[i] = SliceInfoElem::Slice {
+                        start: info.range.start as isize,
+                        end: Some(info.range.end as isize),
+                        step: info.step,
+                    }
                 }
             }
         }

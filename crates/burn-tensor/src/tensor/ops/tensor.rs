@@ -473,12 +473,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slice_infos` - The slice information including ranges and steps.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice(tensor: FloatTensor<B>, ranges: &[Range<usize>]) -> FloatTensor<B>;
+    fn float_slice(tensor: FloatTensor<B>, slice_infos: &[crate::SliceInfo]) -> FloatTensor<B>;
 
     /// Assign the selected elements corresponding for the given ranges to the given value.
     ///
