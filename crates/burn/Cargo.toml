@@ -92,6 +92,8 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 # Model storage and serialization (SafeTensors, PyTorch interop)
 store = ["burn-store"]
 
+# CubeCL re-export
+cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
@@ -159,3 +161,5 @@ burn-router = { path = "../burn-router", version = "0.19.0", default-features = 
 burn-tch = { path = "../burn-tch", version = "0.19.0", default-features = false, optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true, default-features = false }
 burn-ir = { path = "../burn-ir", version = "0.19.0", optional = true, default-features = false }
+
+cubecl = { workspace = true, default-features = false, optional = true }

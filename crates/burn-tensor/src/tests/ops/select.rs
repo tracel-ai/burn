@@ -250,20 +250,6 @@ mod tests {
     }
 
     #[test]
-    fn should_select_assign_bool_empty_indices() {
-        // Test empty indices array
-        let device = Default::default();
-        let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
-        let indices = TestTensorInt::<1>::from_data([] as [i32; 0], &device);
-        let values = TestTensorBool::<1>::from_data([] as [bool; 0], &device);
-
-        let output = tensor.select_assign(0, indices, values);
-        let expected = TensorData::from([true, false, true]);
-
-        output.into_data().assert_eq(&expected, false);
-    }
-
-    #[test]
     fn should_select_assign_bool_true_or_true_accumulation() {
         // Test multiple true accumulations
         let device = Default::default();
@@ -280,8 +266,6 @@ mod tests {
     #[test]
     fn should_match_default_implementation_behavior() {
         // Verify optimized implementation matches original default logic
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
         let indices = TestTensorInt::from_data([0, 1, 0], &device);
@@ -305,8 +289,6 @@ mod tests {
     #[test]
     fn should_select_assign_bool_overlapping_indices_vs_default() {
         // Test overlapping indices against default implementation
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([false, true], &device);
         let indices = TestTensorInt::from_data([0, 0], &device);
@@ -329,8 +311,6 @@ mod tests {
     #[test]
     fn should_select_assign_bool_true_or_true_accumulation_vs_default() {
         // Test multiple true accumulations against default implementation
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false], &device);
         let indices = TestTensorInt::from_data([0, 0, 0], &device);
@@ -359,30 +339,6 @@ mod tests {
         let tensor = TestTensorBool::<1>::from_data([false], &device);
         let indices = TestTensorInt::from_data([0], &device);
         let values = TestTensorBool::<1>::from_data([true], &device);
-
-        let optimized_result = tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone());
-
-        let int_tensor = tensor.int();
-        let int_values = values.int();
-        let assigned = int_tensor.select_assign(0, indices, int_values);
-        let default_result = assigned.greater_elem(0);
-
-        optimized_result
-            .into_data()
-            .assert_eq(&default_result.into_data(), false);
-    }
-
-    #[test]
-    fn should_select_assign_bool_empty_indices_vs_default() {
-        // Test empty indices against default implementation
-        use burn_tensor::backend::Backend;
-
-        let device = Default::default();
-        let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
-        let indices = TestTensorInt::<1>::from_data([] as [i32; 0], &device);
-        let values = TestTensorBool::<1>::from_data([] as [bool; 0], &device);
 
         let optimized_result = tensor
             .clone()

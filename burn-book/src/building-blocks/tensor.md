@@ -384,6 +384,8 @@ strategies.
 | Burn API                               | PyTorch Equivalent                        |
 |----------------------------------------|-------------------------------------------|
 | `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim) |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                      |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                     |
 
 ## Displaying Tensor Details
 

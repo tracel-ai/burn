@@ -193,6 +193,7 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
 
         let body = quote! {
             /// Create a new instance of the config.
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 #(#names),*
             ) -> Self {

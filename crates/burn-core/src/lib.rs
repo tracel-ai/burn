@@ -36,6 +36,8 @@ pub mod record;
 
 /// Module for the tensor.
 pub mod tensor;
+// Tensor at root: `burn::Tensor`
+pub use tensor::Tensor;
 
 /// Module for visual operations
 #[cfg(feature = "vision")]
