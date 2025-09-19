@@ -3,7 +3,6 @@
 > Advanced model storage and serialization for the Burn deep learning framework
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-store.svg)](https://crates.io/crates/burn-store)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/Tracel-AI/burn/blob/main/LICENSE)
 
 A comprehensive storage library for Burn that enables efficient model serialization, cross-framework
 interoperability, and advanced tensor management.
@@ -13,32 +12,23 @@ interoperability, and advanced tensor management.
 ### Core Capabilities
 
 - **SafeTensors Format** - Industry-standard format for secure and efficient tensor serialization
-- **PyTorch Support** - Direct loading of PyTorch .pth/.pt files with automatic weight transformation
-- **Zero-Copy Loading** - Memory-mapped files and lazy tensor materialization for optimal performance
+- **PyTorch Support** - Direct loading of PyTorch .pth/.pt files with automatic weight
+  transformation
+- **Zero-Copy Loading** - Memory-mapped files and lazy tensor materialization for optimal
+  performance
 - **Cross-Framework Support** - Seamless PyTorch ↔ Burn model conversion with automatic adaptations
-- **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom predicates
+- **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
+  predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
 - **No-std Support** - Core functionality available in embedded and WASM environments
 
 ### Advanced Features
 
-- **Framework Adapters** - Automatic weight transposition and parameter renaming for PyTorch compatibility
+- **Framework Adapters** - Automatic weight transposition and parameter renaming for PyTorch
+  compatibility
 - **Lazy Transformations** - Chain tensor transformations without materializing intermediate data
 - **Partial Loading** - Continue loading even when some tensors are missing
 - **Custom Metadata** - Attach version info, training details, or other metadata to saved models
-- **Efficient Inspection** - Query tensor shapes and dtypes without loading data
-
-## Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-burn-store = "0.19"
-
-# Optional features
-burn-store = { version = "0.19", features = ["std", "safetensors"] }
-```
 
 ## Quick Start
 
@@ -144,6 +134,74 @@ println!("Loaded {} tensors", result.applied.len());
 if !result.missing.is_empty() {
     println!("Missing: {:?}", result.missing);
 }
+```
+
+SafetensorsStore supports no-std environments when using byte operations
+
+### Model Surgery and Partial Operations
+
+Burn Store enables sophisticated model surgery operations for selectively loading, saving, and
+transferring parts of models.
+
+#### Direct Model-to-Model Transfer
+
+```rust
+use burn_store::{ModuleSnapshot, PathFilter};
+
+// Direct transfer - all compatible tensors
+let snapshots = model1.collect(None, None);
+let result = model2.apply(snapshots, None, None);
+
+// Selective transfer with filtering
+let filter = PathFilter::new().with_regex(r"^encoder\..*");
+let snapshots = model1.collect(Some(filter.clone()), None);
+let result = model2.apply(snapshots, Some(filter), None);
+
+// Transfer with path transformation
+let mut snapshots = model1.collect(None, None);
+for snapshot in &mut snapshots {
+    snapshot.full_path = snapshot.full_path.replace("encoder.", "transformer.encoder.");
+}
+model2.apply(snapshots, None, None);
+```
+
+#### Partial Loading and Exports
+
+```rust
+// Export only specific layers
+let mut store = SafetensorsStore::from_file("encoder_only.safetensors")
+    .with_regex(r"^encoder\..*");
+model.collect_to(&mut store)?;
+
+// Load with missing tensors allowed
+let mut store = SafetensorsStore::from_file("pretrained.safetensors")
+    .allow_partial(true);
+let result = model.apply_from(&mut store)?;
+println!("Loaded: {}, Missing: {:?}", result.applied.len(), result.missing);
+```
+
+#### Merging Multiple Models
+
+```rust
+// Merge weights from different sources
+let mut merged = Vec::new();
+merged.extend(base_model.collect(None, None));
+
+// Add encoder from specialized model
+let encoder_filter = PathFilter::new().with_regex(r"^encoder\..*");
+merged.extend(specialized_model.collect(Some(encoder_filter), None));
+
+// Apply merged weights
+target_model.apply(merged, None, None);
+
+// Alternative: Sequential loading from files
+let mut base_store = SafetensorsStore::from_file("base.safetensors");
+model.apply_from(&mut base_store)?;
+
+let mut encoder_store = SafetensorsStore::from_file("encoder.safetensors")
+    .with_regex(r"^encoder\..*")
+    .allow_partial(true);
+model.apply_from(&mut encoder_store)?;  // Overlays encoder weights
 ```
 
 ### Complete Example: Migrating PyTorch Models
@@ -276,4 +334,4 @@ The stores provide a fluent API for configuration:
 
 ## License
 
-This project is dual-licensed under MIT and Apache-2.0. See [LICENSE](https://github.com/Tracel-AI/burn/blob/main/LICENSE) for details.
+This project is dual-licensed under MIT and Apache-2.0.
