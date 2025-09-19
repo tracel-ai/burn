@@ -41,6 +41,8 @@ fn cross_kernel<E: Float>(
     output[base_pos + 2] = z;
 }
 
+const VECTOR_SIZE: u8 = 3;
+
 pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
@@ -77,9 +79,9 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
             &lhs.client,
             cube_count,
             cube_dim,
-            linear_view(&lhs, &3), // Process 3 elements at a time
-            linear_view_ref(&rhs, &lhs, &3),
-            linear_view(&output, &3),
+            linear_view(&lhs, &VECTOR_SIZE),
+            linear_view_ref(&rhs, &lhs, &VECTOR_SIZE),
+            linear_view(&output, &VECTOR_SIZE),
         );
     }
 

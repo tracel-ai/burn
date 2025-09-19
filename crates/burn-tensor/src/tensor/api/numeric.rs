@@ -2040,7 +2040,6 @@ where
     pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D, K>, dim: Dim) -> Tensor<B, D, K> {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::cross(&self, &other, dim));
-        let dim = canonicalize_dim(dim, D, false);
         Tensor::new(K::cross(self.primitive, other.primitive, dim))
     }
 }
