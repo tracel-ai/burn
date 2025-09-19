@@ -266,8 +266,6 @@ mod tests {
     #[test]
     fn should_match_default_implementation_behavior() {
         // Verify optimized implementation matches original default logic
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
         let indices = TestTensorInt::from_data([0, 1, 0], &device);
@@ -291,8 +289,6 @@ mod tests {
     #[test]
     fn should_select_assign_bool_overlapping_indices_vs_default() {
         // Test overlapping indices against default implementation
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([false, true], &device);
         let indices = TestTensorInt::from_data([0, 0], &device);
@@ -315,8 +311,6 @@ mod tests {
     #[test]
     fn should_select_assign_bool_true_or_true_accumulation_vs_default() {
         // Test multiple true accumulations against default implementation
-        use burn_tensor::backend::Backend;
-
         let device = Default::default();
         let tensor = TestTensorBool::<1>::from_data([true, false], &device);
         let indices = TestTensorInt::from_data([0, 0, 0], &device);
