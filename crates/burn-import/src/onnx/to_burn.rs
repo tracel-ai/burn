@@ -1643,18 +1643,33 @@ impl ParsedOnnxGraph {
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let mut weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
-        let config = PReluConfig::new();
+        let mut weight =
+            extract_data_serialize::<PS::FloatElem>(1, &node).expect("PRelu weight is required");
         let name = &node.name;
 
-        if weight.shape.len() > 1 {
-            if weight.shape[1..].iter().product::<usize>() == 1 {
-                // Burn accepts rank 1 alpha weight
-                weight.shape = weight.shape[..1].to_vec();
+        // Determine weight shape and flatten if necessary
+        let weight_shape = if weight.shape.len() > 1 {
+            let trailing_dims_product: usize = weight.shape[1..].iter().product();
+
+            if trailing_dims_product == 1 {
+                // Flatten to rank 1 as Burn expects
+                weight.shape = vec![weight.shape[0]];
+                weight.shape[0]
             } else {
-                panic!("Invalid PRelu weight with shape {:?}", weight.shape);
+                panic!(
+                    "PRelu weight shape {:?} is invalid. Expected shape [C] or [C, 1, ...] where trailing dimensions are 1",
+                    weight.shape
+                );
             }
-        }
+        } else if weight.shape.is_empty() {
+            // Scalar weight
+            1
+        } else {
+            // Already rank 1
+            weight.shape[0]
+        };
+
+        let config = PReluConfig::new().with_num_parameters(weight_shape);
 
         PReluNode::new(name, input, output, weight, config)
     }
