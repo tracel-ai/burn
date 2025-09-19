@@ -26,7 +26,7 @@
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! model.collect_to(&mut store)?;
 //!
-//! // Load a model from a file  
+//! // Load a model from a file
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! let mut model = Model::new(&device);
 //! model.apply_from(&mut store)?;
@@ -99,9 +99,9 @@
 //!
 //! // Using builder pattern for common remapping patterns
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
-//!     .with_key_pattern(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
-//!     .with_key_pattern(r"\.gamma$", ".weight")                // X.gamma -> X.weight  
-//!     .with_key_pattern(r"\.beta$", ".bias");                  // X.beta -> X.bias
+//!     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
+//!     .with_key_remapping(r"\.gamma$", ".weight")                // X.gamma -> X.weight
+//!     .with_key_remapping(r"\.beta$", ".bias");                  // X.beta -> X.bias
 //!
 //! // Or using a pre-configured KeyRemapper for complex transformations
 //! let remapper = KeyRemapper::new()
@@ -226,7 +226,7 @@
 //!
 //! ## Remapping Methods
 //!
-//! - **`with_key_pattern(from, to)`** - Add regex pattern to rename tensors
+//! - **`with_key_remapping(from, to)`** - Add regex pattern to rename tensors
 //! - **`remap(KeyRemapper)`** - Use a pre-configured KeyRemapper for complex transformations
 //!
 //! ## Adapter Methods
@@ -245,7 +245,7 @@
 //! ```rust,ignore
 //! let store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")
-//!     .with_key_pattern(r"\.gamma$", ".weight")
+//!     .with_key_remapping(r"\.gamma$", ".weight")
 //!     .with_from_adapter(PyTorchToBurnAdapter)
 //!     .allow_partial(true)
 //!     .metadata("version", "2.0");
@@ -262,14 +262,14 @@
 //! // Save to bytes with filtering and remapping
 //! let mut store = SafetensorsStore::from_bytes(None)
 //!     .with_regex(r"^encoder\..*")                       // Only save encoder tensors
-//!     .with_key_pattern(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
+//!     .with_key_remapping(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
 //! model.collect_to(&mut store)?;
 //! let bytes = store.get_bytes()?;
 //!
 //! // Load from bytes (allow partial since we only saved encoder)
 //! let mut store = SafetensorsStore::from_bytes(Some(bytes))
-//!     .with_key_pattern(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
+//!     .with_key_remapping(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
 //!     .allow_partial(true);
 //! let mut model = Model::new(&device);
 //! let result = model.apply_from(&mut store)?;
@@ -291,7 +291,7 @@
 //!     // Only load transformer layers
 //!     .with_regex(r"^transformer\..*")
 //!     // Rename old layer names to new structure
-//!     .with_key_pattern(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
+//!     .with_key_remapping(r"^transformer\.h\.(\d+)\.", "transformer.layer$1.")
 //!     // Skip unexpected tensors from PyTorch
 //!     .allow_partial(true)
 //!     // Add metadata about the conversion
@@ -323,7 +323,7 @@
 
 mod store;
 
-pub use store::{SafetensorsError, SafetensorsStore};
+pub use store::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(test)]
 mod tests;

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::common::{
     adapter::PyTorchAdapter,
-    candle::{CandleTensor, Error, print_debug_info},
+    tensor_snapshot::{TensorSnapshotWrapper, print_debug_info},
 };
 
 use burn::record::PrecisionSettings;
@@ -15,14 +15,27 @@ use burn::{
     tensor::backend::Backend,
 };
 
-use candle_core::pickle;
+use burn_store::pytorch::PytorchReader;
 use regex::Regex;
 use serde::de::DeserializeOwned;
 
+/// Error type for PyTorch file operations
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Store error: {0}")]
+    Store(#[from] burn_store::pytorch::PytorchError),
+
+    #[error("Serde error: {0}")]
+    Serde(#[from] burn::record::serde::error::Error),
+
+    #[error("Other error: {0}")]
+    Other(String),
+}
+
 /// Deserializes tensor data from a PyTorch file (`.pt` or `.pth`) into a Burn record.
 ///
-/// This function reads tensors from a pickle file, optionally remaps their keys,
-/// and then deserializes them into the specified record type `D`.
+/// This function reads tensors from a pickle file using burn-store's PyTorch reader,
+/// optionally remaps their keys, and then deserializes them into the specified record type `D`.
 ///
 /// # Arguments
 ///
@@ -54,10 +67,18 @@ where
     PS: PrecisionSettings,
     B: Backend,
 {
-    // Read the pickle file and return a map of names to Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all_with_key(path, top_level_key)?
+    // Use burn-store's PyTorch reader to load tensors
+    let reader = if let Some(key) = top_level_key {
+        PytorchReader::with_top_level_key(path, key)?
+    } else {
+        PytorchReader::new(path)?
+    };
+
+    // Get the tensors as TensorSnapshots and wrap them
+    let tensors: HashMap<String, TensorSnapshotWrapper> = reader
+        .into_tensors()
         .into_iter()
-        .map(|(key, tensor)| (key, CandleTensor(tensor)))
+        .map(|(key, snapshot)| (key, TensorSnapshotWrapper(snapshot)))
         .collect();
 
     // Remap the tensor keys based on the provided rules
@@ -77,4 +98,13 @@ where
     // Deserialize the nested data structure into the target record type
     let value = D::deserialize(deserializer)?;
     Ok(value)
+}
+
+// Re-export burn-store's PyTorch reader types for convenience
+
+// Implement conversion to RecorderError for compatibility with the Recorder trait
+impl From<Error> for burn::record::RecorderError {
+    fn from(error: Error) -> Self {
+        burn::record::RecorderError::DeserializeError(error.to_string())
+    }
 }
