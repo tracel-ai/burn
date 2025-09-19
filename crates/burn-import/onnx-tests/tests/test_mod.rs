@@ -76,6 +76,7 @@ pub mod mean;
 pub mod min;
 pub mod mul;
 pub mod neg;
+pub mod nonzero;
 pub mod not;
 pub mod one_hot;
 pub mod or;
