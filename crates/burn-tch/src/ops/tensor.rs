@@ -224,18 +224,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     }
 
     fn float_slice(tensor: TchTensor, slice_infos: &[burn_tensor::SliceInfo]) -> TchTensor {
-        // For now, only support step=1
-        for info in slice_infos {
-            if info.step != 1 {
-                panic!("tch backend does not yet support slice with step != 1");
-            }
-        }
-
-        // Convert SliceInfo to Range for step=1
-        let simple_ranges: Vec<Range<usize>> =
-            slice_infos.iter().map(|info| info.range.clone()).collect();
-
-        TchOps::slice(tensor, &simple_ranges)
+        TchOps::slice_with_steps(tensor, slice_infos)
     }
 
     fn float_slice_assign(

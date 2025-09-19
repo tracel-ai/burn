@@ -34,14 +34,42 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
+    pub fn slice_with_steps(
+        tensor: TchTensor,
+        slice_infos: &[burn_tensor::SliceInfo],
+    ) -> TchTensor {
         let storage = tensor.storage.clone();
         let mut tensor = tensor.tensor.shallow_clone();
 
-        for (i, index) in ranges.iter().enumerate().take(ranges.len()) {
-            let start = index.start as i64;
-            let length = (index.end - index.start) as i64;
-            tensor = tensor.narrow(i as i64, start, length);
+        for (dim, info) in slice_infos.iter().enumerate() {
+            let dim_i64 = dim as i64;
+            let start = info.range.start as i64;
+            let end = info.range.end as i64;
+            let step = info.step as i64;
+
+            if step > 0 {
+                // Forward stepping - use native slice
+                tensor = tensor.slice(dim_i64, Some(start), Some(end), step);
+            } else {
+                // Negative stepping - we need to handle the semantics correctly
+                // For negative steps, we iterate backwards from end-1
+                // PyTorch's negative step works differently than our semantics
+                // We need to reverse the selected range
+
+                // First get the slice with positive step
+                tensor = tensor.slice(dim_i64, Some(start), Some(end), 1);
+
+                // Then reverse it and apply the step
+                if step == -1 {
+                    // Simple reversal
+                    tensor = tensor.flip([dim_i64]);
+                } else {
+                    // Reverse and then take every nth element
+                    tensor = tensor.flip([dim_i64]);
+                    let abs_step = step.abs();
+                    tensor = tensor.slice(dim_i64, None, None, abs_step);
+                }
+            }
         }
 
         TchTensor::partial(tensor, storage)

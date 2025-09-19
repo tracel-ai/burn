@@ -55,19 +55,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     }
 
     fn int_slice(tensor: TchTensor, slice_infos: &[burn_tensor::SliceInfo]) -> TchTensor {
-        // For now, only support step=1
-        for info in slice_infos {
-            if info.step != 1 {
-                panic!("tch backend does not yet support slice with step != 1");
-            }
-        }
-
-        // Convert SliceInfo to Range for step=1
-        let simple_ranges: Vec<Range<usize>> = slice_infos.iter()
-            .map(|info| info.range.clone())
-            .collect();
-
-        TchOps::slice(tensor, &simple_ranges)
+        TchOps::slice_with_steps(tensor, slice_infos)
     }
 
     fn int_slice_assign(tensor: TchTensor, ranges: &[Range<usize>], value: TchTensor) -> TchTensor {
