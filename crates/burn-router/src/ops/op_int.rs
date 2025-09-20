@@ -14,6 +14,7 @@ use burn_tensor::ops::{
 };
 use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, SliceInfo, TensorData, TensorMetadata,
+    calculate_slice_output_shape,
 };
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
@@ -80,22 +81,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges
-            .iter()
-            .map(|info| {
-                let len = info.range.end - info.range.start;
-                if info.step.unsigned_abs() == 1 {
-                    len
-                } else {
-                    len.div_ceil(info.step.unsigned_abs())
-                }
-            })
-            .collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = calculate_slice_output_shape(ranges, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, dtype);
 

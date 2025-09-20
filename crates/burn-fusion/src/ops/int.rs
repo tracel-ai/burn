@@ -149,19 +149,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = slice_infos
-            .iter()
-            .map(|info| {
-                let range_size = info.range.end - info.range.start;
-                let step_abs = info.step.unsigned_abs();
-                range_size.div_ceil(step_abs)
-            })
-            .collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = burn_tensor::calculate_slice_output_shape(slice_infos, &tensor.shape);
 
         let dtype = tensor.dtype;
         let out = tensor.client.tensor_uninitialized(shape, dtype);

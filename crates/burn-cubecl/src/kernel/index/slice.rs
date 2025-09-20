@@ -167,12 +167,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
     }
 
     // Calculate output shape
-    let mut output_dims = tensor.shape.dims.clone();
-    for (dim, info) in slice_infos.iter().enumerate() {
-        let range_size = info.range.end - info.range.start;
-        let step_abs = info.step.unsigned_abs();
-        output_dims[dim] = range_size.div_ceil(step_abs);
-    }
+    let output_dims = burn_tensor::calculate_slice_output_shape(slice_infos, &tensor.shape.dims);
     let shape_output = Shape::from(output_dims);
 
     // Create output tensor
