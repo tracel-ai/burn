@@ -1171,7 +1171,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         // Convert slice_infos to ranges for backward compatibility in State
-        let ranges: Vec<core::ops::Range<usize>> = slice_infos.iter().map(|s| s.range.clone()).collect();
+        let ranges: Vec<core::ops::Range<usize>> =
+            slice_infos.iter().map(|s| s.range.clone()).collect();
 
         match Index
             .prepare::<C>([tensor.node.clone()])
@@ -1238,9 +1239,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         B::float_slice_assign(grad, &ranges_4lhs.unwrap(), zeros)
                     },
                     |grad| {
-                        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges_4rhs.unwrap()
+                        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges_4rhs
+                            .unwrap()
                             .iter()
-                            .map(|r| burn_tensor::SliceInfo { range: r.clone(), step: 1 })
+                            .map(|r| burn_tensor::SliceInfo {
+                                range: r.clone(),
+                                step: 1,
+                            })
                             .collect();
                         B::float_slice(grad, &slice_infos)
                     },
@@ -2133,7 +2138,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         current_index += dim_size;
                         let slice_infos: Vec<burn_tensor::SliceInfo> = ranges
                             .iter()
-                            .map(|r| burn_tensor::SliceInfo { range: r.clone(), step: 1 })
+                            .map(|r| burn_tensor::SliceInfo {
+                                range: r.clone(),
+                                step: 1,
+                            })
                             .collect();
                         grads.register::<B>(node.id, B::float_slice(grad.clone(), &slice_infos));
                     });
