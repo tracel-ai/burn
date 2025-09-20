@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
