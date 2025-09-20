@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cross)]
 mod tests {
     use super::*;
-    use burn_tensor::{ops::FloatElem, TensorData, Tolerance};
+    use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
 
     // Helper to compute expected cross product for 2-D (N × 3) tensors.
     fn manual_cross(a: &[[f32; 3]], b: &[[f32; 3]]) -> Vec<[f32; 3]> {
@@ -29,11 +29,10 @@ mod tests {
         let expected_vec = manual_cross(&a_raw, &b_raw);
         let expected: [[f32; 3]; 2] = [expected_vec[0], expected_vec[1]];
 
-        out.to_data()
-            .assert_approx_eq::<FloatElem<TestBackend>>(
-                &TensorData::from(expected),
-                Tolerance::default(),
-            );
+        out.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
+            &TensorData::from(expected),
+            Tolerance::default(),
+        );
     }
 
     #[test]
@@ -87,8 +86,8 @@ mod tests {
         let a_grad = a.grad(&grads).unwrap().to_data();
         let b_grad = b.grad(&grads).unwrap().to_data();
 
-    let expected_a = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
-    let expected_b = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
+        let expected_a = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
+        let expected_b = TensorData::from([[-1.0, 2.0, -1.0], [-1.0, 2.0, -1.0]]);
 
         a_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_a, Tolerance::default());
         b_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_b, Tolerance::default());
@@ -107,7 +106,7 @@ mod tests {
         // cross on non-last dimensions and will intentionally panic with a
         // message like "Cross product on non-last dimension not yet implemented".
         // In that case we treat the panic as a skipped test for that backend.
-        use std::panic::{catch_unwind, AssertUnwindSafe};
+        use std::panic::{AssertUnwindSafe, catch_unwind};
 
         let res = catch_unwind(AssertUnwindSafe(|| a.cross(b.clone(), 0)));
         let out = match res {
@@ -116,13 +115,17 @@ mod tests {
                 // Inspect panic payload for the expected not-implemented message and skip
                 if let Some(s) = err.downcast_ref::<&str>() {
                     if s.contains("Cross product on non-last dimension") {
-                        eprintln!("Skipping different_dim cross test: backend does not support non-last-dim cross");
+                        eprintln!(
+                            "Skipping different_dim cross test: backend does not support non-last-dim cross"
+                        );
                         return;
                     }
                 }
                 if let Some(s) = err.downcast_ref::<String>() {
                     if s.contains("Cross product on non-last dimension") {
-                        eprintln!("Skipping different_dim cross test: backend does not support non-last-dim cross");
+                        eprintln!(
+                            "Skipping different_dim cross test: backend does not support non-last-dim cross"
+                        );
                         return;
                     }
                 }
@@ -150,6 +153,9 @@ mod tests {
             ],
         ];
 
-        out.to_data().assert_approx_eq::<FloatElem<TestBackend>>(&TensorData::from(expected), Tolerance::default());
+        out.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
+            &TensorData::from(expected),
+            Tolerance::default(),
+        );
     }
 }

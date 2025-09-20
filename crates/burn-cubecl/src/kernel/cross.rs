@@ -17,7 +17,7 @@ fn cross_kernel<E: Float>(
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;
-    
+
     if vector_idx >= num_vectors {
         terminate!();
     }

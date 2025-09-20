@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::{Tensor, TensorData, backend::Backend};
-    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
 
     #[test]
     fn test_cross_3d_last_dim() {
@@ -32,13 +32,17 @@ mod tests {
             Err(err) => {
                 if let Some(s) = err.downcast_ref::<&str>() {
                     if s.contains("Cross product on non-last dimension") {
-                        eprintln!("Skipping cross dim0 test: backend does not support non-last-dim cross");
+                        eprintln!(
+                            "Skipping cross dim0 test: backend does not support non-last-dim cross"
+                        );
                         return;
                     }
                 }
                 if let Some(s) = err.downcast_ref::<String>() {
                     if s.contains("Cross product on non-last dimension") {
-                        eprintln!("Skipping cross dim0 test: backend does not support non-last-dim cross");
+                        eprintln!(
+                            "Skipping cross dim0 test: backend does not support non-last-dim cross"
+                        );
                         return;
                     }
                 }
