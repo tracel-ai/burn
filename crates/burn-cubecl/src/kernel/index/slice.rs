@@ -1,9 +1,16 @@
 use crate::{
-    CubeRuntime, element::CubeElement, kernel::utils::linear_view, ops::numeric::empty_device,
+    CubeRuntime,
+    element::CubeElement,
+    kernel::utils::{linear_view, shape_divmod},
+    ops::numeric::empty_device,
     tensor::CubeTensor,
 };
 use burn_tensor::{Shape, SliceInfo};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise, intrinsic,
+    prelude::*,
+    std::{FastDivmod, tensor::layout::linear::LinearView},
+};
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
@@ -50,26 +57,32 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
 
 #[cube(launch_unchecked)]
 fn slice_kernel<E: CubePrimitive>(
-    input: &LinearView<E>,
+    input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
-    input_tensor: &Tensor<E>,
-    output_tensor: &Tensor<E>,
+    out_shape: Sequence<FastDivmod>,
     indices: Sequence<u32>,
-    #[comptime] rank: u32,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
+    let rank = comptime![out_shape.len()];
+    let mut offset_output = ABSOLUTE_POS;
     let mut offset_input = 0;
 
     #[unroll]
     for i in 0..rank {
-        let range_start = *indices.index(i);
-        let offset_local =
-            ABSOLUTE_POS / output_tensor.stride(i) % output_tensor.shape(i) + range_start;
+        // Iterate in reverse to use divmod
+        let i = unwrap(i);
+        let dim = comptime![rank - i - 1];
 
-        offset_input += offset_local * input_tensor.stride(i);
+        let range_start = *indices.index(dim);
+        let (rem, offset_local) = out_shape.index(dim).div_mod(offset_output);
+        offset_output = rem;
+
+        let offset_local = offset_local + range_start;
+
+        offset_input += offset_local * input.stride(dim);
     }
 
     output[ABSOLUTE_POS] = input[offset_input];
@@ -96,12 +109,10 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            linear_view(&tensor, &1),
-            linear_view(&output, &1),
             tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            linear_view(&output, &1),
+            shape_divmod(&output),
             indices_sequence,
-            ndims as u32,
         )
     };
 
@@ -111,29 +122,33 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
 /// Kernel for slicing with steps
 #[cube(launch_unchecked)]
 fn slice_with_steps_kernel<E: CubePrimitive>(
-    input: &LinearView<E>,
+    input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
-    input_tensor: &Tensor<E>,
-    output_tensor: &Tensor<E>,
+    out_shape: Sequence<FastDivmod>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
-    #[comptime] num_dims: u32,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
+    let rank = comptime![out_shape.len()];
+    let mut output_offset = ABSOLUTE_POS;
     let mut input_offset = 0;
 
     // Calculate the input offset based on output position and slice info
     #[unroll]
-    for dim in 0..num_dims {
+    for i in 0..rank {
+        // Iterate in reverse to use divmod
+        let i = unwrap(i);
+        let dim = comptime![rank - i - 1];
         let start = *starts.index(dim);
         let end = *ends.index(dim);
         let step = *steps.index(dim);
 
-        let output_idx = (ABSOLUTE_POS / output_tensor.stride(dim)) % output_tensor.shape(dim);
+        let (rem, output_idx) = out_shape.index(dim).div_mod(output_offset);
+        output_offset = rem;
 
         let input_idx = if step > 0 {
             // Forward stepping
@@ -145,7 +160,7 @@ fn slice_with_steps_kernel<E: CubePrimitive>(
             end_minus_1 - output_idx * abs_step
         };
 
-        input_offset += input_idx * input_tensor.stride(dim);
+        input_offset += input_idx * input.stride(dim);
     }
 
     output[ABSOLUTE_POS] = input[input_offset];
@@ -204,16 +219,21 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            linear_view(&tensor, &1),
-            linear_view(&output, &1),
             tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            linear_view(&output, &1),
+            shape_divmod(&output),
             starts,
             ends,
             steps,
-            tensor.shape.num_dims() as u32,
         );
     }
 
     output
+}
+
+/// This is annoying and we need to find a way to do this automatically at some point
+#[allow(unused)]
+#[cube]
+fn unwrap(value: u32) -> comptime_type!(u32) {
+    intrinsic!(|_| value.constant().unwrap().as_u32())
 }
