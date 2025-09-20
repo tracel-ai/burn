@@ -627,11 +627,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     ops.parents,
                     ops.node,
                     grads,
-                    |grad| B::float_cross(grad, rhs.unwrap(), dim),
-                    |grad| {
-                        let cross_grad_lhs = B::float_cross(grad, lhs.unwrap(), dim);
-                        B::float_neg(cross_grad_lhs)
-                    },
+                    |grad| B::float_cross(rhs.unwrap(), grad, dim),
+                    |grad| B::float_cross(lhs.unwrap(), grad, dim),
                 );
             }
         }

@@ -13,16 +13,19 @@ fn cross_kernel<E: Float>(
     lhs: &LinearView<Line<E>>,
     rhs: &LinearView<Line<E>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
+    #[comptime] num_vectors: u32,
 ) {
-    if !output.is_in_bounds(ABSOLUTE_POS) {
+    // Each thread processes one 3-element vector
+    let vector_idx = ABSOLUTE_POS;
+    
+    if vector_idx >= num_vectors {
         terminate!();
     }
 
-    // For now, assume the last dimension has size 3 and contains the vectors
-    // Each ABSOLUTE_POS corresponds to the first element of a 3-element vector
-    let base_pos = ABSOLUTE_POS * 3;
+    // Calculate base position - each vector occupies 3 contiguous elements
+    let base_pos = vector_idx * 3;
 
-    // Extract vectors - Line<F> can be used directly as scalar
+    // Extract vectors
     let a0 = lhs[base_pos];
     let a1 = lhs[base_pos + 1];
     let a2 = lhs[base_pos + 2];
@@ -40,8 +43,6 @@ fn cross_kernel<E: Float>(
     output[base_pos + 1] = y;
     output[base_pos + 2] = z;
 }
-
-const VECTOR_SIZE: u8 = 3;
 
 pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     lhs: CubeTensor<R>,
@@ -66,9 +67,13 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     }
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
+
+    // Let the runtime choose the best line size for performance
+    let line_size = crate::ops::max_line_size_many::<R>(&[&lhs, &rhs], dim);
+
     let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), output_shape.clone());
 
-    // Number of 3-element vectors to process
+    // Number of vectors to process
     let num_vectors = output_shape.num_elements() / 3;
 
     let cube_dim = CubeDim::default();
@@ -79,9 +84,10 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
             &lhs.client,
             cube_count,
             cube_dim,
-            linear_view(&lhs, &VECTOR_SIZE),
-            linear_view_ref(&rhs, &lhs, &VECTOR_SIZE),
-            linear_view(&output, &VECTOR_SIZE),
+            linear_view_ref(&lhs, &output, &line_size),
+            linear_view_ref(&rhs, &output, &line_size),
+            linear_view(&output, &line_size),
+            num_vectors as u32,
         );
     }
 
