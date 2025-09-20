@@ -1,6 +1,6 @@
 use super::tree::all_reduce_sum_tree;
 use crate::PeerId;
-use burn_tensor::{Shape, TensorMetadata, backend::Backend};
+use burn_tensor::{Shape, SliceInfo, TensorMetadata, backend::Backend};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
@@ -163,12 +163,9 @@ fn slice_tensors<B: Backend>(
                 .enumerate()
                 .map(|(dim_idx, dim)| {
                     if dim_idx == slice_dim {
-                        range.clone()
+                        SliceInfo::from_range(range.clone())
                     } else {
-                        Range {
-                            start: 0,
-                            end: *dim,
-                        }
+                        SliceInfo::from_range(0..*dim)
                     }
                 })
                 .collect::<Vec<_>>();
