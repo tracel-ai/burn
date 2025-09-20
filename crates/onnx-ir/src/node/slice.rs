@@ -69,10 +69,10 @@ pub fn slice_config(node: &Node) -> SliceConfig {
     let steps = get_slice_input(node, 4);
 
     // Validate steps if present - zeros are not allowed
-    if let Some(SliceInput::Static(ref step_values)) = steps {
-        if step_values.iter().any(|&x| x == 0) {
-            panic!("Slice: step values cannot be zero");
-        }
+    if let Some(SliceInput::Static(ref step_values)) = steps
+        && step_values.contains(&0)
+    {
+        panic!("Slice: step values cannot be zero");
     }
 
     // Normalize negative axes if we have static axes and know the input rank
