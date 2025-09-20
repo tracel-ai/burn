@@ -436,6 +436,12 @@ impl RelativeOps for FloatOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Cross(desc) => FloatOperationIr::Cross(CrossOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim: desc.dim,
+            }),
             FloatOperationIr::Random(desc) => FloatOperationIr::Random(RandomOpIr {
                 out: desc.out.to_relative(converter),
                 distribution: desc.distribution,
