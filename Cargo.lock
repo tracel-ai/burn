@@ -575,6 +575,7 @@ dependencies = [
  "burn-cuda",
  "burn-ir",
  "burn-ndarray",
+ "burn-nn",
  "burn-remote",
  "burn-rocm",
  "burn-router",
@@ -922,6 +923,24 @@ dependencies = [
  "rand 0.9.2",
  "seq-macro",
  "spin",
+]
+
+[[package]]
+name = "burn-nn"
+version = "0.19.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-core",
+ "burn-cuda",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-remote",
+ "burn-rocm",
+ "burn-router",
+ "burn-tch",
+ "burn-wgpu",
+ "num-traits",
+ "rstest",
 ]
 
 [[package]]

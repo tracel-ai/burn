@@ -1,6 +1,6 @@
 use crate::{BurnToPyTorchAdapter, ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
+use burn::nn::{Linear, LinearConfig};
 use burn_core::module::{Module, Param};
-use burn_core::nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 

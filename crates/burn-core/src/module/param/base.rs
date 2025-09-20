@@ -34,7 +34,7 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 /// # Laziness
 ///
 /// The initialization of parameters can be lazy when created using
-/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::nn::Initializer).
+/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::module::Initializer).
 ///
 /// This reduces the amount of allocations done when loading a model for inference without having
 /// to create a custom initialization function only for inference.
