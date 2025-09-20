@@ -263,6 +263,8 @@ fn main() {
         .input("tests/slice/slice_shape_start_tensor_end.onnx")
         .input("tests/slice/slice_tensor_start_shape_end.onnx")
         .input("tests/slice/slice_axes.onnx")
+        .input("tests/slice/slice_with_steps.onnx")
+        .input("tests/slice/slice_shape_with_steps.onnx")
         .input("tests/softmax/softmax.onnx")
         .input("tests/space_to_depth/space_to_depth.onnx")
         .input("tests/sqrt/sqrt.onnx")

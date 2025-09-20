@@ -1343,13 +1343,6 @@ impl ParsedOnnxGraph {
             SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
         };
 
-        // Validate steps if present
-        if let Some(SliceInput::Static(steps)) = &config.steps
-            && steps.iter().any(|&x| x != 1)
-        {
-            panic!("Slice: steps other than 1 are not supported");
-        }
-
         let mut slice_node = SliceNode::new(input, output, starts_param, ends_param);
 
         // Convert axes parameter if present
@@ -1359,6 +1352,15 @@ impl ParsedOnnxGraph {
                 SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
             };
             slice_node = slice_node.with_axes(axes_param);
+        }
+
+        // Convert steps parameter if present
+        if let Some(steps) = config.steps {
+            let steps_param = match steps {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_steps(steps_param);
         }
 
         slice_node
