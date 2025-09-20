@@ -1,6 +1,9 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, element::CubeElement, kernel::utils::linear_view, ops::numeric::empty_device,
+    tensor::CubeTensor,
+};
 use burn_tensor::{Shape, SliceInfo};
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
@@ -47,12 +50,14 @@ pub fn slice<R: CubeRuntime, E: CubeElement>(
 
 #[cube(launch_unchecked)]
 fn slice_kernel<E: CubePrimitive>(
-    input: &Tensor<E>,
-    output: &mut Tensor<E>,
+    input: &LinearView<E>,
+    output: &mut LinearView<E, ReadWrite>,
+    input_tensor: &Tensor<E>,
+    output_tensor: &Tensor<E>,
     indices: Sequence<u32>,
     #[comptime] rank: u32,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
@@ -61,9 +66,10 @@ fn slice_kernel<E: CubePrimitive>(
     #[unroll]
     for i in 0..rank {
         let range_start = *indices.index(i);
-        let offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i) + range_start;
+        let offset_local =
+            ABSOLUTE_POS / output_tensor.stride(i) % output_tensor.shape(i) + range_start;
 
-        offset_input += offset_local * input.stride(i);
+        offset_input += offset_local * input_tensor.stride(i);
     }
 
     output[ABSOLUTE_POS] = input[offset_input];
@@ -90,6 +96,8 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
+            linear_view(&tensor, &1),
+            linear_view(&output, &1),
             tensor.as_tensor_arg::<E>(1),
             output.as_tensor_arg::<E>(1),
             indices_sequence,
@@ -103,14 +111,16 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
 /// Kernel for slicing with steps
 #[cube(launch_unchecked)]
 fn slice_with_steps_kernel<E: CubePrimitive>(
-    input: &Tensor<E>,
-    output: &mut Tensor<E>,
+    input: &LinearView<E>,
+    output: &mut LinearView<E, ReadWrite>,
+    input_tensor: &Tensor<E>,
+    output_tensor: &Tensor<E>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
     #[comptime] num_dims: u32,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
@@ -123,7 +133,7 @@ fn slice_with_steps_kernel<E: CubePrimitive>(
         let end = *ends.index(dim);
         let step = *steps.index(dim);
 
-        let output_idx = (ABSOLUTE_POS / output.stride(dim)) % output.shape(dim);
+        let output_idx = (ABSOLUTE_POS / output_tensor.stride(dim)) % output_tensor.shape(dim);
 
         let input_idx = if step > 0 {
             // Forward stepping
@@ -135,7 +145,7 @@ fn slice_with_steps_kernel<E: CubePrimitive>(
             end_minus_1 - output_idx * abs_step
         };
 
-        input_offset += input_idx * input.stride(dim);
+        input_offset += input_idx * input_tensor.stride(dim);
     }
 
     output[ABSOLUTE_POS] = input[input_offset];
@@ -199,6 +209,8 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
+            linear_view(&tensor, &1),
+            linear_view(&output, &1),
             tensor.as_tensor_arg::<E>(1),
             output.as_tensor_arg::<E>(1),
             starts,
