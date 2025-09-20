@@ -65,7 +65,13 @@ where
         ranges: &[Range<usize>],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
-        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges.iter().map(|r| burn_tensor::SliceInfo { range: r.clone(), step: 1 }).collect();
+        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges
+            .iter()
+            .map(|r| burn_tensor::SliceInfo {
+                range: r.clone(),
+                step: 1,
+            })
+            .collect();
         let slices = Self::to_slice_args_with_steps(&slice_infos, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
@@ -98,7 +104,10 @@ where
         Self::concatenate(&arrays, dim)
     }
 
-    fn to_slice_args_with_steps(slice_infos: &[burn_tensor::SliceInfo], ndims: usize) -> Vec<SliceInfoElem> {
+    fn to_slice_args_with_steps(
+        slice_infos: &[burn_tensor::SliceInfo],
+        ndims: usize,
+    ) -> Vec<SliceInfoElem> {
         let mut slices = vec![SliceInfoElem::NewAxis; ndims];
         for i in 0..ndims {
             if i >= slice_infos.len() {

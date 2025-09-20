@@ -279,10 +279,14 @@ where
         }
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, slice_infos: &[burn_tensor::SliceInfo]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        tensor: QuantizedTensor<Self>,
+        slice_infos: &[burn_tensor::SliceInfo],
+    ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(
-                qtensor, slice_infos
+                qtensor,
+                slice_infos
             )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
