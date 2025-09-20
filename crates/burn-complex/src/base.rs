@@ -6,13 +6,12 @@ definitions in one spot.
 */
 use burn_tensor::{
     BasicOps, Bytes, DType, Device, Distribution, Element, ElementConversion, Int, Numeric, Shape,
-    Tensor, TensorData, TensorKind, TensorMetadata, Transaction, backend::Backend,
+    Tensor, TensorData, TensorKind, TensorMetadata, TensorPrimitive, Transaction, backend::Backend,
     ops::FloatTensor,
 };
 
 use core::ops::Range;
 
-use crate::base::element::ComplexElement;
 /// The layout of the complex tensor. Used to define shared behavior only meant
 /// to be used for a specific layout (such as butterfly operations).
 pub trait ComplexLayout {}
@@ -464,6 +463,70 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The tangent of the tensor.
     fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex select function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension to select.
+    /// * `indices` - The indices to select.
+    ///
+    /// # Returns
+    ///
+    /// The selected tensor.
+    fn select(tensor: ComplexTensor<B>, dim: usize, indices: Tensor<B, 1, Int>)
+    -> ComplexTensor<B>;
+
+    /// Complex select assign function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension to select.
+    /// * `indices` - The indices to select.
+    /// * `values` - The values to assign.
+    ///
+    /// # Returns
+    ///
+    /// The assigned tensor.
+    fn select_assign(
+        tensor: ComplexTensor<B>,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: ComplexTensor<B>,
+    ) -> ComplexTensor<B>;
+
+    /// Complex slice function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension to slice.
+    /// * `start` - The start index.
+    /// * `end` - The end index.
+    ///
+    /// # Returns
+    ///
+    /// The sliced tensor.
+    fn slice(tensor: ComplexTensor<B>, dim: usize, start: usize, end: usize) -> ComplexTensor<B>;
+
+    /// Assign the selected elements corresponding for the given ranges to the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `ranges` - The ranges to select.
+    /// * `value` - The value to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements assigned to the given value.
+    fn complex_slice_assign(
+        tensor: ComplexTensor<B>,
+        ranges: &[Range<usize>],
+        value: ComplexTensor<B>,
+    ) -> ComplexTensor<B>;
 }
 
 /// A type-level representation of the kind of a complex tensor.
@@ -474,7 +537,8 @@ pub struct Complex;
 impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
     type Elem = B::ComplexElem;
 
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
+    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        // should I check then pass the dtype?
         B::complex_zeros(shape, device)
     }
 
@@ -497,8 +561,7 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
     }
 
     fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
-        // TODO: Implement complex_slice in ComplexTensorOps
-        todo!("complex_slice not yet implemented")
+        TensorPrimitive::Complex(B::complex_slice(tensor, ranges))
     }
 
     fn slice_assign(
@@ -506,8 +569,7 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         ranges: &[Range<usize>],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        // TODO: Implement complex_slice_assign in ComplexTensorOps
-        todo!("complex_slice_assign not yet implemented")
+        TensorPrimitive::Complex(B::complex_slice_assign(tensor, ranges, value))
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -599,6 +661,19 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         device: &<B as Backend>::Device,
     ) -> Self::Primitive {
         todo!()
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
+        TensorPrimitive::Complex(B::complex_select(tensor, dim, indices))
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        TensorPrimitive::Complex(B::complex_select_assign(tensor, dim, indices, values))
     }
 }
 
@@ -779,21 +854,6 @@ where
     ) -> Self::Primitive {
         // TODO: Implement complex_mask_fill in ComplexTensorOps
         todo!("complex_mask_fill not yet implemented")
-    }
-
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        // TODO: Implement complex_select in ComplexTensorOps
-        todo!("complex_select not yet implemented")
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        // TODO: Implement complex_select_assign in ComplexTensorOps
-        todo!("complex_select_assign not yet implemented")
     }
 
     fn gather(

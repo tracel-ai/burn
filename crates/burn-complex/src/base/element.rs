@@ -2,16 +2,16 @@
 
 /// 32-bit complex number type (real and imaginary parts are f32).
 use burn_tensor::{
-    DType, Distribution, Element, ElementLimits, ElementPrecision, ElementRandom, Precision,
-    cast::ToElement,
+    DType, Distribution, Element, ElementComparison, ElementConversion, ElementLimits,
+    ElementPrecision, ElementRandom, Precision, cast::ToElement,
 };
 use core::cmp::Ordering;
 use num_traits::identities::ConstZero;
 use rand::RngCore;
-pub trait ToComplex<C: ComplexElement> {
+pub trait ToComplex<C> {
     fn to_complex(&self) -> C;
 }
-
+use paste::paste;
 pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex64> {
     fn to_complex32(&self) -> Complex32 {
         self.to_complex()
@@ -21,57 +21,11 @@ pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex
     }
 }
 
-/// Element trait for tensor.
-pub trait ComplexElement:
-    ToElement
-    + ElementRandom
-    + ComplexElementConversion
-    + ElementPrecision
-    + ComplexElementComparison
-    + ElementLimits
-    + bytemuck::CheckedBitPattern
-    + bytemuck::NoUninit
-    + bytemuck::Zeroable
-    + core::fmt::Debug
-    + core::fmt::Display
-    + Default
-    + Send
-    + Sync
-    + Copy
-    + 'static
-{
-    /// The dtype of the element.
-    fn dtype() -> DType;
-}
-
-/// Element conversion trait for tensor.
-pub trait ComplexElementConversion {
-    /// Converts an element to another element.
-    ///
-    /// # Arguments
-    ///
-    /// * `elem` - The element to convert.
-    ///
-    /// # Returns
-    ///
-    /// The converted element.
-    fn from_elem<E: ToComplexElement>(elem: E) -> Self;
-
-    /// Converts and returns the converted element.
-    fn elem<E: Element>(self) -> E;
-}
-/// Element ordering trait.
-pub trait ComplexElementComparison {
-    /// Returns and [Ordering] between `self` and `other`.
-    fn cmp(&self, other: &Self) -> Ordering;
-}
-
 /// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_complex {
     (
         ty $type:ident $inner:ident $precision:expr,
-        convert $convert:expr,
         random $random:expr,
         cmp $cmp:expr,
         dtype $dtype:expr
@@ -109,6 +63,14 @@ macro_rules! make_complex {
                 Self { real, imag: $inner::ZERO }
             }
 
+            /// Create a complex number from any element primitive
+            #[inline]
+            pub fn from_elem<E: ToElement>(real: E) -> Self {
+                paste! {
+                    Self { real: real.[<to_ $inner>](), imag: $inner::ZERO }
+                }
+            }
+
             /// Get the magnitude (absolute value) of the complex number
             #[inline]
             pub fn abs(self) -> $inner {
@@ -122,6 +84,11 @@ macro_rules! make_complex {
                     real: self.real,
                     imag: -self.imag,
                 }
+            }
+
+            #[inline]
+            pub fn dtype() -> DType {
+                DType::$type
             }
         }
 
@@ -192,18 +159,12 @@ macro_rules! make_complex {
                 }
             }
         }
-        impl ComplexElement for $type {
-            #[inline(always)]
-            fn dtype() -> DType {
-                $dtype
-            }
-        }
 
-        impl ComplexElementConversion for $type {
+
+        impl ElementConversion for $type {
             #[inline(always)]
-            fn from_elem<E: ToComplexElement>(elem: E) -> Self {
-                #[allow(clippy::redundant_closure_call)]
-                $convert(&elem)
+            fn from_elem<E: ToElement>(elem: E) -> Self {
+                Self::from_elem(elem)
             }
             #[inline(always)]
             fn elem<E: Element>(self) -> E {
@@ -224,7 +185,7 @@ macro_rules! make_complex {
             }
         }
 
-        impl ComplexElementComparison for $type {
+        impl ElementComparison for $type {
             fn cmp(&self, other: &Self) -> Ordering {
                 let a = self.to_complex();
                 let b = other.to_complex();

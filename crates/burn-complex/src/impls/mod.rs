@@ -1,2 +1,2 @@
-#[cfg(feature = "ndarray")]
-mod ndarray;
+//#[cfg(feature = "ndarray")]
+//mod ndarray;
