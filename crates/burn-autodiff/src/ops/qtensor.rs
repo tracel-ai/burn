@@ -82,7 +82,10 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _slice_infos: &[burn_tensor::SliceInfo]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        _tensor: QuantizedTensor<Self>,
+        _slice_infos: &[burn_tensor::SliceInfo],
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
