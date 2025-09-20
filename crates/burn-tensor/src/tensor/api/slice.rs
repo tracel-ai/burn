@@ -2,7 +2,7 @@ use crate::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
 /// Information about a slice operation including range and step.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct SliceInfo {
     /// The range of indices to select
     pub range: Range<usize>,

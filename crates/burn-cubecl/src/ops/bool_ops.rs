@@ -55,20 +55,23 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, slice_infos: &[burn_tensor::SliceInfo]) -> BoolTensor<Self> {
-        // For now, only support step=1
-        for info in slice_infos {
-            if info.step != 1 {
-                panic!("cubecl backend does not yet support slice with step != 1");
-            }
+    fn bool_slice(
+        tensor: BoolTensor<Self>,
+        slice_infos: &[burn_tensor::SliceInfo],
+    ) -> BoolTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slice_infos.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> =
+                slice_infos.iter().map(|info| info.range.clone()).collect();
+
+            kernel::slice::<R, BT>(tensor, &simple_ranges)
+        } else {
+            // Use slice with steps kernel
+            kernel::slice_with_steps::<R, BT>(tensor, slice_infos)
         }
-
-        // Convert SliceInfo to Range for step=1
-        let simple_ranges: Vec<Range<usize>> = slice_infos.iter()
-            .map(|info| info.range.clone())
-            .collect();
-
-        kernel::slice::<R, BT>(tensor, &simple_ranges)
     }
 
     fn bool_slice_assign(

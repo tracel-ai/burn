@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Range};
+use std::marker::PhantomData;
 
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr, GatherOpIr,
@@ -6,7 +6,7 @@ use burn_ir::{
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::{
-    DType, Device, Element, Shape, TensorData, TensorMetadata,
+    DType, Device, Element, Shape, SliceInfo, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -397,7 +397,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(tensor: QuantizedTensor<Self>, slice_infos: &[SliceInfo]) -> QuantizedTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -417,7 +417,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+        let mut shape: Vec<usize> = slice_infos.iter().map(|info| {
+            let range_size = info.range.end - info.range.start;
+            let step_abs = info.step.unsigned_abs() as usize;
+            (range_size + step_abs - 1) / step_abs
+        }).collect();
 
         for i in shape.len()..ndims {
             shape.push(tensor.shape[i]);
@@ -427,7 +431,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slice_infos.into(),
             out: out.to_ir_out(),
         };
         out.client.register(

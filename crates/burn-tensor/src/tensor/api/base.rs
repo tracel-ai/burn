@@ -3106,13 +3106,7 @@ impl<B: Backend> BasicOps<B> for Float {
                 TensorPrimitive::Float(B::float_slice(tensor, slice_infos))
             }
             TensorPrimitive::QFloat(tensor) => {
-                // For quantized tensors, fall back to regular slice if all steps are 1
-                if slice_infos.iter().all(|s| s.step == 1) {
-                    let ranges: Vec<_> = slice_infos.iter().map(|s| s.range.clone()).collect();
-                    TensorPrimitive::QFloat(B::q_slice(tensor, &ranges))
-                } else {
-                    panic!("Slice with steps not yet implemented for quantized tensors");
-                }
+                TensorPrimitive::QFloat(B::q_slice(tensor, slice_infos))
             }
         }
     }

@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use core::ops::Range;
 use cubecl_quant::scheme::QuantScheme;
 
 use crate::{
@@ -278,17 +277,17 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B>,
     ) -> QuantizedTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding for the given slice infos.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slice_infos` - The slice infos specifying ranges and steps.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn q_slice(tensor: QuantizedTensor<B>, ranges: &[Range<usize>]) -> QuantizedTensor<B>;
+    fn q_slice(tensor: QuantizedTensor<B>, slice_infos: &[crate::SliceInfo]) -> QuantizedTensor<B>;
 
     /// Gather elements from a tensor.
     ///

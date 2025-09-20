@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, FloatDType, Shape, SliceInfo, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
@@ -839,7 +839,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slice_infos: &[SliceInfo]) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -859,7 +859,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+        let mut shape: Vec<usize> = slice_infos.iter().map(|info| {
+            let range_size = info.range.end - info.range.start;
+            let step_abs = info.step.unsigned_abs() as usize;
+            (range_size + step_abs - 1) / step_abs
+        }).collect();
 
         for i in shape.len()..ndims {
             shape.push(tensor.shape[i]);
@@ -869,7 +873,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slice_infos.into(),
             out: out.to_ir_out(),
         };
         out.client.register(

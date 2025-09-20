@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use burn_tensor::{
     Device, Shape, TensorData,
     backend::Backend,
@@ -84,7 +82,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(_tensor: QuantizedTensor<Self>, _slice_infos: &[burn_tensor::SliceInfo]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

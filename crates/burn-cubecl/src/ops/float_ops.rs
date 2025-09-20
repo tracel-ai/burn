@@ -259,24 +259,31 @@ where
         )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slice_infos: &[burn_tensor::SliceInfo]) -> FloatTensor<Self> {
-        // For now, only support step=1
-        for info in slice_infos {
-            if info.step != 1 {
-                panic!("cubecl backend does not yet support slice with step != 1");
-            }
+    fn float_slice(
+        tensor: FloatTensor<Self>,
+        slice_infos: &[burn_tensor::SliceInfo],
+    ) -> FloatTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slice_infos.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> =
+                slice_infos.iter().map(|info| info.range.clone()).collect();
+
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice::<R, E>(tensor, &simple_ranges)
+            )
+        } else {
+            // Use slice with steps kernel
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice_with_steps::<R, E>(tensor, slice_infos)
+            )
         }
-
-        // Convert SliceInfo to Range for step=1
-        let simple_ranges: Vec<Range<usize>> = slice_infos.iter()
-            .map(|info| info.range.clone())
-            .collect();
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::slice::<R, E>(tensor, &simple_ranges)
-        )
     }
 
     fn float_slice_assign(

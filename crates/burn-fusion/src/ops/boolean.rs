@@ -4,7 +4,7 @@ use burn_ir::{
     SwapDimsOpIr, TensorIr, UnaryOpIr,
 };
 use burn_tensor::{
-    Device, Element, Shape, TensorData, TensorMetadata,
+    Device, Element, Shape, SliceInfo, TensorData, TensorMetadata,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
 };
 use std::marker::PhantomData;
@@ -257,7 +257,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[std::ops::Range<usize>]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slice_infos: &[SliceInfo]) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -275,7 +275,11 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+        let mut shape: Vec<usize> = slice_infos.iter().map(|info| {
+            let range_size = info.range.end - info.range.start;
+            let step_abs = info.step.unsigned_abs() as usize;
+            (range_size + step_abs - 1) / step_abs
+        }).collect();
 
         for i in shape.len()..ndims {
             shape.push(tensor.shape[i]);
@@ -290,7 +294,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slice_infos.into(),
             out: out.to_ir_out(),
         };
         out.client.register(

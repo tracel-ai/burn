@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
@@ -286,7 +284,10 @@ where
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        _tensor: QuantizedTensor<Self>,
+        _slice_infos: &[burn_tensor::SliceInfo],
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
