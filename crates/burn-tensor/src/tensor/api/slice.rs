@@ -387,6 +387,7 @@ impl SliceWithStep {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_calculate_slice_output_shape_basic() {
