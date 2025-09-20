@@ -12,7 +12,9 @@ use burn_ir::{
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
 };
-use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, TensorData, TensorMetadata};
+use burn_tensor::{
+    Device, Distribution, Element, FloatDType, Shape, SliceInfo, TensorData, TensorMetadata,
+};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
@@ -514,12 +516,22 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, ranges: &[SliceInfo]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
         let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+        let mut shape: Vec<usize> = ranges
+            .iter()
+            .map(|info| {
+                let len = info.range.end - info.range.start;
+                if info.step.unsigned_abs() == 1 {
+                    len
+                } else {
+                    len.div_ceil(info.step.unsigned_abs())
+                }
+            })
+            .collect();
 
         for i in shape.len()..ndims {
             shape.push(tensor.shape[i]);

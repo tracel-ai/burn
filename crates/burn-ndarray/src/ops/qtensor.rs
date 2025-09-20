@@ -1,5 +1,4 @@
 use alloc::vec;
-use core::ops::Range;
 
 use burn_tensor::{
     DType, Shape, TensorData, TensorMetadata,
@@ -280,10 +279,14 @@ where
         }
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        tensor: QuantizedTensor<Self>,
+        slice_infos: &[burn_tensor::SliceInfo],
+    ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, |qtensor| NdArrayOps::slice(
-                qtensor, ranges
+                qtensor,
+                slice_infos
             )),
             scheme: tensor.scheme,
             qparams: tensor.qparams,

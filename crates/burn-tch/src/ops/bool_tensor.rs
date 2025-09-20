@@ -61,8 +61,8 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
-        TchOps::slice(tensor, ranges)
+    fn bool_slice(tensor: TchTensor, slice_infos: &[burn_tensor::SliceInfo]) -> TchTensor {
+        TchOps::slice_with_steps(tensor, slice_infos)
     }
 
     fn bool_slice_assign(

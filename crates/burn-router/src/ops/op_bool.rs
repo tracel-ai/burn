@@ -5,7 +5,7 @@ use burn_ir::{
     OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, Shape, TensorData, TensorMetadata};
+use burn_tensor::{Device, Element, Shape, SliceInfo, TensorData, TensorMetadata};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
@@ -111,13 +111,20 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn bool_slice(
-        tensor: BoolTensor<Self>,
-        ranges: &[core::ops::Range<usize>],
-    ) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[SliceInfo]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+        let mut shape: Vec<usize> = ranges
+            .iter()
+            .map(|info| {
+                let len = info.range.end - info.range.start;
+                if info.step.unsigned_abs() == 1 {
+                    len
+                } else {
+                    len.div_ceil(info.step.unsigned_abs())
+                }
+            })
+            .collect();
 
         for i in shape.len()..ndims {
             shape.push(tensor.shape[i]);

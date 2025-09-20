@@ -28,8 +28,8 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<B>, ranges: &[core::ops::Range<usize>]) -> IntTensor<B> {
-        B::int_slice(tensor, ranges)
+    fn int_slice(tensor: IntTensor<B>, slice_infos: &[burn_tensor::SliceInfo]) -> IntTensor<B> {
+        B::int_slice(tensor, slice_infos)
     }
 
     fn int_empty(

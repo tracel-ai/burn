@@ -166,7 +166,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.select(dim, indices)`               | `tensor.index_select(dim, indices)`                                       |
 | `tensor.select_assign(dim, indices, values)`| N/A                                                                       |
 | `tensor.shape()`                            | `tensor.shape`                                                            |
-| `tensor.slice(ranges)`                      | `tensor[(*ranges,)]`                                                      |
+| `tensor.slice(s![range;step])`              | `tensor[(*ranges,)]` or `tensor[start:end:step]`                          |
 | `tensor.slice_assign(ranges, values)`       | `tensor[(*ranges,)] = values`                                             |
 | `tensor.slice_fill(ranges, value)`          | `tensor[(*ranges,)] = value`                                              |
 | `tensor.slice_dim(dim, range)`              | N/A                                                                       |
@@ -180,7 +180,6 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.unsqueeze()`                        | `tensor.unsqueeze(0)`                                                     |
 | `tensor.unsqueeze_dim(dim)`                 | `tensor.unsqueeze(dim)`                                                   |
 | `tensor.unsqueeze_dims(dims)`               | N/A                                                                       |
-
 
 ### Numeric Operations
 
