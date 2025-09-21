@@ -72,6 +72,27 @@ def build_model():
                 name="/Gather3",
                 axis=0
             ),
+            # Constant node for negative indices
+            onnx.helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=["const_neg_indices"],
+                name="/Constant3",
+                value=onnx.helper.make_tensor(
+                    name="const_neg_indices_value",
+                    data_type=onnx.TensorProto.INT64,
+                    dims=[2],  # 1D tensor with 2 elements
+                    vals=[-1, -2]  # Last and second-to-last elements
+                )
+            ),
+            # Gather with negative indices
+            onnx.helper.make_node(
+                "Gather",
+                inputs=["shape1", "const_neg_indices"],
+                outputs=["output4"],
+                name="/Gather4",
+                axis=0
+            ),
         ],
         inputs=[
             onnx.helper.make_value_info(
@@ -105,6 +126,12 @@ def build_model():
                 name="output3",
                 type_proto=onnx.helper.make_tensor_type_proto(
                     elem_type=onnx.TensorProto.INT64, shape=[2]  # 1D tensor output with 2 elements
+                ),
+            ),
+            onnx.helper.make_value_info(
+                name="output4",
+                type_proto=onnx.helper.make_tensor_type_proto(
+                    elem_type=onnx.TensorProto.INT64, shape=[2]  # 1D tensor output with 2 elements (negative indices)
                 ),
             )
         ]),

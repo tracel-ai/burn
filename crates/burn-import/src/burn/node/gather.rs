@@ -58,8 +58,14 @@ impl GatherNode {
                         let index = &idx_scalar.name;
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
+                        // Handle negative indices properly for runtime scalars
                         quote! {
-                            let #output = #input_shape_name[#index as usize] as #scalar_ty;
+                            let actual_idx = if #index < 0 {
+                                (#input_shape_name.len() as i64 + #index) as usize
+                            } else {
+                                #index as usize
+                            };
+                            let #output = #input_shape_name[actual_idx] as #scalar_ty;
                         }
                     }
                     GatherIndices::Static(indices) => {
@@ -69,11 +75,21 @@ impl GatherNode {
                                 indices.len()
                             );
                         }
-                        let idx = indices[0] as usize;
+                        let idx = indices[0];
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
-                        quote! {
-                            let #output = #input_shape_name[#idx] as #scalar_ty;
+
+                        // Only add negative index handling if needed
+                        if idx < 0 {
+                            quote! {
+                                let actual_idx = (#input_shape_name.len() as i64 + #idx) as usize;
+                                let #output = #input_shape_name[actual_idx] as #scalar_ty;
+                            }
+                        } else {
+                            let idx_usize = idx as usize;
+                            quote! {
+                                let #output = #input_shape_name[#idx_usize] as #scalar_ty;
+                            }
                         }
                     }
                     _ => panic!(
@@ -92,10 +108,18 @@ impl GatherNode {
                         let output = &self.output.name();
 
                         if index_rank == 1 {
+                            // Handle negative indices properly for runtime tensors
                             quote! {
                                 let #output: [i64; #output_rank] = #index.to_data()
                                     .iter::<i64>()
-                                    .map(|idx| #input_shape_name[idx as usize])
+                                    .map(|idx| {
+                                        let actual_idx = if idx < 0 {
+                                            (#input_shape_name.len() as i64 + idx) as usize
+                                        } else {
+                                            idx as usize
+                                        };
+                                        #input_shape_name[actual_idx]
+                                    })
                                     .collect::<alloc::vec::Vec<_>>()
                                     .try_into()
                                     .unwrap();
@@ -114,10 +138,18 @@ impl GatherNode {
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
 
+                        // Handle negative indices properly for runtime shape indices
                         quote! {
                             let #output: [i64; #output_rank] = #index_name
                                 .iter()
-                                .map(|&idx| #input_shape_name[idx as usize])
+                                .map(|&idx| {
+                                    let actual_idx = if idx < 0 {
+                                        (#input_shape_name.len() as i64 + idx) as usize
+                                    } else {
+                                        idx as usize
+                                    };
+                                    #input_shape_name[actual_idx]
+                                })
                                 .collect::<alloc::vec::Vec<_>>()
                                 .try_into()
                                 .unwrap();
@@ -135,14 +167,39 @@ impl GatherNode {
                             );
                         }
 
-                        // Generate static gathering code
-                        let gather_elements = indices.iter().map(|&idx| {
-                            let idx_usize = idx as usize;
-                            quote! { #input_shape_name[#idx_usize] }
-                        });
+                        // Check if any indices are negative
+                        let has_negative = indices.iter().any(|&idx| idx < 0);
 
-                        quote! {
-                            let #output: [i64; #output_rank] = [#(#gather_elements),*];
+                        if has_negative {
+                            // Generate code with negative index handling
+                            let indices_tokens = indices
+                                .iter()
+                                .map(|&idx| quote! { #idx })
+                                .collect::<Vec<_>>();
+                            quote! {
+                                let #output: [i64; #output_rank] = [#(#indices_tokens),*]
+                                    .iter()
+                                    .map(|&idx| {
+                                        let actual_idx = if idx < 0 {
+                                            (#input_shape_name.len() as i64 + idx) as usize
+                                        } else {
+                                            idx as usize
+                                        };
+                                        #input_shape_name[actual_idx]
+                                    })
+                                    .collect::<alloc::vec::Vec<_>>()
+                                    .try_into()
+                                    .unwrap();
+                            }
+                        } else {
+                            // Generate simpler code for positive indices
+                            let gather_elements = indices.iter().map(|&idx| {
+                                let idx_usize = idx as usize;
+                                quote! { #input_shape_name[#idx_usize] }
+                            });
+                            quote! {
+                                let #output: [i64; #output_rank] = [#(#gather_elements),*];
+                            }
                         }
                     }
                     _ => panic!(
@@ -460,7 +517,14 @@ mod tests {
                 ) -> [i64; 1] {
                     let shape2: [i64; 1usize] = tensor1.to_data()
                         .iter::<i64>()
-                        .map(|idx| shape1[idx as usize])
+                        .map(|idx| {
+                            let actual_idx = if idx < 0 {
+                                (shape1.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            shape1[actual_idx]
+                        })
                         .collect::<alloc::vec::Vec<_>>()
                         .try_into()
                         .unwrap();
