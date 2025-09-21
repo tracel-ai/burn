@@ -13,7 +13,7 @@ use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
-
+use std::cmp::max;
 use super::NoOp;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
@@ -2255,6 +2255,56 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseFloat(BaseOperationIr::Cast(desc.clone())),
             CastOps::<B>::new(desc, dtype),
+        );
+
+        out
+    }
+
+    fn float_unfold(tensor: FloatTensor<Self>, dim: usize, size: usize, step: usize) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct UnfoldOps<B: FusionBackend> {
+            desc: UnfoldOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_unfold(
+                    input,
+                    self.desc.dim,
+                    self.desc.size,
+                    self.desc.step);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
+        let mut shape = tensor.shape().dims.clone();
+        let d_shape = shape[dim];
+        let windows = max(0, (d_shape - size).div_ceil(step));
+        shape[dim] = windows;
+        shape.insert(dim + 1, size);
+
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim: dim,
+            size: size,
+            step: step,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::Unfold(desc.clone())),
+            UnfoldOps::<B>::new(desc),
         );
 
         out

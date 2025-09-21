@@ -2181,6 +2181,26 @@ where
 
         Tensor::<B, D2, K>::new(K::expand(self.primitive, shape))
     }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - the size of each unfolded window.
+    /// * `stride` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    pub fn unfold<const D2: usize, I: AsIndex>(self, dim: I, size: usize, step: usize) -> Tensor<B, D2, K> {
+        let dim = canonicalize_dim(dim, D, false);
+        Tensor::<B, D2, K>::new(K::unfold(self.primitive, dim, size, step))
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
@@ -3078,6 +3098,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// The broadcasted tensor.
     fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
+
+    /// TODO
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -3307,6 +3330,10 @@ impl<B: Backend> BasicOps<B> for Float {
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
         }
     }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_unfold(tensor.tensor(), dim, size, step))
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -3440,6 +3467,10 @@ impl<B: Backend> BasicOps<B> for Int {
 
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::int_flip(tensor, axes)
+    }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        B::int_unfold(tensor, dim, size, step)
     }
 }
 
@@ -3584,6 +3615,10 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::bool_flip(tensor, axes)
+    }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        B::bool_unfold(tensor, dim, size, step)
     }
 }
 

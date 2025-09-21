@@ -1,8 +1,5 @@
-use burn_ir::{
-    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer,
-    InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, TensorIr, UnaryOpIr,
-};
+use std::cmp::max;
+use burn_ir::{BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer, InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr};
 use burn_tensor::{
     Device, Element, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
@@ -740,6 +737,56 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc.clone())),
             RepeatDimOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_unfold(tensor: BoolTensor<Self>, dim: usize, size: usize, step: usize) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct UnfoldOps<B: FusionBackend> {
+            desc: UnfoldOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                let output = B::bool_unfold(
+                    input,
+                    self.desc.dim,
+                    self.desc.size,
+                    self.desc.step);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
+        let mut shape = tensor.shape().dims.clone();
+        let d_shape = shape[dim];
+        let windows = max(0, (d_shape - size).div_ceil(step));
+        shape[dim] = windows;
+        shape.insert(dim + 1, size);
+
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim: dim,
+            size: size,
+            step: step,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseBool(BaseOperationIr::Unfold(desc.clone())),
+            UnfoldOps::<B>::new(desc),
         );
 
         out

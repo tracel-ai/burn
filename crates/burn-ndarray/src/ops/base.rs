@@ -202,6 +202,29 @@ where
             SliceInfo::<Vec<SliceInfoElem>, IxDyn, IxDyn>::try_from(slice_items).unwrap();
         tensor.slice(slice_info).into_owned().into_shared()
     }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the dimension to unfold.
+    /// * `size` - the size of each unfolded window.
+    /// * `stride` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    #[allow(unused)]
+    pub(crate) fn unfold(tensor: SharedArray<E>, dim: usize, size: usize, step: usize) -> SharedArray<E> {
+        unimplemented!("ndarray unfold not implemented yet");
+    }
+
 }
 
 #[cfg(feature = "simd")]

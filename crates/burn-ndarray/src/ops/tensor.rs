@@ -497,4 +497,9 @@ where
             tensor, grid, method
         ))
     }
+
+    #[allow(unused)]
+    fn float_unfold(tensor: FloatTensor<Self>, dim: usize, size: usize, step: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
+    }
 }

@@ -1385,4 +1385,28 @@ pub trait FloatTensorOps<B: Backend> {
             _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
         }
     }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `stride` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn float_unfold(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<B>;
 }

@@ -445,4 +445,9 @@ where
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
         execute_with_int_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
     }
+
+    #[allow(unused)]
+    fn int_unfold(tensor: IntTensor<Self>, dim: usize, size: usize, step: usize) -> IntTensor<Self> {
+        todo!()
+    }
 }

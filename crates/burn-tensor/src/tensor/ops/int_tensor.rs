@@ -1210,4 +1210,28 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same values as `tensor` but in the target integer data type.
     fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `stride` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn int_unfold(
+        tensor: IntTensor<B>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<B>;
 }

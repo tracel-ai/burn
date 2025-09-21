@@ -888,6 +888,13 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
                 shape: desc.shape.clone(),
             }),
+            BaseOperationIr::Unfold(desc) => BaseOperationIr::Unfold(UnfoldOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim: desc.dim,
+                size: desc.size,
+                step: desc.step,
+            }),
             BaseOperationIr::Flip(desc) => BaseOperationIr::Flip(FlipOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
