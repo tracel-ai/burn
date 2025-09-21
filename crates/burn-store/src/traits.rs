@@ -84,6 +84,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
 
         // Use unsafe to avoid cloning the entire module, which would double the memory usage
         // We read the module out, map it, then write it back
+        // See https://github.com/tracel-ai/burn/issues/3754
         unsafe {
             // Read the module out of self (moves it, leaving self in undefined state)
             let module = core::ptr::read(self as *const Self);
