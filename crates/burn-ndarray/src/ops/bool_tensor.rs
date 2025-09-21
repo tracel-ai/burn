@@ -156,7 +156,12 @@ where
     }
 
     #[allow(unused)]
-    fn bool_unfold(tensor: BoolTensor<Self>, dim: usize, size: usize, step: usize) -> BoolTensor<Self> {
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
         todo!()
     }
 }

@@ -378,7 +378,12 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_cast(tensor, dtype)
     }
 
-    fn int_unfold(tensor: IntTensor<Self>, dim: usize, size: usize, step: usize) -> IntTensor<Self> {
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
         B::int_unfold(tensor, dim, size, step)
     }
 }

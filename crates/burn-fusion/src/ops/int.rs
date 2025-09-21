@@ -2173,7 +2173,12 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_unfold(tensor: IntTensor<Self>, dim: usize, size: usize, step: usize) -> IntTensor<Self> {
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct UnfoldOps<B: FusionBackend> {
             desc: UnfoldOpIr,
@@ -2183,11 +2188,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
-                let output = B::int_unfold(
-                    input,
-                    self.desc.dim,
-                    self.desc.size,
-                    self.desc.step);
+                let output = B::int_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }

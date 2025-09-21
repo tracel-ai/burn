@@ -447,7 +447,12 @@ where
     }
 
     #[allow(unused)]
-    fn int_unfold(tensor: IntTensor<Self>, dim: usize, size: usize, step: usize) -> IntTensor<Self> {
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
         todo!()
     }
 }

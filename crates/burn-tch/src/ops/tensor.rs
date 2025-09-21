@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_tensor::ops::FloatTensor;
 use burn_tensor::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
@@ -472,5 +473,14 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         } else {
             TchTensor::new(tensor.tensor.to_kind(kind))
         }
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
     }
 }

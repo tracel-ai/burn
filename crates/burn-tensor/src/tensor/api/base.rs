@@ -2197,7 +2197,12 @@ where
     /// # Returns
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
-    pub fn unfold<const D2: usize, I: AsIndex>(self, dim: I, size: usize, step: usize) -> Tensor<B, D2, K> {
+    pub fn unfold<const D2: usize, I: AsIndex>(
+        self,
+        dim: I,
+        size: usize,
+        step: usize,
+    ) -> Tensor<B, D2, K> {
         let dim = canonicalize_dim(dim, D, false);
         Tensor::<B, D2, K>::new(K::unfold(self.primitive, dim, size, step))
     }

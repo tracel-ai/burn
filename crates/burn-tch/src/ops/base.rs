@@ -447,6 +447,19 @@ impl TchOps {
         TchTensor::from_existing(broadcasted_tensor, storage)
     }
 
+    pub fn unfold(tensor: TchTensor, dim: usize, size: usize, step: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let uf_tensor = tensor.tensor.unfold(dim as i64, size as i64, step as i64);
+
+        let mut perm: Vec<i64> = (0..uf_tensor.dim()).into_iter().map(|x| x as i64).collect();
+        let last = perm.remove(perm.len() - 1);
+        perm.insert(dim + 1, last);
+
+        let uf_tensor = uf_tensor.permute(perm);
+
+        TchTensor::from_existing(uf_tensor, storage)
+    }
+
     pub fn sort(tensor: TchTensor, dim: usize, descending: bool) -> TchTensor {
         TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
     }

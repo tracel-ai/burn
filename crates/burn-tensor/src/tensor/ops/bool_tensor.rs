@@ -437,10 +437,5 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
-    fn bool_unfold(
-        tensor: BoolTensor<B>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> BoolTensor<B>;
+    fn bool_unfold(tensor: BoolTensor<B>, dim: usize, size: usize, step: usize) -> BoolTensor<B>;
 }

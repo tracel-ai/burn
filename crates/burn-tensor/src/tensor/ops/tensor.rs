@@ -1403,10 +1403,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
-    fn float_unfold(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> FloatTensor<B>;
+    fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
+    -> FloatTensor<B>;
 }

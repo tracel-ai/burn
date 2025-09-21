@@ -1228,10 +1228,5 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
-    fn int_unfold(
-        tensor: IntTensor<B>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> IntTensor<B>;
+    fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
 }

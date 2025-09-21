@@ -703,7 +703,12 @@ where
         }
     }
 
-    fn float_unfold(tensor: FloatTensor<Self>, dim: usize, size: usize, step: usize) -> FloatTensor<Self> {
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
     }
 }

@@ -1,3 +1,4 @@
+use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
@@ -12,9 +13,8 @@ use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
-use std::{marker::PhantomData, ops::Range};
 use std::cmp::max;
-use super::NoOp;
+use std::{marker::PhantomData, ops::Range};
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -2260,7 +2260,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_unfold(tensor: FloatTensor<Self>, dim: usize, size: usize, step: usize) -> FloatTensor<Self> {
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct UnfoldOps<B: FusionBackend> {
             desc: UnfoldOpIr,
@@ -2270,11 +2275,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
-                let output = B::float_unfold(
-                    input,
-                    self.desc.dim,
-                    self.desc.size,
-                    self.desc.step);
+                let output = B::float_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }

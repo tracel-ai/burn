@@ -142,7 +142,12 @@ where
         kernel::flip::<R, BT, BT>(tensor, axes)
     }
 
-    fn bool_unfold(tensor: FloatTensor<Self>, dim: usize, size: usize, step: usize) -> FloatTensor<Self> {
+    fn bool_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
     }
 }

@@ -221,10 +221,14 @@ where
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     #[allow(unused)]
-    pub(crate) fn unfold(tensor: SharedArray<E>, dim: usize, size: usize, step: usize) -> SharedArray<E> {
+    pub(crate) fn unfold(
+        tensor: SharedArray<E>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> SharedArray<E> {
         unimplemented!("ndarray unfold not implemented yet");
     }
-
 }
 
 #[cfg(feature = "simd")]

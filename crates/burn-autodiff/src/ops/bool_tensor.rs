@@ -108,7 +108,12 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_repeat_dim(tensor, dim, times)
     }
 
-    fn bool_unfold(tensor: BoolTensor<Self>, dim: usize, size: usize, step: usize) -> BoolTensor<Self> {
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
         B::bool_unfold(tensor, dim, size, step)
     }
 }

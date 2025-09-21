@@ -1,9 +1,13 @@
-use std::cmp::max;
-use burn_ir::{BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer, InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr};
+use burn_ir::{
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer,
+    InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr,
+    SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+};
 use burn_tensor::{
     Device, Element, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
 };
+use std::cmp::max;
 use std::marker::PhantomData;
 
 use crate::{
@@ -742,7 +746,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn bool_unfold(tensor: BoolTensor<Self>, dim: usize, size: usize, step: usize) -> BoolTensor<Self> {
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct UnfoldOps<B: FusionBackend> {
             desc: UnfoldOpIr,
@@ -752,11 +761,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_unfold(
-                    input,
-                    self.desc.dim,
-                    self.desc.size,
-                    self.desc.step);
+                let output = B::bool_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }

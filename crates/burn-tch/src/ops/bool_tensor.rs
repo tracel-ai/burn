@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_tensor::ops::IntTensor;
 use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
 use std::ops::Range;
 
@@ -149,5 +150,14 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
 
     fn bool_expand(tensor: TchTensor, shape: Shape) -> TchTensor {
         TchOps::expand(tensor, shape)
+    }
+
+    fn bool_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
     }
 }

@@ -1,8 +1,11 @@
-use std::cmp::max;
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_common::tensor::{ReshapeAction, reshape_action};
-use burn_tensor::{Shape, TensorData, quantization::{QTensorPrimitive, QuantLevel}};
+use burn_tensor::{
+    Shape, TensorData,
+    quantization::{QTensorPrimitive, QuantLevel},
+};
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
+use std::cmp::max;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
