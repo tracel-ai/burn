@@ -766,7 +766,14 @@ mod tests {
                 ) -> [i64; 2] {
                     let output_shape: [i64; 2usize] = indices
                         .iter()
-                        .map(|&idx| input_shape[idx as usize])
+                        .map(|&idx| {
+                            let actual_idx = if idx < 0 {
+                                (input_shape.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            input_shape[actual_idx]
+                        })
                         .collect::<alloc::vec::Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -821,7 +828,14 @@ mod tests {
                 ) -> [i64; 3] {
                     let output_shape: [i64; 3usize] = indices
                         .iter()
-                        .map(|&idx| input_shape[idx as usize])
+                        .map(|&idx| {
+                            let actual_idx = if idx < 0 {
+                                (input_shape.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            input_shape[actual_idx]
+                        })
                         .collect::<alloc::vec::Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -874,7 +888,12 @@ mod tests {
                     input_shape: [i64; 3],
                     index: i64
                 ) -> i64 {
-                    let output = input_shape[index as usize] as i64;
+                    let actual_idx = if index < 0 {
+                        (input_shape.len() as i64 + index) as usize
+                    } else {
+                        index as usize
+                    };
+                    let output = input_shape[actual_idx] as i64;
                     output
                 }
             }
