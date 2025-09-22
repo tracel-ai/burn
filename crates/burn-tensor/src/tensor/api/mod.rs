@@ -13,6 +13,7 @@ mod slice;
 mod sort;
 mod take;
 mod transaction;
+mod trunc;
 
 pub use argwhere::argwhere_data;
 pub use autodiff::*;

@@ -296,6 +296,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
 | `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                   |
+| `tensor.trunc()`                             | `tensor.trunc()`                           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                          |
 | `tensor.var_bias(dim)`                       | N/A                                        |
 | `tensor.var_mean(dim)`                       | N/A                                        |
