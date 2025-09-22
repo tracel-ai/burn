@@ -191,6 +191,16 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "slice_fill does not support steps != 1 yet")]
+    fn slice_fill_should_panic_with_non_unit_step() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::ones([4, 4], &device);
+
+        // This should panic because slice_fill doesn't support steps != 1
+        let _result = tensor.slice_fill(s![0..4;2, ..], 5.0);
+    }
+
+    #[test]
     fn slice_should_not_corrupt_potentially_inplace_operations() {
         let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &Default::default());
         let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
@@ -215,6 +225,21 @@ mod tests {
         let expected = TensorData::from([3, 4, 5, 6, 7]);
 
         tensor_2.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "slice_assign does not support steps != 1 yet")]
+    fn slice_assign_should_panic_with_non_unit_step() {
+        let device = Default::default();
+        // Create tensors where the shapes would match if steps were supported
+        let tensor = TestTensor::<2>::ones([4, 4], &device);
+        // With step=2 on first dim, we'd select indices 0 and 2, so we need a [2, 4] values tensor
+        // But since steps aren't supported, this should panic before shape validation
+        let values = TestTensor::<2>::zeros([2, 4], &device);
+
+        // This should panic because slice_assign doesn't support steps != 1
+        // We use s! macro to create a slice with step=2
+        let _result = tensor.slice_assign(s![0..3;2, ..], values);
     }
 
     #[test]

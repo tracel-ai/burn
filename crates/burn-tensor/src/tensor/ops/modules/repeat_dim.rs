@@ -1,4 +1,4 @@
-use crate::{BasicOps, TensorKind, TensorMetadata, backend::Backend};
+use crate::{BasicOps, SliceInfo, TensorKind, TensorMetadata, backend::Backend};
 use alloc::vec::Vec;
 
 pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
@@ -23,7 +23,12 @@ pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B
         indices[dim] = output_index..output_index + original_dim_length;
         output_index += original_dim_length;
 
-        tensor_output = K::slice_assign(tensor_output, &indices, tensor.clone());
+        // Convert ranges to SliceInfo
+        let slice_infos: Vec<SliceInfo> = indices
+            .iter()
+            .map(|r| SliceInfo::from_range(r.clone()))
+            .collect();
+        tensor_output = K::slice_assign(tensor_output, &slice_infos, tensor.clone());
     }
 
     tensor_output
