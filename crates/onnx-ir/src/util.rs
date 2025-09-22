@@ -119,8 +119,7 @@ pub fn compute_broadcast_rank(inputs: &[Argument]) -> usize {
 }
 
 /// Try to compute the broadcasted static shape from multiple inputs.
-/// Returns Some(shape) if all non-scalar inputs have the same static shape.
-/// TODO: Implement full broadcasting rules for different but compatible shapes.
+/// Implements NumPy-style broadcasting rules for compatible shapes.
 pub fn compute_broadcast_static_shape(inputs: &[Argument]) -> Option<Vec<usize>> {
     // Collect all non-None static shapes
     let static_shapes: Vec<_> = inputs
@@ -132,14 +131,52 @@ pub fn compute_broadcast_static_shape(inputs: &[Argument]) -> Option<Vec<usize>>
         return None;
     }
 
+    // If there's only one shape, return it
+    if static_shapes.len() == 1 {
+        return Some(static_shapes[0].clone());
+    }
+
     // If all static shapes are the same, return it
     if static_shapes.windows(2).all(|w| w[0] == w[1]) {
         return Some(static_shapes[0].clone());
     }
 
-    // TODO: Implement proper NumPy-style broadcasting computation
-    // For now, return the first available static shape as a conservative estimate
-    Some(static_shapes[0].clone())
+    // Implement NumPy-style broadcasting rules
+    // Find the maximum rank among all shapes
+    let max_rank = static_shapes.iter().map(|s| s.len()).max()?;
+
+    // Result shape will have max_rank dimensions
+    let mut result = vec![1; max_rank];
+
+    // Process each shape
+    for shape in &static_shapes {
+        // Align shape to the right (prepend 1s to match max_rank)
+        let offset = max_rank - shape.len();
+
+        // Apply broadcasting rules dimension by dimension
+        for (i, &dim) in shape.iter().enumerate() {
+            let result_idx = offset + i;
+            let current_dim = result[result_idx];
+
+            if current_dim == 1 {
+                // Current result dimension is 1, take the new dimension
+                result[result_idx] = dim;
+            } else if dim != 1 && dim != current_dim {
+                // Incompatible dimensions (neither is 1 and they're different)
+                // Broadcasting is not possible
+                log::debug!(
+                    "Incompatible dimensions for broadcasting: {} vs {} at position {}",
+                    current_dim,
+                    dim,
+                    result_idx
+                );
+                return None;
+            }
+            // If dim == 1 or dim == current_dim, keep current_dim
+        }
+    }
+
+    Some(result)
 }
 
 /// Update output rank for broadcasting operations (e.g., Add, Sub) to max input rank.
@@ -368,6 +405,151 @@ mod tests {
             }
             _ => panic!("Expected tensor output when mixing Tensor and Shape inputs"),
         }
+    }
+
+    #[test]
+    fn test_compute_broadcast_static_shape_same_shapes() {
+        let inputs = vec![
+            Argument {
+                name: "input1".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![2, 3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+            Argument {
+                name: "input2".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![2, 3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+        ];
+
+        let result = compute_broadcast_static_shape(&inputs);
+        assert_eq!(result, Some(vec![2, 3, 4]));
+    }
+
+    #[test]
+    fn test_compute_broadcast_static_shape_compatible() {
+        let inputs = vec![
+            Argument {
+                name: "input1".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![1, 3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+            Argument {
+                name: "input2".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![2, 1, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+        ];
+
+        let result = compute_broadcast_static_shape(&inputs);
+        assert_eq!(result, Some(vec![2, 3, 4]));
+    }
+
+    #[test]
+    fn test_compute_broadcast_static_shape_different_ranks() {
+        let inputs = vec![
+            Argument {
+                name: "input1".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 2,
+                    static_shape: Some(vec![3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+            Argument {
+                name: "input2".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![2, 1, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+        ];
+
+        let result = compute_broadcast_static_shape(&inputs);
+        assert_eq!(result, Some(vec![2, 3, 4]));
+    }
+
+    #[test]
+    fn test_compute_broadcast_static_shape_scalar_broadcast() {
+        let inputs = vec![
+            Argument {
+                name: "input1".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 0,
+                    static_shape: Some(vec![]), // Scalar
+                }),
+                value: None,
+                passed: true,
+            },
+            Argument {
+                name: "input2".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 3,
+                    static_shape: Some(vec![2, 3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+        ];
+
+        let result = compute_broadcast_static_shape(&inputs);
+        assert_eq!(result, Some(vec![2, 3, 4]));
+    }
+
+    #[test]
+    fn test_compute_broadcast_static_shape_incompatible() {
+        let inputs = vec![
+            Argument {
+                name: "input1".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 2,
+                    static_shape: Some(vec![3, 4]),
+                }),
+                value: None,
+                passed: true,
+            },
+            Argument {
+                name: "input2".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 2,
+                    static_shape: Some(vec![2, 5]), // Incompatible: 4 != 5
+                }),
+                value: None,
+                passed: true,
+            },
+        ];
+
+        let result = compute_broadcast_static_shape(&inputs);
+        assert_eq!(result, None); // Cannot broadcast
     }
 
     #[test]
