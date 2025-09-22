@@ -465,7 +465,7 @@ mod tests {
     fn container_predicates() {
         // Filter that matches only Linear module weights
         let linear_weights = PathFilter::new().with_predicate(|path, container_path| {
-            container_path.split('.').last() == Some("Linear") && path.ends_with(".weight")
+            container_path.split('.').next_back() == Some("Linear") && path.ends_with(".weight")
         });
 
         assert!(linear_weights.matches_with_container("layer1.weight", "Linear"));
@@ -474,7 +474,7 @@ mod tests {
 
         // Filter for specific container types
         let conv_only = PathFilter::new().with_predicate(|_path, container_path| {
-            let last = container_path.split('.').last();
+            let last = container_path.split('.').next_back();
             last == Some("Conv2d") || last == Some("ConvTranspose2d")
         });
 
@@ -486,7 +486,7 @@ mod tests {
         let combined = PathFilter::new()
             .with_predicate(|path, _container_path| path.starts_with("encoder."))
             .with_predicate(|_path, container_path| {
-                container_path.split('.').last() == Some("BatchNorm2d")
+                container_path.split('.').next_back() == Some("BatchNorm2d")
             });
 
         // Should match either condition (OR logic)
@@ -503,7 +503,8 @@ mod tests {
             let filter = PathFilter::new()
                 .with_regex(r"^encoder\..*")
                 .with_predicate(|path, container_path| {
-                    container_path.split('.').last() == Some("Linear") && path.contains(".bias")
+                    container_path.split('.').next_back() == Some("Linear")
+                        && path.contains(".bias")
                 });
 
             // Matches due to regex
@@ -607,7 +608,7 @@ mod tests {
             // Only weights in Linear layers that are inside blocks
             path.ends_with(".weight")
                 && container_path.contains("Block")
-                && container_path.split('.').last() == Some("Linear")
+                && container_path.split('.').next_back() == Some("Linear")
         });
 
         assert!(
