@@ -2211,9 +2211,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = UnfoldOpIr {
             input: tensor.into_ir(),
             out: out.to_ir_out(),
-            dim: dim,
-            size: size,
-            step: step,
+            dim,
+            size,
+            step,
         };
 
         out.client.register(
