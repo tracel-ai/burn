@@ -201,7 +201,7 @@ pub fn unfold(tensor: CandleTensor, dim: usize, size: usize, step: usize) -> Can
     result_shape[dim] = windows;
     result_shape.push(size);
 
-    let mut select_ranges = Shape::from(tensor.shape()).into_ranges();
+    let mut select_ranges = tensor.shape().into_ranges();
     let new_axis = select_ranges.len();
 
     let mut stack = Vec::with_capacity(windows);
