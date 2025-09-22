@@ -28,6 +28,7 @@ mod finite;
 mod flatten;
 mod flip;
 mod floor;
+mod fmod;
 mod full;
 mod gather_scatter;
 mod grid_sample;

@@ -6,6 +6,7 @@ mod base;
 mod bool;
 mod cartesian_grid;
 mod float;
+mod fmod;
 mod int;
 mod kind;
 mod numeric;
