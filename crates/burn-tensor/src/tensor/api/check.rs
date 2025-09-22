@@ -732,22 +732,27 @@ impl TensorCheck {
 
         for (i, slice) in slices.iter().enumerate().take(D1) {
             let d_tensor = shape.dims[i];
-            let range = slice.to_range(d_tensor);
 
-            if range.end > d_tensor {
+            // Check the raw end value before conversion
+            if let Some(end) = slice.end
+                && end > 0
+                && end as usize > d_tensor
+            {
                 check = check.register(
-                    "Slice",
-                    TensorError::new(
-                        "The provided slice has a range that exceeds the current tensor \
-                         size.",
-                    )
-                    .details(format!(
-                        "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                         Tensor shape {:?}.",
-                        range.start, range.end, d_tensor, i, shape.dims,
-                    )),
-                );
+                        "Slice",
+                        TensorError::new(
+                            "The provided slice has a range that exceeds the current tensor \
+                             size.",
+                        )
+                        .details(format!(
+                            "The slice end index {} exceeds the size of the tensor ({}) at dimension {}. \
+                             Tensor shape {:?}.",
+                            end, d_tensor, i, shape.dims,
+                        )),
+                    );
             }
+
+            let range = slice.to_range(d_tensor);
 
             if range.start >= range.end {
                 check = check.register(
@@ -1411,29 +1416,15 @@ mod tests {
     #[test]
     #[should_panic]
     fn index_range_exceed_dimension() {
-        let slice_infos = vec![
-            SliceInfo::from_range(0..2),
-            SliceInfo::from_range(0..4),
-            SliceInfo::from_range(1..8),
-        ];
-        check!(TensorCheck::slice::<3, 3>(
-            &Shape::new([3, 5, 7]),
-            &slice_infos
-        ));
+        let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
+        check!(TensorCheck::slice::<3, 3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
     #[should_panic]
     fn index_range_exceed_number_of_dimensions() {
-        let slice_infos = vec![
-            SliceInfo::from_range(0..1),
-            SliceInfo::from_range(0..1),
-            SliceInfo::from_range(0..1),
-        ];
-        check!(TensorCheck::slice::<2, 3>(
-            &Shape::new([3, 5]),
-            &slice_infos
-        ));
+        let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
+        check!(TensorCheck::slice::<2, 3>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]

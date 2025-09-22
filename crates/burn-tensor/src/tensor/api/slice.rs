@@ -387,9 +387,9 @@ mod tests {
     fn test_calculate_slice_output_shape_mixed_steps() {
         // Test with a mix of positive, negative, and unit steps
         let slices = vec![
-            Slice::new(1..6, 1),   // 5 elements
-            Slice::new(0..10, -3), // [9,6,3,0] -> 4 elements
-            Slice::new(2..14, 4),  // [2,6,10] -> 3 elements
+            Slice::from_range_stepped(1..6, 1),   // 5 elements
+            Slice::from_range_stepped(0..10, -3), // [9,6,3,0] -> 4 elements
+            Slice::from_range_stepped(2..14, 4),  // [2,6,10] -> 3 elements
         ];
         let original_shape = vec![20, 20, 20];
         let result = calculate_slice_output_shape(&slices, &original_shape);
@@ -400,7 +400,7 @@ mod tests {
     fn test_calculate_slice_output_shape_partial_dims() {
         // Test when slice_infos has fewer dimensions than original shape
         let slices = vec![
-            Slice::new(2..7, 2), // [2,4,6] -> 3 elements
+            Slice::from_range_stepped(2..7, 2), // [2,4,6] -> 3 elements
         ];
         let original_shape = vec![10, 20, 30, 40];
         let result = calculate_slice_output_shape(&slices, &original_shape);
@@ -411,9 +411,9 @@ mod tests {
     fn test_calculate_slice_output_shape_edge_cases() {
         // Test edge cases with small ranges and large steps
         let slices = vec![
-            Slice::new(0..1, 1),    // Single element
-            Slice::new(0..10, 100), // Step larger than range -> 1 element
-            Slice::new(5..5, 1),    // Empty range -> 0 elements
+            Slice::from_range_stepped(0..1, 1),    // Single element
+            Slice::from_range_stepped(0..10, 100), // Step larger than range -> 1 element
+            Slice::from_range_stepped(5..5, 1),    // Empty range -> 0 elements
         ];
         let original_shape = vec![10, 20, 30];
         let result = calculate_slice_output_shape(&slices, &original_shape);
@@ -445,9 +445,9 @@ mod tests {
     fn test_calculate_slice_output_shape_uneven_division() {
         // Test cases where range size doesn't divide evenly by step
         let slices = vec![
-            Slice::new(0..7, 3),  // ceil(7/3) = 3 elements: [0,3,6]
-            Slice::new(0..11, 4), // ceil(11/4) = 3 elements: [0,4,8]
-            Slice::new(1..10, 5), // ceil(9/5) = 2 elements: [1,6]
+            Slice::from_range_stepped(0..7, 3), // ceil(7/3) = 3 elements: [0,3,6]
+            Slice::from_range_stepped(0..11, 4), // ceil(11/4) = 3 elements: [0,4,8]
+            Slice::from_range_stepped(1..10, 5), // ceil(9/5) = 2 elements: [1,6]
         ];
         let original_shape = vec![20, 20, 20];
         let result = calculate_slice_output_shape(&slices, &original_shape);
