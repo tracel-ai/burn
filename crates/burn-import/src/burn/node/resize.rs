@@ -302,6 +302,47 @@ mod tests {
             use burn::nn::interpolate::Interpolate2d;
             use burn::nn::interpolate::Interpolate2dConfig;
             use burn::nn::interpolate::InterpolateMode;
+
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                resize: Option<Interpolate2d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        resize: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_resize(&mut self) {
+                    self.resize = None;
+                }
+                #[allow(unused)]
+                pub fn load_resize(&mut self, device: &B::Device) {
+                    let resize = Interpolate2dConfig::new()
+                        .with_output_size(None)
+                        .with_scale_factor(Some([0.5, 0.5]))
+                        .with_mode(InterpolateMode::Nearest)
+                        .init();
+                    self.resize = Some(resize);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    tensor1: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_resize(device);
+                    let tensor2 = self.resize.take()?.forward(tensor1);
+                    Some(tensor2)
+                }
+            }
+
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate2d,
@@ -353,6 +394,47 @@ mod tests {
             use burn::nn::interpolate::Interpolate1d;
             use burn::nn::interpolate::Interpolate1dConfig;
             use burn::nn::interpolate::InterpolateMode;
+
+            #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                resize: Option<Interpolate1d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        resize: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_resize(&mut self) {
+                    self.resize = None;
+                }
+                #[allow(unused)]
+                pub fn load_resize(&mut self, device: &B::Device) {
+                    let resize = Interpolate1dConfig::new()
+                        .with_output_size(Some(20))
+                        .with_scale_factor(Some(2.0))
+                        .with_mode(InterpolateMode::Cubic)
+                        .init();
+                    self.resize = Some(resize);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    tensor1: Tensor<B, 3>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 3>> {
+                    self.load_resize(device);
+                    let tensor2 = self.resize.take()?.forward(tensor1);
+                    Some(tensor2)
+                }
+            }
+
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate1d,

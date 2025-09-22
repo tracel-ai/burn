@@ -95,6 +95,31 @@ mod tests {
         let expected = quote! {
             use burn::prelude::*;
 
+             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    tensor1: Tensor<B, 2>,
+                    device: &B::Device,
+                ) -> Option<(Tensor<B, 2>, Tensor<B, 2>)> {
+                    let split_tensors = tensor1.split(2, 0);
+                    let [tensor2, tensor3] = split_tensors.try_into().unwrap();
+                    Some((tensor2, tensor3))
+                }
+            }
+
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,

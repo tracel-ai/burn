@@ -123,6 +123,46 @@ mod tests {
             use burn::nn::pool::MaxPool2dConfig;
 
             #[derive(Module, Debug)]
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                max_pool2d: Option<MaxPool2d>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        max_pool2d: None,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(unused)]
+                pub fn unload_max_pool2d(&mut self) {
+                    self.max_pool2d = None;
+                }
+                #[allow(unused)]
+                pub fn load_max_pool2d(&mut self, device: &B::Device) {
+                    let max_pool2d = MaxPool2dConfig::new([3, 3])
+                        .with_strides([1, 1])
+                        .with_padding(PaddingConfig2d::Valid)
+                        .with_dilation([1, 1])
+                        .init();
+                    self.max_pool2d = Some(max_pool2d);
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_max_pool2d(device);
+                    let output = self.max_pool2d.take()?.forward(input);
+                    Some(output)
+                }
+            }
+
+            #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
                 max_pool2d: MaxPool2d,
                 phantom: core::marker::PhantomData<B>,

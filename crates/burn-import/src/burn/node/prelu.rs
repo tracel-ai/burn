@@ -120,6 +120,47 @@ mod tests {
         use burn::prelude::*;
         use burn::nn::PRelu;
         use burn::nn::PReluConfig;
+
+        #[derive(Module, Debug)]
+        pub struct ModelSegmentedLayerLoader<B: Backend> {
+            prelu: Option<PRelu<B>>,
+            phantom: core::marker::PhantomData<B>,
+            device: burn::module::Ignored<B::Device>,
+        }
+        impl<B: Backend> ModelSegmentedLayerLoader<B> {
+            #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                Self {
+                    prelu: None,
+                    phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
+                }
+            }
+            #[allow(unused)]
+            pub fn unload_prelu(&mut self) {
+                self.prelu = None;
+            }
+            #[allow(unused)]
+            pub fn load_prelu(&mut self, device: &B::Device) {
+                #[allow(clippy::useless_conversion)]
+                let record: <PRelu<B> as burn::module::Module<B>>::Record = Self::recorder()
+                    .load(PRELU_STATES.into(), device)
+                    .expect("Should decode state successfully");
+                let prelu = PReluConfig::new().init(device);
+                self.prelu = Some(burn::module::Module::<B>::load_record(prelu, record));
+            }
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn memory_efficient_forward(
+                &mut self,
+                input: Tensor<B, 4>,
+                device: &B::Device,
+            ) -> Option<Tensor<B, 4>> {
+                self.load_prelu(device);
+                let output = self.prelu.take()?.forward(input);
+                Some(output)
+            }
+        }
+
         #[derive(Module, Debug)]
         pub struct Model<B: Backend> {
             prelu: PRelu<B>,

@@ -466,7 +466,54 @@ pub(crate) mod tests {
             use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                conv2d: Option<Conv2d<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                Self {
+                    conv2d: None,
+                    phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
+                }
+            }
+            #[allow(unused)]
+            pub fn unload_conv2d(&mut self) {
+                self.conv2d = None;
+            }
+            #[allow(unused)]
+            pub fn load_conv2d(&mut self, device: &B::Device) {
+                #[allow(clippy::useless_conversion)]
+                let record: <Conv2d<B> as burn::module::Module<B>>::Record = Self::recorder()
+                    .load(CONV2D_STATES.into(), device)
+                    .expect("Should decode state successfully");
+                let conv2d = Conv2dConfig::new([3, 3], [3, 3])
+                    .with_stride([1, 1])
+                    .with_padding(PaddingConfig2d::Valid)
+                    .with_dilation([1, 1])
+                    .with_groups(1)
+                    .with_bias(true)
+                    .init(device);
+                self.conv2d = Some(burn::module::Module::<B>::load_record(conv2d, record));
+            }
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn memory_efficient_forward(
+                &mut self,
+                tensor1: Tensor<B, 4>,
+                tensor2: Tensor<B, 4>,
+                device: &B::Device,
+            ) -> Option<Tensor<B, 4>> {
+                let tensor3 = tensor1.matmul(tensor2);
+                self.load_conv2d(device);
+                let tensor4 = self.conv2d.take()?.forward(tensor3);
+                Some(tensor4)
+            }
+        }
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
@@ -549,7 +596,55 @@ pub(crate) mod tests {
             use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                conv2d: Option<Conv2d<B>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
+                #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                Self {
+                    conv2d: None,
+                    phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
+                }
+            }
+            #[allow(unused)]
+            pub fn unload_conv2d(&mut self) {
+                self.conv2d = None;
+            }
+            #[allow(unused)]
+            pub fn load_conv2d(&mut self, device: &B::Device) {
+                #[allow(clippy::useless_conversion)]
+                let record: <Conv2d<B> as burn::module::Module<B>>::Record = Self::recorder()
+                    .load(CONV2D_STATES.into(), device)
+                    .expect("Should decode state successfully");
+                let conv2d = Conv2dConfig::new([3, 3], [3, 3])
+                    .with_stride([1, 1])
+                    .with_padding(PaddingConfig2d::Valid)
+                    .with_dilation([1, 1])
+                    .with_groups(1)
+                    .with_bias(true)
+                    .init(device);
+                self.conv2d = Some(burn::module::Module::<B>::load_record(conv2d, record));
+            }
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn memory_efficient_forward(
+                &mut self,
+                tensor1: Tensor<B, 4>,
+                tensor2: Tensor<B, 4>,
+                device: &B::Device,
+            ) -> Option<Tensor<B, 4>> {
+                let tensor3 = tensor1.matmul(tensor2.clone());
+                self.load_conv2d(device);
+                let tensor4 = self.conv2d.take()?.forward(tensor2);
+                let output = tensor3.matmul(tensor4);
+                Some(output)
+            }
+        }
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,

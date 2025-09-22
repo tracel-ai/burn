@@ -125,17 +125,17 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(LinearNode::new(
-            "linear",
+            "linear1",
             TensorType::new_float("input", 4),
-            TensorType::new_float("output", 4),
+            TensorType::new_float("output1", 4),  // Changed output name to be unique
             TensorData::from([2f32]),
             None,
             LinearConfig::new(128, 128),
         ));
 
         graph.register(LinearNode::new(
-            "linear",
-            TensorType::new_float("input", 4),
+            "linear2",
+            TensorType::new_float("output1", 4),  // Use output1 as input to linear2
             TensorType::new_float("output", 4),
             TensorData::from([2f32]),
             None,
@@ -144,42 +144,105 @@ mod tests {
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
-        println!("graph: {:#?}", graph);
-
         let expected = quote! {
             use burn::prelude::*;
             use burn::nn::Linear;
             use burn::nn::LinearConfig;
 
             #[derive(Module, Debug)]
-            pub struct Model <B: Backend> {
-                linear: Linear<B>,
+            pub struct ModelSegmentedLayerLoader<B: Backend> {
+                linear1: Option<Linear<B>>,
+                linear2: Option<Linear<B>>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
 
-            impl<B: Backend> Model <B> {
+            impl<B: Backend> ModelSegmentedLayerLoader<B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let linear = LinearConfig::new(128, 128)
-                        .with_bias(true)
-                        .init(device);
-
                     Self {
-                        linear,
+                        linear1: None,
+                        linear2: None,
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
+
+                #[allow(unused)]
+                pub fn unload_linear1(&mut self) {
+                    self.linear1 = None;
+                }
+
+                #[allow(unused)]
+                pub fn unload_linear2(&mut self) {
+                    self.linear2 = None;
+                }
+
+                #[allow(unused)]
+                pub fn load_linear1(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Linear<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(LINEAR1_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let linear1 = LinearConfig::new(128, 128).with_bias(true).init(device);
+                    self.linear1 = Some(burn::module::Module::<B>::load_record(linear1, record));
+                }
+
+                #[allow(unused)]
+                pub fn load_linear2(&mut self, device: &B::Device) {
+                    #[allow(clippy::useless_conversion)]
+                    let record: <Linear<B> as burn::module::Module<B>>::Record = Self::recorder()
+                        .load(LINEAR2_STATES.into(), device)
+                        .expect("Should decode state successfully");
+                    let linear2 = LinearConfig::new(128, 128).with_bias(true).init(device);
+                    self.linear2 = Some(burn::module::Module::<B>::load_record(linear2, record));
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn memory_efficient_forward(
+                    &mut self,
+                    input: Tensor<B, 4>,
+                    device: &B::Device,
+                ) -> Option<Tensor<B, 4>> {
+                    self.load_linear1(device);
+                    let output1 = self.linear1.take()?.forward(input);
+                    self.load_linear2(device);
+                    let output = self.linear2.take()?.forward(output1);
+                    Some(output)
+                }
+            }
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                linear1: Linear<B>,
+                linear2: Linear<B>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    let linear1 = LinearConfig::new(128, 128).with_bias(true).init(device);
+                    let linear2 = LinearConfig::new(128, 128).with_bias(true).init(device);
+
+                    Self {
+                        linear1,
+                        linear2,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let output = self.linear.forward(input);
-
+                    let output1 = self.linear1.forward(input);
+                    let output = self.linear2.forward(output1);
                     output
                 }
             }
         };
 
         assert_tokens(graph.codegen(), expected);
-    }
+    }   
 }
