@@ -110,8 +110,8 @@ tracing-subscriber = "0.3.20"
 zip = "4.6.0"
 
 # Persist related
-safetensors = { version = "0.6.2", default-features = false }
 memmap2 = { version = "0.9" }
+safetensors = { version = "0.6.2", default-features = false }
 
 # Async handling
 async-channel = "2.5"
@@ -169,9 +169,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad03f7892f4069d3406f936fd9fa3ac3b090c1fe" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad03f7892f4069d3406f936fd9fa3ac3b090c1fe" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad03f7892f4069d3406f936fd9fa3ac3b090c1fe" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

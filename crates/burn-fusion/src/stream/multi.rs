@@ -311,7 +311,12 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         for id in streams_to_sync.drain() {
+            let old = unsafe { StreamId::swap(id) };
+            log::info!("Drain stream {id} for use in current {current}");
             self.resolve_stream(handles, id, nodes);
+            unsafe {
+                StreamId::swap(old);
+            };
         }
     }
 

@@ -134,10 +134,6 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 
-compilation-cache = [
-    "burn-cuda?/compilation-cache",
-    "burn-rocm?/compilation-cache",
-]
 
 [dependencies]
 

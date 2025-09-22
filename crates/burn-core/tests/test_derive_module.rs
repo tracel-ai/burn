@@ -16,6 +16,7 @@ pub struct ModuleBasic<B: Backend> {
 }
 
 #[derive(Module, Debug)]
+#[allow(unused)]
 struct ModuleTensorConstInt<B: Backend> {
     weight_basic: Tensor<B, 2, Int>,
 }
@@ -50,6 +51,7 @@ enum ModuleEnum<B: Backend> {
 }
 
 #[derive(Module, Debug)]
+#[allow(unused)]
 enum ModuleEnumNested<B: Backend> {
     AnotherEnum(ModuleEnum<B>),
 }

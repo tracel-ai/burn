@@ -64,6 +64,7 @@ mod tests {
     }
 
     #[derive(Module, Debug)]
+    #[allow(unused)]
     pub struct ModelNewFieldOrders<B: Backend> {
         array_const: [usize; 2],
         linear2: Linear<B>,
