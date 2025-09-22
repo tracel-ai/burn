@@ -83,7 +83,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements at the given indices.
-    fn int_slice(tensor: IntTensor<B>, slice_infos: &[crate::SliceInfo]) -> IntTensor<B>;
+    fn int_slice(tensor: IntTensor<B>, slices: &[crate::Slice]) -> IntTensor<B>;
 
     /// Sets the element at the given indices.
     ///

@@ -6,7 +6,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
 use burn_tensor::{
-    DType, Distribution, SliceInfo,
+    DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
@@ -736,7 +736,7 @@ pub struct SelectAssignOpIr {
 #[allow(missing_docs)]
 pub struct SliceOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<SliceInfo>,
+    pub ranges: Vec<Slice>,
     pub out: TensorIr,
 }
 

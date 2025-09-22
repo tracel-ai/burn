@@ -34,18 +34,18 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn slice_with_steps(
-        tensor: TchTensor,
-        slice_infos: &[burn_tensor::SliceInfo],
-    ) -> TchTensor {
+    pub fn slice_with_steps(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
         let storage = tensor.storage.clone();
         let mut tensor = tensor.tensor.shallow_clone();
 
-        for (dim, info) in slice_infos.iter().enumerate() {
+        for (dim, slice) in slices.iter().enumerate() {
             let dim_i64 = dim as i64;
-            let start = info.range.start as i64;
-            let end = info.range.end as i64;
-            let step = info.step as i64;
+            // Convert slice to range using a dummy size (we'll use tensor dimensions)
+            let dim_size = tensor.size()[dim];
+            let range = slice.to_range(dim_size as usize);
+            let start = range.start as i64;
+            let end = range.end as i64;
+            let step = slice.step as i64;
 
             if step > 0 {
                 // Forward stepping - use native slice

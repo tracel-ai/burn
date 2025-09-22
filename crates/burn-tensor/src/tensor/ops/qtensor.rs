@@ -287,7 +287,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn q_slice(tensor: QuantizedTensor<B>, slice_infos: &[crate::SliceInfo]) -> QuantizedTensor<B>;
+    fn q_slice(tensor: QuantizedTensor<B>, slices: &[crate::Slice]) -> QuantizedTensor<B>;
 
     /// Gather elements from a tensor.
     ///

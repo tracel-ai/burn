@@ -259,17 +259,17 @@ where
         )
     }
 
-    fn float_slice(
-        tensor: FloatTensor<Self>,
-        slice_infos: &[burn_tensor::SliceInfo],
-    ) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
         // Check if all steps are 1
-        let all_steps_one = slice_infos.iter().all(|info| info.step == 1);
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
 
         if all_steps_one {
             // Use optimized slice for step=1
-            let simple_ranges: Vec<Range<usize>> =
-                slice_infos.iter().map(|info| info.range.clone()).collect();
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .collect();
 
             execute_with_dtype!(
                 float(tensor.dtype),
@@ -281,7 +281,7 @@ where
             execute_with_dtype!(
                 float(tensor.dtype),
                 E,
-                kernel::slice_with_steps::<R, E>(tensor, slice_infos)
+                kernel::slice_with_steps::<R, E>(tensor, slices)
             )
         }
     }

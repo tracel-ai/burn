@@ -13,7 +13,7 @@ use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
 };
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, SliceInfo, TensorData, TensorMetadata,
+    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     calculate_slice_output_shape,
 };
 
@@ -517,17 +517,17 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[SliceInfo]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let shape = calculate_slice_output_shape(ranges, &tensor.shape);
+        let shape = calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
 

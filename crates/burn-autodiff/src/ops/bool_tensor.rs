@@ -32,8 +32,8 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<B>, slice_infos: &[burn_tensor::SliceInfo]) -> BoolTensor<B> {
-        B::bool_slice(tensor, slice_infos)
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[burn_tensor::Slice]) -> BoolTensor<B> {
+        B::bool_slice(tensor, slices)
     }
 
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B> {

@@ -6,7 +6,7 @@ use burn_ir::{
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::{
-    DType, Device, Element, Shape, SliceInfo, TensorData, TensorMetadata,
+    DType, Device, Element, Shape, Slice, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -397,7 +397,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, slice_infos: &[SliceInfo]) -> QuantizedTensor<Self> {
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -416,13 +416,13 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
-        let shape = burn_tensor::calculate_slice_output_shape(slice_infos, &tensor.shape);
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: slice_infos.into(),
+            ranges: slices.into(),
             out: out.to_ir_out(),
         };
         out.client.register(

@@ -478,7 +478,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice(tensor: FloatTensor<B>, slice_infos: &[crate::SliceInfo]) -> FloatTensor<B>;
+    fn float_slice(tensor: FloatTensor<B>, slices: &[crate::Slice]) -> FloatTensor<B>;
 
     /// Assign the selected elements corresponding for the given ranges to the given value.
     ///

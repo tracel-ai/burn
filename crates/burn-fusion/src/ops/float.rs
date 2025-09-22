@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, SliceInfo, TensorData, TensorMetadata,
+    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
@@ -839,7 +839,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slice_infos: &[SliceInfo]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -858,13 +858,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
-        let shape = burn_tensor::calculate_slice_output_shape(slice_infos, &tensor.shape);
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: slice_infos.into(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -908,7 +908,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: ranges.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };

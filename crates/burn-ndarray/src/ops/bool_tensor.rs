@@ -41,8 +41,8 @@ where
         NdArrayOps::reshape(tensor.bool(), shape).into()
     }
 
-    fn bool_slice(tensor: NdArrayTensor, slice_infos: &[burn_tensor::SliceInfo]) -> NdArrayTensor {
-        NdArrayOps::slice(tensor.bool(), slice_infos).into()
+    fn bool_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
+        NdArrayOps::slice(tensor.bool(), slices).into()
     }
 
     fn bool_into_int(tensor: NdArrayTensor) -> NdArrayTensor {

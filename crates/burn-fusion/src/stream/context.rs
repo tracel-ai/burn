@@ -898,7 +898,7 @@ impl RelativeOps for BaseOperationIr {
                 ranges: desc
                     .ranges
                     .iter()
-                    .map(|_info| burn_tensor::SliceInfo::from_range(0..1))
+                    .map(|_info| burn_tensor::Slice::from(0..1))
                     .collect(),
                 out: desc.out.to_relative(converter),
             }),

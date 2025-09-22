@@ -105,23 +105,25 @@ pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleT
     CandleTensor::new(narrow_tensor)
 }
 
-pub fn slice_with_steps(
-    tensor: CandleTensor,
-    slice_infos: &[burn_tensor::SliceInfo],
-) -> CandleTensor {
+pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> CandleTensor {
     let mut result_tensor = tensor.tensor;
 
-    for (dim, info) in slice_infos.iter().enumerate() {
-        if info.step == 1 {
+    for (dim, slice) in slices.iter().enumerate() {
+        if slice.step == 1 {
             // Use narrow for step=1 (more efficient)
-            let start = info.range.start;
-            let length = info.range.end - info.range.start;
+            // Convert slice to range using tensor shape
+            let dim_size = result_tensor.dim(dim).unwrap();
+            let range = slice.to_range(dim_size);
+            let start = range.start;
+            let length = range.end - range.start;
             result_tensor = result_tensor.narrow(dim, start, length).unwrap();
         } else {
             // Use index_select for step != 1
-            let start = info.range.start;
-            let end = info.range.end;
-            let step = info.step;
+            let dim_size = result_tensor.dim(dim).unwrap();
+            let range = slice.to_range(dim_size);
+            let start = range.start;
+            let end = range.end;
+            let step = slice.step;
 
             // Generate indices based on step direction
             let indices_vec = if step > 0 {

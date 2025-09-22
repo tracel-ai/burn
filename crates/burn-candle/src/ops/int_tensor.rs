@@ -41,11 +41,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::reshape(tensor, shape)
     }
 
-    fn int_slice(
-        tensor: IntTensor<Self>,
-        slice_infos: &[burn_tensor::SliceInfo],
-    ) -> IntTensor<Self> {
-        super::base::slice_with_steps(tensor, slice_infos)
+    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn int_slice_assign(

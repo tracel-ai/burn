@@ -5,7 +5,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, SliceInfo};
+use burn_tensor::{Shape, Slice};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -169,20 +169,23 @@ fn slice_with_steps_kernel<E: CubePrimitive>(
 /// Slice a tensor with steps
 pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
-    slice_infos: &[SliceInfo],
+    slices: &[Slice],
 ) -> CubeTensor<R> {
     // Check if all steps are 1 - if so, use the optimized regular slice
-    let all_steps_one = slice_infos.iter().all(|info| info.step == 1);
+    let all_steps_one = slices.iter().all(|info| info.step == 1);
 
     if all_steps_one {
-        // Convert SliceInfo to Range for step=1
-        let simple_ranges: Vec<Range<usize>> =
-            slice_infos.iter().map(|info| info.range.clone()).collect();
+        // Convert Slice to Range for step=1
+        let simple_ranges: Vec<Range<usize>> = slices
+            .iter()
+            .enumerate()
+            .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+            .collect();
         return slice::<R, E>(tensor, &simple_ranges);
     }
 
     // Calculate output shape
-    let output_dims = burn_tensor::calculate_slice_output_shape(slice_infos, &tensor.shape.dims);
+    let output_dims = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape.dims);
     let shape_output = Shape::from(output_dims);
 
     // Create output tensor
@@ -197,14 +200,15 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
     let mut ends = SequenceArg::<R, u32>::new();
     let mut steps = SequenceArg::<R, i32>::new();
 
-    for info in slice_infos {
-        starts.push(ScalarArg::new(info.range.start as u32));
-        ends.push(ScalarArg::new(info.range.end as u32));
-        steps.push(ScalarArg::new(info.step as i32));
+    for (dim, slice) in slices.iter().enumerate() {
+        let range = slice.to_range(tensor.shape.dims[dim]);
+        starts.push(ScalarArg::new(range.start as u32));
+        ends.push(ScalarArg::new(range.end as u32));
+        steps.push(ScalarArg::new(slice.step as i32));
     }
 
     // Pad with default values if needed to match tensor dimensions
-    for dim in slice_infos.len()..tensor.shape.num_dims() {
+    for dim in slices.len()..tensor.shape.num_dims() {
         starts.push(ScalarArg::new(0));
         ends.push(ScalarArg::new(tensor.shape.dims[dim] as u32));
         steps.push(ScalarArg::new(1));

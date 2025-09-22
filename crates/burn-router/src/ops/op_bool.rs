@@ -5,7 +5,7 @@ use burn_ir::{
     OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, Shape, SliceInfo, TensorData, calculate_slice_output_shape};
+use burn_tensor::{Device, Element, Shape, Slice, TensorData, calculate_slice_output_shape};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
@@ -111,15 +111,15 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[SliceInfo]) -> BoolTensor<Self> {
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let shape = calculate_slice_output_shape(ranges, &tensor.shape);
+        let shape = calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
 

@@ -223,8 +223,8 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn float_slice(tensor: TchTensor, slice_infos: &[burn_tensor::SliceInfo]) -> TchTensor {
-        TchOps::slice_with_steps(tensor, slice_infos)
+    fn float_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+        TchOps::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(

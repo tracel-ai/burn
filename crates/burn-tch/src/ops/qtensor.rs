@@ -74,7 +74,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
 
     fn q_slice(
         _tensor: QuantizedTensor<Self>,
-        _slice_infos: &[burn_tensor::SliceInfo],
+        _slices: &[burn_tensor::Slice],
     ) -> QuantizedTensor<Self> {
         unimplemented!()
     }

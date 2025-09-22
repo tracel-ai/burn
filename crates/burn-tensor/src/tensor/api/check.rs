@@ -1,7 +1,4 @@
-use crate::{
-    BasicOps, Numeric, Shape, Tensor, backend::Backend, cast::ToElement,
-    tensor::api::slice::SliceInfo,
-};
+use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -713,13 +710,10 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice<const D1: usize, const D2: usize>(
-        shape: &Shape,
-        slice_infos: &[SliceInfo],
-    ) -> Self {
+    pub(crate) fn slice<const D1: usize, const D2: usize>(shape: &Shape, slices: &[Slice]) -> Self {
         let mut check = Self::Ok;
         let n_dims_tensor = D1;
-        let n_dims_slices = slice_infos.len();
+        let n_dims_slices = slices.len();
 
         if n_dims_tensor < n_dims_slices {
             check = check.register(
@@ -736,9 +730,9 @@ impl TensorCheck {
             );
         }
 
-        for (i, slice_info) in slice_infos.iter().enumerate().take(D1) {
+        for (i, slice) in slices.iter().enumerate().take(D1) {
             let d_tensor = shape.dims[i];
-            let range = &slice_info.range;
+            let range = slice.to_range(d_tensor);
 
             if range.end > d_tensor {
                 check = check.register(
@@ -770,7 +764,7 @@ impl TensorCheck {
                 );
             }
 
-            if slice_info.step == 0 {
+            if slice.step() == 0 {
                 check = check.register(
                     "Slice",
                     TensorError::new("The provided slice has a step of 0.").details(format!(

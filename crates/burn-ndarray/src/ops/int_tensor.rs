@@ -47,8 +47,8 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
     }
 
-    fn int_slice(tensor: NdArrayTensor, slice_infos: &[burn_tensor::SliceInfo]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slice_infos))
+    fn int_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
     }
 
     fn int_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {

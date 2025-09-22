@@ -1130,24 +1130,21 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_slice(
-        tensor: FloatTensor<Self>,
-        slice_infos: &[burn_tensor::SliceInfo],
-    ) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Index;
 
         #[derive(new, Debug)]
         struct RetroSlice<B: Backend> {
             tensor_id: NodeID,
-            slice_infos: Vec<burn_tensor::SliceInfo>,
+            slices: Vec<burn_tensor::Slice>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroSlice<B> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
-                let out = B::float_slice(tensor, &self.slice_infos);
+                let out = B::float_slice(tensor, &self.slices);
                 states.save(out_node, out)
             }
         }
@@ -1170,14 +1167,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        // Convert slice_infos to ranges for backward compatibility in State
-        let ranges: Vec<core::ops::Range<usize>> =
-            slice_infos.iter().map(|s| s.range.clone()).collect();
+        // Convert slices to ranges for backward compatibility in State
+        let shape = tensor.primitive.shape();
+        let ranges: Vec<core::ops::Range<usize>> = slices
+            .iter()
+            .enumerate()
+            .map(|(i, s)| s.to_range(shape.dims[i]))
+            .collect();
 
         match Index
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSlice::<B>::new(tensor.node.id, slice_infos.to_vec()))
+            .retro_forward(RetroSlice::<B>::new(tensor.node.id, slices.to_vec()))
             .parents([&tensor])
             .stateful()
         {
@@ -1187,9 +1188,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     tensor.primitive.shape(),
                     B::float_device(&tensor.primitive),
                 ),
-                B::float_slice(tensor.primitive, slice_infos),
+                B::float_slice(tensor.primitive, slices),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_slice(tensor.primitive, slice_infos)),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_slice(tensor.primitive, slices)),
         }
     }
 
@@ -1239,15 +1240,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         B::float_slice_assign(grad, &ranges_4lhs.unwrap(), zeros)
                     },
                     |grad| {
-                        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges_4rhs
+                        let slices: Vec<burn_tensor::Slice> = ranges_4rhs
                             .unwrap()
                             .iter()
-                            .map(|r| burn_tensor::SliceInfo {
-                                range: r.clone(),
-                                step: 1,
+                            .map(|r| {
+                                burn_tensor::Slice::new(r.start as isize, Some(r.end as isize), 1)
                             })
                             .collect();
-                        B::float_slice(grad, &slice_infos)
+                        B::float_slice(grad, &slices)
                     },
                 );
             }
@@ -2136,14 +2136,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let mut ranges = ranges.clone();
                         ranges[self.dim] = current_index..dim_size + current_index;
                         current_index += dim_size;
-                        let slice_infos: Vec<burn_tensor::SliceInfo> = ranges
+                        let slices: Vec<burn_tensor::Slice> = ranges
                             .iter()
-                            .map(|r| burn_tensor::SliceInfo {
-                                range: r.clone(),
-                                step: 1,
+                            .map(|r| {
+                                burn_tensor::Slice::new(r.start as isize, Some(r.end as isize), 1)
                             })
                             .collect();
-                        grads.register::<B>(node.id, B::float_slice(grad.clone(), &slice_infos));
+                        grads.register::<B>(node.id, B::float_slice(grad.clone(), &slices));
                     });
             }
 
