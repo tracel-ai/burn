@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
+use burn::nn;
 use burn_core::module::Module;
-use burn_core::nn;
 use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, Recorder};
 use burn_import::safetensors::SafetensorsFileRecorder;

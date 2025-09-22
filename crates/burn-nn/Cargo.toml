@@ -1,0 +1,79 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Neural network building blocks for the Burn deep learning framework"
+documentation = "https://docs.rs/burn-nn"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-nn"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-nn"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = [
+    "std",
+    "burn-core/default",
+]
+doc = [
+    "std",
+    # Doc features
+    "burn-core/doc",
+]
+std = [
+    "burn-core/std",
+    "num-traits/std",
+]
+
+test-cuda = [
+    "burn-cuda/default",
+] # To use cuda during testing, default uses ndarray.
+test-rocm = [
+    "burn-rocm/default",
+] # To use hip during testing, default uses ndarray.
+test-tch = [
+    "burn-tch/default",
+] # To use tch during testing, default uses ndarray.
+test-wgpu = [
+    "burn-wgpu/default",
+] # To use wgpu during testing, default uses ndarray.
+test-vulkan = [
+    "test-wgpu",
+    "burn-wgpu/vulkan",
+] # To use wgpu-spirv during testing, default uses ndarray.
+test-metal = [
+    "test-wgpu",
+    "burn-wgpu/metal",
+] # To use wgpu-spirv during testing, default uses ndarray.
+
+# Memory checks are disabled by default
+test-memory-checks = ["burn-fusion/memory-checks"]
+
+[dependencies]
+
+# ** Please make sure all dependencies support no_std when std is disabled **
+burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
+
+num-traits = { workspace = true }
+
+# FOR TESTING
+burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "0.19.0", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.19.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.19.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true, default-features = false }
+burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
+
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.19.0" }
+rstest = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
