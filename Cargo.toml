@@ -38,7 +38,7 @@ axum = "0.8.4"
 bytemuck = "1.23.2"
 bytes = "1"
 candle-core = { version = "0.9.1" }
-clap = { version = "4.5.44", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
