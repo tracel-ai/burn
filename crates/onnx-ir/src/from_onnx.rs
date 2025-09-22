@@ -357,7 +357,7 @@ impl OnnxGraphBuilder {
 
         match node.node_type {
             // Binary operations: convert rank-1 tensors if the other input is Shape
-            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div => {
+            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div | NodeType::Mod => {
                 if node.inputs.len() != 2 {
                     return shape_inputs;
                 }
@@ -525,6 +525,7 @@ impl OnnxGraphBuilder {
                 | NodeType::Sub
                 | NodeType::Mul
                 | NodeType::Div
+                | NodeType::Mod
                 | NodeType::Concat => {
                     // Update input types and check if reinference needed
                     if self.update_node_inputs_to_shape(node, constants_to_convert) {
@@ -1010,7 +1011,7 @@ impl OnnxGraphBuilder {
     ) -> bool {
         matches!(
             node.node_type,
-            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div
+            NodeType::Add | NodeType::Sub | NodeType::Mul | NodeType::Div | NodeType::Mod
         ) && node.inputs.len() == 2
             && node.node_type != NodeType::Constant
             && node
