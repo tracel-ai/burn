@@ -70,7 +70,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .num_workers(1)
-        .build(SamplerDataset::new(dataset_train, 5_000));
+        .build(SamplerDataset::new(dataset_train, 50_000));
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .num_workers(1)

@@ -11,6 +11,7 @@ workspace = true
 
 [features]
 default = ["webgpu"]
+cuda = ["burn/cuda"]
 webgpu = ["burn/webgpu"]
 vulkan = ["burn/vulkan"]
 ndarray = ["burn/ndarray"]
