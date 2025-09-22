@@ -17,9 +17,8 @@ use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
 // Workspace crates
-use burn_tensor::{DType, Shape, TensorData, backend::Backend};
-
 use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
+use burn_tensor::{DType, Shape, TensorData, backend::Backend};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps<Self>
     for NdArray<E, I, Q>
@@ -446,13 +445,12 @@ where
         execute_with_int_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
     }
 
-    #[allow(unused)]
     fn int_unfold(
         tensor: IntTensor<Self>,
         dim: usize,
         size: usize,
         step: usize,
     ) -> IntTensor<Self> {
-        todo!()
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
     }
 }

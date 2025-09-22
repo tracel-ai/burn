@@ -17,12 +17,6 @@ use paste::paste;
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use burn_tensor::Shape;
-use ndarray::Axis;
-use ndarray::Dim;
-use ndarray::IxDyn;
-use ndarray::SliceInfoElem;
-
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
     binary::try_binary_simd,
@@ -42,6 +36,12 @@ use crate::{
     ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
 };
 use crate::{SharedArray, element::NdArrayElement};
+use burn_tensor::Shape;
+use burn_tensor::ops::unfold::calculate_unfold_windows;
+use ndarray::Axis;
+use ndarray::Dim;
+use ndarray::IxDyn;
+use ndarray::SliceInfoElem;
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -101,6 +101,7 @@ where
         Self::concatenate(&arrays, dim)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn to_slice_args_with_steps(
         burn_slices: &[burn_tensor::Slice],
         ndims: usize,
@@ -205,7 +206,12 @@ where
 
     /// Unfold windows along a dimension.
     ///
-    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// # Warning
+    ///
+    /// This is a copy impl; `ndarray` doesn't expose the layout machinery
+    /// necessary to build the stride view.
+    ///
+    /// Returns a copy of the tensor with all complete windows of size `size` in dimension `dim`;
     /// where windows are advanced by `step` at each index.
     ///
     /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
@@ -227,7 +233,29 @@ where
         size: usize,
         step: usize,
     ) -> SharedArray<E> {
-        unimplemented!("ndarray unfold not implemented yet");
+        let mut result_shape = tensor.shape().to_vec();
+        let d_shape = result_shape[dim];
+        let windows = calculate_unfold_windows(d_shape, size, step);
+        result_shape[dim] = windows;
+        result_shape.push(size);
+
+        let mut select_ranges = Shape::from(tensor.shape()).into_ranges();
+        let new_axis = select_ranges.len();
+
+        let mut stack = Vec::with_capacity(windows);
+        for widx in 0..windows {
+            let start = widx * step;
+            let end = start + size;
+            select_ranges[dim] = start..end;
+
+            let mut window_slice =
+                tensor.slice(Self::to_slice_args(&select_ranges, select_ranges.len()).as_slice());
+            window_slice.insert_axis_inplace(Axis(new_axis));
+            window_slice.swap_axes(dim, new_axis);
+
+            stack.push(window_slice);
+        }
+        Self::concatenate(&stack, dim)
     }
 }
 

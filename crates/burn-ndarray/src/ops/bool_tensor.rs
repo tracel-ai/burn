@@ -1,7 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensorOps};
+use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::IntoDimension;
@@ -155,13 +155,7 @@ where
         NdArrayOps::flip(tensor.bool(), axes).into()
     }
 
-    #[allow(unused)]
-    fn bool_unfold(
-        tensor: BoolTensor<Self>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> BoolTensor<Self> {
-        todo!()
+    fn bool_unfold(tensor: NdArrayTensor, dim: usize, size: usize, step: usize) -> NdArrayTensor {
+        NdArrayOps::unfold(tensor.bool(), dim, size, step).into()
     }
 }

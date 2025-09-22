@@ -498,7 +498,6 @@ where
         ))
     }
 
-    #[allow(unused)]
     fn float_unfold(
         tensor: FloatTensor<Self>,
         dim: usize,
