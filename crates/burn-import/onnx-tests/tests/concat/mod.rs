@@ -6,7 +6,8 @@ include_models!(
     concat_shape_with_constant,
     concat_mixed_single_element,
     concat_mixed_three_elements,
-    concat_multiple_mixed
+    concat_multiple_mixed,
+    concat_with_constants
 );
 
 #[cfg(test)]
@@ -121,6 +122,26 @@ mod tests {
 
         // The output should be an array [i64; 8] containing [2, 3, 100, 200, 4, 5, 6, 300]
         let expected: [i64; 8] = [2, 3, 100, 200, 4, 5, 6, 300];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_with_constants() {
+        // Initialize the model
+        let device = Default::default();
+        // Use Model::default() to load constants from the record file
+        let model: concat_with_constants::Model<TestBackend> =
+            concat_with_constants::Model::default();
+
+        // Create test input with shape [3, 4]
+        let input1 = Tensor::<TestBackend, 2>::zeros([3, 4], &device);
+
+        // Run the model - it concatenates shape with multiple constant tensors
+        let output = model.forward(input1);
+
+        // The output should be [3, 4, 2, 3, 5, 7, 8, 9]
+        // Shape: [3, 4] + const1: [2, 3] + const2: [5] + const3: [7, 8, 9]
+        let expected: [i64; 8] = [3, 4, 2, 3, 5, 7, 8, 9];
         assert_eq!(output, expected);
     }
 }

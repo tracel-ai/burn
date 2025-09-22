@@ -902,9 +902,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir)
             && let Some(k) = k_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length K)
             assert!(
-                zp_len == k,
-                "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
+                zp_len == 1 || zp_len == k,
+                "MatMulInteger: a_zero_point length {} must be 1 (scalar) or K {} (cols of A)",
                 zp_len,
                 k
             );
@@ -916,9 +917,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir)
             && let Some(n) = n_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length N)
             assert!(
-                zp_len == n,
-                "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
+                zp_len == 1 || zp_len == n,
+                "MatMulInteger: b_zero_point length {} must be 1 (scalar) or N {} (cols of B)",
                 zp_len,
                 n
             );

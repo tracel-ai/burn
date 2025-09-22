@@ -1,4 +1,7 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::{
+    Argument,
+    ir::{ArgType, Node, TensorType},
+};
 
 use crate::protos::OperatorSetIdProto;
 
@@ -104,6 +107,41 @@ pub fn same_as_input(node: &mut Node) {
     log::debug!("Output type is same as input for {}", node.name);
 }
 
+/// Compute the broadcast output rank from multiple inputs.
+/// Returns the maximum rank among all non-scalar inputs.
+pub fn compute_broadcast_rank(inputs: &[Argument]) -> usize {
+    use core::cmp::max;
+    inputs.iter().fold(0, |acc, input| match &input.ty {
+        ArgType::Tensor(tensor) => max(acc, tensor.rank),
+        ArgType::Scalar(_) => acc,
+        ArgType::Shape(_) => max(acc, 1), // Shape is always treated as rank 1 tensor
+    })
+}
+
+/// Try to compute the broadcasted static shape from multiple inputs.
+/// Returns Some(shape) if all non-scalar inputs have the same static shape.
+/// TODO: Implement full broadcasting rules for different but compatible shapes.
+pub fn compute_broadcast_static_shape(inputs: &[Argument]) -> Option<Vec<usize>> {
+    // Collect all non-None static shapes
+    let static_shapes: Vec<_> = inputs
+        .iter()
+        .filter_map(|input| input.ty.static_shape().cloned())
+        .collect();
+
+    if static_shapes.is_empty() {
+        return None;
+    }
+
+    // If all static shapes are the same, return it
+    if static_shapes.windows(2).all(|w| w[0] == w[1]) {
+        return Some(static_shapes[0].clone());
+    }
+
+    // TODO: Implement proper NumPy-style broadcasting computation
+    // For now, return the first available static shape as a conservative estimate
+    Some(static_shapes[0].clone())
+}
+
 /// Update output rank for broadcasting operations (e.g., Add, Sub) to max input rank.
 pub fn same_as_input_broadcast(node: &mut Node) {
     log::debug!("Broadcasting operation for node {}", node.name);
@@ -141,12 +179,7 @@ pub fn same_as_input_broadcast(node: &mut Node) {
         return;
     }
 
-    let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
-        ArgType::Tensor(tensor) => acc.max(tensor.rank),
-        ArgType::Scalar(_) => acc,
-        ArgType::Shape(_) => acc.max(1), // Shape is always treated as rank 1 tensor when converted
-    });
-
+    let max_rank = compute_broadcast_rank(&node.inputs);
     log::debug!("Max rank for broadcasting node {}: {}", node.name, max_rank);
 
     if max_rank == 0 {
@@ -162,15 +195,19 @@ pub fn same_as_input_broadcast(node: &mut Node) {
             })
             .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
 
+        // Try to compute static shape from broadcast
+        let static_shape = compute_broadcast_static_shape(&node.inputs);
+
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,
             rank: max_rank,
-            static_shape: None,
+            static_shape: static_shape.clone(),
         });
         log::debug!(
-            "Tensor result for node {} with rank {}",
+            "Tensor result for node {} with rank {}, static_shape: {:?}",
             node.name,
-            max_rank
+            max_rank,
+            static_shape
         );
     }
 }
