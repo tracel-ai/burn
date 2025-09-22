@@ -9,7 +9,7 @@ pub struct ModNode {
     pub lhs: Type,
     pub rhs: Type,
     pub output: TensorType,
-    pub fmod: bool,  // false: use remainder (Python %), true: use fmod (C-style)
+    pub fmod: bool, // false: use remainder (Python %), true: use fmod (C-style)
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
@@ -34,17 +34,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
 
                 // Handle broadcasting if ranks differ
                 if lhs_rank != rhs_rank {
-                    let (smaller_tensor, larger_tensor, smaller_rank, larger_rank) = if lhs_rank < rhs_rank {
-                        (&lhs, &rhs, lhs_rank, rhs_rank)
-                    } else {
-                        (&rhs, &lhs, rhs_rank, lhs_rank)
-                    };
+                    let (smaller_tensor, larger_tensor, smaller_rank, larger_rank) =
+                        if lhs_rank < rhs_rank {
+                            (&lhs, &rhs, lhs_rank, rhs_rank)
+                        } else {
+                            (&rhs, &lhs, rhs_rank, lhs_rank)
+                        };
 
                     // Calculate dimensions to unsqueeze
                     let rank_diff = larger_rank - smaller_rank;
                     let unsqueeze_dims = (0..rank_diff)
                         .map(|i| {
-                            let i_usize = i as usize;
+                            let i_usize = i;
                             quote! { #i_usize as isize }
                         })
                         .collect::<Vec<_>>();
@@ -106,7 +107,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, ScalarKind, ScalarType, TensorType};
+    use crate::burn::{
+        ScalarKind, ScalarType, TensorType, graph::BurnGraph, node::test::assert_tokens,
+    };
     use burn::record::FullPrecisionSettings;
 
     #[test]
@@ -119,7 +122,10 @@ mod tests {
             true, // Use fmod
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string(), "tensor2".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["output".to_string()],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
@@ -164,7 +170,10 @@ mod tests {
             false, // Use remainder
         ));
 
-        graph.register_input_output(vec!["tensor1".to_string(), "scalar1".to_string()], vec!["output".to_string()]);
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "scalar1".to_string()],
+            vec!["output".to_string()],
+        );
 
         let expected = quote! {
             use burn::prelude::*;
