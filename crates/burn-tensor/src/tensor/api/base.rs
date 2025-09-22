@@ -2676,13 +2676,13 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         Self::slice_assign(tensor, ranges, value)
     }
 
-    /// Slices the tensor along a given dimension with the specified range.
+    /// Slices the tensor along a given dimension.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to slice.
     /// * `dim` - The dimension along which to slice.
-    /// * `range` - The range of indices to slice along the specified dimension.
+    /// * `slice_info` - The slice information containing range and step.
     ///
     /// # Returns
     ///
@@ -2693,7 +2693,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
-    fn slice_dim(tensor: Self::Primitive, dim: usize, range: &Range<usize>) -> Self::Primitive {
+    fn slice_dim(tensor: Self::Primitive, dim: usize, slice_info: &SliceInfo) -> Self::Primitive {
         let mut slice_infos: Vec<SliceInfo> = tensor
             .shape()
             .dims
@@ -2703,10 +2703,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
                 step: 1,
             })
             .collect();
-        slice_infos[dim] = SliceInfo {
-            range: range.clone(),
-            step: 1,
-        };
+        slice_infos[dim] = slice_info.clone();
 
         Self::slice(tensor, &slice_infos)
     }
