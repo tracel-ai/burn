@@ -237,7 +237,8 @@ pub enum BaseOperationIr {
     /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
     Expand(ExpandOpIr),
 
-    /// TODO
+    /// Unfold windows along an axis.
+    ///
     Unfold(UnfoldOpIr),
 
     /// Operation corresponding to:
