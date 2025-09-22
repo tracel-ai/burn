@@ -1,6 +1,13 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(concat, concat_shape, concat_shape_with_constant);
+include_models!(
+    concat,
+    concat_shape,
+    concat_shape_with_constant,
+    concat_mixed_single_element,
+    concat_mixed_three_elements,
+    concat_multiple_mixed
+);
 
 #[cfg(test)]
 mod tests {
@@ -59,6 +66,61 @@ mod tests {
 
         // The output should be an array [i64; 5] containing [3, 4, 5, 10, 20]
         let expected: [i64; 5] = [3, 4, 5, 10, 20];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_mixed_single_element() {
+        // Initialize the model
+        let device = Default::default();
+        let model: concat_mixed_single_element::Model<TestBackend> =
+            concat_mixed_single_element::Model::new(&device);
+
+        // Create test input with shape [2, 3]
+        let input1 = Tensor::<TestBackend, 2>::zeros([2, 3], &device);
+
+        // Run the model - it extracts shape and concatenates with constant [100]
+        let output = model.forward(input1);
+
+        // The output should be an array [i64; 3] containing [2, 3, 100]
+        let expected: [i64; 3] = [2, 3, 100];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_mixed_three_elements() {
+        // Initialize the model
+        let device = Default::default();
+        let model: concat_mixed_three_elements::Model<TestBackend> =
+            concat_mixed_three_elements::Model::new(&device);
+
+        // Create test input with shape [4, 5, 6]
+        let input1 = Tensor::<TestBackend, 3>::zeros([4, 5, 6], &device);
+
+        // Run the model - it extracts shape and concatenates with constant [10, 20, 30]
+        let output = model.forward(input1);
+
+        // The output should be an array [i64; 6] containing [4, 5, 6, 10, 20, 30]
+        let expected: [i64; 6] = [4, 5, 6, 10, 20, 30];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_multiple_mixed() {
+        // Initialize the model
+        let device = Default::default();
+        let model: concat_multiple_mixed::Model<TestBackend> =
+            concat_multiple_mixed::Model::new(&device);
+
+        // Create test inputs
+        let input1 = Tensor::<TestBackend, 2>::zeros([2, 3], &device);
+        let input2 = Tensor::<TestBackend, 3>::zeros([4, 5, 6], &device);
+
+        // Run the model - it concatenates shapes and constants
+        let output = model.forward(input1, input2);
+
+        // The output should be an array [i64; 8] containing [2, 3, 100, 200, 4, 5, 6, 300]
+        let expected: [i64; 8] = [2, 3, 100, 200, 4, 5, 6, 300];
         assert_eq!(output, expected);
     }
 }
