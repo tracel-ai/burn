@@ -156,7 +156,7 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::{Linear, LinearConfig};
+    use crate::test_utils::SimpleLinear;
     use crate::{
         TestAutodiffBackend,
         module::{Module, list_param_ids},
@@ -182,8 +182,8 @@ mod tests {
         assert_eq!(grads_2.len(), param_ids_2.len());
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
-        LinearConfig::new(20, 20).with_bias(true).init(device)
+    fn layer<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
+        SimpleLinear::new(20, 20, device)
     }
 
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {

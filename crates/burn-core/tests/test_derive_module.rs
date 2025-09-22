@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
+use burn::module::Initializer;
 use burn::module::{Module, Param};
-use burn::nn::Initializer;
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;

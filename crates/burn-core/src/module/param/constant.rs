@@ -1,15 +1,14 @@
 use alloc::{format, string::ToString};
 use core::{fmt::Display, marker::PhantomData};
 
+use crate as burn;
 use crate::{
-    self as burn,
     module::{
         AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault,
         ModuleMapper, ModuleVisitor,
     },
-    record::Record,
+    record::{PrecisionSettings, Record},
 };
-use burn::record::PrecisionSettings;
 use burn_tensor::{
     BasicAutodiffOps, BasicOps, Tensor,
     backend::{AutodiffBackend, Backend},

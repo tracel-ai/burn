@@ -57,7 +57,7 @@
 //! representations that are more robust to the reduction in precision.
 //!
 //! Quantization support in Burn is currently in active development. It supports the following modes on some backends:
-//! - Static per-tensor quantization to signed 8-bit integer (`i8`)
+//! - Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
 //!
 //! ## Feature Flags
 //!
@@ -124,4 +124,24 @@ pub mod collective;
 #[cfg(feature = "store")]
 pub mod store {
     pub use burn_store::*;
+}
+
+/// Neural network module.
+pub mod nn {
+    pub use burn_nn::*;
+}
+
+/// CubeCL module re-export.
+#[cfg(feature = "cubecl")]
+pub mod cubecl {
+    pub use cubecl::*;
+}
+
+pub mod prelude {
+    //! Structs and macros used by most projects. Add `use
+    //! burn::prelude::*` to your code to quickly get started with
+    //! Burn.
+    pub use burn_core::prelude::*;
+
+    pub use crate::nn;
 }

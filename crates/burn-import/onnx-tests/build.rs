@@ -273,6 +273,8 @@ fn main() {
         .input("tests/squeeze/squeeze_scalar.onnx")
         .input("tests/squeeze/squeeze_float.onnx")
         .input("tests/squeeze/squeeze_tensor_to_scalar.onnx")
+        .input("tests/squeeze/squeeze_opset13_axes_input.onnx")
+        .input("tests/squeeze/squeeze_no_axes.onnx")
         .input("tests/sub/sub.onnx")
         .input("tests/sub/sub_shape.onnx")
         .input("tests/sub/sub_broadcast.onnx")

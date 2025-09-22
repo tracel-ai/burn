@@ -200,10 +200,8 @@ mod tests {
     type TestBackend = burn_ndarray::NdArray;
     use alloc::collections::BTreeMap;
     use alloc::string::String;
-    use burn_core::{
-        module::{Module, Param},
-        nn::LinearConfig,
-    };
+    use burn::nn::LinearConfig;
+    use burn_core::module::{Module, Param};
 
     #[test]
     fn tensor_snapshot_collector() {
@@ -730,7 +728,7 @@ mod tests {
     }
 
     use crate::traits::ModuleSnapshot;
-    use burn_core::nn::Linear;
+    use burn::nn::Linear;
     use hashbrown::HashMap;
 
     // Test module with Option fields
