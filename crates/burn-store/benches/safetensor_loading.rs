@@ -8,8 +8,8 @@ use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_store::ModuleSnapshot;
 use burn_store::safetensors::SafetensorsStore;
 use divan::{AllocProfiler, Bencher};
-use std::fs;
 use std::path::PathBuf;
+use std::{fs, path::Path};
 use tempfile::tempdir;
 
 #[global_allocator]
@@ -93,8 +93,8 @@ impl<B: Backend> LargeModel<B> {
     }
 }
 
-fn create_test_file<B: Backend, M: Module<B>>(path: &PathBuf, model: M) {
-    let mut store = SafetensorsStore::from_file(path.clone());
+fn create_test_file<B: Backend, M: Module<B>>(path: &Path, model: M) {
+    let mut store = SafetensorsStore::from_file(path);
     model.collect_to(&mut store).expect("Failed to save model");
 }
 

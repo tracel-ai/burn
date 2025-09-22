@@ -33,7 +33,7 @@ use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
-use cubecl::matmul::{components::tile::loader::Filled, kernels::layered::Selection};
+use cubecl::matmul::{components::tile::reader::Filled, kernels::layered::Selection};
 use cubecl::matmul::{
     components::{LhsS, MatmulLineSizes, MatmulPrecision},
     kernels::layered::Algorithm,
