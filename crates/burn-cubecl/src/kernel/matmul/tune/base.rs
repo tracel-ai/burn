@@ -1,7 +1,7 @@
 use burn_tensor::DType;
 use cubecl::{
     matmul::{
-        MatmulInputHandleRef, Strategy, SyncLoadingStrategy, SyncPartialLoadingStrategy,
+        MatmulInputHandleRef, Strategy, SyncPartialReadingStrategy, SyncReadingStrategy,
         components::{AccG, MatmulKind},
         kernels::layered::{
             Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -161,7 +161,7 @@ fn matmul_simple<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::Simple(
-            SyncLoadingStrategy::Cyclic,
+            SyncReadingStrategy::Cyclic,
             Selection::Inferred(SimpleArgs { multi_rows: false }),
         ),
         &lhs.client,
@@ -179,7 +179,7 @@ fn matmul_simple_multi_rows<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::Simple(
-            SyncLoadingStrategy::Cyclic,
+            SyncReadingStrategy::Cyclic,
             Selection::Inferred(SimpleArgs { multi_rows: true }),
         ),
         &lhs.client,
@@ -197,7 +197,7 @@ fn matmul_double_buffering<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncPartialLoadingStrategy::Tilewise,
+            SyncPartialReadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: false }),
         ),
         &lhs.client,
@@ -215,7 +215,7 @@ fn matmul_double_buffering_specialized<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<(), String> {
     cubecl::matmul::launch_ref::<R, E>(
         &Strategy::DoubleBuffering(
-            SyncPartialLoadingStrategy::Tilewise,
+            SyncPartialReadingStrategy::Tilewise,
             Selection::Inferred(DoubleBufferingArgs { specialized: true }),
         ),
         &lhs.client,
