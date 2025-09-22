@@ -22,6 +22,8 @@ use burn_ir::TensorIr;
 use cubecl::features::TypeUsage;
 use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
+use cubecl::matmul::components::tile::loader::Filled;
+use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
 use cubecl::matmul::kernels::layered::double_unit::DoubleUnitAlgorithm;
@@ -33,7 +35,6 @@ use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
 use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
-use cubecl::matmul::{components::tile::reader::Filled, kernels::layered::Selection};
 use cubecl::matmul::{
     components::{LhsS, MatmulLineSizes, MatmulPrecision},
     kernels::layered::Algorithm,
