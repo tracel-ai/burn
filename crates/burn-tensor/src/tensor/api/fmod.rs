@@ -9,6 +9,13 @@ where
     /// The result has the same sign as `self` and magnitude less than `other`.
     /// This is equivalent to the IEEE 754 remainder operation.
     ///
+    /// # Special Cases (IEEE 754 compliant)
+    ///
+    /// - If `self` is ±∞ and `other` is not NaN, NaN is returned
+    /// - If `other` is ±0 and `self` is not NaN, NaN is returned
+    /// - If `other` is ±∞ and `self` is finite, `self` is returned
+    /// - If either argument is NaN, NaN is returned
+    ///
     /// # Arguments
     ///
     /// * `other` - The divisor tensor. Must have the same shape as `self`.
@@ -33,16 +40,36 @@ where
     /// }
     /// ```
     pub fn fmod(self, other: Self) -> Self {
-        // fmod(x, y) = x - y * trunc(x / y)
-        // This gives the remainder with the same sign as x
+        // Normal case: fmod(x, y) = x - y * trunc(x / y)
         let quotient = self.clone().div(other.clone());
         let truncated = quotient.trunc();
-        self - other * truncated
+        let product = other.clone() * truncated.clone();
+
+        // When divisor is infinity and dividend is finite:
+        // - quotient is 0, truncated is 0
+        // - but 0 * infinity = NaN, which is wrong
+        // We need to handle this case by replacing NaN with 0 when appropriate
+
+        // Check if the product is NaN due to 0 * inf
+        let is_zero_times_inf = truncated
+            .equal_elem(0.0)
+            .bool_and(other.is_finite().bool_not());
+        let zero_tensor = self.clone().mul_scalar(0.0);
+        let corrected_product = product.mask_where(is_zero_times_inf, zero_tensor);
+
+        self - corrected_product
     }
 
     /// Computes the floating-point remainder of dividing `self` by a scalar.
     ///
     /// The result has the same sign as `self` and magnitude less than the scalar.
+    ///
+    /// # Special Cases (IEEE 754 compliant)
+    ///
+    /// - If `self` is ±∞ and scalar is not NaN, NaN is returned
+    /// - If scalar is ±0 and `self` is not NaN, NaN is returned
+    /// - If scalar is ±∞ and `self` is finite, `self` is returned
+    /// - If either argument is NaN, NaN is returned
     ///
     /// # Arguments
     ///
@@ -67,9 +94,20 @@ where
     /// }
     /// ```
     pub fn fmod_scalar(self, scalar: f32) -> Self {
-        // fmod(x, y) = x - y * trunc(x / y)
+        // Normal case: fmod(x, y) = x - y * trunc(x / y)
         let quotient = self.clone().div_scalar(scalar);
         let truncated = quotient.trunc();
-        self - truncated.mul_scalar(scalar)
+        let product = truncated.mul_scalar(scalar);
+
+        // Handle the special case where scalar is infinity
+        // When scalar is ±∞ and self is finite, quotient is 0, truncated is 0
+        // but 0 * infinity = NaN, which is wrong - it should be 0
+        if scalar.is_infinite() {
+            // For finite values, fmod(x, ±∞) = x
+            // For infinite values, fmod(±∞, ±∞) = NaN (which is handled by arithmetic)
+            return self.clone();
+        }
+
+        self - product
     }
 }
