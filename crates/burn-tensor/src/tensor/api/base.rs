@@ -1193,14 +1193,8 @@ where
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
         let slice_infos = ranges.into_slice_infos(self.shape());
 
-        // Extract ranges for validation as an array
-        let ranges: [Range<usize>; D2] = slice_infos
-            .iter()
-            .map(|s| s.range.clone())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+        // Validate slice infos
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &slice_infos));
 
         // Use the slice method that supports steps
         Self::new(K::slice(self.primitive, &slice_infos))
@@ -1276,8 +1270,16 @@ where
         ranges: R,
         value: E,
     ) -> Self {
-        let ranges = self.shape().slice(ranges);
-        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+        let slice_infos = ranges.into_slice_infos(self.shape());
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &slice_infos));
+
+        // Convert back to ranges for slice_fill (which doesn't support steps yet)
+        let ranges: [Range<usize>; D2] = slice_infos
+            .iter()
+            .map(|s| s.range.clone())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
         Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
     }
