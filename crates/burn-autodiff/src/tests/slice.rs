@@ -159,4 +159,17 @@ mod tests {
             false,
         );
     }
+
+    #[test]
+    #[should_panic(expected = "Autodiff does not support slice with step != 1")]
+    fn should_panic_on_slice_with_step() {
+        use burn_tensor::s;
+
+        let data = TensorData::from([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]);
+        let device = Default::default();
+        let tensor = TestAutodiffTensor::<2>::from_data(data, &device).require_grad();
+
+        // This should panic because step is 2
+        let _sliced = tensor.slice(s![.., 0..4; 2]);
+    }
 }
