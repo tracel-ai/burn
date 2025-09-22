@@ -1,11 +1,11 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_common::tensor::{ReshapeAction, reshape_action};
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
 };
 use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
-use std::cmp::max;
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -222,6 +222,10 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim
 ///
 /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
 ///
+/// The new view will have the unfolded dimension replaced by two dimensions;
+/// one in the position of the original dimension, with size equal to the number of windows,
+/// and one appended to the right-most position, with size equal to `size`.
+///
 /// # Arguments
 ///
 /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
@@ -231,7 +235,7 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim
 ///
 /// # Returns
 ///
-/// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+/// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
 pub fn unfold<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     dim: usize,
@@ -241,15 +245,15 @@ pub fn unfold<R: CubeRuntime>(
     let d_shape = tensor.shape.dims[dim];
     let d_stride = tensor.strides[dim];
 
-    let windows = max(0, (d_shape - size).div_ceil(step));
+    let windows = calculate_unfold_windows(d_shape, size, step);
 
     let mut shape = tensor.shape.clone();
     shape.dims[dim] = windows;
-    shape.dims.insert(dim + 1, size);
+    shape.dims.push(size);
 
     let mut strides = tensor.strides.clone();
     strides[dim] = step * d_stride;
-    strides.insert(dim + 1, d_stride);
+    strides.push(d_stride);
 
     CubeTensor {
         shape,

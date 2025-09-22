@@ -2189,14 +2189,19 @@ where
     ///
     /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
     ///
+    /// The new view will have the unfolded dimension replaced by two dimensions;
+    /// one in the position of the original dimension, with size equal to the number of windows,
+    /// and one appended to the right-most position, with size equal to `size`.
+    ///
     /// # Arguments
     ///
+    /// * `dim` - the dimension to unfold.
     /// * `size` - the size of each unfolded window.
     /// * `stride` - the step between each window.
     ///
     /// # Returns
     ///
-    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    /// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
     pub fn unfold<const D2: usize, I: AsIndex>(
         self,
         dim: I,
@@ -2204,6 +2209,13 @@ where
         step: usize,
     ) -> Tensor<B, D2, K> {
         let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::unfold::<D, D2>(
+            "unfold",
+            &self.shape(),
+            dim,
+            size,
+            step,
+        ));
         Tensor::<B, D2, K>::new(K::unfold(self.primitive, dim, size, step))
     }
 }

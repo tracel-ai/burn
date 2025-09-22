@@ -1,3 +1,4 @@
+use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
     client::FusionClient,
@@ -6,15 +7,13 @@ use crate::{
     unary_int_ops,
 };
 use burn_ir::*;
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
 };
 use core::ops::Range;
-use std::cmp::max;
 use std::marker::PhantomData;
-
-use super::NoOp;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -2199,9 +2198,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape().dims.clone();
         let d_shape = shape[dim];
-        let windows = max(0, (d_shape - size).div_ceil(step));
+
+        let windows = calculate_unfold_windows(d_shape, size, step);
+
         shape[dim] = windows;
-        shape.insert(dim + 1, size);
+        shape.push(size);
 
         let out = tensor
             .client

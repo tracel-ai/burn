@@ -9,11 +9,11 @@ use crate::{
     unary_float_ops,
 };
 use burn_ir::*;
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
-use std::cmp::max;
 use std::{marker::PhantomData, ops::Range};
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
@@ -2286,9 +2286,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape().dims.clone();
         let d_shape = shape[dim];
-        let windows = max(0, (d_shape - size).div_ceil(step));
+
+        let windows = calculate_unfold_windows(d_shape, size, step);
+
         shape[dim] = windows;
-        shape.insert(dim + 1, size);
+        shape.push(size);
 
         let out = tensor
             .client

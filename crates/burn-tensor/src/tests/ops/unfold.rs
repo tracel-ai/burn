@@ -18,14 +18,22 @@ mod tests {
         let step = 2;
         let actual: Tensor<TestBackend, 4> = input.clone().unfold(dim, size, step);
 
-        let expected = Tensor::<TestBackend, 4>::empty([2, 2, 3, 6], &device)
+        let expected = Tensor::<TestBackend, 4>::empty([2, 2, 6, 3], &device)
             .slice_assign(
                 s![.., 0, .., ..],
-                input.clone().slice(s![.., 0..3, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 0..3, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             )
             .slice_assign(
                 s![.., 1, .., ..],
-                input.clone().slice(s![.., 2..5, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 2..5, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             );
 
         actual.to_data().assert_eq(&expected.to_data(), true);
@@ -43,14 +51,22 @@ mod tests {
         let step = 2;
         let actual: Tensor<TestBackend, 4, Int> = input.clone().unfold(dim, size, step);
 
-        let expected = Tensor::<TestBackend, 4, Int>::empty([2, 2, 3, 6], &device)
+        let expected = Tensor::<TestBackend, 4, Int>::empty([2, 2, 6, 3], &device)
             .slice_assign(
                 s![.., 0, .., ..],
-                input.clone().slice(s![.., 0..3, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 0..3, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             )
             .slice_assign(
                 s![.., 1, .., ..],
-                input.clone().slice(s![.., 2..5, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 2..5, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             );
 
         actual.to_data().assert_eq(&expected.to_data(), true);
@@ -69,14 +85,22 @@ mod tests {
         let step = 2;
         let actual: Tensor<TestBackend, 4, Bool> = input.clone().unfold(dim, size, step);
 
-        let expected = Tensor::<TestBackend, 4, Bool>::empty([2, 2, 3, 6], &device)
+        let expected = Tensor::<TestBackend, 4, Bool>::empty([2, 2, 6, 3], &device)
             .slice_assign(
                 s![.., 0, .., ..],
-                input.clone().slice(s![.., 0..3, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 0..3, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             )
             .slice_assign(
                 s![.., 1, .., ..],
-                input.clone().slice(s![.., 2..5, ..]).unsqueeze_dim::<4>(1),
+                input
+                    .clone()
+                    .slice(s![.., 2..5, ..])
+                    .swap_dims(1, 2)
+                    .unsqueeze_dim::<4>(1),
             );
 
         actual.to_data().assert_eq(&expected.to_data(), true);

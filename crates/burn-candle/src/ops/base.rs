@@ -1,7 +1,8 @@
+use std::cmp::max;
 use std::marker::PhantomData;
 
 use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
-use candle_core::WithDType;
+use candle_core::{Layout, WithDType};
 use half::{bf16, f16};
 
 use crate::{
@@ -191,6 +192,10 @@ pub fn chunk(tensor: CandleTensor, chunks: usize, dim: usize) -> Vec<CandleTenso
 
 pub fn expand(tensor: CandleTensor, shape: Shape) -> CandleTensor {
     CandleTensor::new(tensor.tensor.broadcast_as(shape.dims).unwrap())
+}
+
+pub fn unfold(tensor: CandleTensor, dim: usize, size: usize, step: usize) -> CandleTensor {
+    todo!()
 }
 
 pub fn sign(tensor: CandleTensor) -> CandleTensor {

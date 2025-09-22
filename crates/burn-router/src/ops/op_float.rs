@@ -2,13 +2,15 @@ use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 use core::ops::Range;
 
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr,
     GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
     PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
     ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr,
+    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
 };
@@ -16,8 +18,6 @@ use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     calculate_slice_output_shape,
 };
-
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -1431,6 +1431,35 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseFloat(BaseOperationIr::Cast(desc)));
+
+        out
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+
+        let mut shape = tensor.shape().dims.clone();
+        let d_shape = shape[dim];
+        let windows = calculate_unfold_windows(d_shape, size, step);
+        shape[dim] = windows;
+        shape.push(size);
+
+        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::Unfold(desc)));
 
         out
     }

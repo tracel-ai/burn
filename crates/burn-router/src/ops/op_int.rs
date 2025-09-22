@@ -2,13 +2,15 @@ use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 use core::ops::Range;
 
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
     InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
     PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
     ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr,
+    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_windows;
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
@@ -16,8 +18,6 @@ use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     calculate_slice_output_shape,
 };
-
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -1411,6 +1411,35 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseInt(BaseOperationIr::Cast(desc)));
+
+        out
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+
+        let mut shape = tensor.shape().dims.clone();
+        let d_shape = shape[dim];
+        let windows = calculate_unfold_windows(d_shape, size, step);
+        shape[dim] = windows;
+        shape.push(size);
+
+        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        client.register(OperationIr::BaseInt(BaseOperationIr::Unfold(desc)));
 
         out
     }

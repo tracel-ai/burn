@@ -1,21 +1,20 @@
-use burn_ir::{
-    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer,
-    InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
-};
-use burn_tensor::{
-    Device, Element, Shape, Slice, TensorData, TensorMetadata,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
-};
-use std::cmp::max;
-use std::marker::PhantomData;
-
 use crate::{
     Fusion, FusionBackend,
     client::FusionClient,
     get_client,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
+use burn_ir::{
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, HandleContainer,
+    InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr,
+    SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+};
+use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::{
+    Device, Element, Shape, Slice, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
+};
+use std::marker::PhantomData;
 
 use super::NoOp;
 
@@ -772,9 +771,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape().dims.clone();
         let d_shape = shape[dim];
-        let windows = max(0, (d_shape - size).div_ceil(step));
+        let windows = calculate_unfold_windows(d_shape, size, step);
+
         shape[dim] = windows;
-        shape.insert(dim + 1, size);
+        shape.push(size);
 
         let out = tensor
             .client

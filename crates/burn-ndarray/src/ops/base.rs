@@ -219,7 +219,7 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
     #[allow(unused)]
     pub(crate) fn unfold(
         tensor: SharedArray<E>,
