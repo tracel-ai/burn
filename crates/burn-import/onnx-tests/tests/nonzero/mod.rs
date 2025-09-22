@@ -33,9 +33,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Expected indices in row-major order: [0,1], [1,2], [2,0], [2,3]
-        let expected =
-            Tensor::<TestBackend, 2, Int>::from_ints([[0, 1], [1, 2], [2, 0], [2, 3]], &device);
+        // Expected indices in ONNX format [rank, num_nonzero]: [[0,1,2,2], [1,2,0,3]]
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
+            [
+                [0, 1, 2, 2], // Row indices of non-zero elements
+                [1, 2, 0, 3], // Column indices of non-zero elements
+            ],
+            &device,
+        );
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -51,8 +56,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Expected indices: [0,0], [1,2]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 0], [1, 2]], &device);
+        // Expected indices in ONNX format [rank, num_nonzero]: [[0,1], [0,2]]
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
+            [
+                [0, 1], // Row indices of non-zero elements
+                [0, 2], // Column indices of non-zero elements
+            ],
+            &device,
+        );
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -71,8 +82,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Expected indices: [0,1], [1,0]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 1], [1, 0]], &device);
+        // Expected indices in ONNX format [rank, num_nonzero]: [[0,1], [1,0]]
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
+            [
+                [0, 1], // Row indices of non-zero elements
+                [1, 0], // Column indices of non-zero elements
+            ],
+            &device,
+        );
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -88,8 +105,8 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Expected indices: 1, 3, 5
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[1], [3], [5]], &device);
+        // Expected indices in ONNX format [rank, num_nonzero]: [[1, 3, 5]]
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[1, 3, 5]], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -111,8 +128,15 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Expected indices: [0,0,1], [1,1,2]
-        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[0, 0, 1], [1, 1, 2]], &device);
+        // Expected indices in ONNX format [rank, num_nonzero]: [[0,1], [0,1], [1,2]]
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints(
+            [
+                [0, 1], // Dimension 0 indices of non-zero elements
+                [0, 1], // Dimension 1 indices of non-zero elements
+                [1, 2], // Dimension 2 indices of non-zero elements
+            ],
+            &device,
+        );
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }
@@ -128,8 +152,8 @@ mod tests {
 
         let output = model.forward(input);
 
-        // Empty tensor: [0, 2] - no non-zero elements, but still 2D coordinates
-        let expected = Tensor::<TestBackend, 2, Int>::empty([0, 2], &device);
+        // Empty tensor: [2, 0] - 2 dimensions, 0 non-zero elements
+        let expected = Tensor::<TestBackend, 2, Int>::empty([2, 0], &device);
 
         output.to_data().assert_eq(&expected.to_data(), true);
     }

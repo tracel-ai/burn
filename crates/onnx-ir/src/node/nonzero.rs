@@ -12,22 +12,22 @@ pub fn nonzero_config(_node: &Node) -> NonZeroConfig {
     NonZeroConfig::new()
 }
 
-/// Update output for NonZero - output is 2D int64 tensor with shape [num_nonzero, input_rank]
+/// Update output for NonZero - output is 2D int64 tensor with shape [input_rank, num_nonzero]
 pub fn nonzero_update_output(node: &mut Node) {
     log::debug!("NonZero rank inference for node {}", node.name);
 
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
             // Output is always a 2D Int64 tensor
-            // Shape: [num_nonzero_elements, input_tensor_rank]
-            // First dimension is dynamic (depends on data)
-            // Second dimension equals input tensor rank
+            // Shape: [input_tensor_rank, num_nonzero_elements]
+            // First dimension equals input tensor rank
+            // Second dimension is dynamic (depends on data)
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
                 rank: 2,
-                static_shape: None, // Dynamic shape - first dimension depends on number of nonzero elements
+                static_shape: None, // Dynamic shape - second dimension depends on number of nonzero elements
             });
-            log::debug!("NonZero output tensor shape: [-1, {}]", tensor.rank);
+            log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
         }
         _ => panic!("NonZero operation requires tensor input"),
     }

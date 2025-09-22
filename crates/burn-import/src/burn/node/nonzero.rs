@@ -31,15 +31,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NonZeroNode {
             TensorKind::Int => quote! { 0 },
             TensorKind::Bool => {
                 // For bool tensors, we can use argwhere directly since false is the "zero" value
+                // ONNX NonZero expects output shape [rank, num_nonzero] but argwhere returns [num_nonzero, rank]
+                // So we need to transpose the result
                 return quote! {
-                    let #output = #input.argwhere();
+                    let #output = #input.argwhere().transpose();
                 };
             }
         };
 
         // For numeric tensors, create boolean mask and then get indices
+        // ONNX NonZero expects output shape [rank, num_nonzero] but argwhere returns [num_nonzero, rank]
+        // So we need to transpose the result
         quote! {
-            let #output = #input.not_equal_elem(#zero_value).argwhere();
+            let #output = #input.not_equal_elem(#zero_value).argwhere().transpose();
         }
     }
 
@@ -93,7 +97,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2, Int> {
-                    let output = input.not_equal_elem(0.0).argwhere();
+                    let output = input.not_equal_elem(0.0).argwhere().transpose();
                     output
                 }
             }
@@ -135,7 +139,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 2, Int> {
-                    let output = input.not_equal_elem(0).argwhere();
+                    let output = input.not_equal_elem(0).argwhere().transpose();
                     output
                 }
             }
@@ -177,7 +181,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2, Bool>) -> Tensor<B, 2, Int> {
-                    let output = input.argwhere();
+                    let output = input.argwhere().transpose();
                     output
                 }
             }
