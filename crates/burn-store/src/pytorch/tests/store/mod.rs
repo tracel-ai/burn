@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::ModuleSnapshoter;
 use crate::pytorch::PytorchStore;
 use burn_core::module::Module;
-use burn_core::nn::conv::{Conv2d, Conv2dConfig};
-use burn_core::nn::{Linear, LinearConfig};
+use burn_nn::conv::{Conv2d, Conv2dConfig};
+use burn_nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 

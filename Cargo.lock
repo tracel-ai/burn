@@ -1019,6 +1019,7 @@ dependencies = [
  "burn-cuda",
  "burn-import",
  "burn-ndarray",
+ "burn-nn",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",

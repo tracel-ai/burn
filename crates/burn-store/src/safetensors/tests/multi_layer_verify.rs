@@ -1,13 +1,12 @@
 //! Tests for multi-layer model loading with SafeTensors format
 
-use burn_core::{
-    module::Module,
-    nn::{
-        BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
-        conv::{Conv2d, Conv2dConfig},
-    },
-};
+use burn_core::module::Module;
 use burn_tensor::{Tensor, backend::Backend};
+
+use burn_nn::{
+    BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
+    conv::{Conv2d, Conv2dConfig},
+};
 
 /// Multi-layer neural network model for testing
 #[derive(Module, Debug)]

@@ -17,12 +17,16 @@ use burn_tensor::TensorData;
 // These come from the Module derive macro which uses stringify! on the struct name
 mod module_names {
     // Import the types to ensure they exist at compile time
+    // If these types are renamed or moved, we'll get a compile error
+    #[allow(unused_imports)]
+    use burn_nn::{BatchNorm, GroupNorm, LayerNorm, Linear}; // RENAME CONSTANTS TOO
 
-    // Define constants that match the stringified struct names
-    pub const LINEAR: &str = stringify!(Linear);
-    pub const BATCH_NORM: &str = stringify!(BatchNorm);
-    pub const LAYER_NORM: &str = stringify!(LayerNorm);
-    pub const GROUP_NORM: &str = stringify!(GroupNorm);
+    // The actual string constants that match what the Module derive macro produces
+    // The imports above ensure these types exist at compile-time
+    pub const LINEAR: &str = "Linear";
+    pub const BATCH_NORM: &str = "BatchNorm";
+    pub const LAYER_NORM: &str = "LayerNorm";
+    pub const GROUP_NORM: &str = "GroupNorm";
 }
 
 /// Trait for adapting tensor snapshots between different module formats
