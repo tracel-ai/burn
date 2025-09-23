@@ -1115,8 +1115,9 @@ where
 
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
-    /// For more complex indexing with different slice ranges, see also the slice
-    /// macro [`s!`](crate::s).
+    /// This method provides flexible tensor slicing with support for various range types,
+    /// negative indices, and stepped slicing. For advanced slicing with step syntax,
+    /// use the [`s!`] macro which provides a convenient way to specify complex slices.
     ///
     /// # Arguments
     ///
@@ -1124,6 +1125,7 @@ where
     ///   - A single range (slice the first dimension)
     ///   - A single index (slice the first dimension)
     ///   - An array of ranges
+    ///   - The [`s!`] macro for advanced slicing with steps
     ///
     /// # Behavior
     ///
@@ -1131,11 +1133,16 @@ where
     /// - Missing ranges are treated as full slices if D > D2.
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the tensor's dimensions if they exceed the bounds.
+    /// - Supports stepped slicing (e.g., `s![0..10;2]`) for selecting every nth element.
+    /// - Negative steps reverse the selection order (e.g., `s![..;-1]` reverses a dimension).
     ///
     /// # Panics
     ///
     /// - If the number of ranges provided exceeds the tensor's dimensions.
     /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
+    /// - If a step is zero.
+    ///
+    /// See the [`s!`] macro documentation for comprehensive slicing examples and syntax.
     ///
     /// # Examples
     ///
@@ -1182,11 +1189,14 @@ where
     /// }
     /// ```
     ///
-    /// # Note
+    /// # See Also
     ///
-    /// This function uses the `RangesArg` trait for flexible range specification. The trait
-    /// handles the conversion of various range formats and applies clamping and negative
-    /// index handling internally.
+    /// - [`s!`] - The recommended macro for creating complex slice specifications
+    /// - [`slice_assign`](Self::slice_assign) - Assign values to a slice
+    /// - [`slice_fill`](Self::slice_fill) - Fill a slice with a constant value
+    /// - [`slice_dim`](Self::slice_dim) - Slice a single dimension
+    ///
+    /// [`s!`]: crate::s!
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
         let slices = ranges.into_slices(self.shape());
 
@@ -1200,11 +1210,14 @@ where
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
     /// the selected indices.
     ///
+    /// This method supports advanced slicing with steps, including negative steps for reverse
+    /// assignment. Use the [`s!`] macro for convenient specification of complex slice patterns.
+    ///
     /// # Panics
     ///
     /// - If a range exceeds the number of elements on a dimension.
-    /// - If the given values don't match the given ranges.
-    /// - If any step is not equal to 1 (stepped slicing is not yet supported for slice_assign).
+    /// - If the given values don't match the dimensions selected by the slices.
+    /// - If a step is zero.
     ///
     /// # Example
     ///
@@ -1221,14 +1234,23 @@ where
     /// }
     /// ```
     ///
-    /// # Note
+    /// # Stepped Slicing
     ///
-    /// This function uses the `RangesArg` trait for flexible range specification. The trait
-    /// handles the conversion of various range formats and applies clamping and negative
-    /// index handling internally.
+    /// This method fully supports stepped slicing using the [`s!`] macro:
+    /// - `s![0..10;2]` - Assign to every 2nd element
+    /// - `s![..;-1]` - Assign in reverse order
+    /// - `s![5..;-2]` - Assign to every 2nd element counting backward from index 5
     ///
-    /// **Note**: Stepped slicing (e.g., `s![0..10;2]`) is supported. The values tensor must have
-    /// dimensions that match the number of elements selected by each slice with its step.
+    /// The values tensor must have dimensions matching the number of elements selected
+    /// by each slice after applying the step.
+    ///
+    /// # See Also
+    ///
+    /// - [`s!`] - The recommended macro for creating complex slice specifications
+    /// - [`slice`](Self::slice) - Extract a slice from a tensor
+    /// - [`slice_fill`](Self::slice_fill) - Fill a slice with a constant value
+    ///
+    /// [`s!`]: crate::s!
     pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
         let slices = ranges.into_slices(self.shape());
 
@@ -1242,6 +1264,9 @@ where
     }
 
     /// Returns a copy of the current tensor with the selected elements filled with the specified value.
+    ///
+    /// **Note**: This method currently does not support stepped slicing. Use [`slice_assign`](Self::slice_assign)
+    /// with a tensor of the appropriate value if you need stepped slice assignment.
     ///
     /// # Panics
     ///
@@ -1267,14 +1292,26 @@ where
     /// }
     /// ```
     ///
-    /// # Note
-    ///
-    /// This function uses the `RangesArg` trait for flexible range specification. The trait
-    /// handles the conversion of various range formats and applies clamping and negative
-    /// index handling internally.
+    /// # Limitations
     ///
     /// **Important**: Stepped slicing (e.g., `s![0..10;2]`) is not currently supported for
     /// slice_fill and will panic if attempted. Only unit steps (step = 1) are allowed.
+    ///
+    /// For stepped slice filling, use [`slice_assign`](Self::slice_assign) with a tensor filled with the desired value:
+    /// ```rust,ignore
+    /// // Instead of: tensor.slice_fill(s![0..10;2], 5.0)
+    /// // Use:
+    /// let values = Tensor::full(shape_for_stepped_slice, 5.0, &device);
+    /// tensor.slice_assign(s![0..10;2], values)
+    /// ```
+    ///
+    /// # See Also
+    ///
+    /// - [`s!`] - The macro for creating slice specifications (note: steps not supported for slice_fill)
+    /// - [`slice`](Self::slice) - Extract a slice from a tensor
+    /// - [`slice_assign`](Self::slice_assign) - Assign values to a slice (supports steps)
+    ///
+    /// [`s!`]: crate::s!
     pub fn slice_fill<const D2: usize, R: RangesArg<D2>, E: ElementConversion>(
         self,
         ranges: R,
@@ -1313,11 +1350,12 @@ where
     ///
     /// If the range is out of bounds for the specified dimension.
     ///
-    /// # Note
+    /// # See Also
     ///
-    /// This function uses the `RangeArg` trait for flexible range specification. The trait
-    /// handles the conversion of various range formats and applies clamping and negative
-    /// index handling internally.
+    /// - [`slice`](Self::slice) - Slice multiple dimensions simultaneously
+    /// - [`s!`] - The macro for creating complex slice specifications
+    ///
+    /// [`s!`]: crate::s!
     pub fn slice_dim<R>(self, dim: usize, range: R) -> Self
     where
         R: RangeArg,
@@ -3604,7 +3642,17 @@ impl MovedimArgs for i32 {
     }
 }
 
-/// Trait used for slice dim arguments.
+/// Trait for single-dimension slice arguments.
+///
+/// This trait is used by [`Tensor::slice_dim`] to accept various range types
+/// for slicing a single dimension. All standard Rust range types implement this trait.
+///
+/// # See Also
+///
+/// - [`s!`] - The macro for creating complex slice specifications
+/// - [`RangesArg`] - Trait for multi-dimensional slicing
+///
+/// [`s!`]: crate::s!
 pub trait RangeArg {
     /// Converts into a range for the `tensor.slice_dim()` function
     fn into_range(self, shape_dim: usize) -> Range<usize>;
@@ -3619,7 +3667,25 @@ impl<T: Into<Slice>> RangeArg for T {
     }
 }
 
-/// Trait used for slice arguments
+/// Trait for multi-dimensional slice arguments.
+///
+/// This trait is used by [`Tensor::slice`] and [`Tensor::slice_assign`] to accept
+/// various range types for slicing multiple dimensions. Arrays of ranges and the
+/// output of the [`s!`] macro implement this trait.
+///
+/// # Examples
+///
+/// The following types implement `RangesArg`:
+/// - Arrays of ranges: `[0..5, 2..7]`
+/// - Single ranges (for 1D slicing): `0..5`
+/// - Output of the [`s!`] macro: `s![0..5;2, .., -1]`
+///
+/// # See Also
+///
+/// - [`s!`] - The recommended macro for creating slice specifications
+/// - [`RangeArg`] - Trait for single-dimension slicing
+///
+/// [`s!`]: crate::s!
 pub trait RangesArg<const D2: usize> {
     /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
     fn into_ranges(self, shape: Shape) -> [Range<usize>; D2];
