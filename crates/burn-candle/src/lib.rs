@@ -111,6 +111,7 @@ mod tests {
     burn_tensor::testgen_select!();
     burn_tensor::testgen_sin!();
     burn_tensor::testgen_slice!();
+    burn_tensor::testgen_slice_assign!();
     burn_tensor::testgen_sqrt!();
     burn_tensor::testgen_abs!();
     burn_tensor::testgen_squeeze!();
