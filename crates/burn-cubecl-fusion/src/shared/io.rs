@@ -248,8 +248,7 @@ pub fn input_as_linear_view<C: CubePrimitive>(
     #[comptime] pos: u32,
 ) -> View<Line<C>, u32> {
     let slice = input_as_slice::<Line<C>>(inputs, pos);
-    let line_size = slice.line_size();
-    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len(), comptime!(line_size as u8)));
+    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
     View::new::<Slice<Line<C>>, u32>(&slice, layout)
 }
 
