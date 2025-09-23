@@ -2625,12 +2625,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The tensor with the axes flipped.
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
 
-    ///  Select tensor elements corresponding for the given ranges.
+    ///  Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges of the elements to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
@@ -2646,7 +2646,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive;
 
-    ///  Assigns the given value to the tensor elements corresponding to the given slice infos.
+    ///  Assigns the given value to the tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
@@ -2677,7 +2677,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         value: Self::Primitive,
     ) -> Self::Primitive;
 
-    /// Fills the tensor elements corresponding for the given ranges with the given value.
+    /// Fills the tensor elements corresponding to the given slices with the given value.
     ///
     /// # Arguments
     ///

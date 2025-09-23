@@ -85,19 +85,19 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements at the given indices.
     fn int_slice(tensor: IntTensor<B>, slices: &[crate::Slice]) -> IntTensor<B>;
 
-    /// Sets the element at the given indices.
+    /// Sets the values in the tensor for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indices` - The indices.
+    /// * `ranges` - The ranges to set the values for.
     ///
     /// # Returns
     ///
-    /// The tensor with the element at the given indices set.
+    /// The tensor with the values set for the given ranges.
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        indices: &[Range<usize>],
+        ranges: &[Range<usize>],
         value: IntTensor<B>,
     ) -> IntTensor<B>;
 
