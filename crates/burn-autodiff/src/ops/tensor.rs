@@ -1241,9 +1241,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let zeros = B::float_zeros(shape_rhs, &device, grad.dtype().into());
                         B::float_slice_assign(grad, &slices_4lhs.unwrap(), zeros)
                     },
-                    |grad| {
-                        B::float_slice(grad, &slices_4rhs.unwrap())
-                    },
+                    |grad| B::float_slice(grad, &slices_4rhs.unwrap()),
                 );
             }
         }

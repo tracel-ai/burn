@@ -904,7 +904,11 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| burn_tensor::Slice::from(0..1)).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|_range| burn_tensor::Slice::from(0..1))
+                    .collect(),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
