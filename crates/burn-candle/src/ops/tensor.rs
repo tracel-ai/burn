@@ -203,11 +203,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_slice(
-        tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
-    ) -> FloatTensor<Self> {
-        super::base::slice(tensor, ranges)
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(

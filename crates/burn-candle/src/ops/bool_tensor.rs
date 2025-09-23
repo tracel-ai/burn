@@ -57,8 +57,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         super::base::reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[std::ops::Range<usize>]) -> BoolTensor<Self> {
-        super::base::slice(tensor, ranges)
+    fn bool_slice(tensor: BoolTensor<Self>, slices: &[burn_tensor::Slice]) -> BoolTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn bool_slice_assign(

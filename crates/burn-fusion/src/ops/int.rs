@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Device, Distribution, Element, IntDType, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
 };
 use core::ops::Range;
@@ -130,7 +130,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -149,19 +149,14 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
 
         let dtype = tensor.dtype;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -204,7 +199,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: ranges.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };

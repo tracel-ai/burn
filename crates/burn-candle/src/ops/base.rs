@@ -105,6 +105,66 @@ pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleT
     CandleTensor::new(narrow_tensor)
 }
 
+pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> CandleTensor {
+    let mut result_tensor = tensor.tensor;
+
+    for (dim, slice) in slices.iter().enumerate() {
+        if slice.step == 1 {
+            // Use narrow for step=1 (more efficient)
+            // Convert slice to range using tensor shape
+            let dim_size = result_tensor.dim(dim).unwrap();
+            let range = slice.to_range(dim_size);
+            let start = range.start;
+            let length = range.end - range.start;
+            result_tensor = result_tensor.narrow(dim, start, length).unwrap();
+        } else {
+            // Use index_select for step != 1
+            let dim_size = result_tensor.dim(dim).unwrap();
+            let range = slice.to_range(dim_size);
+            let start = range.start;
+            let end = range.end;
+            let step = slice.step;
+
+            // Generate indices based on step direction
+            let indices_vec = if step > 0 {
+                // Forward stepping
+                let step_usize = step as usize;
+                (start..end).step_by(step_usize).collect::<Vec<_>>()
+            } else {
+                // Backward stepping (negative step)
+                let step_usize = step.unsigned_abs();
+                // Start from end-1 and go backwards
+                let mut indices = Vec::new();
+                let mut idx = end - 1;
+                while idx >= start && idx < end {
+                    // Check for underflow
+                    indices.push(idx);
+                    if idx >= step_usize {
+                        idx -= step_usize;
+                    } else {
+                        break;
+                    }
+                }
+                indices
+            };
+
+            // Convert indices to tensor and use index_select
+            let indices_len = indices_vec.len();
+            let device = result_tensor.device();
+            let indices = candle_core::Tensor::from_vec(
+                indices_vec.iter().map(|&x| x as u32).collect::<Vec<_>>(),
+                indices_len,
+                device,
+            )
+            .unwrap();
+
+            result_tensor = result_tensor.index_select(&indices, dim).unwrap();
+        }
+    }
+
+    CandleTensor::new(result_tensor)
+}
+
 pub fn slice_assign(
     tensor: CandleTensor,
     ranges: &[std::ops::Range<usize>],

@@ -1,5 +1,4 @@
 use core::hash::Hash;
-use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use alloc::borrow::ToOwned;
@@ -7,7 +6,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
 use burn_tensor::{
-    DType, Distribution,
+    DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
@@ -737,7 +736,7 @@ pub struct SelectAssignOpIr {
 #[allow(missing_docs)]
 pub struct SliceOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<Slice>,
     pub out: TensorIr,
 }
 
@@ -745,7 +744,7 @@ pub struct SliceOpIr {
 #[allow(missing_docs)]
 pub struct SliceAssignOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<core::ops::Range<usize>>,
     pub value: TensorIr,
     pub out: TensorIr,
 }
