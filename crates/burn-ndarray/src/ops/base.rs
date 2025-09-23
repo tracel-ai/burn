@@ -65,60 +65,81 @@ where
         slices: &[burn_tensor::Slice],
         mut value: SharedArray<E>,
     ) -> SharedArray<E> {
-        // Check if we need to reverse values for negative steps
-        // We only reverse when:
-        // 1. There's exactly one slice dimension with negative step, OR
-        // 2. All slice dimensions have negative steps
-        // We DON'T reverse for mixed steps (some positive, some negative with multiple dims)
+        // Handle semantic differences between Burn and ndarray for negative steps:
+        //
+        // In ndarray, when assigning to a slice with negative step, the assignment
+        // follows the slice view's iteration order. For example:
+        // - tensor[0..4;-1] creates a view that iterates indices [3, 2, 1, 0]
+        // - Assigning values [a, b, c, d] puts 'a' at index 3, 'b' at index 2, etc.
+        //
+        // Burn expects the values to appear in the tensor as provided, so we need
+        // to pre-reverse values along dimensions with negative steps to compensate
+        // for ndarray's behavior.
+        //
+        // However, this only applies when ALL specified dimensions with non-unit steps
+        // have negative steps. When there are mixed non-unit steps (some positive >1,
+        // some negative), ndarray handles it correctly without needing reversal.
 
         let num_sliced_dims = slices.len().min(tensor.shape().num_dims());
-        let mut negative_step_dims = Vec::new();
-        let mut non_unit_positive_step_dims = Vec::new();
 
-        for (i, slice) in slices.iter().take(num_sliced_dims).enumerate() {
-            if slice.step < 0 {
-                negative_step_dims.push(i);
-            } else if slice.step != 1 {
-                // Only count as "positive step" if it's not the default step=1
-                // step=1 usually means full range or normal slicing
-                non_unit_positive_step_dims.push(i);
+        // Categorize dimensions by their step values
+        let mut dims_with_negative_step = Vec::new();
+        let mut has_positive_non_unit_step = false;
+
+        for (dim_idx, slice) in slices.iter().take(num_sliced_dims).enumerate() {
+            match slice.step {
+                step if step < 0 => dims_with_negative_step.push(dim_idx),
+                step if step > 1 => has_positive_non_unit_step = true,
+                _ => {} // step == 0 would have panicked earlier, step == 1 is standard
             }
         }
 
-        // We reverse when:
-        // 1. We have negative steps AND
-        // 2. We don't have non-unit positive steps (which would indicate mixed stepping)
-        let should_reverse = !negative_step_dims.is_empty() && non_unit_positive_step_dims.is_empty();
+        // Only reverse values when we have negative steps and no positive non-unit steps
+        // This handles both pure negative stepping and negative stepping with unit steps
+        let requires_reversal = !dims_with_negative_step.is_empty() && !has_positive_non_unit_step;
 
-        if should_reverse {
+        if requires_reversal {
             let mut value_array = value.into_owned();
 
-            for &axis in &negative_step_dims {
-                if axis < value_array.ndim() {
-                    let mut slice_elems = vec![];
-                    for i in 0..value_array.ndim() {
-                        if i == axis {
-                            slice_elems.push(ndarray::SliceInfoElem::Slice {
+            // Reverse along each dimension with negative step
+            for &dim in &dims_with_negative_step {
+                if dim >= value_array.ndim() {
+                    continue; // Skip if dimension doesn't exist in value array
+                }
+
+                // Create slice specification to reverse this dimension
+                let slice_spec: Vec<ndarray::SliceInfoElem> = (0..value_array.ndim())
+                    .map(|i| {
+                        if i == dim {
+                            ndarray::SliceInfoElem::Slice {
                                 start: 0,
                                 end: None,
                                 step: -1,
-                            });
+                            }
                         } else {
-                            slice_elems.push(ndarray::SliceInfoElem::Slice {
+                            ndarray::SliceInfoElem::Slice {
                                 start: 0,
                                 end: None,
                                 step: 1,
-                            });
+                            }
                         }
-                    }
-                    let slice_info = ndarray::SliceInfo::<Vec<ndarray::SliceInfoElem>, ndarray::IxDyn, ndarray::IxDyn>::try_from(slice_elems).unwrap();
-                    value_array = value_array.slice(slice_info.as_ref()).to_owned();
-                }
+                    })
+                    .collect();
+
+                let slice_info = ndarray::SliceInfo::<
+                    Vec<ndarray::SliceInfoElem>,
+                    ndarray::IxDyn,
+                    ndarray::IxDyn,
+                >::try_from(slice_spec)
+                .expect("Failed to create slice info for reversal");
+
+                value_array = value_array.slice(slice_info.as_ref()).to_owned();
             }
 
             value = value_array.into_shared();
         }
 
+        // Convert slices to ndarray format and perform the assignment
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
@@ -156,56 +177,39 @@ where
         ndims: usize,
     ) -> Vec<SliceInfoElem> {
         let mut slices = vec![SliceInfoElem::NewAxis; ndims];
-        for i in 0..ndims {
-            if i >= burn_slices.len() {
-                slices[i] = SliceInfoElem::Slice {
-                    start: 0,
-                    end: None,
-                    step: 1,
-                }
-            } else {
-                let slice = &burn_slices[i];
-                // ndarray's semantics for negative steps:
-                // s![a..b;-k] means: take the range [a..b), but iterate backwards with step k
-                // - The range [a..b) defines which elements to consider
-                // - With negative step, we start from the END of that range and go backwards
-                //
-                // Examples:
-                // - s![2..8;-2] -> range [2,3,4,5,6,7], traverse from 7 backwards by 2 -> [7,5,3]
-                // - s![0..5;-1] -> range [0,1,2,3,4], traverse from 4 backwards by 1 -> [4,3,2,1,0]
-                //
-                // This matches Burn's intended semantics perfectly!
-                if slice.step < 0 {
-                    // For negative step, we need to compute the range
-                    // Slice doesn't store range directly, but we can extract it
-                    let range = slice.to_range(usize::MAX); // Use large size for now
-                    let range_len = range.end - range.start;
 
-                    if range_len == 0 {
-                        // Empty range
-                        slices[i] = SliceInfoElem::Slice {
-                            start: 0,
-                            end: Some(0),
-                            step: 1,
-                        }
-                    } else {
-                        // ndarray handles negative steps by passing the range and step as-is
-                        // The SliceInfoElem with negative step tells ndarray to traverse backwards
-                        slices[i] = SliceInfoElem::Slice {
-                            start: slice.start,
-                            end: slice.end,
-                            step: slice.step,
-                        }
+        for i in 0..ndims {
+            slices[i] = if i < burn_slices.len() {
+                let slice = &burn_slices[i];
+
+                // Check for empty range (would result in no elements)
+                if slice.start == slice.end.unwrap_or(slice.start) {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: Some(0),
+                        step: 1,
                     }
                 } else {
-                    slices[i] = SliceInfoElem::Slice {
+                    // Pass slice parameters directly to ndarray
+                    // ndarray handles both positive and negative steps correctly:
+                    // - Positive step: iterates forward from start
+                    // - Negative step: iterates backward from the last element in range
+                    SliceInfoElem::Slice {
                         start: slice.start,
                         end: slice.end,
                         step: slice.step,
                     }
                 }
+            } else {
+                // Dimension not specified in slices - use full range
+                SliceInfoElem::Slice {
+                    start: 0,
+                    end: None,
+                    step: 1,
+                }
             }
         }
+
         slices
     }
 
