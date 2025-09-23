@@ -199,33 +199,9 @@ impl TchOps {
             final_indices.push(indices_tensor);
         }
 
-        // Handle value reversal for negative steps to match Burn's semantics
-        // When ALL non-unit steps are negative, reverse values along those dimensions
-        let mut dims_with_negative_step = Vec::new();
-        let mut has_positive_non_unit_step = false;
-
-        for (i, slice) in slices.iter().take(index_sets.len()).enumerate() {
-            if slice.step < 0 {
-                dims_with_negative_step.push(i as i64);
-            } else if slice.step > 1 {
-                has_positive_non_unit_step = true;
-            }
-        }
-
-        let requires_reversal = !dims_with_negative_step.is_empty() && !has_positive_non_unit_step;
-
-        let value_to_use = if requires_reversal {
-            // Reverse along each dimension with negative step
-            let mut reversed_value = value.shallow_clone();
-            for &dim in &dims_with_negative_step {
-                reversed_value = reversed_value.flip([dim]);
-            }
-            reversed_value
-        } else {
-            value
-        };
-
-        let value_flat = value_to_use.view(-1);
+        // PyTorch's index_put handles assignment correctly for negative steps
+        // following NumPy semantics: values[i] goes to selected_indices[i]
+        let value_flat = value.view(-1);
 
         // Use index_put to assign values - convert to Option<Tensor>
         let final_indices_opt: Vec<Option<tch::Tensor>> =
