@@ -1,6 +1,6 @@
 use crate::{BurnToPyTorchAdapter, ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
+use burn::nn::{Linear, LinearConfig};
 use burn_core::module::{Module, Param};
-use burn_core::nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -34,17 +34,17 @@ fn pytorch_to_burn_adapter_linear_transpose() {
 
     // Load with PyTorchToBurn adapter (will transpose back)
     let mut load_store = SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
     let result = model2.apply_from(&mut load_store).unwrap();
 
     // Should successfully load all tensors
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // Verify the linear weights are the same after round-trip
     let weight1 = model.linear.weight.val().to_data();
@@ -93,17 +93,17 @@ fn pytorch_to_burn_adapter_norm_rename() {
 
     // Load with PyTorchToBurn adapter (will rename weight->gamma, bias->beta)
     let mut load_store = SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let mut model2 = NormModel::<TestBackend>::new(&device);
     let result = model2.apply_from(&mut load_store).unwrap();
 
     // Should load successfully
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // Verify data is preserved
     let gamma1 = model.norm_gamma.val().to_data().to_vec::<f32>().unwrap();
@@ -126,17 +126,17 @@ fn no_adapter_preserves_original() {
 
     // Load without adapter
     let mut load_store = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
     let result = model2.apply_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // Verify data is exactly the same
     let weight1 = model.linear.weight.val().to_data();
@@ -187,5 +187,5 @@ fn adapter_with_pytorch_import() {
 
     // Should load some tensors (fc1 if it exists in the file)
     // This mainly tests that the adapter works with real PyTorch files
-    assert!(result.applied.len() > 0 || result.missing.len() > 0);
+    assert!(!result.applied.is_empty() || !result.missing.is_empty());
 }

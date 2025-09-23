@@ -30,7 +30,7 @@ Quantization support in Burn is currently in active development.
 
 It supports the following modes on some backends:
 
-- Static per-tensor quantization to signed 8-bit integer (`i8`)
+- Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
 
 No integer operations are currently supported, which means tensors are dequantized to perform the
 operations in floating point precision.
@@ -45,47 +45,21 @@ tensors and can collect their statistics, such as the min and max value when usi
 
 ```rust , ignore
 # use burn::module::Quantizer;
-# use burn::tensor::quantization::{Calibration, QuantizationScheme, QuantizationType};
+# use burn::tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantValue};
 #
 // Quantization config
+let scheme = QuantScheme::default()
+    .with_level(QuantLevel::Block(32))
+    .with_value(QuantValue::Q4F)
+    .with_param(QuantParam::F16);
 let mut quantizer = Quantizer {
     calibration: Calibration::MinMax,
-    scheme: QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8),
+    scheme,
 };
 
 // Quantize the weights
 let model = model.quantize_weights(&mut quantizer);
 ```
-
-> Given that all operations are currently performed in floating point precision, it might be wise to
-> dequantize the module parameters before inference. This allows us to save disk space by storing
-> the model in reduced precision while preserving the inference speed.
->
-> This can easily be implemented with a `ModuleMapper`.
->
-> ```rust, ignore
-> # use burn::module::{ModuleMapper, ParamId};
-> # use burn::tensor::{backend::Backend, Tensor};
-> #
-> /// Module mapper used to dequantize the model params being loaded.
-> pub struct Dequantize {}
->
-> impl<B: Backend> ModuleMapper<B> for Dequantize {
->     fn map_float<const D: usize>(
->         &mut self,
->         _id: ParamId,
->         tensor: Tensor<B, D>,
->     ) -> Tensor<B, D> {
->         tensor.dequantize()
->     }
-> }
->
-> // Load saved quantized model in floating point precision
-> model = model
->     .load_file(file_path, recorder, &device)
->     .expect("Should be able to load the quantized model weights")
->     .map(&mut Dequantize {});
-> ```
 
 ### Calibration
 
@@ -101,29 +75,55 @@ To compute the quantization parameters, Burn supports the following `Calibration
 
 ### Quantization Scheme
 
-A quantization scheme defines the quantized type, quantization granularity and range mapping
-technique.
+A quantization scheme defines how an input is quantized, including the representation of quantized
+values, storage format, granularity, and how the values are scaled.
 
-Burn currently supports the following `QuantizationType` variants.
-
-| Type    | Description                        |
-| :------ | :--------------------------------- |
-| `QInt8` | 8-bit signed integer quantization. |
-
-Quantization parameters are defined based on the range of values to represent and can typically be
-calculated for the layer's entire weight tensor with per-tensor quantization or separately for each
-channel with per-channel quantization (commonly used with CNNs).
-
-Burn currently supports the following `QuantizationScheme` variants.
-
-| Variant                        | Description                                                                                                                                                              |
-| :----------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PerTensor(mode, type)`        | Applies a single set of quantization parameters to the entire tensor. The `mode` defines how values are transformed, and `type` represents the target quantization type. |
+```rust
+let scheme = QuantScheme::default()
+    .with_mode(QuantMode::Symmetric)    // Quantization mode
+    .with_level(QuantLevel::Block(32))  // Granularity (per-tensor or per-block)
+    .with_value(QuantValue::Q8S)        // Data type of quantized values, independent of how they're stored
+    .with_store(QuantStore::Native)     // Storage format for quantized values
+    .with_param(QuantParam::F16);       // Precision for quantization parameters
+```
 
 #### Quantization Mode
 
-| Mode        | Description                                                          |
-| ----------- | -------------------------------------------------------------------- |
-| `Symmetric` | Maps values using a scale factor for a range centered around zero.   |
+| Mode        | Description                                  |
+| :---------- | :------------------------------------------- |
+| `Symmetric` | Values are scaled symmetrically around zero. |
 
----
+#### Quantization Level
+
+| Level               | Description                                                                  |
+| :------------------ | :--------------------------------------------------------------------------- |
+| `Tensor`            | A single quantization parameter set for the entire tensor.                   |
+| `Block(block_size)` | Tensor divided into 1D linear blocks, each with its own quantization params. |
+
+#### Quantization Value
+
+| Value | Bits | Description                   |
+| :---- | :--: | :---------------------------- |
+| `Q8F` |  8   | 8-bit full-range quantization |
+| `Q4F` |  4   | 4-bit full-range quantization |
+| `Q2F` |  2   | 2-bit full-range quantization |
+| `Q8S` |  8   | 8-bit symmetric quantization  |
+| `Q4S` |  4   | 4-bit symmetric quantization  |
+| `Q2S` |  2   | 2-bit symmetric quantization  |
+
+#### Quantization Store
+
+| Store    | Description                                             |
+| :------- | :------------------------------------------------------ |
+| `Native` | Each quantized value stored directly in memory.         |
+| `U32`    | Multiple quantized values packed into a 32-bit integer. |
+
+Native storage is not supported for sub-byte quantization values.
+
+#### Quantization Parameters Precision
+
+| Param  | Description                    |
+| :----- | :----------------------------- |
+| `F32`  | Full floating-point precision. |
+| `F16`  | Half-precision floating point. |
+| `BF16` | Brain float 16-bit precision.  |

@@ -321,11 +321,12 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
 mod tests {
     use super::*;
     use crate as burn;
+    use crate::config::Config;
+    use crate::module::Ignored;
+    use crate::test_utils::SimpleLinear;
     use crate::{
         TestBackend,
         module::Module,
-        nn::conv::{Conv2d, Conv2dConfig},
-        nn::{Linear, LinearConfig},
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
     use burn_tensor::backend::Backend;
@@ -389,22 +390,32 @@ mod tests {
         assert_eq!(model_bytes_after, model_bytes_before);
     }
 
+    #[derive(Config, Debug)]
+    pub enum PaddingConfig2d {
+        Same,
+        Valid,
+        Explicit(usize, usize),
+    }
+
+    // Dummy model with different record types
     #[derive(Module, Debug)]
     pub struct Model<B: Backend> {
-        conv2d1: Conv2d<B>,
-        linear1: Linear<B>,
+        linear1: SimpleLinear<B>,
         phantom: PhantomData<B>,
+        arr: [usize; 2],
+        int: usize,
+        ignore: Ignored<PaddingConfig2d>,
     }
 
     pub fn create_model(device: &<TestBackend as Backend>::Device) -> Model<TestBackend> {
-        let conv2d1 = Conv2dConfig::new([1, 8], [3, 3]).init(device);
-
-        let linear1 = LinearConfig::new(32, 32).with_bias(true).init(device);
+        let linear1 = SimpleLinear::new(32, 32, device);
 
         Model {
-            conv2d1,
             linear1,
             phantom: PhantomData,
+            arr: [2, 2],
+            int: 0,
+            ignore: Ignored(PaddingConfig2d::Same),
         }
     }
 }

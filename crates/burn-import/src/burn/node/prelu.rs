@@ -55,8 +55,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
+        let alpha = &self.config.alpha;
+        let num_parameters = self.config.num_parameters;
         let tokens = quote! {
             let #name = PReluConfig::new()
+                .with_num_parameters(#num_parameters)
+                .with_alpha(#alpha)
                 .init(device);
         };
 
@@ -129,7 +133,10 @@ mod tests {
         impl<B: Backend> Model<B> {
             #[allow(unused_variables)]
             pub fn new(device: &B::Device) -> Self {
-                let prelu = PReluConfig::new().init(device);
+                let prelu = PReluConfig::new()
+                    .with_num_parameters(1usize)
+                    .with_alpha(0.25f64)
+                    .init(device);
                 Self {
                     prelu,
                     phantom: core::marker::PhantomData,

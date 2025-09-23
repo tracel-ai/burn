@@ -17,18 +17,18 @@ fn filtered_export_import() {
 
     // Import filtered tensors - need to allow partial since we only saved encoder tensors
     let mut load_store = SafetensorsStore::from_bytes(None).allow_partial(true);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            // Get Arc and extract data
-            let data_arc = p_save.data().unwrap();
-            p.set_data(data_arc.as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        // Get Arc and extract data
+        let data_arc = p_save.data().unwrap();
+        p.set_data(data_arc.as_ref().clone());
     }
     let result = module2.apply_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert_eq!(result.applied.len(), 3); // encoder.weight, encoder.bias, encoder.norm
-    assert!(result.missing.len() > 0); // decoder and layers tensors are missing
+    assert!(!result.missing.is_empty()); // decoder and layers tensors are missing
 }
 
 #[test]

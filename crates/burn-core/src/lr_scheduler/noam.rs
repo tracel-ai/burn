@@ -8,8 +8,8 @@ use crate::{LearningRate, config::Config};
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config, Debug)]
 pub struct NoamLrSchedulerConfig {
-    /// The initial learning rate.
-    init_lr: LearningRate,
+    /// The overall scale factor for the learning rate decay.
+    factor: f64,
     /// The number of steps before the exponential decay stats.
     #[config(default = 4000)]
     warmup_steps: usize,
@@ -23,7 +23,7 @@ pub struct NoamLrSchedulerConfig {
 pub struct NoamLrScheduler {
     warmup_steps: f64,
     embedding_size: f64,
-    init_lr: LearningRate,
+    factor: f64,
     step: f64,
 }
 
@@ -49,7 +49,7 @@ impl NoamLrSchedulerConfig {
         Ok(NoamLrScheduler {
             warmup_steps: self.warmup_steps as f64,
             embedding_size: self.model_size as f64,
-            init_lr: self.init_lr,
+            factor: self.factor,
             step: 0.0,
         })
     }
@@ -64,7 +64,7 @@ impl LrScheduler for NoamLrScheduler {
         let arg1 = self.step.powf(-0.5);
         let arg2 = self.step * self.warmup_steps.powf(-1.5);
 
-        self.init_lr * self.embedding_size.powf(-0.5) * f64::min(arg1, arg2)
+        self.factor * self.embedding_size.powf(-0.5) * f64::min(arg1, arg2)
     }
 
     fn to_record<B: Backend>(&self) -> Self::Record<B> {

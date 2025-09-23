@@ -57,11 +57,12 @@ mod tests {
         // shape(input) = [2, 3]
         let index = Tensor::<TestBackend, 1, Int>::from_ints([0], &device);
 
-        // The model now returns 3 outputs:
+        // The model now returns 4 outputs:
         // output1: gather with runtime index
         // output2: gather with constant scalar index (1)
         // output3: gather with constant 1D indices [0, 1]
-        let (output1, output2, output3) = model.forward(input, index);
+        // output4: gather with negative indices [-1, -2]
+        let (output1, output2, output3, output4) = model.forward(input.clone(), index);
 
         // Test runtime index gather
         let expected1 = [2i64];
@@ -74,6 +75,18 @@ mod tests {
         // Test constant 1D indices gather (indices=[0,1] gets [shape[0], shape[1]] = [2, 3])
         let expected3 = [2i64, 3i64];
         assert_eq!(output3, expected3);
+
+        // Test negative indices gather (indices=[-1,-2] gets [shape[-1], shape[-2]] = [3, 2])
+        let expected4 = [3i64, 2i64];
+        assert_eq!(output4, expected4);
+
+        // Test with runtime negative index
+        let negative_index = Tensor::<TestBackend, 1, Int>::from_ints([-1], &device);
+        let (output_neg, _, _, _) = model.forward(input, negative_index);
+
+        // Runtime negative index -1 should get the last element (shape[2] = 3)
+        let expected_neg = [3i64];
+        assert_eq!(output_neg, expected_neg);
     }
 
     #[test]
@@ -163,6 +176,9 @@ mod tests {
         // Just verify we get the expected output shape
         // The shape should be [1, 5, 7] regardless of the input method
     }
+
+    // TODO: Add test for negative indices on tensors once Burn tensor operations support them
+    // Currently negative indices are only handled for Shape gathering at code generation time
 
     #[test]
     fn gather_static_shape_indices() {

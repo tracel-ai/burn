@@ -174,9 +174,9 @@ mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
-    use crate::nn::{Linear, LinearConfig, LinearRecord};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
+    use crate::test_utils::{SimpleLinear, SimpleLinearRecord};
     use burn_tensor::{Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestAutodiffBackend>;
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn test_adamw_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = LinearConfig::new(6, 6).init(&device);
+        let linear = SimpleLinear::new(6, 6, &device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
@@ -342,17 +342,21 @@ mod tests {
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
+    fn given_linear_layer(
+        weight: TensorData,
+        bias: TensorData,
+    ) -> SimpleLinear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = LinearRecord {
+        let record = SimpleLinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        LinearConfig::new(6, 6).init(&device).load_record(record)
+        SimpleLinear::new(6, 6, &device).load_record(record)
     }
 
-    fn create_adamw() -> OptimizerAdaptor<AdamW, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_adamw()
+    -> OptimizerAdaptor<AdamW, SimpleLinear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {

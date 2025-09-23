@@ -53,6 +53,7 @@ impl<B: Backend> MixedDtypeModel<B> {
 }
 
 #[cfg(test)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
 

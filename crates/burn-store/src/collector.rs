@@ -213,10 +213,8 @@ mod tests {
     type TestBackend = burn_ndarray::NdArray;
     use alloc::collections::BTreeMap;
     use alloc::string::String;
-    use burn_core::{
-        module::{Module, Param},
-        nn::LinearConfig,
-    };
+    use burn::nn::LinearConfig;
+    use burn_core::module::{Module, Param};
 
     #[test]
     fn tensor_snapshot_collector() {
@@ -227,11 +225,7 @@ mod tests {
         let id = ParamId::new();
 
         // Collect a tensor
-        collector.visit_float_with_path(
-            &vec!["model".to_string(), "weight".to_string()],
-            id,
-            &tensor,
-        );
+        collector.visit_float_with_path(&["model".to_string(), "weight".to_string()], id, &tensor);
 
         assert_eq!(collector.tensors.len(), 1);
         assert_eq!(collector.tensors[0].full_path(), "model.weight");
@@ -254,13 +248,13 @@ mod tests {
 
         // This should be collected
         collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "weight".to_string()],
+            &["encoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         );
         // This should NOT be collected
         collector.visit_float_with_path(
-            &vec!["decoder".to_string(), "weight".to_string()],
+            &["decoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         );
@@ -284,24 +278,16 @@ mod tests {
 
         // These should be collected
         collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "weight".to_string()],
+            &["encoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         ); // matches first pattern
-        collector.visit_float_with_path(
-            &vec!["decoder".to_string(), "bias".to_string()],
-            id,
-            &tensor,
-        ); // matches second pattern
-        collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "bias".to_string()],
-            id,
-            &tensor,
-        ); // matches both patterns
+        collector.visit_float_with_path(&["decoder".to_string(), "bias".to_string()], id, &tensor); // matches second pattern
+        collector.visit_float_with_path(&["encoder".to_string(), "bias".to_string()], id, &tensor); // matches both patterns
 
         // This should NOT be collected
         collector.visit_float_with_path(
-            &vec!["decoder".to_string(), "weight".to_string()],
+            &["decoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         ); // matches neither
@@ -329,32 +315,20 @@ mod tests {
 
         // These should be collected
         collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "weight".to_string()],
+            &["encoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         );
-        collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "bias".to_string()],
-            id,
-            &tensor,
-        );
-        collector.visit_float_with_path(
-            &vec!["decoder".to_string(), "bias".to_string()],
-            id,
-            &tensor,
-        );
+        collector.visit_float_with_path(&["encoder".to_string(), "bias".to_string()], id, &tensor);
+        collector.visit_float_with_path(&["decoder".to_string(), "bias".to_string()], id, &tensor);
 
         // This should NOT be collected
         collector.visit_float_with_path(
-            &vec!["decoder".to_string(), "weight".to_string()],
+            &["decoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         );
-        collector.visit_float_with_path(
-            &vec!["other".to_string(), "tensor".to_string()],
-            id,
-            &tensor,
-        );
+        collector.visit_float_with_path(&["other".to_string(), "tensor".to_string()], id, &tensor);
 
         assert_eq!(collector.tensors.len(), 3);
         let paths: Vec<String> = collector.tensors.iter().map(|v| v.full_path()).collect();
@@ -385,7 +359,7 @@ mod tests {
 
         // These should be collected
         collector.visit_float_with_path(
-            &vec![
+            &[
                 "model".to_string(),
                 "layer1".to_string(),
                 "weight".to_string(),
@@ -394,7 +368,7 @@ mod tests {
             &tensor,
         );
         collector.visit_float_with_path(
-            &vec![
+            &[
                 "model".to_string(),
                 "layer2".to_string(),
                 "weight".to_string(),
@@ -405,7 +379,7 @@ mod tests {
 
         // These should NOT be collected
         collector.visit_float_with_path(
-            &vec![
+            &[
                 "model".to_string(),
                 "layer1".to_string(),
                 "bias".to_string(),
@@ -414,7 +388,7 @@ mod tests {
             &tensor,
         );
         collector.visit_float_with_path(
-            &vec![
+            &[
                 "model".to_string(),
                 "layer3".to_string(),
                 "weight".to_string(),
@@ -423,7 +397,7 @@ mod tests {
             &tensor,
         );
         collector.visit_float_with_path(
-            &vec!["encoder".to_string(), "weight".to_string()],
+            &["encoder".to_string(), "weight".to_string()],
             id,
             &tensor,
         ); // wrong structure
@@ -743,7 +717,7 @@ mod tests {
     }
 
     use crate::traits::ModuleSnapshot;
-    use burn_core::nn::Linear;
+    use burn::nn::Linear;
     use hashbrown::HashMap;
 
     // Test module with Option fields
@@ -1024,7 +998,7 @@ mod tests {
 
         // Filter to only collect tensors from Linear modules
         let filter = PathFilter::new().with_predicate(|_path, container_path| {
-            container_path.split('.').last() == Some("Linear")
+            container_path.split('.').next_back() == Some("Linear")
         });
 
         let linear_views: Vec<TensorSnapshot> = model.collect(Some(filter), None);

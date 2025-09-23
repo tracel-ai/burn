@@ -18,7 +18,7 @@ type ElemType = burn::tensor::flex32;
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(512, 2048, 16, 8)
+        TransformerEncoderConfig::new(256, 1024, 8, 4)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
@@ -135,7 +135,7 @@ mod cuda {
 
     pub fn run() {
         let type_id = 0;
-        let num_devices = B::Device::device_count(type_id);
+        let num_devices = 1;
 
         let devices = (0..num_devices)
             .map(|i| CudaDevice::new(i as usize))
@@ -148,10 +148,10 @@ mod cuda {
 #[cfg(feature = "rocm")]
 mod rocm {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Rocm};
+    use burn::backend::{Autodiff, Rocm, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Rocm<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
     }
 }
 
