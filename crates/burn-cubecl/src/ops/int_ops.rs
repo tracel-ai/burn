@@ -99,7 +99,7 @@ where
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         execute_with_dtype!(

@@ -744,7 +744,7 @@ pub struct SliceOpIr {
 #[allow(missing_docs)]
 pub struct SliceAssignOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<core::ops::Range<usize>>,
+    pub ranges: Vec<burn_tensor::Slice>,
     pub value: TensorIr,
     pub out: TensorIr,
 }

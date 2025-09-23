@@ -299,7 +299,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
