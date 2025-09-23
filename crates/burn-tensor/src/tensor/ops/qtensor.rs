@@ -277,12 +277,12 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B>,
     ) -> QuantizedTensor<B>;
 
-    /// Select tensor elements corresponding for the given slice infos.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `slice_infos` - The slice infos specifying ranges and steps.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///

@@ -611,12 +611,12 @@ fn conv1d_weight_grad_no_groups<B: Backend>(
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
     if weight_grad.shape() != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -638,13 +638,13 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
     if weight_grad.shape() != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[3] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -666,14 +666,14 @@ fn conv3d_weight_grad_no_groups<B: Backend>(
     let mut weight_grad = B::float_swap_dims(weight_grad_swapped, 0, 1);
 
     if weight_grad.shape() != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[3] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[4] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -765,13 +765,13 @@ fn conv2d_weight_grad_groups<B: Backend>(
         let [_, _, kernel_size_1_tmp, kernel_size_2_tmp] = weight_grad_tmp.shape().dims();
 
         if kernel_size_1_tmp != kernel_size_1 || kernel_size_2_tmp != kernel_size_2 {
-            let slice_infos = vec![
+            let slices = vec![
                 Slice::new(0_isize, Some(increment_co as isize), 1),
                 Slice::new(0_isize, Some(increment_ci as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_1 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_2 as isize), 1),
             ];
-            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slice_infos);
+            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slices);
         }
 
         weight_grad = B::float_slice_assign(
@@ -844,14 +844,14 @@ fn conv3d_weight_grad_groups<B: Backend>(
             || kernel_size_2_tmp != kernel_size_2
             || kernel_size_3_tmp != kernel_size_3
         {
-            let slice_infos = vec![
+            let slices = vec![
                 Slice::new(0_isize, Some(increment_co as isize), 1),
                 Slice::new(0_isize, Some(increment_ci as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_1 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_2 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_3 as isize), 1),
             ];
-            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slice_infos);
+            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slices);
         }
 
         weight_grad = B::float_slice_assign(
@@ -888,12 +888,12 @@ fn conv_transpose1d_weight_grad_no_groups<B: Backend>(
 
     let grad_shape = weight_grad.shape();
     if grad_shape != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -916,13 +916,13 @@ fn conv_transpose2d_weight_grad_no_groups<B: Backend>(
 
     let grad_shape = weight_grad.shape();
     if grad_shape != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[3] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -945,14 +945,14 @@ fn conv_transpose3d_weight_grad_no_groups<B: Backend>(
 
     let grad_shape = weight_grad.shape();
     if grad_shape != weight_shape {
-        let slice_infos = vec![
+        let slices = vec![
             Slice::new(0_isize, Some(weight_shape.dims[0] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[1] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[2] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[3] as isize), 1),
             Slice::new(0_isize, Some(weight_shape.dims[4] as isize), 1),
         ];
-        weight_grad = B::float_slice(weight_grad, &slice_infos);
+        weight_grad = B::float_slice(weight_grad, &slices);
     }
     weight_grad
 }
@@ -997,12 +997,12 @@ fn conv_transpose1d_weight_grad_groups<B: Backend>(
         let [_, _, kernel_size_tmp] = weight_grad_tmp.shape().dims();
 
         if kernel_size_tmp != kernel_size {
-            let slice_infos = vec![
+            let slices = vec![
                 Slice::new(0_isize, Some(increment_ci as isize), 1),
                 Slice::new(0_isize, Some(increment_co as isize), 1),
                 Slice::new(0_isize, Some(kernel_size as isize), 1),
             ];
-            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slice_infos);
+            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slices);
         }
 
         weight_grad = B::float_slice_assign(
@@ -1055,13 +1055,13 @@ fn conv_transpose2d_weight_grad_groups<B: Backend>(
         let [_, _, kernel_size_1_tmp, kernel_size_2_tmp] = weight_grad_tmp.shape().dims();
 
         if kernel_size_1_tmp != kernel_size_1 || kernel_size_2_tmp != kernel_size_2 {
-            let slice_infos = vec![
+            let slices = vec![
                 Slice::new(0_isize, Some(increment_ci as isize), 1),
                 Slice::new(0_isize, Some(increment_co as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_1 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_2 as isize), 1),
             ];
-            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slice_infos);
+            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slices);
         }
 
         weight_grad = B::float_slice_assign(
@@ -1134,14 +1134,14 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
             || kernel_size_2_tmp != kernel_size_2
             || kernel_size_3_tmp != kernel_size_3
         {
-            let slice_infos = vec![
+            let slices = vec![
                 Slice::new(0_isize, Some(increment_ci as isize), 1),
                 Slice::new(0_isize, Some(increment_co as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_1 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_2 as isize), 1),
                 Slice::new(0_isize, Some(kernel_size_3 as isize), 1),
             ];
-            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slice_infos);
+            weight_grad_tmp = B::float_slice(weight_grad_tmp, &slices);
         }
         weight_grad = B::float_slice_assign(
             weight_grad,

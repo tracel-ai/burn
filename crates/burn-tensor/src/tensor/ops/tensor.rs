@@ -473,7 +473,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `slice_infos` - The slice information including ranges and steps.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///

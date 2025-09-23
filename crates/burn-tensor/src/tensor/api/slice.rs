@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_calculate_slice_output_shape_partial_dims() {
-        // Test when slice_infos has fewer dimensions than original shape
+        // Test when slices has fewer dimensions than original shape
         let slices = vec![
             Slice::from_range_stepped(2..7, 2), // [2,4,6] -> 3 elements
         ];

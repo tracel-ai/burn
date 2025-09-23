@@ -2651,12 +2651,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `slice_infos` - The slice information for elements to assign.
+    /// * `slices` - The slices specifying which elements to assign.
     /// * `value` - The value to assign.
     ///
     /// # Note
     ///
-    /// Currently, this method does not support steps != 1. If any slice_info has a step != 1,
+    /// Currently, this method does not support steps != 1. If any slice has a step != 1,
     /// the method will panic.
     ///
     /// # Returns
@@ -2682,7 +2682,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `slice_infos` - The slice information containing ranges and steps for each dimension.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     /// * `value` - The value to fill.
     ///
     /// # Returns

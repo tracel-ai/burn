@@ -124,7 +124,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `slice_infos` - The slice information including ranges and steps.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
