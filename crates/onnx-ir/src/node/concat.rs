@@ -16,11 +16,7 @@ pub fn concat_update_outputs(node: &mut Node) {
 
     if has_shape && has_rank1_tensor {
         // Mixed inputs that will be unified after constant conversion
-        // For now, assume rank-1 tensors are shape-like (common pattern in ONNX models)
-        // The exact rank will be corrected after constant conversion
-
-        // Use a provisional rank - sum of known Shape ranks
-        // Rank-1 tensors are assumed to contribute their dimension count (unknown for now)
+        // Calculate provisional rank by summing Shape ranks and estimating tensor contributions
         let mut provisional_rank: usize = 0;
 
         for input in &node.inputs {
@@ -29,9 +25,17 @@ pub fn concat_update_outputs(node: &mut Node) {
                     provisional_rank += rank;
                 }
                 ArgType::Tensor(t) if t.rank == 1 => {
-                    // We don't know the exact contribution yet
-                    // This will be fixed after constant conversion
-                    // For now, don't add anything (will be corrected later)
+                    // For constant tensors, use their actual dimension count
+                    // For dynamic tensors, assume 1 element (will be corrected after conversion)
+                    let contribution = input.value.as_ref().map(|v| v.shape[0]).unwrap_or(1);
+                    provisional_rank += contribution;
+
+                    log::debug!(
+                        "Concat {}: rank-1 tensor {} contributes {} to provisional rank",
+                        node.name,
+                        input.name,
+                        contribution
+                    );
                 }
                 _ => panic!("Concat with mixed inputs only supports Shape and rank-1 Tensor"),
             }
