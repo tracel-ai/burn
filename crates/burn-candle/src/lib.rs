@@ -180,4 +180,5 @@ mod tests {
     burn_autodiff::testgen_ad_round!();
     burn_autodiff::testgen_ad_floor!();
     burn_autodiff::testgen_ad_ceil!();
+    burn_autodiff::testgen_ad_slice_assign!();
 }

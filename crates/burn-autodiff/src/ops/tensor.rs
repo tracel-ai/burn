@@ -1131,16 +1131,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
-        // Check if any slice has step != 1
-        for (i, slice) in slices.iter().enumerate() {
-            if slice.step != 1 {
-                panic!(
-                    "Autodiff does not support slice with step != 1. Dimension {} has step {}",
-                    i, slice.step
-                );
-            }
-        }
-
         #[derive(Debug)]
         struct Index;
 
