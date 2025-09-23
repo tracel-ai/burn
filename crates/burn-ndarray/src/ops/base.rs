@@ -3,7 +3,7 @@ use burn_tensor::ElementConversion;
 #[cfg(feature = "simd")]
 use burn_tensor::{DType, quantization::QuantValue};
 use core::fmt::Debug;
-use core::{marker::PhantomData, ops::Range};
+use core::marker::PhantomData;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
@@ -63,8 +63,62 @@ where
     pub fn slice_assign(
         tensor: SharedArray<E>,
         slices: &[burn_tensor::Slice],
-        value: SharedArray<E>,
+        mut value: SharedArray<E>,
     ) -> SharedArray<E> {
+        // Check if we need to reverse values for negative steps
+        // We only reverse when:
+        // 1. There's exactly one slice dimension with negative step, OR
+        // 2. All slice dimensions have negative steps
+        // We DON'T reverse for mixed steps (some positive, some negative with multiple dims)
+
+        let num_sliced_dims = slices.len().min(tensor.shape().num_dims());
+        let mut negative_step_dims = Vec::new();
+        let mut non_unit_positive_step_dims = Vec::new();
+
+        for (i, slice) in slices.iter().take(num_sliced_dims).enumerate() {
+            if slice.step < 0 {
+                negative_step_dims.push(i);
+            } else if slice.step != 1 {
+                // Only count as "positive step" if it's not the default step=1
+                // step=1 usually means full range or normal slicing
+                non_unit_positive_step_dims.push(i);
+            }
+        }
+
+        // We reverse when:
+        // 1. We have negative steps AND
+        // 2. We don't have non-unit positive steps (which would indicate mixed stepping)
+        let should_reverse = !negative_step_dims.is_empty() && non_unit_positive_step_dims.is_empty();
+
+        if should_reverse {
+            let mut value_array = value.into_owned();
+
+            for &axis in &negative_step_dims {
+                if axis < value_array.ndim() {
+                    let mut slice_elems = vec![];
+                    for i in 0..value_array.ndim() {
+                        if i == axis {
+                            slice_elems.push(ndarray::SliceInfoElem::Slice {
+                                start: 0,
+                                end: None,
+                                step: -1,
+                            });
+                        } else {
+                            slice_elems.push(ndarray::SliceInfoElem::Slice {
+                                start: 0,
+                                end: None,
+                                step: 1,
+                            });
+                        }
+                    }
+                    let slice_info = ndarray::SliceInfo::<Vec<ndarray::SliceInfoElem>, ndarray::IxDyn, ndarray::IxDyn>::try_from(slice_elems).unwrap();
+                    value_array = value_array.slice(slice_info.as_ref()).to_owned();
+                }
+            }
+
+            value = value_array.into_shared();
+        }
+
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);

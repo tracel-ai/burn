@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::InterpolateMode;
 use burn_tensor::{TensorMetadata, cast::ToElement};
-use core::ops::Range;
 
 // Current crate
 use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};

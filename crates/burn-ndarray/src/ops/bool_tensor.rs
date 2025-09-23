@@ -3,7 +3,6 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
-use core::ops::Range;
 use ndarray::IntoDimension;
 
 // Current crate

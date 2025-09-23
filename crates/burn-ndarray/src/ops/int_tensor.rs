@@ -6,7 +6,6 @@ use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
 
 use burn_tensor::ElementConversion;
-use core::ops::Range;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
