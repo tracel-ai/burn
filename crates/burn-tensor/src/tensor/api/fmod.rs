@@ -105,7 +105,7 @@ where
         if scalar.is_infinite() {
             // For finite values, fmod(x, ±∞) = x
             // For infinite values, fmod(±∞, ±∞) = NaN (which is handled by arithmetic)
-            return self.clone();
+            return self;
         }
 
         self - product

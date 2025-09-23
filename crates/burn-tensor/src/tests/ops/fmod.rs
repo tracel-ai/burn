@@ -280,6 +280,6 @@ mod tests {
         assert!(values[0].abs() < 1e-5);
         assert!(values[1].abs() < 1e-5);
         assert_eq!(values[2], 0.0);
-        assert_eq!(values[3], -0.0);
+        assert_eq!(values[3], 0.0);
     }
 }

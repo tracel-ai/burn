@@ -45,8 +45,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ModNode {
                     let rank_diff = larger_rank - smaller_rank;
                     let unsqueeze_dims = (0..rank_diff)
                         .map(|i| {
-                            let i_usize = i;
-                            quote! { #i_usize as isize }
+                            let i = i as isize;
+                            quote! { #i }
                         })
                         .collect::<Vec<_>>();
 
@@ -249,9 +249,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 4> {
-                    let output = tensor1
-                        .unsqueeze_dims(&[0usize as isize, 1usize as isize])
-                        .fmod(tensor2);
+                    let output = tensor1.unsqueeze_dims(&[0isize, 1isize]).fmod(tensor2);
                     output
                 }
             }
