@@ -35,12 +35,12 @@ fn metadata_preservation() {
     // Verify metadata was saved (would need to add a method to check metadata)
     // For now, just verify the round trip works
     let mut load_store = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            // Get Arc and extract data
-            let data_arc = p_save.data().unwrap();
-            p.set_data(data_arc.as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        // Get Arc and extract data
+        let data_arc = p_save.data().unwrap();
+        p.set_data(data_arc.as_ref().clone());
     }
 
     let mut module2 = LinearConfig::new(4, 2)
@@ -68,11 +68,11 @@ fn clear_metadata_removes_all() {
 
     // Load and verify the module still works (metadata is optional)
     let mut load_store = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            let data_arc = p_save.data().unwrap();
-            p.set_data(data_arc.as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        let data_arc = p_save.data().unwrap();
+        p.set_data(data_arc.as_ref().clone());
     }
 
     let mut module2 = LinearConfig::new(4, 2)
@@ -99,11 +99,11 @@ fn clear_then_add_custom_metadata() {
 
     // Verify round-trip works
     let mut load_store = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            let data_arc = p_save.data().unwrap();
-            p.set_data(data_arc.as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        let data_arc = p_save.data().unwrap();
+        p.set_data(data_arc.as_ref().clone());
     }
 
     let mut module2 = LinearConfig::new(4, 2)
