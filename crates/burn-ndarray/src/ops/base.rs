@@ -63,83 +63,8 @@ where
     pub fn slice_assign(
         tensor: SharedArray<E>,
         slices: &[burn_tensor::Slice],
-        mut value: SharedArray<E>,
+        value: SharedArray<E>,
     ) -> SharedArray<E> {
-        // Handle semantic differences between Burn and ndarray for negative steps:
-        //
-        // In ndarray, when assigning to a slice with negative step, the assignment
-        // follows the slice view's iteration order. For example:
-        // - tensor[0..4;-1] creates a view that iterates indices [3, 2, 1, 0]
-        // - Assigning values [a, b, c, d] puts 'a' at index 3, 'b' at index 2, etc.
-        //
-        // Burn expects the values to appear in the tensor as provided, so we need
-        // to pre-reverse values along dimensions with negative steps to compensate
-        // for ndarray's behavior.
-        //
-        // However, this only applies when ALL specified dimensions with non-unit steps
-        // have negative steps. When there are mixed non-unit steps (some positive >1,
-        // some negative), ndarray handles it correctly without needing reversal.
-
-        let num_sliced_dims = slices.len().min(tensor.shape().num_dims());
-
-        // Categorize dimensions by their step values
-        let mut dims_with_negative_step = Vec::new();
-        let mut has_positive_non_unit_step = false;
-
-        for (dim_idx, slice) in slices.iter().take(num_sliced_dims).enumerate() {
-            match slice.step {
-                step if step < 0 => dims_with_negative_step.push(dim_idx),
-                step if step > 1 => has_positive_non_unit_step = true,
-                _ => {} // step == 0 would have panicked earlier, step == 1 is standard
-            }
-        }
-
-        // Only reverse values when we have negative steps and no positive non-unit steps
-        // This handles both pure negative stepping and negative stepping with unit steps
-        let requires_reversal = !dims_with_negative_step.is_empty() && !has_positive_non_unit_step;
-
-        if requires_reversal {
-            let mut value_array = value.into_owned();
-
-            // Reverse along each dimension with negative step
-            for &dim in &dims_with_negative_step {
-                if dim >= value_array.ndim() {
-                    continue; // Skip if dimension doesn't exist in value array
-                }
-
-                // Create slice specification to reverse this dimension
-                let slice_spec: Vec<ndarray::SliceInfoElem> = (0..value_array.ndim())
-                    .map(|i| {
-                        if i == dim {
-                            ndarray::SliceInfoElem::Slice {
-                                start: 0,
-                                end: None,
-                                step: -1,
-                            }
-                        } else {
-                            ndarray::SliceInfoElem::Slice {
-                                start: 0,
-                                end: None,
-                                step: 1,
-                            }
-                        }
-                    })
-                    .collect();
-
-                let slice_info = ndarray::SliceInfo::<
-                    Vec<ndarray::SliceInfoElem>,
-                    ndarray::IxDyn,
-                    ndarray::IxDyn,
-                >::try_from(slice_spec)
-                .expect("Failed to create slice info for reversal");
-
-                value_array = value_array.slice(slice_info.as_ref()).to_owned();
-            }
-
-            value = value_array.into_shared();
-        }
-
-        // Convert slices to ndarray format and perform the assignment
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
