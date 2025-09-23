@@ -53,7 +53,6 @@ fn slice_assign_with_steps_kernel<E: CubePrimitive>(
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
-    special_negatives: Sequence<u32>, // Use u32 for boolean flags (0 or 1)
 ) {
     if ABSOLUTE_POS >= value.len() {
         terminate!();
@@ -72,7 +71,6 @@ fn slice_assign_with_steps_kernel<E: CubePrimitive>(
         let start = *starts.index(dim);
         let end = *ends.index(dim);
         let step = *steps.index(dim);
-        let is_special_negative = *special_negatives.index(dim) != 0; // Convert to bool
 
         let (rem, value_idx) = value_shape.index(dim).div_mod(value_offset);
         value_offset = rem;
@@ -81,17 +79,11 @@ fn slice_assign_with_steps_kernel<E: CubePrimitive>(
             // Forward stepping
             start + value_idx * (step as u32)
         } else if step < 0 {
-            if is_special_negative {
-                // Special Burn semantics: when ALL non-unit steps are negative,
-                // values should appear as-is in the result
-                // For this special case, map values directly to output positions
-                start + value_idx
-            } else {
-                // Normal backward stepping - start from end-1
-                let abs_step = (-step) as u32;
-                let end_minus_1 = end - 1;
-                end_minus_1 - value_idx * abs_step
-            }
+            // Backward stepping - start from end-1
+            // For negative steps, we iterate backwards through the selected indices
+            let abs_step = (-step) as u32;
+            let end_minus_1 = end - 1;
+            end_minus_1 - value_idx * abs_step
         } else {
             // step == 0, shouldn't happen
             value_idx
@@ -189,12 +181,12 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
 /// Slice assign with steps support
 ///
 /// This function handles slice assignment with arbitrary step values, including negative steps.
-/// It implements Burn's specific semantics for negative steps:
+/// It follows NumPy/PyTorch semantics where values[i] is assigned to selected_indices[i].
 ///
-/// - When ALL non-unit steps are negative: values appear as-is in the result
-///   (e.g., tensor[0..6;-1] = [a,b,c,d,e,f] results in [a,b,c,d,e,f])
-/// - When there are mixed steps (positive and negative): normal indexing behavior
-///   (values are assigned to the indices selected by the slice)
+/// For example, with s![0..6;-1] which selects indices [5,4,3,2,1,0]:
+/// - values[0] goes to index 5
+/// - values[1] goes to index 4
+/// - etc.
 pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
     slices: &[burn_tensor::Slice],
@@ -205,37 +197,16 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
         false => tensor.copy(),
     };
 
-    // Determine if we need special handling for Burn's semantics
-    // When ALL non-unit steps are negative, Burn expects values to appear as-is
-    let mut has_negative_step = false;
-    let mut has_positive_non_unit_step = false;
-
-    for slice in slices.iter() {
-        if slice.step < 0 {
-            has_negative_step = true;
-        } else if slice.step > 1 {
-            has_positive_non_unit_step = true;
-        }
-    }
-
-    // Determine if we need special handling (all non-unit steps are negative)
-    let use_special_semantics = has_negative_step && !has_positive_non_unit_step;
-
     // Prepare sequences for kernel
     let mut starts = SequenceArg::<R, u32>::new();
     let mut ends = SequenceArg::<R, u32>::new();
     let mut steps = SequenceArg::<R, i32>::new();
-    let mut special_negatives = SequenceArg::<R, u32>::new(); // Use u32 for bool flags
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.shape.dims[dim]);
         starts.push(ScalarArg::new(range.start as u32));
         ends.push(ScalarArg::new(range.end as u32));
         steps.push(ScalarArg::new(slice.step as i32));
-
-        // Pass a boolean flag as u32 (0 or 1) indicating if this dimension needs special handling
-        let is_special = use_special_semantics && slice.step < 0;
-        special_negatives.push(ScalarArg::new(if is_special { 1u32 } else { 0u32 }));
     }
 
     // Pad with default values if needed to match tensor dimensions
@@ -243,7 +214,6 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
         starts.push(ScalarArg::new(0));
         ends.push(ScalarArg::new(tensor.shape.dims[dim] as u32));
         steps.push(ScalarArg::new(1));
-        special_negatives.push(ScalarArg::new(0u32)); // false as 0
     }
 
     // Launch kernel
@@ -261,7 +231,6 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
             starts,
             ends,
             steps,
-            special_negatives,
         );
     }
 

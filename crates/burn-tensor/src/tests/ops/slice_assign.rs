@@ -152,7 +152,7 @@ mod tests {
 
         // Assign in reverse order (step=-1)
         let output = tensor.slice_assign([s![0..6;-1]], values);
-        let expected = TensorData::from([60.0, 50.0, 40.0, 30.0, 20.0, 10.0]);
+        let expected = TensorData::from([10.0, 20.0, 30.0, 40.0, 50.0, 60.0]);
 
         output.into_data().assert_eq(&expected, false);
     }
@@ -180,9 +180,9 @@ mod tests {
         );
         let output = tensor.clone().slice_assign([s![0..3;-1]], values);
         let expected = TensorData::from([
-            [30.0, 31.0, 32.0, 33.0],
-            [20.0, 21.0, 22.0, 23.0],
             [10.0, 11.0, 12.0, 13.0],
+            [20.0, 21.0, 22.0, 23.0],
+            [30.0, 31.0, 32.0, 33.0],
         ]);
         output.into_data().assert_eq(&expected, false);
 
@@ -197,9 +197,9 @@ mod tests {
         );
         let output = tensor.clone().slice_assign(s![.., 0..4;-1], values);
         let expected = TensorData::from([
-            [40.0, 30.0, 20.0, 10.0],
-            [80.0, 70.0, 60.0, 50.0],
-            [120.0, 110.0, 100.0, 90.0],
+            [10.0, 20.0, 30.0, 40.0],
+            [50.0, 60.0, 70.0, 80.0],
+            [90.0, 100.0, 110.0, 120.0],
         ]);
         output.into_data().assert_eq(&expected, false);
     }
@@ -272,7 +272,7 @@ mod tests {
         );
         let output = tensor.slice_assign(s![.., 0..4;-1], values);
         let expected =
-            TensorData::from([[40i32, 30, 20, 10], [80, 70, 60, 50], [120, 110, 100, 90]]);
+            TensorData::from([[10i32, 20, 30, 40], [50, 60, 70, 80], [90, 100, 110, 120]]);
         output.into_data().assert_eq(&expected, false);
     }
 
@@ -318,10 +318,10 @@ mod tests {
         );
         let output = tensor.slice_assign(s![0..4;-1, 0..2;-1, 0..2;-1], values);
         let expected = TensorData::from([
-            [[400.0, 399.0], [398.0, 397.0]],
-            [[396.0, 395.0], [394.0, 393.0]],
-            [[392.0, 391.0], [390.0, 389.0]],
-            [[388.0, 387.0], [386.0, 385.0]],
+            [[385.0, 386.0], [387.0, 388.0]],
+            [[389.0, 390.0], [391.0, 392.0]],
+            [[393.0, 394.0], [395.0, 396.0]],
+            [[397.0, 398.0], [399.0, 400.0]],
         ]);
         output.into_data().assert_eq(&expected, false);
     }
