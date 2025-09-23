@@ -1,6 +1,5 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
-use core::ops::Range;
 
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
@@ -98,7 +97,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
@@ -106,7 +105,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };

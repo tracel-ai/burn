@@ -1,6 +1,6 @@
 use super::tree::all_reduce_sum_tree;
 use crate::PeerId;
-use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend};
+use burn_tensor::{backend::Backend, Shape, Slice, TensorMetadata};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
@@ -120,16 +120,16 @@ fn ring_cycles<B: Backend>(
             if is_phase_one {
                 dest_slice = B::float_add(dest_slice, src_slice_on_dest);
             } else {
-                let ranges: Vec<Range<usize>> = dest_slice
+                let slices: Vec<Slice> = dest_slice
                     .shape()
                     .dims
                     .iter()
-                    .map(|d| Range { start: 0, end: *d })
+                    .map(|&d| Slice::new(0, Some(d as isize), 1))
                     .collect();
 
                 // in phase 2, we don't sum the two slices, we replace with the new one.
                 dest_slice =
-                    B::float_slice_assign(dest_slice, ranges.as_slice(), src_slice_on_dest);
+                    B::float_slice_assign(dest_slice, slices.as_slice(), src_slice_on_dest);
             }
 
             sliced_tensors[src_tensor_idx]
