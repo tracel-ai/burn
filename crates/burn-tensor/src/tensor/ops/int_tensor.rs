@@ -97,7 +97,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor with the values set for the given ranges.
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: IntTensor<B>,
     ) -> IntTensor<B>;
 

@@ -1227,35 +1227,15 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     ///
-    /// **Important**: Stepped slicing (e.g., `s![0..10;2]`) is not currently supported for
-    /// slice_assign and will panic if attempted. Only unit steps (step = 1) are allowed.
+    /// **Note**: Stepped slicing (e.g., `s![0..10;2]`) is supported. The values tensor must have
+    /// dimensions that match the number of elements selected by each slice with its step.
     pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
         let slices = ranges.into_slices(self.shape());
-
-        // Check that all steps are 1, as backends don't support stepped slice_assign yet
-        for (i, slice) in slices.iter().enumerate() {
-            if slice.step() != 1 {
-                panic!(
-                    "slice_assign does not support steps != 1 yet. Got step {} at dimension {}",
-                    slice.step(),
-                    i
-                );
-            }
-        }
-
-        // Extract ranges for validation
-        let ranges: [Range<usize>; D2] = slices
-            .iter()
-            .enumerate()
-            .map(|(i, s)| s.to_range(self.shape().dims[i]))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
 
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
-            &ranges
+            &slices
         ));
 
         Self::new(K::slice_assign(self.primitive, &slices, values.primitive))
@@ -3146,17 +3126,9 @@ impl<B: Backend> BasicOps<B> for Float {
         slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        // Convert Slice to ranges for backend implementations
-        // Note: step validation is done in Tensor::slice_assign before calling this method
-        let tensor_shape = tensor.shape();
-        let ranges: Vec<Range<usize>> = slices
-            .iter()
-            .zip(tensor_shape.dims.iter())
-            .map(|(s, &dim_size)| s.to_range(dim_size))
-            .collect();
         TensorPrimitive::Float(B::float_slice_assign(
             tensor.tensor(),
-            &ranges,
+            slices,
             value.tensor(),
         ))
     }
@@ -3350,15 +3322,7 @@ impl<B: Backend> BasicOps<B> for Int {
         slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        // Convert Slice to ranges for backend implementations
-        // Note: step validation is done in Tensor::slice_assign before calling this method
-        let tensor_shape = tensor.shape();
-        let ranges: Vec<Range<usize>> = slices
-            .iter()
-            .zip(tensor_shape.dims.iter())
-            .map(|(s, &dim_size)| s.to_range(dim_size))
-            .collect();
-        B::int_slice_assign(tensor, &ranges, value)
+        B::int_slice_assign(tensor, slices, value)
     }
 
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
@@ -3494,15 +3458,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        // Convert Slice to ranges for backend implementations
-        // Note: step validation is done in Tensor::slice_assign before calling this method
-        let tensor_shape = tensor.shape();
-        let ranges: Vec<Range<usize>> = slices
-            .iter()
-            .zip(tensor_shape.dims.iter())
-            .map(|(s, &dim_size)| s.to_range(dim_size))
-            .collect();
-        B::bool_slice_assign(tensor, &ranges, value)
+        B::bool_slice_assign(tensor, slices, value)
     }
 
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {

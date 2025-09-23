@@ -74,10 +74,10 @@ where
 
     fn bool_slice_assign(
         tensor: NdArrayTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
-        NdArrayOps::slice_assign(tensor.bool(), ranges, value.bool()).into()
+        NdArrayOps::slice_assign(tensor.bool(), slices, value.bool()).into()
     }
 
     fn bool_cat(tensors: Vec<NdArrayTensor>, dim: usize) -> NdArrayTensor {

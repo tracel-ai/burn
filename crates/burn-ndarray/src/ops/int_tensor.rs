@@ -87,11 +87,11 @@ where
 
     fn int_slice_assign(
         tensor: NdArrayTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), |tensor, value| NdArrayOps::slice_assign(
-            tensor, ranges, value
+            tensor, slices, value
         ))
     }
 

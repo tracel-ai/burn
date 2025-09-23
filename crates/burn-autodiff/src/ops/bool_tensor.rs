@@ -50,10 +50,10 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[core::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        B::bool_slice_assign(tensor, ranges, value)
+        B::bool_slice_assign(tensor, slices, value)
     }
 
     fn bool_cat(tensors: Vec<BoolTensor<B>>, dim: usize) -> BoolTensor<B> {

@@ -62,14 +62,10 @@ where
 
     pub fn slice_assign(
         tensor: SharedArray<E>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
-        let slices_vec: Vec<burn_tensor::Slice> = ranges
-            .iter()
-            .map(|r| burn_tensor::Slice::new(r.start as isize, Some(r.end as isize), 1))
-            .collect();
-        let slices = Self::to_slice_args_with_steps(&slices_vec, tensor.shape().num_dims());
+        let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
         array.into_shared()

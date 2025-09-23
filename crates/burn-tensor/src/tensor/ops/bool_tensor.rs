@@ -7,7 +7,7 @@ use crate::{
     tensor::Shape,
 };
 use alloc::vec::Vec;
-use core::{future::Future, ops::Range};
+use core::future::Future;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -144,7 +144,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the values set for the given ranges.
     fn bool_slice_assign(
         tensor: BoolTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: BoolTensor<B>,
     ) -> BoolTensor<B>;
 
