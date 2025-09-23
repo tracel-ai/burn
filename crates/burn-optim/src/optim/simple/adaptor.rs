@@ -1,11 +1,14 @@
+use burn_core as burn;
+
 use super::{SimpleOptimizer, record::AdaptorRecord};
 use crate::{
     LearningRate,
     grad_clipping::GradientClipping,
-    module::{AutodiffModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
 };
-use burn_tensor::{Tensor, backend::AutodiffBackend};
+
+use burn::module::{AutodiffModule, ModuleMapper, ParamId};
+use burn::tensor::{Tensor, backend::AutodiffBackend};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 

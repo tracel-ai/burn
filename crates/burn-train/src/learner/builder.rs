@@ -22,11 +22,11 @@ use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
-use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
-use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::Optimizer;
+use burn_optim::lr_scheduler::LrScheduler;
 
 /// Struct to configure and create a [learner](Learner).
 ///

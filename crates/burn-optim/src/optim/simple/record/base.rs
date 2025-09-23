@@ -1,9 +1,9 @@
+use burn_core as burn;
+
 use super::{AdaptorRecordItemV1, AdaptorRecordV1};
-use crate::{
-    optim::SimpleOptimizer,
-    record::{PrecisionSettings, Record},
-};
-use burn_tensor::backend::AutodiffBackend;
+use crate::optim::SimpleOptimizer;
+use burn::record::{PrecisionSettings, Record};
+use burn::tensor::backend::AutodiffBackend;
 use serde::{Deserialize, Serialize};
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record.

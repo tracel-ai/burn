@@ -1,7 +1,9 @@
+use burn_core as burn;
+
 use super::{LrScheduler, String};
-use crate as burn;
-use crate::{LearningRate, config::Config};
-use burn_tensor::backend::Backend;
+use crate::LearningRate;
+use burn::config::Config;
+use burn::tensor::backend::Backend;
 
 /// The configuration for creating an [exponential learning rate scheduler](ExponentialLrScheduler).
 ///

@@ -9,8 +9,8 @@ use crate::single::SingleDeviceLearningStrategy;
 use crate::{Learner, LearnerSummary, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
-use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::{GradientsParams, Optimizer};
 use std::sync::Arc;
 
 /// A training output.

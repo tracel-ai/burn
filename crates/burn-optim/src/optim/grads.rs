@@ -1,13 +1,17 @@
+use burn_core as burn;
+
 #[cfg(feature = "collective")]
 use burn_collective::{CollectiveError, PeerId, ReduceOperation, all_reduce};
 
-use burn_tensor::{
+use burn::{
     Tensor,
-    backend::{AutodiffBackend, Backend},
-    container::TensorContainer,
+    tensor::{
+        backend::{AutodiffBackend, Backend},
+        container::TensorContainer,
+    },
 };
 
-use crate::module::{AutodiffModule, ParamId};
+use burn::module::{AutodiffModule, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -130,18 +134,16 @@ impl GradientsParams {
         ids.sort();
 
         for id in ids {
-            use burn_tensor::TensorPrimitive;
-
             let Some(grad) = self.container.remove::<B>(&id) else {
                 todo!()
             };
 
             let grad = match grad {
-                TensorPrimitive::Float(grad) => {
+                burn::tensor::TensorPrimitive::Float(grad) => {
                     let grad = all_reduce::<B>(peer_id, grad, op)?;
-                    TensorPrimitive::Float(grad)
+                    burn::tensor::TensorPrimitive::Float(grad)
                 }
-                TensorPrimitive::QFloat(_grad) => {
+                burn::tensor::TensorPrimitive::QFloat(_grad) => {
                     unimplemented!("quantized all-reduce unimplemented")
                 }
             };
@@ -156,12 +158,10 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::SimpleLinear;
-    use crate::{
-        TestAutodiffBackend,
-        module::{Module, list_param_ids},
-    };
-    use burn_tensor::{Distribution, backend::Backend};
+    use crate::TestAutodiffBackend;
+    use burn::module::{Module, list_param_ids};
+    use burn::tensor::{Distribution, backend::Backend};
+    use burn_nn::{Linear, LinearConfig};
 
     #[test]
     fn test_convert_grads() {
@@ -182,8 +182,8 @@ mod tests {
         assert_eq!(grads_2.len(), param_ids_2.len());
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
-        SimpleLinear::new(20, 20, device)
+    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+        LinearConfig::new(20, 20).init(device)
     }
 
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {

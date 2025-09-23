@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use burn_core::{LearningRate, data::dataloader::Progress};
+use burn_core::data::dataloader::Progress;
+use burn_optim::LearningRate;
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {

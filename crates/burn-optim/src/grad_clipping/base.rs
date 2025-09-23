@@ -1,7 +1,7 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::{config::Config, tensor::Tensor};
-use burn_tensor::backend::Backend;
+use burn::tensor::backend::Backend;
+use burn::{config::Config, tensor::Tensor};
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
 #[derive(Config, Debug)]
@@ -91,7 +91,7 @@ impl GradientClipping {
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use crate::tensor::Tensor;
+    use burn::tensor::Tensor;
 
     #[test]
     fn test_clip_by_value() {

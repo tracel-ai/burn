@@ -2,28 +2,29 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! Burn neural network module.
+//! Burn optimizers.
 
-/// Loss module
-pub mod loss;
-
-/// Neural network modules implementations.
-pub mod modules;
-pub use modules::*;
-
-pub mod activation;
-pub use activation::{
-    gelu::*, glu::*, hard_sigmoid::*, leaky_relu::*, prelu::*, relu::*, sigmoid::*, swiglu::*,
-    tanh::*,
-};
-
-mod padding;
-pub use padding::*;
-
-// For backward compat, `burn::nn::Initializer`
-pub use burn_core::module::Initializer;
+#[macro_use]
+extern crate derive_new;
 
 extern crate alloc;
+
+/// Optimizer module.
+pub mod optim;
+pub use optim::*;
+
+/// Gradient clipping module.
+pub mod grad_clipping;
+
+/// Learning rate scheduler module.
+#[cfg(feature = "std")]
+pub mod lr_scheduler;
+
+/// Type alias for the learning rate.
+///
+/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
+/// can be used for constant learning rate.
+pub type LearningRate = f64; // We could potentially change the type.
 
 /// Backend for test cases
 #[cfg(all(

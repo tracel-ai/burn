@@ -1,16 +1,17 @@
-use crate::{
-    self as burn, LearningRate, grad_clipping::GradientClippingConfig, module::AutodiffModule,
-    record::Record,
-};
+use burn_core as burn;
+
+use burn::{module::AutodiffModule, record::Record};
+
+use burn::config::Config;
+use burn::tensor::{Tensor, backend::AutodiffBackend};
+use burn::tensor::{backend::Backend, ops::Device};
 
 use super::{
     SimpleOptimizer,
+    adaptor::OptimizerAdaptor,
     decay::{WeightDecay, WeightDecayConfig},
 };
-use crate::config::Config;
-use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{Tensor, backend::AutodiffBackend};
-use burn_tensor::{backend::Backend, ops::Device};
+use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 /// AdaGrad configuration.
 #[derive(Config, Debug)]
@@ -152,22 +153,22 @@ impl<B: Backend, const D: usize> LrDecayState<B, D> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::Tolerance;
-    use burn_tensor::ops::FloatElem;
+    use burn::tensor::Tolerance;
+    use burn::tensor::ops::FloatElem;
 
     use super::*;
     use crate::TestAutodiffBackend;
-    use crate::module::{Module, Param};
-    use crate::optim::{GradientsParams, Optimizer};
-    use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::test_utils::{SimpleLinear, SimpleLinearRecord};
+    use crate::{GradientsParams, Optimizer};
+    use burn::module::{Module, Param};
+    use burn::tensor::{Distribution, Tensor, TensorData};
+    use burn_nn::{Linear, LinearConfig, LinearRecord};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adagrad_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = SimpleLinear::new(6, 6, &device);
+        let linear = LinearConfig::new(6, 6).init(&device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adagrad();
         let grads = linear.forward(x).backward();
@@ -176,7 +177,7 @@ mod tests {
 
         #[cfg(feature = "std")]
         {
-            use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
+            use burn::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
 
             BinFileRecorder::<FullPrecisionSettings>::default()
                 .record(
@@ -187,7 +188,7 @@ mod tests {
         }
         #[cfg(not(feature = "std"))]
         {
-            use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+            use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
 
             let result = BinBytesRecorder::<FullPrecisionSettings>::default()
                 .record(optimizer.to_record(), ())
@@ -280,21 +281,18 @@ mod tests {
         weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
-    fn given_linear_layer(
-        weight: TensorData,
-        bias: TensorData,
-    ) -> SimpleLinear<TestAutodiffBackend> {
+    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = SimpleLinearRecord {
+        let record = LinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        SimpleLinear::new(6, 6, &device).load_record(record)
+        LinearConfig::new(6, 6).init(&device).load_record(record)
     }
 
     fn create_adagrad()
-    -> OptimizerAdaptor<AdaGrad, SimpleLinear<TestAutodiffBackend>, TestAutodiffBackend> {
+    -> OptimizerAdaptor<AdaGrad, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdaGradConfig::new();
         AdaGrad {
             lr_decay: LrDecay {
