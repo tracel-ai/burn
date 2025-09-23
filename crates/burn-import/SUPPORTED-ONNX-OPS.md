@@ -67,7 +67,7 @@ functionality.
 | [Erf][52]                        | ✅             | ✅           |
 | [Exp][53]                        | ✅             | ✅           |
 | [Expand][54]                     | ✅             | ✅           |
-| [EyeLike][55]                    | ❌             | ✅           |
+| [EyeLike][55]                    | ✅             | ✅           |
 | [Flatten][56]                    | ✅             | ✅           |
 | [Floor][57]                      | ✅             | ✅           |
 | [Gather][58]                     | ✅             | ✅           |
@@ -107,7 +107,7 @@ functionality.
 | [LRN][92]                        | ❌             | ❌           |
 | [LSTM][93]                       | ❌             | ✅           |
 | [MatMul][94]                     | ✅             | ✅           |
-| [MatMulInteger][95]              | ❌             | ✅           |
+| [MatMulInteger][95]              | ✅             | ✅           |
 | [Max][96]                        | ✅             | ✅           |
 | [MaxPool1d][97]                  | ✅             | ✅           |
 | [MaxPool2d][98]                  | ✅             | ✅           |

@@ -6,7 +6,9 @@ use std::{
 
 use burn::{
     nn::PReluConfig,
-    record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
+    record::{
+        DoublePrecisionSettings, FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings,
+    },
     tensor::{Element, TensorData},
 };
 use log::warn;
@@ -44,6 +46,7 @@ use crate::{
             depth_to_space::DepthToSpaceNode,
             dropout::DropoutNode,
             expand::ExpandNode,
+            eye_like::EyeLikeNode,
             floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
@@ -55,6 +58,7 @@ use crate::{
             layer_norm::LayerNormNode,
             linear::LinearNode,
             matmul::MatmulNode,
+            matmul_integer::MatMulIntegerNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
             one_hot::OneHotNode,
@@ -88,10 +92,7 @@ use crate::{
 
 use onnx_ir::{
     convert_constant_value,
-    ir::{
-        ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph,
-        TensorType as OnnxTensorType,
-    },
+    ir::{ArgType, Argument as OnnxArgument, Data, ElementType, Node, NodeType, OnnxGraph},
     node::{
         argmax::argmax_config,
         argmin::argmin_config,
@@ -112,6 +113,7 @@ use onnx_ir::{
         depth_to_space::depth_to_space_config,
         dropout::dropout_config,
         expand::expand_config,
+        eye_like::eye_like_config,
         flatten::flatten_config,
         gather::{GatherInput, gather_config},
         gemm::gemm_config,
@@ -127,6 +129,7 @@ use onnx_ir::{
         max_pool2d::max_pool2d_config,
         one_hot::one_hot_config,
         pad::pad_config,
+        range::range_config,
         reduce::reduce_config,
         reshape::reshape_config,
         resize::resize_config,
@@ -158,6 +161,7 @@ pub struct ModelGen {
     inputs: Vec<PathBuf>,
     development: bool,
     half_precision: bool,
+    double_precision: bool,
     record_type: RecordType,
     embed_states: bool,
 }
@@ -211,6 +215,15 @@ impl ModelGen {
     /// * `half_precision` - If true, half precision is saved. Otherwise, full precision is saved.
     pub fn half_precision(&mut self, half_precision: bool) -> &mut Self {
         self.half_precision = half_precision;
+        self
+    }
+
+    /// Set the precision to double floating point precision.
+    ///
+    /// This uses f64 for floats and i64 for integers, which is necessary for models
+    /// with large integer constants that don't fit in i32.
+    pub fn double_precision(&mut self, double_precision: bool) -> &mut Self {
+        self.double_precision = double_precision;
         self
     }
 
@@ -298,7 +311,14 @@ impl ModelGen {
         let blank_space = true;
         let top_comment = Some(format!("Generated from ONNX {input:?} by burn-import"));
 
-        let code = if self.half_precision {
+        let code = if self.double_precision {
+            graph
+                .into_burn::<DoublePrecisionSettings>()
+                .with_record(out_file.clone(), self.record_type, self.embed_states)
+                .with_blank_space(blank_space)
+                .with_top_comment(top_comment)
+                .codegen()
+        } else if self.half_precision {
             graph
                 .into_burn::<HalfPrecisionSettings>()
                 .with_record(out_file.clone(), self.record_type, self.embed_states)
@@ -350,6 +370,7 @@ impl ParsedOnnxGraph {
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
+                NodeType::EyeLike => graph.register(Self::eye_like_conversion(node)),
                 NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Ceil => graph.register(Self::ceil_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
@@ -367,6 +388,7 @@ impl ParsedOnnxGraph {
                 NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
+                NodeType::MatMulInteger => graph.register(Self::matmul_integer_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
                 NodeType::And => graph.register(Self::and_conversion(node)),
@@ -505,11 +527,25 @@ impl ParsedOnnxGraph {
 
     fn constant_conversion<PS: PrecisionSettings>(node: Node) -> ConstantNode {
         let output = node.outputs.first().unwrap();
-
         let attr = convert_constant_value(&node);
 
+        // Helper to map elem type to ConstantValue (single scalar)
+        fn scalar_from_data(elem: ElementType, data: onnx_ir::ir::Data) -> ConstantValue {
+            match elem {
+                ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
+                ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
+                ElementType::Int64 => ConstantValue::Int64(data.into_i64()),
+                ElementType::Int32 => ConstantValue::Int32(data.into_i32()),
+                ElementType::Bool => ConstantValue::Bool(data.into_bool()),
+                // If you want to allow 8-bit scalars too:
+                ElementType::Uint8 => ConstantValue::Int32(data.into_i32()), // or define UInt8 variant if you have one
+                ElementType::Int8 => ConstantValue::Int32(data.into_i32()),
+                _ => panic!("Unsupported scalar type: {elem:?}"),
+            }
+        }
+
         let const_value = match &output.ty {
-            // Check the output type first - if it's been converted to Shape, handle it as Shape
+            // Shape constants already handled
             ArgType::Shape(rank) => {
                 let shape_data = attr.value.expect("Shape constant should have value");
                 let shape_values: Vec<usize> = shape_data
@@ -521,43 +557,92 @@ impl ParsedOnnxGraph {
                 assert_eq!(shape_values.len(), *rank, "Shape constant rank mismatch");
                 ConstantValue::Shape(shape_values)
             }
+
             ArgType::Tensor(tensor) => {
-                // Treat tensor with rank 0 as scalar
+                // Accept rank-0 tensor constants as SCALARS instead of panicking.
                 if tensor.rank == 0 {
-                    panic!("Constant tensor with rank 0 should have been converted to scalar.")
+                    let v = attr
+                        .value
+                        .as_ref()
+                        .expect("Scalar constant should have value");
+                    scalar_from_data(tensor.elem_type.clone(), v.data.clone())
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
                     let tensor_data = attr.value.expect("Constant tensor should have value");
-                    let tensor_data = match tensor.elem_type {
-                        // TODO Review how double precision should be supported
-                        ElementType::Float32 | ElementType::Float64 => {
+
+                    let tensor_data = match &tensor.elem_type {
+                        ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
                             serialize_data::<PS::FloatElem>(tensor_data.data, tensor_data.shape)
                         }
-                        ElementType::Int32 | ElementType::Int64 => {
+                        ElementType::Int32
+                        | ElementType::Int64
+                        | ElementType::Uint8
+                        | ElementType::Int8 => {
                             serialize_data::<PS::IntElem>(tensor_data.data, tensor_data.shape)
                         }
-                        // TODO support Bool tensor when it is supported by Burn
-                        _ => panic!("Unsupported constant tensor type: {:?} ", tensor.elem_type),
+                        ElementType::Bool => {
+                            // Handle boolean tensor constants
+                            serialize_bool_data(tensor_data.data, tensor_data.shape)
+                        }
+                        other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
 
                     ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
                 }
             }
-            ArgType::Scalar(elem_type) => match elem_type {
-                ElementType::Float64 => ConstantValue::Float64(attr.value.unwrap().data.into_f64()),
-                ElementType::Float32 => ConstantValue::Float32(attr.value.unwrap().data.into_f32()),
-                ElementType::Int32 => ConstantValue::Int32(attr.value.unwrap().data.into_i32()),
-                ElementType::Int64 => ConstantValue::Int64(attr.value.unwrap().data.into_i64()),
-                ElementType::Bool => ConstantValue::Bool(attr.value.unwrap().data.into_bool()),
-                _ => panic!("Unsupported constant tensor type: {elem_type:?} "),
-            },
+
+            ArgType::Scalar(elem_type) => {
+                // Scalar output already typed as scalar → just map from Data.
+                let v = attr.value.unwrap();
+                match elem_type {
+                    ElementType::Float64 => ConstantValue::Float64(v.data.into_f64()),
+                    ElementType::Float32 => ConstantValue::Float32(v.data.into_f32()),
+                    ElementType::Int32 => ConstantValue::Int32(v.data.into_i32()),
+                    ElementType::Int64 => ConstantValue::Int64(v.data.into_i64()),
+                    ElementType::Bool => ConstantValue::Bool(v.data.into_bool()),
+                    other => panic!("Unsupported constant scalar type: {other:?} "),
+                }
+            }
         };
 
-        ConstantNode::new(node.name.clone(), const_value, Type::from(output))
-    }
+        // IMPORTANT:
+        // If you hit a rank-0 tensor but output.ty is still ArgType::Tensor(rank=0),
+        // ConstantValue above is a Scalar. ConstantNode::new expects a Type for the output.
+        // Ensure Type::from(output) can represent scalars. If it can't, override here:
+        let out_ty = match (&output.ty, &const_value) {
+            (
+                ArgType::Tensor(t),
+                ConstantValue::Float32(_)
+                | ConstantValue::Float64(_)
+                | ConstantValue::Int32(_)
+                | ConstantValue::Int64(_)
+                | ConstantValue::Bool(_),
+            ) if t.rank == 0 => {
+                // Convert to scalar Type explicitly
+                // (Adjust constructors to your Type/ScalarType API)
+                let scalar_kind = match t.elem_type {
+                    ElementType::Float32 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float32)
+                    }
+                    ElementType::Float64 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float64)
+                    }
+                    ElementType::Int32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    ElementType::Int64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
+                    ElementType::Uint8 => ScalarType::new(output.name.clone(), ScalarKind::Int32), // or define UInt8 variant if you have one
+                    ElementType::Int8 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    ElementType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),
+                    _ => panic!("Unsupported scalar type for output: {:?}", t.elem_type),
+                };
+                Type::Scalar(scalar_kind)
+            }
+            _ => Type::from(output),
+        };
 
+        ConstantNode::new(node.name.clone(), const_value, out_ty)
+    }
     fn random_uniform_conversion(node: Node) -> RandomUniformNode {
         let output = node.outputs.first().unwrap();
         let output_type = TensorType::from(output);
@@ -722,9 +807,20 @@ impl ParsedOnnxGraph {
     }
 
     fn mul_conversion(node: Node) -> BinaryNode {
-        let lhs = Type::from(node.inputs.first().unwrap());
-        let rhs = Type::from(node.inputs.get(1).unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let lhs_arg = node.inputs.first().unwrap();
+        let rhs_arg = node.inputs.get(1).unwrap();
+        let output_arg = node.outputs.first().unwrap();
+
+        log::debug!(
+            "mul_conversion for {}: lhs={:?}, rhs={:?}",
+            node.name,
+            lhs_arg,
+            rhs_arg
+        );
+
+        let lhs = Type::from(lhs_arg);
+        let rhs = Type::from(rhs_arg);
+        let output = Type::from(output_arg);
 
         BinaryNode::mul(lhs, rhs, output)
     }
@@ -743,6 +839,93 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
 
         MatmulNode::new(lhs, rhs, output)
+    }
+    fn matmul_integer_conversion(node: Node) -> MatMulIntegerNode {
+        use crate::burn::{TensorKind, TensorType};
+        use onnx_ir::ir::{ArgType as OnnxArgType, TensorType as OnnxTensorType};
+
+        // Burn-side types for codegen
+        let lhs = TensorType::from(node.inputs.first().unwrap()); // u8 or i8
+        let rhs = TensorType::from(node.inputs.get(1).unwrap()); // u8 or i8
+        let lhs_zp = node.inputs.get(2).map(TensorType::from); // scalar or [K]
+        let rhs_zp = node.inputs.get(3).map(TensorType::from); // scalar or [N]
+
+        // Output must be i32
+        let mut output = TensorType::from(node.outputs.first().unwrap());
+        output.kind = TensorKind::Int;
+        // If you track width, set it here (e.g., output.d = 32);
+
+        // ---- Validate zero-point vector lengths using IR shapes (if available) ----
+        // Get IR view of A and B to read static_shape
+        let a_ir = node.inputs.first().unwrap();
+        let b_ir = node.inputs.get(1).unwrap();
+
+        let a_shape = match &a_ir.ty {
+            OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
+            _ => None,
+        };
+        let b_shape = match &b_ir.ty {
+            OnnxArgType::Tensor(OnnxTensorType { static_shape, .. }) => static_shape.as_ref(),
+            _ => None,
+        };
+
+        // K = last dim of A (when viewed as 2-D), N = first dim of B
+        let k_dim = a_shape.and_then(|s| {
+            if !s.is_empty() {
+                s.last().copied()
+            } else {
+                None
+            }
+        });
+        let n_dim = b_shape.and_then(|s| {
+            if !s.is_empty() {
+                s.first().copied()
+            } else {
+                None
+            }
+        });
+
+        // Collapse vec_len_if_1d_ir
+        fn vec_len_if_1d_ir(arg: &onnx_ir::ir::Argument) -> Option<usize> {
+            if let OnnxArgType::Tensor(OnnxTensorType {
+                rank, static_shape, ..
+            }) = &arg.ty
+                && *rank == 1
+            {
+                return static_shape.as_ref().and_then(|s| s.first().copied());
+            }
+            None
+        }
+
+        // Collapse a_zero_point check
+        if let Some(a_zp_ir) = node.inputs.get(2)
+            && let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir)
+            && let Some(k) = k_dim
+        {
+            assert!(
+                zp_len == k,
+                "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
+                zp_len,
+                k
+            );
+        }
+        // Scalars are fine; no check needed.
+
+        // Collapse b_zero_point check
+        if let Some(b_zp_ir) = node.inputs.get(3)
+            && let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir)
+            && let Some(n) = n_dim
+        {
+            assert!(
+                zp_len == n,
+                "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
+                zp_len,
+                n
+            );
+        }
+        // Scalars are fine; no check needed.
+
+        MatMulIntegerNode::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
 
     fn equal_conversion(node: Node) -> BinaryNode {
@@ -969,26 +1152,35 @@ impl ParsedOnnxGraph {
     }
 
     fn range_conversion(node: Node) -> RangeNode {
-        fn convert_arg_to_scalar(arg: &OnnxArgument) -> ScalarType {
-            match &arg.ty {
-                ArgType::Scalar(scalar) => {
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(scalar))
-                }
-                ArgType::Tensor(tensor) => {
-                    if tensor.rank != 0 {
-                        panic!("Range node requires scalar inputs");
-                    }
-                    ScalarType::new(arg.name.clone(), ScalarKind::from(&tensor.elem_type))
-                }
-                _ => panic!("Range node requires scalar inputs"),
-            }
-        }
-        let output = TensorType::from(node.outputs.first().unwrap());
-        let start = convert_arg_to_scalar(node.inputs.first().unwrap());
-        let end = convert_arg_to_scalar(node.inputs.get(1).unwrap());
-        let step = convert_arg_to_scalar(node.inputs.get(2).unwrap());
+        use crate::burn::node::range::RangeParam;
+        use onnx_ir::node::range::RangeInput;
 
-        RangeNode::new(start, end, step, output)
+        let config = range_config(&node);
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        let start = match config.start {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let limit = match config.limit {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        let delta = match config.delta {
+            RangeInput::Static(value) => RangeParam::Static(value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        };
+
+        log::debug!(
+            "Range node conversion: start={:?}, limit={:?}, delta={:?}",
+            start,
+            limit,
+            delta
+        );
+
+        RangeNode::new(start, limit, delta, output)
     }
 
     fn reduce_max_conversion(node: Node) -> ReduceNode {
@@ -1451,18 +1643,33 @@ impl ParsedOnnxGraph {
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let mut weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
-        let config = PReluConfig::new();
+        let mut weight =
+            extract_data_serialize::<PS::FloatElem>(1, &node).expect("PRelu weight is required");
         let name = &node.name;
 
-        if weight.shape.len() > 1 {
-            if weight.shape[1..].iter().product::<usize>() == 1 {
-                // Burn accepts rank 1 alpha weight
-                weight.shape = weight.shape[..1].to_vec();
+        // Determine weight shape and flatten if necessary
+        let weight_shape = if weight.shape.len() > 1 {
+            let trailing_dims_product: usize = weight.shape[1..].iter().product();
+
+            if trailing_dims_product == 1 {
+                // Flatten to rank 1 as Burn expects
+                weight.shape = vec![weight.shape[0]];
+                weight.shape[0]
             } else {
-                panic!("Invalid PRelu weight with shape {:?}", weight.shape);
+                panic!(
+                    "PRelu weight shape {:?} is invalid. Expected shape [C] or [C, 1, ...] where trailing dimensions are 1",
+                    weight.shape
+                );
             }
-        }
+        } else if weight.shape.is_empty() {
+            // Scalar weight
+            1
+        } else {
+            // Already rank 1
+            weight.shape[0]
+        };
+
+        let config = PReluConfig::new().with_num_parameters(weight_shape);
 
         PReluNode::new(name, input, output, weight, config)
     }
@@ -1581,8 +1788,14 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
-
         ExpandNode::new(input, output, shape)
+    }
+
+    fn eye_like_conversion(node: Node) -> EyeLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = eye_like_config(&node);
+        EyeLikeNode::new(input, output, config)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {
@@ -1833,30 +2046,31 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
         Data::Float64s(val) => TensorData::new(val, shape).convert::<E>(),
         Data::Int32s(val) => TensorData::new(val, shape).convert::<E>(),
         Data::Int64s(val) => TensorData::new(val, shape).convert::<E>(),
-        // TODO support Bool tensor when it is supported by Burn
         _ => panic!("Unsupported tensor element type"),
     }
 }
 
-impl From<&OnnxArgument> for TensorType {
-    fn from(arg: &OnnxArgument) -> Self {
+/// Convert boolean data to `TensorData`.
+fn serialize_bool_data(data: Data, shape: Vec<usize>) -> TensorData {
+    match data {
+        Data::Bools(val) => TensorData::new(val, shape),
+        _ => panic!("Expected boolean data for serialize_bool_data"),
+    }
+}
+
+impl From<&onnx_ir::ir::Argument> for TensorType {
+    fn from(arg: &onnx_ir::ir::Argument) -> Self {
+        use onnx_ir::ir::{ArgType, TensorType as OnnxTensorType};
+
         match &arg.ty {
             ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
-                rank,
-                ..
-            }) => TensorType::new_float(arg.name.clone(), *rank),
-            ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Int32 | ElementType::Int64,
-                rank,
-                ..
-            }) => TensorType::new_int(arg.name.clone(), *rank),
-            ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Bool,
-                rank,
-                ..
-            }) => TensorType::new_bool(arg.name.clone(), *rank),
-            _ => panic!("Can't transform {:?} to tensor.", arg.ty),
+                elem_type, rank, ..
+            }) => tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, *rank),
+            ArgType::Scalar(elem_type) => {
+                // Represent scalar as rank-0 tensor type of the appropriate kind
+                tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, 0)
+            }
+            ArgType::Shape(_) => panic!("Cannot convert Shape to Burn TensorType"),
         }
     }
 }
@@ -1894,6 +2108,7 @@ impl From<&ElementType> for ScalarKind {
             ElementType::Int32 => ScalarKind::Int32,
             ElementType::Int64 => ScalarKind::Int64,
             ElementType::Bool => ScalarKind::Bool,
+            ElementType::Int8 | ElementType::Uint8 => ScalarKind::Int32,
             ElementType::String => panic!("String tensor unsupported"),
             ElementType::Float16 => panic!("Float16 tensor unsupported"),
         }
@@ -1907,8 +2122,29 @@ impl From<ElementType> for TensorKind {
             ElementType::Float64 => TensorKind::Float,
             ElementType::Int32 => TensorKind::Int,
             ElementType::Int64 => TensorKind::Int,
+            ElementType::Int8 | ElementType::Uint8 => TensorKind::Int,
             ElementType::Bool => TensorKind::Bool,
             _ => panic!("Unsupported tensor type"),
+        }
+    }
+}
+
+fn tensor_type_from_elem_and_rank(name: String, elem: &ElementType, rank: usize) -> TensorType {
+    match elem {
+        ElementType::Uint8 | ElementType::Int8 | ElementType::Int32 | ElementType::Int64 => {
+            TensorType::new(name, rank, TensorKind::Int)
+        }
+
+        ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
+            // If you have TensorType::new_float, use that; otherwise:
+            // TensorType::new(name, rank, TensorKind::Float)
+            TensorType::new(name, rank, TensorKind::Float)
+        }
+
+        ElementType::Bool => TensorType::new(name, rank, TensorKind::Bool),
+
+        ElementType::String => {
+            panic!("String element type cannot be converted to Burn TensorType")
         }
     }
 }

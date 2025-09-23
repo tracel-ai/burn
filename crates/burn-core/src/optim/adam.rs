@@ -13,10 +13,11 @@ use crate::tensor::{Tensor, backend::AutodiffBackend};
 use burn_tensor::{backend::Backend, ops::Device};
 
 #[cfg(not(feature = "std"))]
-use num_traits::Float;
+#[allow(unused_imports)]
+use num_traits::Float as _;
 
 /// Adam configuration.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct AdamConfig {
     /// Parameter for Adam.
     #[config(default = 0.9)]
@@ -194,17 +195,18 @@ mod tests {
     use burn_tensor::ops::FloatElem;
 
     use super::*;
+    use crate::TestAutodiffBackend;
     use crate::module::{Module, Param};
     use crate::optim::{GradientsParams, Optimizer};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{TestAutodiffBackend, nn};
+    use crate::test_utils::{SimpleLinear, SimpleLinearRecord};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adam_optimizer_save_load_state() {
         let device = Default::default();
-        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let linear = SimpleLinear::new(6, 6, &device);
         let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
@@ -361,20 +363,21 @@ mod tests {
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> nn::Linear<TestAutodiffBackend> {
+    fn given_linear_layer(
+        weight: TensorData,
+        bias: TensorData,
+    ) -> SimpleLinear<TestAutodiffBackend> {
         let device = Default::default();
-        let record = nn::LinearRecord {
+        let record = SimpleLinearRecord {
             weight: Param::from_data(weight, &device),
             bias: Some(Param::from_data(bias, &device)),
         };
 
-        nn::LinearConfig::new(6, 6)
-            .init(&device)
-            .load_record(record)
+        SimpleLinear::new(6, 6, &device).load_record(record)
     }
 
-    fn create_adam() -> OptimizerAdaptor<Adam, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
-    {
+    fn create_adam()
+    -> OptimizerAdaptor<Adam, SimpleLinear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdamConfig::new();
         Adam {
             momentum: AdaptiveMomentum {

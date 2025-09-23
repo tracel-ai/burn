@@ -21,3 +21,43 @@ impl<B: Backend> ModuleMapper<B> for Quantizer {
         tensor.quantize(&self.scheme, qparams)
     }
 }
+
+#[cfg(all(test, not(feature = "test-tch")))]
+mod tests {
+    use crate::test_utils::SimpleLinear;
+    use crate::{
+        TestBackend,
+        module::{Module, Quantizer},
+    };
+    use burn_tensor::{
+        Device, Tolerance,
+        ops::QuantizedTensor,
+        quantization::{Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue},
+    };
+
+    type B = TestBackend;
+
+    #[test]
+    fn should_quantize_module() {
+        let device: Device<B> = Default::default();
+        let module = SimpleLinear::<B>::new(32, 32, &device);
+        let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
+            .with_value(QuantValue::Q8S)
+            .with_level(QuantLevel::Tensor)
+            .with_param(QuantParam::F32);
+
+        let result = module.weight.val();
+
+        let calibration = Calibration::MinMax;
+        let mut quantizer = Quantizer {
+            calibration,
+            scheme,
+        };
+        let q_module = module.quantize_weights(&mut quantizer);
+        let q_result = q_module.weight.val().dequantize();
+
+        result
+            .into_data()
+            .assert_approx_eq::<f32>(&q_result.into_data(), Tolerance::permissive());
+    }
+}

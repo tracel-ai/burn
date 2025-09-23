@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, Type};
+use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -141,18 +141,24 @@ impl BinaryNode {
                 quote! { #lhs.#op(#rhs) }
             })
         } else if lhs_rank > rhs_rank {
-            // Broadcast rhs to match lhs rank
-            let target_rank = lhs_rank;
+            // Broadcast rhs to match lhs rank by adding leading dimensions
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                quote! { #lhs.#op(#rhs.unsqueeze::<#target_rank>()) }
+                // Need to add (lhs_rank - rhs_rank) dimensions at the beginning
+                let num_dims = lhs_rank - rhs_rank;
+                let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                let dims_tokens = quote! { &[#(#dims),*] };
+                quote! { #lhs.#op(#rhs.unsqueeze_dims(#dims_tokens)) }
             })
         } else {
-            // Broadcast lhs to match rhs rank
-            let target_rank = rhs_rank;
+            // Broadcast lhs to match rhs rank by adding leading dimensions
             Arc::new(move |lhs, rhs| {
                 let op = format_ident!("{}", op_name);
-                quote! { #lhs.unsqueeze::<#target_rank>().#op(#rhs) }
+                // Need to add (rhs_rank - lhs_rank) dimensions at the beginning
+                let num_dims = rhs_rank - lhs_rank;
+                let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                let dims_tokens = quote! { &[#(#dims),*] };
+                quote! { #lhs.unsqueeze_dims(#dims_tokens).#op(#rhs) }
             })
         }
     }
@@ -207,8 +213,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Binary operation is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).add(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.add(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Addition is supported for tensor, scalar, and shape types only"),
         };
@@ -265,8 +284,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Binary operation is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).sub(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.sub(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Subtraction is supported for tensor, scalar, and shape types only"),
         };
@@ -323,8 +355,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Multiplication is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).mul(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.mul(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Multiplication is supported for tensor, scalar, and shape types only"),
         };
@@ -380,8 +425,21 @@ impl BinaryNode {
                     }
                 }
             },
-            (Type::Shape(_), Type::Tensor(_)) | (Type::Tensor(_), Type::Shape(_)) => {
-                panic!("Division is not supported between shape and tensor types")
+            (Type::Shape(_), Type::Tensor(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).div(#rhs)
+                    }
+                }
+            }
+            (Type::Tensor(_), Type::Shape(_)) => {
+                // Convert shape to tensor for the operation
+                move |lhs, rhs| {
+                    quote! {
+                        #lhs.div(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                    }
+                }
             }
             _ => panic!("Division is supported for tensor, scalar, and shape types only"),
         };
@@ -391,7 +449,17 @@ impl BinaryNode {
 
     pub(crate) fn equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.equal(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Equal,
+                    Self::create_broadcast_function("equal", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs == #rhs },
             (Type::Shape(_), Type::Shape(_)) => move |lhs, rhs| {
                 quote! {
@@ -463,7 +531,17 @@ impl BinaryNode {
 
     pub(crate) fn greater(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.greater(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Greater,
+                    Self::create_broadcast_function("greater", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.greater_elem(#rhs) }
             }
@@ -471,6 +549,16 @@ impl BinaryNode {
                 // L > R == R < L
                 move |lhs, rhs| quote! { #rhs.lower_elem(#lhs) }
             }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater(#rhs)
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.greater(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                }
+            },
             (lhs, rhs) => panic!("greater is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(lhs, rhs, output, BinaryType::Greater, Arc::new(function))
@@ -478,8 +566,16 @@ impl BinaryNode {
 
     pub(crate) fn greater_equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => {
-                move |lhs, rhs| quote! { #lhs.greater_equal(#rhs) }
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::GreaterOrEqual,
+                    Self::create_broadcast_function("greater_equal", lhs_rank, rhs_rank),
+                );
             }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.greater_equal_elem(#rhs) }
@@ -488,6 +584,16 @@ impl BinaryNode {
                 // L >= R == R <= L
                 move |lhs, rhs| quote! { #rhs.lower_equal_elem(#lhs) }
             }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).greater_equal(#rhs)
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.greater_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                }
+            },
             (lhs, rhs) => panic!("greater_equal is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(
@@ -501,12 +607,32 @@ impl BinaryNode {
 
     pub(crate) fn lower(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::Less,
+                    Self::create_broadcast_function("lower", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.lower_elem(#rhs) },
             (Type::Scalar(_), Type::Tensor(_)) => {
                 // L < R == R > L
                 move |lhs, rhs| quote! { #rhs.greater_elem(#lhs) }
             }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower(#rhs)
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.lower(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                }
+            },
             (lhs, rhs) => panic!("lower is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(lhs, rhs, output, BinaryType::Less, Arc::new(function))
@@ -514,7 +640,17 @@ impl BinaryNode {
 
     pub(crate) fn lower_equal(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower_equal(#rhs) },
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::LessOrEqual,
+                    Self::create_broadcast_function("lower_equal", lhs_rank, rhs_rank),
+                );
+            }
             (Type::Tensor(_), Type::Scalar(_)) => {
                 move |lhs, rhs| quote! { #lhs.lower_equal_elem(#rhs) }
             }
@@ -522,6 +658,16 @@ impl BinaryNode {
                 // L <= R == R >= L
                 move |lhs, rhs| quote! { #rhs.greater_equal_elem(#lhs) }
             }
+            (Type::Shape(_), Type::Tensor(_)) => move |lhs, rhs| {
+                quote! {
+                    Tensor::<B, 1, burn::tensor::Int>::from_data(&#lhs as &[_], &*self.device).lower_equal(#rhs)
+                }
+            },
+            (Type::Tensor(_), Type::Shape(_)) => move |lhs, rhs| {
+                quote! {
+                    #lhs.lower_equal(Tensor::<B, 1, burn::tensor::Int>::from_data(&#rhs as &[_], &*self.device))
+                }
+            },
             (lhs, rhs) => panic!("lower_equal is not supported for {lhs:?} > {rhs:?}"),
         };
         Self::new(
@@ -535,8 +681,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_and(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_and(#rhs) },
-            _ => panic!("and is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("and operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.bool_and(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("and operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs && #rhs }
+            }
+            _ => panic!("and is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::And, Arc::new(function))
@@ -544,8 +701,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_or(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.bool_or(#rhs) },
-            _ => panic!("or is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("or operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.bool_or(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("or operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs || #rhs }
+            }
+            _ => panic!("or is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Or, Arc::new(function))
@@ -553,8 +721,19 @@ impl BinaryNode {
 
     pub(crate) fn bool_xor(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
-            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.not_equal(#rhs) },
-            _ => panic!("xor is supported for tensor only"),
+            (Type::Tensor(lhs_tensor), Type::Tensor(rhs_tensor)) => {
+                if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
+                    panic!("xor operation requires boolean tensors");
+                }
+                move |lhs, rhs| quote! { #lhs.not_equal(#rhs) }
+            }
+            (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
+                if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
+                    panic!("xor operation requires boolean scalars");
+                }
+                move |lhs, rhs| quote! { #lhs ^ #rhs }
+            }
+            _ => panic!("xor is supported for tensor and scalar bool only"),
         };
 
         Self::new(lhs, rhs, output, BinaryType::Xor, Arc::new(function))
@@ -824,17 +1003,119 @@ mod tests {
 
     #[test]
     fn test_binary_codegen_bool_and() {
-        test_binary_operator_on_tensors!(bool_and);
+        // Test tensor boolean AND
+        one_node_graph(
+            BinaryNode::bool_and(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.bool_and(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean AND
+        one_node_graph(
+            BinaryNode::bool_and(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 && scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]
     fn test_binary_codegen_bool_or() {
-        test_binary_operator_on_tensors!(bool_or);
+        // Test tensor boolean OR
+        one_node_graph(
+            BinaryNode::bool_or(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.bool_or(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean OR
+        one_node_graph(
+            BinaryNode::bool_or(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 || scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]
     fn test_binary_codegen_bool_xor() {
-        test_binary_operator_on_tensors!(bool_xor, not_equal);
+        // Test tensor boolean XOR
+        one_node_graph(
+            BinaryNode::bool_xor(
+                Type::Tensor(TensorType::new_bool("tensor1", 4)),
+                Type::Tensor(TensorType::new_bool("tensor2", 4)),
+                Type::Tensor(TensorType::new_bool("tensor3", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
+                    let tensor3 = tensor1.not_equal(tensor2);
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        // Test scalar boolean XOR
+        one_node_graph(
+            BinaryNode::bool_xor(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Bool)),
+                Type::Scalar(ScalarType::new("scalar3", ScalarKind::Bool)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: bool, scalar2: bool) -> bool {
+                    let scalar3 = scalar1 ^ scalar2;
+
+                    scalar3
+                }
+            },
+            vec!["scalar1".to_string(), "scalar2".to_string()],
+            vec!["scalar3".to_string()],
+        );
     }
 
     #[test]
@@ -848,7 +1129,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 3>, tensor2: Tensor<B, 2>) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.add(tensor2.unsqueeze::<3usize>());
+                    let tensor3 = tensor1.add(tensor2.unsqueeze_dims(&[0isize]));
 
                     tensor3
                 }
@@ -869,7 +1150,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 3>) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze::<3usize>().sub(tensor2);
+                    let tensor3 = tensor1.unsqueeze_dims(&[0isize]).sub(tensor2);
 
                     tensor3
                 }
@@ -890,7 +1171,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 2>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.mul(tensor2.unsqueeze::<4usize>());
+                    let tensor3 = tensor1.mul(tensor2.unsqueeze_dims(&[0isize, 1isize]));
 
                     tensor3
                 }
@@ -911,7 +1192,7 @@ mod tests {
             ),
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 1>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor3 = tensor1.unsqueeze::<4usize>().div(tensor2);
+                    let tensor3 = tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).div(tensor2);
 
                     tensor3
                 }
@@ -960,7 +1241,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.mul(tensor2.unsqueeze::<4usize>()) };
+        let expected = quote! { tensor1.mul(tensor2.unsqueeze_dims(&[0isize, 1isize])) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 
@@ -971,7 +1252,7 @@ mod tests {
         let rhs = quote! { tensor2 };
         let result = func(lhs, rhs);
 
-        let expected = quote! { tensor1.unsqueeze::<5usize>().sub(tensor2) };
+        let expected = quote! { tensor1.unsqueeze_dims(&[0isize, 1isize, 2isize]).sub(tensor2) };
         assert_eq!(result.to_string(), expected.to_string());
     }
 

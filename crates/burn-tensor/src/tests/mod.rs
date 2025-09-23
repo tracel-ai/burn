@@ -164,7 +164,9 @@ macro_rules! testgen_with_float_param {
 
         // test linalg
         burn_tensor::testgen_vector_norm!();
+        burn_tensor::testgen_diag!();
         burn_tensor::testgen_cosine_similarity!();
+        burn_tensor::testgen_trace!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
@@ -261,6 +263,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_take!();
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
         burn_tensor::testgen_grid_sample!();
@@ -295,6 +298,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_permute!();
         burn_tensor::testgen_reshape!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_take!();
         burn_tensor::testgen_sign!();
         burn_tensor::testgen_sort_argsort!();
         burn_tensor::testgen_stack!();
@@ -383,7 +387,11 @@ macro_rules! as_type {
 pub mod qtensor {
     use core::marker::PhantomData;
 
-    use crate::{Tensor, TensorData, backend::Backend, quantization::QuantScheme};
+    use crate::{
+        Tensor, TensorData,
+        backend::Backend,
+        quantization::{QTensorPrimitive, QuantValue},
+    };
 
     pub struct QTensor<B: Backend, const D: usize> {
         b: PhantomData<B>,
@@ -398,8 +406,10 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default())
-                .quantize_dynamic(&QuantScheme::default())
+            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+                    .with_value(QuantValue::Q8S),
+            )
         }
     }
 }

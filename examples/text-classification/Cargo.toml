@@ -36,12 +36,12 @@ burn = { path = "../../crates/burn", features = [
     "metrics",
     "ndarray",
     "autotune",
-    # "fusion",
+    "fusion",
     "std",
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.21.4", default-features = false, features = [
+tokenizers = { version = "0.22.1", default-features = false, features = [
     "onig",
     "http",
 ] }

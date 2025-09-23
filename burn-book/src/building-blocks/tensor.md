@@ -163,6 +163,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.reshape(shape)`                     | `tensor.view(shape)`                                                      |
 | `tensor.roll(shfts, dims)`                  | `tensor.roll(shifts, dims)`                                               |
 | `tensor.roll_dim(shift, dim)`               | `tensor.roll([shift], [dim])`                                             |
+| `tensor.select(dim, indices)`               | `tensor.index_select(dim, indices)`                                       |
+| `tensor.select_assign(dim, indices, values)`| N/A                                                                       |
 | `tensor.shape()`                            | `tensor.shape`                                                            |
 | `tensor.slice(ranges)`                      | `tensor[(*ranges,)]`                                                      |
 | `tensor.slice_assign(ranges, values)`       | `tensor[(*ranges,)] = values`                                             |
@@ -170,6 +172,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice_dim(dim, range)`              | N/A                                                                       |
 | `tensor.squeeze(dim)`                       | `tensor.squeeze(dim)`                                                     |
 | `tensor.swap_dims(dim1, dim2)`              | `tensor.transpose(dim1, dim2)`                                            |
+| `tensor.take(dim, indices)`                 | `numpy.take(tensor, indices, dim)`                                        |
 | `tensor.to_data()`                          | N/A                                                                       |
 | `tensor.to_device(device)`                  | `tensor.to(device)`                                                       |
 | `tensor.transpose()`                        | `tensor.T`                                                                |
@@ -177,6 +180,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.unsqueeze()`                        | `tensor.unsqueeze(0)`                                                     |
 | `tensor.unsqueeze_dim(dim)`                 | `tensor.unsqueeze(dim)`                                                   |
 | `tensor.unsqueeze_dims(dims)`               | N/A                                                                       |
+
 
 ### Numeric Operations
 
@@ -243,8 +247,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.prod_dim(dim)`                                          | `tensor.prod(dim, keepdim=True)`               |
 | `tensor.rem(other)` or `tensor % other`                         | `tensor % other`                               |
 | `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
-| `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
-| `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
 | `tensor.sign()`                                                 | `tensor.sign()`                                |
 | `tensor.sort(dim)`                                              | `tensor.sort(dim).values`                      |
 | `tensor.sort_descending(dim)`                                   | `tensor.sort(dim, descending=True).values`     |
@@ -382,6 +384,8 @@ strategies.
 | Burn API                               | PyTorch Equivalent                        |
 |----------------------------------------|-------------------------------------------|
 | `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim) |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                      |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                     |
 
 ## Displaying Tensor Details
 

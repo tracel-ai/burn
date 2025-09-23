@@ -19,7 +19,7 @@ jobs:
     - uses: actions/checkout@v5
 
     - name: Stale pull requests
-      uses: actions/stale@v9
+      uses: actions/stale@v10
       with:
         # The idle number of days before marking issues stale.
         #

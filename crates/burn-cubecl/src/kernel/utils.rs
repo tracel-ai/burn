@@ -1,5 +1,12 @@
-use cubecl::std::{FastDivmod, FastDivmodArgs};
-use cubecl::{prelude::SequenceArg, std::tensor::StridedLayoutArgs};
+use burn_tensor::Shape;
+use cubecl::prelude::SequenceArg;
+use cubecl::{
+    prelude::ArrayArg,
+    std::{
+        FastDivmod, FastDivmodArgs,
+        tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
+    },
+};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
@@ -11,13 +18,65 @@ pub fn shape_divmod<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<'
     arg
 }
 
-pub fn strided_layout<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> StridedLayoutArgs<'a, R> {
-    let rank = tensor.shape.num_dims();
-    if rank <= 1 || tensor.shape.dims[rank - 1] == tensor.strides[rank - 2] {
-        StridedLayoutArgs::none()
-    } else {
-        StridedLayoutArgs::strided(&tensor.client, tensor.shape.dims[rank - 1] as u32)
-    }
+pub fn linear_layout<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearLayoutArgs<'a, R> {
+    LinearLayoutArgs::from_shape_strides(
+        &tensor.client,
+        &tensor.shape.dims,
+        &tensor.strides,
+        line_size,
+    )
+}
+
+pub fn linear_layout_ref<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    reference: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearLayoutArgs<'a, R> {
+    LinearLayoutArgs::from_shape_strides_with_reference(
+        &tensor.client,
+        &tensor.shape.dims,
+        &reference.shape.dims,
+        &tensor.strides,
+        line_size,
+    )
+}
+
+pub fn linear_view<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearViewLaunch<'a, R> {
+    let len = tensor.shape.dims.iter().product::<usize>();
+    let layout = linear_layout(tensor, line_size);
+    let buffer = unsafe {
+        ArrayArg::from_raw_parts_and_size(&tensor.handle, len, *line_size, tensor.elem_size())
+    };
+    LinearViewLaunch::new(buffer, layout)
+}
+
+pub fn linear_view_ref<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    reference: &'a CubeTensor<R>,
+    line_size: &'a u8,
+) -> LinearViewLaunch<'a, R> {
+    let len = tensor.shape.dims.iter().product::<usize>();
+    let layout = linear_layout_ref(tensor, reference, line_size);
+    let buffer = unsafe {
+        ArrayArg::from_raw_parts_and_size(&tensor.handle, len, *line_size, tensor.elem_size())
+    };
+    LinearViewLaunch::new(buffer, layout)
+}
+
+pub fn linear_view_alias<'a, R: CubeRuntime>(
+    tensor: &'a CubeTensor<R>,
+    line_size: &'a u8,
+    pos: usize,
+) -> LinearViewLaunch<'a, R> {
+    let layout = linear_layout(tensor, line_size);
+    let buffer = ArrayArg::Alias { input_pos: pos };
+    LinearViewLaunch::new(buffer, layout)
 }
 
 pub fn split_dim<R: CubeRuntime>(
@@ -47,4 +106,28 @@ pub fn merge_dims<R: CubeRuntime>(
     tensor.shape.dims.remove(dim0);
     tensor.strides.remove(dim0);
     tensor
+}
+
+pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
+    let rank = tensors[0].shape.num_dims();
+    debug_assert!(
+        tensors.iter().all(|it| it.shape.num_dims() == rank),
+        "Broadcast tensors must have the same rank"
+    );
+
+    let dims = (0..rank).map(|dim| {
+        let max = tensors.iter().map(|it| it.shape.dims[dim]).max();
+        let max = max.unwrap_or(1);
+        debug_assert!(
+            tensors
+                .iter()
+                .all(|it| it.shape.dims[dim] == max || it.shape.dims[dim] == 1),
+            "Broadcast dims must be size 1"
+        );
+        max
+    });
+
+    Shape {
+        dims: dims.collect(),
+    }
 }

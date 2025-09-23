@@ -272,7 +272,8 @@ fn col2im_kernel<E: Numeric>(
         for col_x in x_col_start..x_col_end {
             let kernel_x = im_x - col_x * args.stride_w;
 
-            if kernel_y % args.dilation_h == 0 && kernel_x % args.dilation_w == 0 {
+            if kernel_y.is_multiple_of(args.dilation_h) && kernel_x.is_multiple_of(args.dilation_w)
+            {
                 let kernel_y = kernel_y / args.dilation_h;
                 let kernel_x = kernel_x / args.dilation_w;
 

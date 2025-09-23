@@ -9,9 +9,11 @@ extern crate alloc;
 mod backend;
 mod handle;
 mod operation;
+mod scalar;
 mod tensor;
 
 pub use backend::*;
 pub use handle::*;
 pub use operation::*;
+pub use scalar::*;
 pub use tensor::*;

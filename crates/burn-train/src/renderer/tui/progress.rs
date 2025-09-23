@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::renderer::TrainingProgress;
+use crate::renderer::{EvaluationProgress, TrainingProgress, tui::TuiSplit};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 ///
 /// We currently ignore the time taken for the validation part.
 pub(crate) struct ProgressBarState {
-    progress_train: f64, // Progress for total training.
+    progress_total: f64, // Progress for total execution.
+    progress_task: f64,  // Progress for current task.
+    split: TuiSplit,
     starting_epoch: usize,
     estimate: ProgressEstimate,
 }
@@ -24,20 +26,36 @@ const DAY: u64 = 24 * 60 * 60;
 impl ProgressBarState {
     pub fn new(checkpoint: Option<usize>) -> Self {
         Self {
-            progress_train: 0.0,
+            progress_total: 0.0,
+            progress_task: 0.0,
+            split: TuiSplit::Train,
             estimate: ProgressEstimate::new(),
             starting_epoch: checkpoint.unwrap_or(0),
         }
     }
     /// Update the training progress.
     pub(crate) fn update_train(&mut self, progress: &TrainingProgress) {
-        self.progress_train = calculate_progress(progress, 0, 0);
+        self.progress_total = calculate_progress(progress, 0, 0);
+        self.progress_task =
+            progress.progress.items_processed as f64 / progress.progress.items_total as f64;
         self.estimate.update(progress, self.starting_epoch);
+        self.split = TuiSplit::Train;
     }
 
     /// Update the validation progress.
-    pub(crate) fn update_valid(&mut self, _progress: &TrainingProgress) {
-        // We don't use the validation for the progress yet.
+    pub(crate) fn update_valid(&mut self, progress: &TrainingProgress) {
+        // We don't use the validation for the total progress yet.
+        self.progress_task =
+            progress.progress.items_processed as f64 / progress.progress.items_total as f64;
+        self.split = TuiSplit::Valid;
+    }
+
+    /// Update the testing progress.
+    pub(crate) fn update_test(&mut self, progress: &EvaluationProgress) {
+        // We don't use the testing for the total progress yet.
+        self.progress_task =
+            progress.progress.items_processed as f64 / progress.progress.items_total as f64;
+        self.split = TuiSplit::Test;
     }
 
     /// Create a view for the current progress.
@@ -48,13 +66,20 @@ impl ProgressBarState {
             Some(eta) => format_eta(eta),
             None => NO_ETA.to_string(),
         };
-        ProgressBarView::new(self.progress_train, eta)
+        ProgressBarView::new(
+            self.progress_total,
+            self.progress_task,
+            self.split.color(),
+            eta,
+        )
     }
 }
 
 #[derive(new)]
 pub(crate) struct ProgressBarView {
     progress: f64,
+    progress_task: f64,
+    color_task: Color,
     eta: String,
 }
 
@@ -70,30 +95,48 @@ impl ProgressBarView {
         let size = size_new;
 
         let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(
-                [
-                    Constraint::Length(1), // Empty space
-                    Constraint::Min(0),
-                    Constraint::Length(self.eta.len() as u16 + 4),
-                ]
-                .as_ref(),
-            )
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)].as_ref())
             .split(size);
 
-        let size_gauge = chunks[1];
-        let size_eta = chunks[2];
+        let size_task = chunks[0];
+        let size_total = chunks[1];
 
-        let iteration = Gauge::default()
+        let calculate_size = |size: Rect| {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [
+                        Constraint::Length(1), // Empty space
+                        Constraint::Min(0),
+                        Constraint::Length(self.eta.len() as u16 + 4),
+                    ]
+                    .as_ref(),
+                )
+                .split(size)
+        };
+
+        let chunks = calculate_size(size_total);
+        let size_gauge_total = chunks[1];
+        let size_eta = chunks[2];
+        let chunks = calculate_size(size_task);
+        let size_gauge_task = chunks[1];
+
+        let progress_total = Gauge::default()
             .gauge_style(Style::default().fg(Color::Yellow))
             .ratio(self.progress.min(1.0));
+        let progress_task = Gauge::default()
+            .gauge_style(Style::default().fg(self.color_task))
+            .ratio(self.progress_task.min(1.0));
+
         let eta = Paragraph::new(Line::from(vec![
             Span::from(" ("),
             Span::from(self.eta).italic(),
             Span::from(") "),
         ]));
 
-        frame.render_widget(iteration, size_gauge);
+        frame.render_widget(progress_task, size_gauge_task);
+        frame.render_widget(progress_total, size_gauge_total);
         frame.render_widget(eta, size_eta);
     }
 }

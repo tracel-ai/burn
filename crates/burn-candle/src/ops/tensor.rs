@@ -8,7 +8,7 @@ use candle_core::{Tensor, backend::BackendStorage, shape};
 use half::{bf16, f16};
 
 use crate::{
-    Candle, CandleTensor,
+    Candle, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -75,8 +75,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::base::empty(shape, device, F::DTYPE)
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        super::base::empty(shape, device, dtype.into_dtype())
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -236,7 +236,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
@@ -248,7 +250,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.gt(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
@@ -260,7 +264,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.ge(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
@@ -272,7 +278,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.lt(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
@@ -284,7 +292,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.le(&rhs.tensor).unwrap())
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
@@ -458,13 +468,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        let dtype = match dtype {
-            FloatDType::F64 => candle_core::DType::F64,
-            FloatDType::F32 => candle_core::DType::F32,
-            FloatDType::Flex32 => candle_core::DType::F32,
-            FloatDType::F16 => candle_core::DType::F16,
-            FloatDType::BF16 => candle_core::DType::BF16,
-        };
+        let dtype = dtype.into_dtype();
 
         if tensor.tensor.dtype() == dtype {
             tensor

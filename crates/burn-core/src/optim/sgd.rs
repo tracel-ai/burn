@@ -1,18 +1,17 @@
-use crate::grad_clipping::GradientClippingConfig;
-use crate::module::AutodiffModule;
-use crate::{self as burn, LearningRate};
-
 use super::SimpleOptimizer;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::config::Config;
+use crate::grad_clipping::GradientClippingConfig;
+use crate::module::AutodiffModule;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
+use crate::{self as burn, LearningRate};
 use burn_tensor::backend::{AutodiffBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct SgdConfig {
     /// [Weight decay](WeightDecayConfig) config.
     weight_decay: Option<WeightDecayConfig>,
@@ -98,10 +97,10 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::SimpleLinear;
     use crate::{
         TestAutodiffBackend, TestBackend,
         grad_clipping::GradientClipping,
-        nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
     };
@@ -160,12 +159,13 @@ mod tests {
         Tensor::<B, 2>::random(Shape::new([2, 20]), Distribution::Default, device)
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
-        LinearConfig::new(20, 20).with_bias(true).init(device)
+    fn layer<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
+        SimpleLinear::new(20, 20, device)
     }
 
     fn sgd_with_all()
-    -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    -> OptimizerAdaptor<Sgd<TestBackend>, SimpleLinear<TestAutodiffBackend>, TestAutodiffBackend>
+    {
         SgdConfig {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {

@@ -4,15 +4,22 @@ import torch
 import torch.nn as nn
 
 CONST_VALUE = 2
+CONST_BOOL_VALUE = True
 
 
 class ConstantModel(nn.Module):
     def __init__(self, const_dtype: torch.dtype):
         super().__init__()
-        self.const = torch.tensor(CONST_VALUE).to(const_dtype)
+        if const_dtype == torch.bool:
+            self.const = torch.tensor(CONST_BOOL_VALUE).to(const_dtype)
+        else:
+            self.const = torch.tensor(CONST_VALUE).to(const_dtype)
 
     def forward(self, x):
-        return x + self.const
+        if x.dtype == torch.bool:
+            return x | self.const  # Use logical OR for boolean tensors
+        else:
+            return x + self.const
 
 
 def export_model(model: ConstantModel, dummy_input: torch.Tensor, file_name: str):
@@ -58,6 +65,12 @@ def main():
         low=-10, high=10, size=shape, device=device, dtype=torch.int64
     )
     export_model(model_i64, i64_input, "constant_i64.onnx")
+
+    model_bool = ConstantModel(torch.bool)
+    bool_input = torch.randint(
+        low=0, high=2, size=[], device=device, dtype=torch.bool
+    )
+    export_model(model_bool, bool_input, "constant_bool.onnx")
 
 if __name__ == "__main__":
     main()

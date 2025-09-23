@@ -74,10 +74,8 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        TestAutodiffBackend,
-        nn::{Linear, LinearConfig},
-    };
+    use crate::TestAutodiffBackend;
+    use crate::test_utils::SimpleLinear;
     use burn_tensor::{Distribution, backend::Backend};
 
     #[test]
@@ -111,8 +109,8 @@ mod tests {
         assert_eq!(grads.len(), 2)
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
-        LinearConfig::new(20, 20).with_bias(true).init(device)
+    fn layer<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
+        SimpleLinear::new(20, 20, device)
     }
 
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {

@@ -1,7 +1,10 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, element::MatmulElement, tensor::CubeTensor};
 use burn_tensor::{DType, quantization::QuantAcc};
-use cubecl::matmul::{MatmulInputHandleRef, components::MatmulSetupError};
+use cubecl::matmul::{
+    MatmulInputHandleRef,
+    components::{AccG, MatmulSetupError},
+};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -35,7 +38,7 @@ pub fn matmul<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R, E::EO>(&lhs, &rhs));
+            let out = out.unwrap_or_else(|| init_matmul_output::<R, AccG<E>>(&lhs, &rhs));
 
             let client = &lhs.client;
 

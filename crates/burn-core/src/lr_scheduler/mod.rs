@@ -1,6 +1,9 @@
 /// Constant learning rate scheduler
 pub mod constant;
 
+/// Composed learning rate scheduler
+pub mod composed;
+
 /// Linear learning rate scheduler
 pub mod linear;
 

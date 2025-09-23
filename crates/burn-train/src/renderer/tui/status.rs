@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::renderer::TrainingProgress;
+use crate::renderer::{EvaluationProgress, TrainingProgress};
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
@@ -16,6 +16,7 @@ pub(crate) struct StatusState {
 enum Mode {
     Valid,
     Train,
+    Evaluation,
 }
 
 impl Default for StatusState {
@@ -38,6 +39,12 @@ impl StatusState {
         self.progress = progress;
         self.mode = Mode::Valid;
     }
+    /// Update the testing information.
+    pub(crate) fn update_test(&mut self, _progress: EvaluationProgress) {
+        // TODO: Use the progress here.
+        // self.progress = progress;
+        self.mode = Mode::Evaluation;
+    }
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
         StatusView::new(&self.progress, &self.mode)
@@ -55,6 +62,7 @@ impl StatusView {
         let mode = match mode {
             Mode::Valid => "Validating",
             Mode::Train => "Training",
+            Mode::Evaluation => "Evaluation",
         };
 
         Self {

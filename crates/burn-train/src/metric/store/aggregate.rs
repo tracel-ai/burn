@@ -56,7 +56,7 @@ impl NumericMetricsAggregate {
                 NumericEntry::Value(v) => (v, 1),
                 // Right now the mean is the only aggregate available, so we can assume that the sum
                 // of an entry corresponds to (value * number of elements)
-                NumericEntry::Aggregated(v, n) => (v * n as f64, n),
+                NumericEntry::Aggregated { sum, count, .. } => (sum * count as f64, count),
             })
             .reduce(|(acc_v, acc_n), (v, n)| (acc_v + v, acc_n + n))
             .unwrap();
@@ -115,6 +115,8 @@ impl NumericMetricsAggregate {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         logger::{FileMetricLogger, InMemoryMetricLogger},
         metric::MetricEntry,
@@ -131,13 +133,13 @@ mod tests {
     impl TestLogger {
         fn new() -> Self {
             Self {
-                logger: FileMetricLogger::new("/tmp"),
+                logger: FileMetricLogger::new_train("/tmp"),
                 epoch: 1,
             }
         }
         fn log(&mut self, num: f64) {
             self.logger.log(&MetricEntry::new(
-                NAME.into(),
+                Arc::new(NAME.into()),
                 num.to_string(),
                 num.to_string(),
             ));
@@ -177,26 +179,36 @@ mod tests {
     fn should_aggregate_numeric_entry() {
         let mut logger = InMemoryMetricLogger::default();
         let mut aggregate = NumericMetricsAggregate::default();
-        let metric_name = "Loss";
+        let metric_name = Arc::new("Loss".to_string());
 
         // Epoch 1
         let loss_1 = 0.5;
         let loss_2 = 1.25; // (1.5 + 1.0) / 2 = 2.5 / 2
         let entry = MetricEntry::new(
-            metric_name.to_string(),
+            metric_name.clone(),
             loss_1.to_string(),
             NumericEntry::Value(loss_1).serialize(),
         );
         logger.log(&entry);
         let entry = MetricEntry::new(
-            metric_name.to_string(),
+            metric_name.clone(),
             loss_2.to_string(),
-            NumericEntry::Aggregated(loss_2, 2).serialize(),
+            NumericEntry::Aggregated {
+                sum: loss_2,
+                count: 2,
+                current: 0.,
+            }
+            .serialize(),
         );
         logger.log(&entry);
 
         let value = aggregate
-            .aggregate(metric_name, 1, Aggregate::Mean, &mut [Box::new(logger)])
+            .aggregate(
+                metric_name.as_str(),
+                1,
+                Aggregate::Mean,
+                &mut [Box::new(logger)],
+            )
             .unwrap();
 
         // Average should be (0.5 + 1.25 * 2) / 3 = 1.0, not (0.5 + 1.25) / 2 = 0.875

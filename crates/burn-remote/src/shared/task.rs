@@ -53,6 +53,7 @@ pub struct TensorRemote {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
+    Seed(u64),
     RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
@@ -63,12 +64,6 @@ pub enum ComputeTask {
     },
     ReadTensor(TensorIr),
     SyncBackend,
-}
-
-/// Used by a server to request a tensor from another server
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RemoteTensorReq {
-    pub id: TensorId,
 }
 
 #[allow(missing_docs)]

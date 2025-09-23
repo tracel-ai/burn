@@ -2,7 +2,8 @@
 #![allow(
     clippy::approx_constant,
     clippy::excessive_precision,
-    clippy::identity_op
+    clippy::identity_op,
+    clippy::bool_assert_comparison
 )]
 
 extern crate alloc;
@@ -42,9 +43,11 @@ pub mod equal;
 pub mod erf;
 pub mod exp;
 pub mod expand;
+pub mod eye_like;
 pub mod flatten;
 pub mod floor;
 pub mod gather;
+pub mod gather_elements;
 pub mod gelu;
 pub mod gemm;
 pub mod global_avr_pool;
@@ -66,6 +69,7 @@ pub mod linear;
 pub mod log;
 pub mod log_softmax;
 pub mod matmul;
+pub mod matmulinteger;
 pub mod max;
 pub mod maxpool;
 pub mod mean;
@@ -111,7 +115,6 @@ pub mod trilu;
 pub mod unsqueeze;
 pub mod where_op;
 pub mod xor;
-
 /// Include specified models in the `model` directory in the target directory.
 #[macro_export]
 macro_rules! include_models {

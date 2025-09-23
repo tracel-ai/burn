@@ -1,5 +1,3 @@
-use crate::{QuantElement, TchQTensor};
-
 use super::TchTensor;
 use super::element::TchElement;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
@@ -66,16 +64,33 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl DeviceOps for LibTorchDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_common::device::Device for LibTorchDevice {
+    fn from_id(device_id: DeviceId) -> Self {
+        match device_id.type_id {
+            0 => Self::Cuda(device_id.index_id as usize),
+            1 => Self::Mps,
+            2 => Self::Cpu,
+            3 => Self::Vulkan,
+            _ => LibTorchDevice::Cpu,
+        }
+    }
+
+    fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cpu => DeviceId::new(0, 0),
-            LibTorchDevice::Cuda(index) => DeviceId::new(1, *index as u32),
-            LibTorchDevice::Mps => DeviceId::new(2, 0),
+            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u32),
+            LibTorchDevice::Mps => DeviceId::new(1, 0),
+            LibTorchDevice::Cpu => DeviceId::new(2, 0),
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),
         }
     }
+
+    fn device_count(_type_id: u16) -> usize {
+        // TODO: Somehow find the info using the tch API.
+        1
+    }
 }
+
+impl DeviceOps for LibTorchDevice {}
 
 impl Default for LibTorchDevice {
     fn default() -> Self {
@@ -93,12 +108,11 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32, Q = i8> {
+pub struct LibTorch<E = f32> {
     _e: E,
-    _q: Q,
 }
 
-impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
+impl<E: TchElement> Backend for LibTorch<E> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
@@ -110,10 +124,9 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 
-    type QuantizedTensorPrimitive = TchQTensor;
-    type QuantizedEncoding = Q;
+    type QuantizedTensorPrimitive = TchTensor;
 
-    fn seed(seed: u64) {
+    fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }
 
@@ -142,6 +155,7 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
                 Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
                     [1].into(),
                     device,
+                    E::dtype().into(),
                 ))
                 .into_data();
             }

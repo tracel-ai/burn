@@ -10,7 +10,7 @@
 //! * [`SamplerDataset`] - samples a dataset; support for with/without replacement,
 //!   and under/oversampling.
 //! * [`SelectionDataset`] - selects a subset of a dataset via indices; support for shuffling.
-//! * [`WindowDataset`] - creates a sliding window over a dataset.
+//! * [`WindowsDataset`] - creates a sliding window over a dataset.
 mod composed;
 mod mapper;
 mod options;

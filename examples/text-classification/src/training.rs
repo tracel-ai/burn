@@ -31,7 +31,7 @@ use burn::{
 use std::sync::Arc;
 
 // Define configuration struct for the experiment
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
@@ -129,7 +129,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     config.save(format!("{artifact_dir}/config.json")).unwrap();
     CompactRecorder::new()
         .record(
-            model_trained.into_record(),
+            model_trained.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();

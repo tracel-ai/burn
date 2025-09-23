@@ -1,20 +1,27 @@
+use std::sync::Arc;
+
 /// CPU Temperature metric
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, MetricName, NumericEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
+#[derive(Clone)]
 pub struct CpuTemperature {
+    name: MetricName,
     temp_celsius: f32,
-    sys: System,
+    sys: Arc<System>,
 }
 
 impl CpuTemperature {
     /// Creates a new CPU temp metric
     pub fn new() -> Self {
+        let name = Arc::new("CPU Temperature".to_string());
+
         Self {
+            name,
             temp_celsius: 0.,
-            sys: System::new(),
+            sys: Arc::new(System::new()),
         }
     }
 }
@@ -45,13 +52,13 @@ impl Metric for CpuTemperature {
 
     fn clear(&mut self) {}
 
-    fn name(&self) -> String {
-        "CPU Temperature".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl Numeric for CpuTemperature {
-    fn value(&self) -> f64 {
-        self.temp_celsius as f64
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.temp_celsius as f64)
     }
 }

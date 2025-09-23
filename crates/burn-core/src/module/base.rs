@@ -3,7 +3,7 @@ use crate::{
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Int, Tensor, ops::Device};
 
@@ -63,20 +63,20 @@ macro_rules! module {
 /// parameter B. This will be used by the [derive](burn_derive::Module) attribute to generate the code
 /// necessary to optimize and train the module on any backend.
 ///
-/// ```no_run
+/// ```rust, ignore
 /// // Not necessary when using the burn crate directly.
 /// use burn_core as burn;
 ///
 /// use burn::{
-///     nn,
 ///     module::Module,
+///     nn::Linear,
 ///     tensor::Tensor,
 ///     tensor::backend::Backend,
 /// };
 ///
 /// #[derive(Module, Debug)]
 /// struct MyModule<B: Backend> {
-///   my_param: nn::Linear<B>,
+///   my_param: Linear<B>,
 ///   my_other_field: usize,
 /// }
 /// ```
@@ -209,34 +209,160 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     }
 }
 
-/// Module visitor trait.
+/// Module visitor trait for traversing and inspecting module parameters.
 pub trait ModuleVisitor<B: Backend> {
     /// Visit a float tensor in the module.
-    fn visit_float<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D>) {}
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The float tensor to visit
+    #[allow(unused_variables)]
+    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {}
+
     /// Visit an int tensor in the module.
-    fn visit_int<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Int>) {}
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The integer tensor to visit
+    #[allow(unused_variables)]
+    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {}
+
     /// Visit a bool tensor in the module.
-    fn visit_bool<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Bool>) {}
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The boolean tensor to visit
+    #[allow(unused_variables)]
+    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {}
+
+    /// Called when entering a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being entered
+    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    #[allow(unused_variables)]
+    fn enter_module(&mut self, name: &str, container_type: &str) {}
+
+    /// Called when exiting a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being exited
+    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    #[allow(unused_variables)]
+    fn exit_module(&mut self, name: &str, container_type: &str) {}
+
+    /// Visit a float tensor with its full module path.
+    ///
+    /// # Parameters
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The float tensor to visit
+    #[allow(unused_variables)]
+    fn visit_float_with_path<const D: usize>(
+        &mut self,
+        path: &[String],
+        id: ParamId,
+        tensor: &Tensor<B, D>,
+    ) {
+    }
+
+    /// Visit an int tensor with its full module path.
+    ///
+    /// # Parameters
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The integer tensor to visit
+    #[allow(unused_variables)]
+    fn visit_int_with_path<const D: usize>(
+        &mut self,
+        path: &[String],
+        id: ParamId,
+        tensor: &Tensor<B, D, Int>,
+    ) {
+    }
+
+    /// Visit a bool tensor with its full module path.
+    ///
+    /// # Parameters
+    /// - `path`: The path components to the tensor as a slice (e.g., &["encoder", "layer1", "weight"]).
+    ///   Each element represents a module name in the hierarchy, with the final element
+    ///   being the parameter name. This allows efficient reuse of the path stack.
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The boolean tensor to visit
+    #[allow(unused_variables)]
+    fn visit_bool_with_path<const D: usize>(
+        &mut self,
+        path: &[String],
+        id: ParamId,
+        tensor: &Tensor<B, D, Bool>,
+    ) {
+    }
 }
 
-/// Module mapper trait.
+/// Module mapper trait for transforming module parameters.
 pub trait ModuleMapper<B: Backend> {
+    /// Called when entering a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being entered
+    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    #[allow(unused_variables)]
+    fn enter_module(&mut self, name: &str, container_type: &str) {}
+
+    /// Called when exiting a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being exited
+    /// - `container_type`: The type of the container (e.g., "Module", "Vec", etc.)
+    #[allow(unused_variables)]
+    fn exit_module(&mut self, name: &str, container_type: &str) {}
+
     /// Map a float tensor in the module.
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The float tensor to transform
+    ///
+    /// # Returns
+    /// The transformed tensor
+    #[allow(unused_variables)]
+    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         tensor
     }
+
     /// Map an int tensor in the module.
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The integer tensor to transform
+    ///
+    /// # Returns
+    /// The transformed tensor
+    #[allow(unused_variables)]
     fn map_int<const D: usize>(
         &mut self,
-        _id: ParamId,
+        id: ParamId,
         tensor: Tensor<B, D, Int>,
     ) -> Tensor<B, D, Int> {
         tensor
     }
+
     /// Map a bool tensor in the module.
+    ///
+    /// # Parameters
+    /// - `id`: The unique identifier of the parameter
+    /// - `tensor`: The boolean tensor to transform
+    ///
+    /// # Returns
+    /// The transformed tensor
+    #[allow(unused_variables)]
     fn map_bool<const D: usize>(
         &mut self,
-        _id: ParamId,
+        id: ParamId,
         tensor: Tensor<B, D, Bool>,
     ) -> Tensor<B, D, Bool> {
         tensor

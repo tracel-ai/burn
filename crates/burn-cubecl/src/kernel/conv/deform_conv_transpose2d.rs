@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use burn_tensor::{
     Shape,
-    ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
+    ops::{DeformConvOptions, FloatTensorOps as _},
 };
 use cubecl::{
-    AtomicFeature, CubeDim, CubeLaunch, Feature, calculate_cube_count_elemwise,
-    convolution::components::ConvSetupError, cube, ir::Elem, prelude::*,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, convolution::components::ConvSetupError,
+    cube, features::TypeUsage, prelude::*,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
 use super::{bilinear_interpolate, deform_im2col, index};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-#[allow(clippy::single_range_in_vec_init)]
+#[allow(clippy::single_range_in_vec_init, clippy::type_complexity)]
 pub(crate) fn deform_conv2d_backward<
     R: CubeRuntime,
     E: FloatElement,
@@ -41,7 +41,16 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<CubeTensor<R>>,
     out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
-) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvSetupError> {
+) -> Result<
+    (
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        Option<CubeTensor<R>>,
+    ),
+    ConvSetupError,
+> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -77,7 +86,7 @@ pub(crate) fn deform_conv2d_backward<
         (out_h, out_w),
     )?;
 
-    Ok(DeformConv2dBackward::new(
+    Ok((
         input_gradient,
         offset_gradient,
         weight_grad,
@@ -259,7 +268,7 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     kernel_width: u32,
 }
 
-#[allow(clippy::collapsible_if)]
+#[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
@@ -314,7 +323,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
 
     let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
-    let is_y_direction = offset_c % 2 == 0;
+    let is_y_direction = offset_c.is_multiple_of(2);
 
     let c_bound = channels_per_offset_group * kernel_h * kernel_w;
 
@@ -444,14 +453,8 @@ fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
-    let kind = match E::as_elem_native_unchecked() {
-        Elem::Float(kind) => kind,
-        _ => unreachable!("Should be float"),
-    };
-    let props = client.properties();
-
-    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
-    let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
+    let supports_fadd = Atomic::<f32>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
+    let supports_same_type = Atomic::<E>::supported_uses(&client).contains(TypeUsage::AtomicAdd);
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;

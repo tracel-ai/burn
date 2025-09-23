@@ -13,7 +13,7 @@ use guide::{
     model::{Model, ModelConfig},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -35,7 +35,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Create the model and optimizer.
     let mut model = config.model.init::<B>(&device);

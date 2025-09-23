@@ -1,8 +1,11 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
-use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
-    tensor_line_size_parallel,
+use crate::{
+    CubeRuntime,
+    element::CubeElement,
+    kernel::utils::{linear_view, linear_view_alias},
+    ops::{max_line_size, numeric::empty_device},
+    tensor::CubeTensor,
 };
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait FloatUnaryOpFamily: 'static + Send + Sync {
     type Options<F: Float>: LaunchArg;
@@ -18,32 +21,15 @@ pub(crate) trait FloatUnaryOp<F: Float>: 'static + Send + Sync {
 
 #[cube(launch_unchecked)]
 pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+    input: &LinearView<Line<F>>,
+    output: &mut LinearView<Line<F>, ReadWrite>,
     options: &O::Options<F>,
-    #[comptime] rank: Option<u32>,
-    #[comptime] to_contiguous: bool,
 ) {
-    let offset_output = ABSOLUTE_POS;
-
-    if offset_output >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    if comptime![to_contiguous] {
-        let offset_input = index_offset_with_layout::<F, F>(
-            input,
-            output,
-            offset_output,
-            0,
-            rank.unwrap_or_else(|| output.rank()),
-            rank.is_some(),
-        );
-
-        output[offset_output] = O::Unary::<F>::execute(input[offset_input], options);
-    } else {
-        output[offset_output] = O::Unary::<F>::execute(input[offset_output], options);
-    }
+    output[ABSOLUTE_POS] = O::Unary::<F>::execute(input[ABSOLUTE_POS], options);
 }
 
 pub(crate) fn launch_unary_float<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
@@ -55,20 +41,13 @@ where
     E: CubeElement + Float,
     O: FloatUnaryOpFamily,
 {
-    let ndims = tensor.shape.num_dims();
-    let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &tensor.shape.dims,
-        &tensor.strides,
-        ndims - 1,
-    );
+    let line_size = max_line_size(&tensor);
 
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-    let is_contiguous = tensor.is_contiguous();
 
     unsafe {
         if tensor.can_mut() && tensor.is_contiguous_buffer() {
@@ -76,11 +55,9 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(0),
+                linear_view(&tensor, &line_size),
+                linear_view_alias(&tensor, &line_size, 0),
                 args(&()),
-                None,
-                false,
             );
 
             tensor
@@ -95,11 +72,9 @@ where
                 &client,
                 cube_count,
                 CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
+                linear_view(&tensor, &line_size),
+                linear_view(&output, &line_size),
                 args(&()),
-                Some(ndims as u32),
-                !is_contiguous,
             );
             output
         }

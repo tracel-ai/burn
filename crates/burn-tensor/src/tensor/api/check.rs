@@ -904,6 +904,53 @@ impl TensorCheck {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
 
+    pub(crate) fn take<const D: usize, const DI: usize, const DO: usize>(dim: usize) -> Self {
+        let mut check = Self::check_select_basic::<D>(Self::Ok, "Take", dim);
+
+        // Calculate expected output dimensions
+        // DO = D - 1 + DI (remove 1 dim, add DI dims)
+        let expected_do = D + DI - 1;
+        if DO != expected_do {
+            check = check.register(
+                "Take",
+                TensorError::new("Output dimension mismatch").details(format!(
+                    "Expected output dimension {} (D={} + DI={} - 1) but got DO={}",
+                    expected_do, D, DI, DO
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn diag<const D: usize, const DO: usize>() -> Self {
+        let mut check = Self::Ok;
+
+        if D < 2 {
+            check = check.register(
+                "Diag",
+                TensorError::new(
+                    "Diagonal operations require 
+                tensors with at least 2 dimensions.",
+                )
+                .details(format!(
+                    "Got tensor with {D} dimensions,
+                expected at least 2"
+                )),
+            );
+        }
+
+        if DO != D - 1 {
+            check = check.register(
+                "Diag",
+                TensorError::new("Output rank must be input rank minus 1 for diagonal")
+                    .details(format!("Expected output rank {}, got {DO}", D - 1)),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn select_assign<const D: usize>(
         dim: usize,
         shape_indices: &Shape,

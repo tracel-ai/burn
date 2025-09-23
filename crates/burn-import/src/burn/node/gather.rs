@@ -58,8 +58,14 @@ impl GatherNode {
                         let index = &idx_scalar.name;
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
+                        // Handle negative indices properly for runtime scalars
                         quote! {
-                            let #output = #input_shape_name[#index as usize] as #scalar_ty;
+                            let actual_idx = if #index < 0 {
+                                (#input_shape_name.len() as i64 + #index) as usize
+                            } else {
+                                #index as usize
+                            };
+                            let #output = #input_shape_name[actual_idx] as #scalar_ty;
                         }
                     }
                     GatherIndices::Static(indices) => {
@@ -69,11 +75,21 @@ impl GatherNode {
                                 indices.len()
                             );
                         }
-                        let idx = indices[0] as usize;
+                        let idx = indices[0];
                         let input_shape_name = &input_shape.name;
                         let output = &self.output.name();
-                        quote! {
-                            let #output = #input_shape_name[#idx] as #scalar_ty;
+
+                        // Only add negative index handling if needed
+                        if idx < 0 {
+                            quote! {
+                                let actual_idx = (#input_shape_name.len() as i64 + #idx) as usize;
+                                let #output = #input_shape_name[actual_idx] as #scalar_ty;
+                            }
+                        } else {
+                            let idx_usize = idx as usize;
+                            quote! {
+                                let #output = #input_shape_name[#idx_usize] as #scalar_ty;
+                            }
                         }
                     }
                     _ => panic!(
@@ -92,10 +108,18 @@ impl GatherNode {
                         let output = &self.output.name();
 
                         if index_rank == 1 {
+                            // Handle negative indices properly for runtime tensors
                             quote! {
                                 let #output: [i64; #output_rank] = #index.to_data()
                                     .iter::<i64>()
-                                    .map(|idx| #input_shape_name[idx as usize])
+                                    .map(|idx| {
+                                        let actual_idx = if idx < 0 {
+                                            (#input_shape_name.len() as i64 + idx) as usize
+                                        } else {
+                                            idx as usize
+                                        };
+                                        #input_shape_name[actual_idx]
+                                    })
                                     .collect::<alloc::vec::Vec<_>>()
                                     .try_into()
                                     .unwrap();
@@ -105,6 +129,30 @@ impl GatherNode {
                                 "Multi-dimensional indices for Shape gather should be 1-dimensional, but got rank {}",
                                 index_rank
                             );
+                        }
+                    }
+                    GatherIndices::Runtime(Type::Shape(idx_shape)) => {
+                        // Shape indices for gathering from Shape
+                        let index_name = &idx_shape.name;
+                        let output_rank = out_shape.rank;
+                        let input_shape_name = &input_shape.name;
+                        let output = &self.output.name();
+
+                        // Handle negative indices properly for runtime shape indices
+                        quote! {
+                            let #output: [i64; #output_rank] = #index_name
+                                .iter()
+                                .map(|&idx| {
+                                    let actual_idx = if idx < 0 {
+                                        (#input_shape_name.len() as i64 + idx) as usize
+                                    } else {
+                                        idx as usize
+                                    };
+                                    #input_shape_name[actual_idx]
+                                })
+                                .collect::<alloc::vec::Vec<_>>()
+                                .try_into()
+                                .unwrap();
                         }
                     }
                     GatherIndices::Static(indices) => {
@@ -119,18 +167,43 @@ impl GatherNode {
                             );
                         }
 
-                        // Generate static gathering code
-                        let gather_elements = indices.iter().map(|&idx| {
-                            let idx_usize = idx as usize;
-                            quote! { #input_shape_name[#idx_usize] }
-                        });
+                        // Check if any indices are negative
+                        let has_negative = indices.iter().any(|&idx| idx < 0);
 
-                        quote! {
-                            let #output: [i64; #output_rank] = [#(#gather_elements),*];
+                        if has_negative {
+                            // Generate code with negative index handling
+                            let indices_tokens = indices
+                                .iter()
+                                .map(|&idx| quote! { #idx })
+                                .collect::<Vec<_>>();
+                            quote! {
+                                let #output: [i64; #output_rank] = [#(#indices_tokens),*]
+                                    .iter()
+                                    .map(|&idx| {
+                                        let actual_idx = if idx < 0 {
+                                            (#input_shape_name.len() as i64 + idx) as usize
+                                        } else {
+                                            idx as usize
+                                        };
+                                        #input_shape_name[actual_idx]
+                                    })
+                                    .collect::<alloc::vec::Vec<_>>()
+                                    .try_into()
+                                    .unwrap();
+                            }
+                        } else {
+                            // Generate simpler code for positive indices
+                            let gather_elements = indices.iter().map(|&idx| {
+                                let idx_usize = idx as usize;
+                                quote! { #input_shape_name[#idx_usize] }
+                            });
+                            quote! {
+                                let #output: [i64; #output_rank] = [#(#gather_elements),*];
+                            }
                         }
                     }
                     _ => panic!(
-                        "Gather from Shape to Shape needs Tensor index, got {:?}!",
+                        "Gather from Shape to Shape needs Tensor or Shape index, got {:?}!",
                         self.index
                     ),
                 }
@@ -220,32 +293,12 @@ impl GatherNode {
                         let output_rank = index_rank + input_rank - 1;
                         let final_rank = output_rank.max(1); // Ensure minimum rank of 1
 
-                        match index_rank {
-                            1 => {
-                                quote! {
-                                    let indices = #index;
-                                    let #output = Tensor::select(#input, #dim, indices);
-                                }
-                            }
-                            _ => quote! {
-                                let indices = #index;
+                        // Use proc_macro2::Literal to avoid usize suffix
+                        let index_rank_lit = proc_macro2::Literal::usize_unsuffixed(index_rank);
+                        let final_rank_lit = proc_macro2::Literal::usize_unsuffixed(final_rank);
 
-                                let n_dims = indices.dims().len();
-                                let index_flat = match n_dims {
-                                    1 => indices.reshape([1, -1]),
-                                    n if n >= 2 => indices.flatten::<2>(0, n - 2),
-                                    _ => panic!("Number of dimensions must be greater than 0"),
-                                };
-
-                                let out = index_flat
-                                    .iter_dim(0)
-                                    .map(|idxs| {
-                                        let idxs = idxs.squeeze::<1>(0);
-                                        Tensor::select(#input.clone(), #dim, idxs)
-                                    })
-                                    .collect();
-                                let #output = Tensor::stack::<#final_rank>(out, #dim);
-                            },
+                        quote! {
+                            let #output = #input.take::<#index_rank_lit, #final_rank_lit>(#dim, #index);
                         }
                     }
                     GatherIndices::Runtime(Type::Shape(shape_type)) => {
@@ -364,8 +417,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let indices = tensor2;
-                    let tensor3 = Tensor::select(tensor1, 0, indices);
+                    let tensor3 = tensor1.take::<1, 2>(0, tensor2);
                     tensor3
                 }
             }
@@ -414,23 +466,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 2, Int>
                 ) -> Tensor<B, 3> {
-                    let indices = tensor2;
-
-                    let n_dims = indices.dims().len();
-                    let index_flat = match n_dims {
-                        1 => indices.reshape([1, -1]),
-                        n if n >= 2 => indices.flatten::<2>(0, n - 2),
-                        _ => panic!("Number of dimensions must be greater than 0"),
-                    };
-
-                    let out = index_flat
-                        .iter_dim(0)
-                        .map(|idxs| {
-                            let idxs = idxs.squeeze::<1>(0);
-                            Tensor::select(tensor1.clone(), 0, idxs)
-                        })
-                        .collect();
-                    let tensor3 = Tensor::stack::<3usize>(out, 0);
+                    let tensor3 = tensor1.take::<2, 3>(0, tensor2);
                     tensor3
                 }
             }
@@ -481,7 +517,14 @@ mod tests {
                 ) -> [i64; 1] {
                     let shape2: [i64; 1usize] = tensor1.to_data()
                         .iter::<i64>()
-                        .map(|idx| shape1[idx as usize])
+                        .map(|idx| {
+                            let actual_idx = if idx < 0 {
+                                (shape1.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            shape1[actual_idx]
+                        })
                         .collect::<alloc::vec::Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -672,6 +715,186 @@ mod tests {
                 ) -> i64 {
                     let dim1 = shape1[1usize] as i64;
                     dim1
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_with_shape_indices() {
+        // Test gathering from Shape with Shape indices (runtime)
+        // This tests our new functionality where Shape indices can be used to gather from Shape
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 4)),
+            Type::Shape(ShapeType::new("indices", 2)),
+            Type::Shape(ShapeType::new("output_shape", 2)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "indices".to_string()],
+            vec!["output_shape".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 4],
+                    indices: [i64; 2]
+                ) -> [i64; 2] {
+                    let output_shape: [i64; 2usize] = indices
+                        .iter()
+                        .map(|&idx| {
+                            let actual_idx = if idx < 0 {
+                                (input_shape.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            input_shape[actual_idx]
+                        })
+                        .collect::<alloc::vec::Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    output_shape
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_with_shape_indices_rank3() {
+        // Test gathering from Shape with Shape(3) indices
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 5)),
+            Type::Shape(ShapeType::new("indices", 3)),
+            Type::Shape(ShapeType::new("output_shape", 3)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "indices".to_string()],
+            vec!["output_shape".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 5],
+                    indices: [i64; 3]
+                ) -> [i64; 3] {
+                    let output_shape: [i64; 3usize] = indices
+                        .iter()
+                        .map(|&idx| {
+                            let actual_idx = if idx < 0 {
+                                (input_shape.len() as i64 + idx) as usize
+                            } else {
+                                idx as usize
+                            };
+                            input_shape[actual_idx]
+                        })
+                        .collect::<alloc::vec::Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    output_shape
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_gather_shape_from_shape_scalar_output() {
+        // Test gathering from Shape with scalar runtime index
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("input_shape", 3)),
+            Type::Scalar(ScalarType::new("index", ScalarKind::Int64)),
+            Type::Scalar(ScalarType::new("output", ScalarKind::Int64)),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["input_shape".to_string(), "index".to_string()],
+            vec!["output".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    input_shape: [i64; 3],
+                    index: i64
+                ) -> i64 {
+                    let actual_idx = if index < 0 {
+                        (input_shape.len() as i64 + index) as usize
+                    } else {
+                        index as usize
+                    };
+                    let output = input_shape[actual_idx] as i64;
+                    output
                 }
             }
         };

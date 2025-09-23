@@ -1,9 +1,12 @@
-use cubecl::std::FastDivmod;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::StridedLayout};
+use cubecl::std::{
+    FastDivmod,
+    tensor::layout::{linear::LinearLayout, *},
+};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     CubeRuntime, FloatElement,
-    kernel::utils::{shape_divmod, strided_layout},
+    kernel::utils::{linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
 };
@@ -13,14 +16,14 @@ fn interpolate_bicubic_kernel<F: Float>(
     input: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod>,
-    out_layout: StridedLayout,
+    out_layout: LinearLayout,
 ) {
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
 
     let line_size = input.line_size();
-    let out_idx = out_layout.index(output, ABSOLUTE_POS);
+    let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
     let (rem, x) = shape_out.index(2).div_mod(rem);
@@ -151,7 +154,7 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&input);
     let out_shape = shape_divmod(&output);
-    let out_layout = strided_layout(&output);
+    let out_layout = linear_layout(&output, &line_size);
 
     let cube_dim = CubeDim::default();
     let cube_count =

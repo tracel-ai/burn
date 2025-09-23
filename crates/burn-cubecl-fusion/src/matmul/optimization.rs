@@ -19,6 +19,10 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
+use cubecl::features::TypeUsage;
+use cubecl::matmul::components::AccG;
+use cubecl::matmul::components::AccS;
+use cubecl::matmul::components::tile::loader::Filled;
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -441,7 +445,7 @@ impl FusedMatmul {
             FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
                 let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
 
-                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul<Filled>>>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -466,7 +470,7 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
                     FusedMatmulInputLaunch::new(
@@ -495,7 +499,7 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
                     FusedMatmulInputLaunch::new(
@@ -622,25 +626,29 @@ fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
 
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
-    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator() && tf32::is_supported(client) {
+    if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
+        && tf32::supported_uses(client).contains(TypeUsage::Conversion)
+    {
         match (
             TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
             TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
         ) {
-            (true, true) => {
-                launch_kernel_virtual::<FusedMatmulSpec<(f32, f32, tf32, tf32, MP::EA, MP::EO)>, R, A>(
-                    client, input, output, problem, line_sizes, plane_size, selection,
-                )
-            }
+            (true, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, f32, AccG<MP>, tf32, tf32, AccS<MP>)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
             (true, false) => launch_kernel_virtual::<
-                FusedMatmulSpec<(f32, RhsG<MP>, tf32, RhsS<MP>, MP::EA, MP::EO)>,
+                FusedMatmulSpec<(f32, RhsG<MP>, AccG<MP>, tf32, RhsS<MP>, AccS<MP>)>,
                 R,
                 A,
             >(
                 client, input, output, problem, line_sizes, plane_size, selection,
             ),
             (false, true) => launch_kernel_virtual::<
-                FusedMatmulSpec<(LhsG<MP>, f32, LhsS<MP>, tf32, MP::EA, MP::EO)>,
+                FusedMatmulSpec<(LhsG<MP>, f32, AccG<MP>, LhsS<MP>, tf32, AccS<MP>)>,
                 R,
                 A,
             >(
@@ -661,9 +669,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     matmul: &FusedMatmul,
     trace: &FuseTrace,
 ) -> LineSizeOverrides {
-    let elem_lhs = matmul.lhs.precision().into_elem();
-    let elem_rhs = matmul.rhs.precision().into_elem();
-    let elem_out = matmul.out.precision().into_elem();
+    let elem_lhs = matmul.lhs.precision().into_type();
+    let elem_rhs = matmul.rhs.precision().into_type();
+    let elem_out = matmul.out.precision().into_type();
 
     let lhs_id = match &matmul.lhs {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
@@ -675,9 +683,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     };
 
     let available_line_sizes = AvailableLineSizes {
-        lhs: R::line_size_elem(&elem_lhs).collect(),
-        rhs: R::line_size_elem(&elem_rhs).collect(),
-        out: R::line_size_elem(&elem_out).collect(),
+        lhs: R::line_size_type(&elem_lhs).collect(),
+        rhs: R::line_size_type(&elem_rhs).collect(),
+        out: R::line_size_type(&elem_out).collect(),
     };
     let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 

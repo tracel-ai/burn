@@ -72,12 +72,10 @@ fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32
     (output_size_index * input_size) / output_size
 }
 
-#[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
-#[allow(clippy::manual_div_ceil)]
 #[cube]
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     let index = (output_size_index + 1) * input_size;
-    let index = (index + output_size - 1) / output_size;
+    let index = index.div_ceil(output_size);
 
     if input_size < index {
         input_size

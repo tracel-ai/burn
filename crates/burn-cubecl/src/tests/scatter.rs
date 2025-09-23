@@ -40,8 +40,9 @@ mod tests {
         shape1: [usize; D],
         shape2: [usize; D],
     ) {
-        TestBackend::seed(0);
         let test_device = Default::default();
+        TestBackend::seed(&test_device, 0);
+
         let tensor = Tensor::<TestBackend, D>::random(shape1, Distribution::Default, &test_device);
         let value = Tensor::<TestBackend, D>::random(shape2, Distribution::Default, &test_device);
         let indices = Tensor::<TestBackend, 1, Int>::random(

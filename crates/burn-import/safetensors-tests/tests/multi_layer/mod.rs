@@ -10,7 +10,7 @@ use burn::{
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {
     conv1: Conv2d<B>,
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
     fc1: Linear<B>,
     relu: Relu,
 }

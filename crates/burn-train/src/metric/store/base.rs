@@ -1,4 +1,6 @@
-use crate::metric::MetricEntry;
+use std::sync::Arc;
+
+use crate::metric::{MetricEntry, NumericEntry};
 
 /// Event happening during the training/validation process.
 pub enum Event {
@@ -9,12 +11,24 @@ pub enum Event {
 }
 
 /// Contains all metric information.
-#[derive(new, Clone)]
+#[derive(new, Clone, Debug)]
 pub struct MetricsUpdate {
     /// Metrics information related to non-numeric metrics.
     pub entries: Vec<MetricEntry>,
     /// Metrics information related to numeric metrics.
-    pub entries_numeric: Vec<(MetricEntry, f64)>,
+    pub entries_numeric: Vec<(MetricEntry, NumericEntry)>,
+}
+
+impl MetricsUpdate {
+    /// Appends a tag to the config.
+    pub fn tag(&mut self, tag: Arc<String>) {
+        self.entries.iter_mut().for_each(|entry| {
+            entry.tags.push(tag.clone());
+        });
+        self.entries_numeric.iter_mut().for_each(|(entry, _)| {
+            entry.tags.push(tag.clone());
+        });
+    }
 }
 
 /// Defines how training and validation events are collected and searched.
@@ -57,6 +71,8 @@ pub enum Split {
     Train,
     /// The validation split.
     Valid,
+    /// The testing split.
+    Test,
 }
 
 #[derive(Copy, Clone)]

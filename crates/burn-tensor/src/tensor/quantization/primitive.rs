@@ -14,4 +14,9 @@ pub trait QTensorPrimitive {
     fn propagation(&self) -> QuantPropagation {
         QuantPropagation::Inhibit
     }
+
+    /// Returns the default tensor quantization scheme.
+    fn default_scheme() -> QuantScheme {
+        QuantScheme::default()
+    }
 }

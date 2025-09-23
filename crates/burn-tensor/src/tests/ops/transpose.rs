@@ -54,6 +54,27 @@ mod tests {
     }
 
     #[test]
+    fn should_support_swap_dims_no_op() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+                [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+            ],
+            &Default::default(),
+        );
+
+        let output = tensor.swap_dims(0, 0);
+        let expected = TensorData::from([
+            [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+            [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+        ]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
     fn should_support_swap_dims() {
         let tensor = TestTensor::<3>::from_floats(
             [
@@ -64,6 +85,28 @@ mod tests {
         );
 
         let output = tensor.swap_dims(0, 2);
+        let expected = TensorData::from([
+            [[0.0, 6.0], [3.0, 9.0]],
+            [[1.0, 7.0], [4.0, 10.0]],
+            [[2.0, 8.0], [5.0, 11.0]],
+        ]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn should_support_swap_dims_neg_index() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+                [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
+            ],
+            &Default::default(),
+        );
+
+        let output = tensor.swap_dims(-3, -1);
         let expected = TensorData::from([
             [[0.0, 6.0], [3.0, 9.0]],
             [[1.0, 7.0], [4.0, 10.0]],

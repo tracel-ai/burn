@@ -12,7 +12,7 @@ use num_traits::{Float, ToPrimitive};
 use crate::{
     DType, Distribution, Element, ElementConversion,
     quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
-    tensor::bytes::Bytes,
+    tensor::Bytes,
 };
 
 use rand::RngCore;
@@ -60,11 +60,12 @@ impl TensorData {
         value: Vec<E>,
         shape: S,
         strategy: QuantizationStrategy,
+        scheme: QuantScheme,
     ) -> Self {
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
 
-        let q_bytes = QuantizedBytes::new(value, strategy);
+        let q_bytes = QuantizedBytes::new(value, strategy, scheme);
 
         Self {
             bytes: q_bytes.bytes,
@@ -74,10 +75,19 @@ impl TensorData {
     }
 
     /// Creates a new tensor data structure from raw bytes.
+    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
+        Self {
+            bytes,
+            shape: shape.into(),
+            dtype,
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes stored in a vector.
     ///
     /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
     /// certain that the bytes representation is valid.
-    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+    pub fn from_bytes_vec<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: Bytes::from_bytes_vec(bytes),
             shape: shape.into(),
@@ -255,7 +265,14 @@ impl TensorData {
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
-                        value: QuantValue::QInt8,
+                        value:
+                            QuantValue::Q8F
+                            | QuantValue::Q8S
+                            // Represent sub-byte values as i8
+                            | QuantValue::Q4F
+                            | QuantValue::Q4S
+                            | QuantValue::Q2F
+                            | QuantValue::Q2S,
                         ..
                     } => {
                         // Quantized int8 values
@@ -341,6 +358,29 @@ impl TensorData {
         }
 
         TensorData::new(data, shape)
+    }
+
+    pub(crate) fn full_dtype<E: Element, S: Into<Vec<usize>>>(
+        shape: S,
+        fill_value: E,
+        dtype: DType,
+    ) -> TensorData {
+        match dtype {
+            DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
+            DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
+            DType::BF16 => Self::full::<bf16, _>(shape, fill_value.elem()),
+            DType::I64 => Self::full::<i64, _>(shape, fill_value.elem()),
+            DType::I32 => Self::full::<i32, _>(shape, fill_value.elem()),
+            DType::I16 => Self::full::<i16, _>(shape, fill_value.elem()),
+            DType::I8 => Self::full::<i8, _>(shape, fill_value.elem()),
+            DType::U64 => Self::full::<u64, _>(shape, fill_value.elem()),
+            DType::U32 => Self::full::<u32, _>(shape, fill_value.elem()),
+            DType::U16 => Self::full::<u16, _>(shape, fill_value.elem()),
+            DType::U8 => Self::full::<u8, _>(shape, fill_value.elem()),
+            DType::Bool => Self::full::<bool, _>(shape, fill_value.elem()),
+            DType::QFloat(_) => unreachable!(),
+        }
     }
 
     /// Converts the data to a different element type.
@@ -463,21 +503,6 @@ impl TensorData {
     /// Returns the bytes representation of the data.
     pub fn into_bytes(self) -> Bytes {
         self.bytes
-    }
-
-    /// Applies the data quantization strategy.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the data type is not supported for quantization.
-    pub fn with_quantization(self, quantization: QuantizationStrategy) -> Self {
-        assert_eq!(
-            self.dtype,
-            DType::F32,
-            "Only f32 data type can be quantized"
-        );
-        let values = quantization.quantize(self.as_slice().unwrap());
-        TensorData::quantized(values, self.shape, quantization)
     }
 
     /// Dequantizes the data according to its quantization scheme.
@@ -816,7 +841,14 @@ impl core::fmt::Display for TensorData {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),
                     mode: QuantMode::Symmetric,
-                    value: QuantValue::QInt8,
+                    value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        // Display sub-byte values as i8
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
@@ -1156,7 +1188,16 @@ mod tests {
         let data = TensorData::quantized(
             vec![-127i8, -77, -26, 25, 76, 127],
             [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
+            QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(
+                0.1,
+                QuantValue::Q8S,
+            )),
+            QuantScheme {
+                level: QuantLevel::Tensor,
+                value: QuantValue::Q8S,
+                mode: QuantMode::Symmetric,
+                ..Default::default()
+            },
         );
 
         let output = data.dequantize().unwrap();
@@ -1171,4 +1212,36 @@ mod tests {
             Tolerance::default(),
         );
     }
+
+    macro_rules! test_dtypes {
+    ($test_name:ident, $($dtype:ty),*) => {
+        $(
+            paste::paste! {
+                #[test]
+                fn [<$test_name _ $dtype:snake>]() {
+                    let full_dtype = TensorData::full_dtype([2, 16], 4, <$dtype>::dtype());
+                    let full = TensorData::full::<$dtype, _>([2, 16], 4.elem());
+                    assert_eq!(full_dtype, full);
+                }
+            }
+        )*
+    };
+}
+
+    test_dtypes!(
+        should_create_with_dtype,
+        bool,
+        i8,
+        i16,
+        i32,
+        i64,
+        u8,
+        u16,
+        u32,
+        u64,
+        f16,
+        bf16,
+        f32,
+        f64
+    );
 }
