@@ -167,10 +167,32 @@ pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> 
 
 pub fn slice_assign(
     tensor: CandleTensor,
-    ranges: &[std::ops::Range<usize>],
+    slices: &[burn_tensor::Slice],
     value: CandleTensor,
 ) -> CandleTensor {
-    CandleTensor::new(tensor.tensor.slice_assign(ranges, &value.tensor).unwrap())
+    // Check if all slices have step=1 (candle's native slice_assign requirement)
+    let all_unit_steps = slices.iter().all(|s| s.step == 1);
+
+    if all_unit_steps {
+        // Convert Slice to Range for candle's native slice_assign
+        let ranges: Vec<std::ops::Range<usize>> = slices
+            .iter()
+            .enumerate()
+            .map(|(dim, slice)| {
+                let dim_size = tensor.tensor.dim(dim).unwrap_or(usize::MAX);
+                slice.to_range(dim_size)
+            })
+            .collect();
+
+        CandleTensor::new(tensor.tensor.slice_assign(&ranges, &value.tensor).unwrap())
+    } else {
+        // Candle doesn't support slice_assign with steps != 1
+        // We need to implement it manually or panic
+        panic!(
+            "Candle backend does not support slice_assign with step != 1 yet. \
+                See https://github.com/huggingface/candle/issues/3095"
+        );
+    }
 }
 
 pub fn narrow(tensor: CandleTensor, dim: usize, start: usize, length: usize) -> CandleTensor {
