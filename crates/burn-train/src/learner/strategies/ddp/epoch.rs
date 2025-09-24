@@ -1,6 +1,5 @@
 use burn_collective::{PeerId, ReduceOperation};
 use burn_core::module::AutodiffModule;
-use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::GradientsParams;
 use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
@@ -105,7 +104,7 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        // let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(false, peer_id);
+        let grads_syncer = GradsSyncer::<LC::Backend, LC::Model>::new(false, peer_id);
 
         while let Some(item) = iterator.next() {
             let mut lr = 0.;
@@ -128,34 +127,23 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
 
                     if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
-                        // let grads = GradientsParams::from_grads(grads, &model);
-                        let grads = grads
-                            .all_reduce::<<LC::Backend as AutodiffBackend>::InnerBackend>(
-                                peer_id,
-                                ReduceOperation::Mean,
-                            )
-                            .unwrap();
 
                         // With double buffering, these are the previous iteration's gradients
-                        // let grads = grads_syncer.sync(grads);
-                        // if let Some(grads) = grads {
-                        model = model.optimize(&mut optim, lr, grads);
-                        //}
+                        let grads = grads_syncer.sync(grads);
+                        if let Some(grads) = grads {
+                            model = model.optimize(&mut optim, lr, grads);
+                        }
 
                         accumulation_current = 0;
                     }
                 }
                 None => {
                     // With double buffering, these are the previous iteration's gradients
-                    let grads = item
-                        .grads
-                        .all_reduce::<<LC::Backend as AutodiffBackend>::InnerBackend>(
-                            peer_id,
-                            ReduceOperation::Mean,
-                        )
-                        .unwrap();
+                    let grads = grads_syncer.sync(item.grads);
 
-                    model = model.optimize(&mut optim, lr, grads);
+                    if let Some(grads) = grads {
+                        model = model.optimize(&mut optim, lr, grads);
+                    }
                 }
             }
 
@@ -190,59 +178,59 @@ impl<LC: LearnerComponentTypes> DdpTrainEpoch<LC> {
     }
 }
 
-// /// Worker that is responsible for syncing gradients for the DDP worker. With double buffering,
-// /// this allows for more optimization.
-// struct GradsSyncer<B: AutodiffBackend, M: AutodiffModule<B> + 'static> {
-//     msg_send: SyncSender<GradientsParams>,
-//     // Optional because with double buffering, the first iteration yields no gradients.
-//     result_recv: Receiver<Option<GradientsParams>>,
-//
-//     _p: PhantomData<(B, M)>,
-// }
-//
-// impl<B: AutodiffBackend, M: AutodiffModule<B> + 'static> GradsSyncer<B, M> {
-//     fn new(double_buffering: bool, peer_id: PeerId) -> Self {
-//         // let (msg_send, msg_recv) = std::sync::mpsc::sync_channel::<GradientsParams>(1);
-//         // let (result_send, result_recv) =
-//         //     std::sync::mpsc::sync_channel::<Option<GradientsParams>>(1);
-//         // std::thread::spawn(move || {
-//         //     Self::run_worker(double_buffering, peer_id, result_send, msg_recv)
-//         // });
-//         Self {
-//             msg_send,
-//             result_recv,
-//             _p: PhantomData,
-//         }
-//     }
-//
-//     fn sync(&self, grads: GradientsParams) -> Option<GradientsParams> {
-//         self.msg_send.send(grads).unwrap();
-//         self.result_recv.recv().unwrap()
-//     }
-//
-//     fn run_worker(
-//         double_buffering: bool,
-//         peer_id: PeerId,
-//         send: SyncSender<Option<GradientsParams>>,
-//         recv: Receiver<GradientsParams>,
-//     ) {
-//         let mut grads_buffer = None;
-//
-//         while let Ok(new_grads) = recv.recv() {
-//             // Sync grads with collective
-//             let new_grads = new_grads
-//                 .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Mean)
-//                 .expect("DDP worker could not sync gradients!");
-//
-//             if double_buffering {
-//                 let old_grads = grads_buffer.take();
-//                 grads_buffer = Some(new_grads);
-//
-//                 send.send(old_grads).unwrap();
-//             } else {
-//                 send.send(Some(new_grads)).unwrap();
-//             }
-//         }
-//         // GradsSyncer dropped, channel closed, this thread can end
-//     }
-// }
+/// Worker that is responsible for syncing gradients for the DDP worker. With double buffering,
+/// this allows for more optimization.
+struct GradsSyncer<B: AutodiffBackend, M: AutodiffModule<B> + 'static> {
+    msg_send: SyncSender<GradientsParams>,
+    // Optional because with double buffering, the first iteration yields no gradients.
+    result_recv: Receiver<Option<GradientsParams>>,
+
+    _p: PhantomData<(B, M)>,
+}
+
+impl<B: AutodiffBackend, M: AutodiffModule<B> + 'static> GradsSyncer<B, M> {
+    fn new(double_buffering: bool, peer_id: PeerId) -> Self {
+        let (msg_send, msg_recv) = std::sync::mpsc::sync_channel::<GradientsParams>(1);
+        let (result_send, result_recv) =
+            std::sync::mpsc::sync_channel::<Option<GradientsParams>>(1);
+        std::thread::spawn(move || {
+            Self::run_worker(double_buffering, peer_id, result_send, msg_recv)
+        });
+        Self {
+            msg_send,
+            result_recv,
+            _p: PhantomData,
+        }
+    }
+
+    fn sync(&self, grads: GradientsParams) -> Option<GradientsParams> {
+        self.msg_send.send(grads).unwrap();
+        self.result_recv.recv().unwrap()
+    }
+
+    fn run_worker(
+        double_buffering: bool,
+        peer_id: PeerId,
+        send: SyncSender<Option<GradientsParams>>,
+        recv: Receiver<GradientsParams>,
+    ) {
+        let mut grads_buffer = None;
+
+        while let Ok(new_grads) = recv.recv() {
+            // Sync grads with collective
+            let new_grads = new_grads
+                .all_reduce::<B::InnerBackend>(peer_id, ReduceOperation::Mean)
+                .expect("DDP worker could not sync gradients!");
+
+            if double_buffering {
+                let old_grads = grads_buffer.take();
+                grads_buffer = Some(new_grads);
+
+                send.send(old_grads).unwrap();
+            } else {
+                send.send(Some(new_grads)).unwrap();
+            }
+        }
+        // GradsSyncer dropped, channel closed, this thread can end
+    }
+}
