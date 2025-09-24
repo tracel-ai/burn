@@ -109,7 +109,10 @@ where
                 let slice = &burn_slices[i];
 
                 // Check for empty range (would result in no elements)
-                if slice.start == slice.end.unwrap_or(slice.start) {
+                // if slice.start == slice.end.unwrap_or(slice.start) {
+                if let Some(end) = slice.end
+                    && slice.start == end
+                {
                     SliceInfoElem::Slice {
                         start: 0,
                         end: Some(0),
