@@ -201,9 +201,6 @@ jobs:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v4
-      # --------------------------------------------------------------------------------
       - name: Crates Build
         run: cargo xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
