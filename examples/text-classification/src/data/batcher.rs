@@ -11,7 +11,10 @@
 // generates a padding mask, and returns a batch object.
 
 use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
-use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
+use burn::{
+    backend::NdArray, data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask,
+    prelude::*,
+};
 use std::sync::Arc;
 
 /// Struct for batching text classification items
@@ -52,25 +55,25 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
         // Tokenize text and create label tensor for each item
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels_list.push(Tensor::from_data(
+            labels_list.push(Tensor::<NdArray, 1, Int>::from_data(
                 TensorData::from([(item.label as i64).elem::<B::IntElem>()]),
-                device,
+                &Default::default(),
             ));
         }
 
         // Generate padding mask for tokenized text
-        let mask = generate_padding_mask(
+        let mask = generate_padding_mask::<NdArray>(
             self.tokenizer.pad_token(),
             tokens_list,
             Some(self.max_seq_length),
-            device,
+            &Default::default(),
         );
 
         // Create and return training batch
         TextClassificationTrainingBatch {
-            tokens: mask.tensor,
-            labels: Tensor::cat(labels_list, 0),
-            mask_pad: mask.mask,
+            tokens: Tensor::from_data(mask.tensor.into_data(), device),
+            labels: Tensor::from_data(Tensor::cat(labels_list, 0).into_data(), device),
+            mask_pad: Tensor::from_data(mask.mask.into_data(), device),
         }
     }
 }
