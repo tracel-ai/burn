@@ -292,7 +292,8 @@ fn generate_stepped_indices(start: usize, end: usize, step: isize) -> Vec<usize>
         }
         indices
     } else {
-        vec![] // step == 0 is invalid
+        // This branch should never be reached since step is validated to be non-zero
+        panic!("Step cannot be zero")
     }
 }
 

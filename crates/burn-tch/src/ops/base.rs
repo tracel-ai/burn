@@ -81,7 +81,7 @@ impl TchOps {
     ) -> TchTensor {
         // PyTorch's narrow operation only supports contiguous slices (step=1)
         // For non-unit steps, we use advanced indexing as a workaround
-        let all_unit_steps = slices.iter().all(|s| s.step == 1 || s.step == 0);
+        let all_unit_steps = slices.iter().all(|s| s.step == 1);
 
         if all_unit_steps {
             // Fast path: use narrow and copy_ for unit steps
