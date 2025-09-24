@@ -72,7 +72,6 @@ mod tests {
         result.into_data().assert_eq(&expected, false);
     }
 
-    // Tests for slice_assign with step support (currently expected to fail/panic)
     #[test]
     fn test_slice_assign_with_positive_step_1d() {
         let device = Default::default();
