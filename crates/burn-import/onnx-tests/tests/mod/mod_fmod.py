@@ -42,19 +42,33 @@ def main():
     # Save the model
     onnx_name = "mod_fmod.onnx"
     onnx.save(model_def, onnx_name)
+    onnx.checker.check_model(onnx_name)
     print(f"Finished exporting model to {onnx_name}")
 
-    # Test with NumPy to show expected results
-    test_x = np.array([[[[5.3, -5.3, 7.5, -7.5]]]]).astype(np.float32)
-    test_y = np.array([[[[2.0, 2.0, 3.0, 3.0]]]]).astype(np.float32)
+    # Test with onnx.reference.ReferenceEvaluator
+    try:
+        from onnx.reference import ReferenceEvaluator
 
-    # C-style fmod: sign follows dividend
-    result = np.fmod(test_x, test_y)
+        # Create test data
+        test_x = np.array([[[[5.3, -5.3, 7.5, -7.5]]]]).astype(np.float32)
+        test_y = np.array([[[[2.0, 2.0, 3.0, 3.0]]]]).astype(np.float32)
 
-    print(f"Test input x: {test_x}")
-    print(f"Test input y: {test_y}")
-    print(f"Test output (fmod): {result}")
-    print(f"Expected values: [1.3, -1.3, 1.5, -1.5] (sign follows dividend)")
+        # Run inference with ReferenceEvaluator
+        sess = ReferenceEvaluator(model_def)
+        result = sess.run(None, {"x": test_x, "y": test_y})
+
+        print(f"Test input x: {test_x}")
+        print(f"Test input y: {test_y}")
+        print(f"Test output (fmod): {result[0]}")
+
+        # Verify expected results for C-style fmod operation
+        expected_result = np.fmod(test_x, test_y)
+        np.testing.assert_allclose(result[0], expected_result, rtol=1e-5)
+        print(f"Expected values: [1.3, -1.3, 1.5, -1.5] (sign follows dividend)")
+        print("Test passed: Results match expected fmod values")
+
+    except ImportError:
+        print("onnx.reference not available, skipping inference test")
 
 if __name__ == '__main__':
     main()

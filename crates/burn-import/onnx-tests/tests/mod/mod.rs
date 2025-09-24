@@ -62,7 +62,9 @@ mod tests {
         let input_y = Tensor::<TestBackend, 3>::from_floats([[[2.0, 2.0, 3.0, 3.0]]], &device);
         let output = model.forward(input_x, input_y);
 
-        // Expected: remainder operation where sign follows divisor
+        // Expected: Python-style remainder where sign follows divisor
+        // remainder(5.3, 2.0) = 1.3, remainder(-5.3, 2.0) = 0.7
+        // remainder(7.5, 3.0) = 1.5, remainder(-7.5, 3.0) = 1.5
         let expected = TensorData::from([[[1.3000002f32, 0.6999998, 1.5, 1.5]]]);
         output.to_data().assert_eq(&expected, true);
     }
@@ -153,8 +155,10 @@ mod tests {
         // Check shape
         assert_eq!(output.dims(), [3, 4, 5]);
 
-        // Check first row values
-        // remainder(7.5, 3.0) = 1.5, remainder(7.5, 4.0) = 3.5, etc.
+        // Check first row values for Python-style remainder
+        // remainder(7.5, 3.0) = 1.5, remainder(7.5, 4.0) = 3.5
+        // remainder(7.5, -3.0) = -1.5, remainder(7.5, -4.0) = -0.5
+        // remainder(7.5, 5.0) = 2.5
         let data = output.to_data();
         let values = data.as_slice::<f32>().unwrap();
         assert!((values[0] - 1.5).abs() < 0.001);
