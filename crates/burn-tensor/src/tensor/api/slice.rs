@@ -264,7 +264,7 @@ macro_rules! s {
 ///
 /// - **Positive step**: Traverse forward through the range
 /// - **Negative step**: Traverse backward through the range
-/// - **Step step**: Determines how many elements to skip
+/// - **Step size**: Determines how many elements to skip
 ///
 /// # Examples
 ///
