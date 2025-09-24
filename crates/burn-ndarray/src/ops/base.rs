@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
-use burn_tensor::ElementConversion;
 #[cfg(feature = "simd")]
 use burn_tensor::{DType, quantization::QuantValue};
+use burn_tensor::{ElementConversion, Slice};
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use ndarray::IntoDimension;
@@ -16,12 +16,6 @@ use paste::paste;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
-
-use burn_tensor::Shape;
-use ndarray::Axis;
-use ndarray::Dim;
-use ndarray::IxDyn;
-use ndarray::SliceInfoElem;
 
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
@@ -42,6 +36,12 @@ use crate::{
     ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
 };
 use crate::{SharedArray, element::NdArrayElement};
+use burn_tensor::Shape;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
+use ndarray::Axis;
+use ndarray::Dim;
+use ndarray::IxDyn;
+use ndarray::SliceInfoElem;
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -97,6 +97,7 @@ where
         Self::concatenate(&arrays, dim)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn to_slice_args_with_steps(
         burn_slices: &[burn_tensor::Slice],
         ndims: usize,
@@ -180,6 +181,60 @@ where
         let slice_info =
             SliceInfo::<Vec<SliceInfoElem>, IxDyn, IxDyn>::try_from(slice_items).unwrap();
         tensor.slice(slice_info).into_owned().into_shared()
+    }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// # Warning
+    ///
+    /// This is a copy impl; `ndarray` doesn't expose the layout machinery
+    /// necessary to build the stride view.
+    ///
+    /// Returns a copy of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the dimension to unfold.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
+    #[allow(unused)]
+    pub(crate) fn unfold(
+        tensor: SharedArray<E>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> SharedArray<E> {
+        let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let windows = result_shape[dim];
+
+        let mut select_ranges = Shape::from(tensor.shape()).into_ranges();
+        let new_axis = select_ranges.len();
+
+        let mut slices = vec![Slice::new(0, None, 1); select_ranges.len()];
+
+        let mut stack = Vec::with_capacity(windows);
+        for widx in 0..windows {
+            let start = widx * step;
+            let end = start + size;
+            select_ranges[dim] = start..end;
+            slices[dim] = Slice::new(start as isize, Some(end as isize), 1);
+
+            let mut window_slice = tensor
+                .slice(Self::to_slice_args_with_steps(&slices, select_ranges.len()).as_slice());
+            window_slice.insert_axis_inplace(Axis(new_axis));
+            window_slice.swap_axes(dim, new_axis);
+
+            stack.push(window_slice);
+        }
+        Self::concatenate(&stack, dim)
     }
 }
 

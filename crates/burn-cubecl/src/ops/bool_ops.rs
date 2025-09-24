@@ -7,7 +7,7 @@ use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor
 use burn_tensor::{Shape, TensorData};
 use std::ops::Range;
 
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 
 impl<R, F, I, BT> BoolTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -140,5 +140,14 @@ where
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         kernel::flip::<R, BT, BT>(tensor, axes)
+    }
+
+    fn bool_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

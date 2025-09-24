@@ -2199,6 +2199,48 @@ where
 
         Tensor::<B, D2, K>::new(K::expand(self.primitive, shape))
     }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// The new view will have the unfolded dimension replaced by two dimensions;
+    /// one in the position of the original dimension, with size equal to the number of windows,
+    /// and one appended to the right-most position, with size equal to `size`.
+    ///
+    /// # Warning
+    ///
+    /// For the `ndarray` and `candle` backends; this is not a view but a copy
+    /// with duplicated data.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - the dimension to unfold.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
+    pub fn unfold<const D2: usize, I: AsIndex>(
+        self,
+        dim: I,
+        size: usize,
+        step: usize,
+    ) -> Tensor<B, D2, K> {
+        let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::unfold::<D, D2>(
+            "unfold",
+            &self.shape(),
+            dim,
+            size,
+            step,
+        ));
+        Tensor::<B, D2, K>::new(K::unfold(self.primitive, dim, size, step))
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
@@ -2852,6 +2894,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For moving a tensor to a device, users should prefer the [Tensor::to_device](Tensor::to_device) function,
     /// which is more high-level and designed for public use.
+    #[allow(clippy::wrong_self_convention)]
     fn to_device(tensor: Self::Primitive, device: &B::Device) -> Self::Primitive;
 
     /// Extracts the data from the tensor asynchronously.
@@ -2872,6 +2915,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
+    #[allow(clippy::wrong_self_convention)]
     fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
 
     /// Read the data from the tensor using a transaction.
@@ -3096,6 +3140,29 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// The broadcasted tensor.
     fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Warning
+    ///
+    /// For the `ndarray` and `candle` backends; this is not a view but a full copy.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the dimension to unfold.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -3317,6 +3384,10 @@ impl<B: Backend> BasicOps<B> for Float {
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
         }
     }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_unfold(tensor.tensor(), dim, size, step))
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -3442,6 +3513,10 @@ impl<B: Backend> BasicOps<B> for Int {
 
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::int_flip(tensor, axes)
+    }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        B::int_unfold(tensor, dim, size, step)
     }
 }
 
@@ -3578,6 +3653,10 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::bool_flip(tensor, axes)
+    }
+
+    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
+        B::bool_unfold(tensor, dim, size, step)
     }
 }
 

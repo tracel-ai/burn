@@ -1,13 +1,14 @@
+use std::cmp::max;
 use std::marker::PhantomData;
-
-use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
-use candle_core::WithDType;
-use half::{bf16, f16};
 
 use crate::{
     Candle, CandleDevice, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
+use burn_tensor::ops::unfold::{calculate_unfold_shape, calculate_unfold_windows};
+use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
+use candle_core::{Layout, WithDType};
+use half::{bf16, f16};
 
 use super::tensor;
 
@@ -337,6 +338,29 @@ pub fn chunk(tensor: CandleTensor, chunks: usize, dim: usize) -> Vec<CandleTenso
 
 pub fn expand(tensor: CandleTensor, shape: Shape) -> CandleTensor {
     CandleTensor::new(tensor.tensor.broadcast_as(shape.dims).unwrap())
+}
+
+pub fn unfold(tensor: CandleTensor, dim: usize, size: usize, step: usize) -> CandleTensor {
+    let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+    let windows = result_shape[dim];
+
+    let mut select_ranges = tensor.shape().into_ranges();
+    let new_axis = select_ranges.len();
+
+    let mut stack = Vec::with_capacity(windows);
+    for widx in 0..windows {
+        let start = widx * step;
+        let end = start + size;
+        select_ranges[dim] = start..end;
+
+        let mut window_slice = slice(tensor.clone(), &select_ranges);
+
+        window_slice = swap_dims(window_slice, dim, new_axis);
+        let window_slice = CandleTensor::new(window_slice.tensor.unsqueeze(new_axis).unwrap());
+
+        stack.push(window_slice);
+    }
+    cat(stack, dim)
 }
 
 pub fn sign(tensor: CandleTensor) -> CandleTensor {

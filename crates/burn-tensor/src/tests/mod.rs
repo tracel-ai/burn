@@ -270,6 +270,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
         burn_tensor::testgen_grid_sample!();
+        burn_tensor::testgen_unfold!();
 
         // test stats
         burn_tensor::testgen_var!();
@@ -310,6 +311,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_gather_scatter!();
         burn_tensor::testgen_bitwise!();
         burn_tensor::testgen_matmul!();
+        burn_tensor::testgen_unfold!();
 
         // test stats
         burn_tensor::testgen_eye!();
@@ -338,6 +340,7 @@ macro_rules! testgen_with_bool_param {
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_tri_mask!();
+        burn_tensor::testgen_unfold!();
     };
 }
 

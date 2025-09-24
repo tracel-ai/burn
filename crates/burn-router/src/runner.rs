@@ -186,6 +186,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_expand(tensor, desc.shape.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::Unfold(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_unfold(tensor, desc.dim, desc.size, desc.step);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Slice(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
@@ -261,6 +267,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_expand(tensor, desc.shape.clone().into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::Unfold(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_unfold(tensor, desc.dim, desc.size, desc.step);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Slice(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
@@ -330,6 +342,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_expand(tensor, desc.shape.clone().into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Unfold(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_unfold(tensor, desc.dim, desc.size, desc.step);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Slice(desc) => {

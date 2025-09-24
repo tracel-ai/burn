@@ -12,7 +12,7 @@ use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign};
+use super::base::{expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
@@ -458,6 +458,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         expand(tensor, shape)
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

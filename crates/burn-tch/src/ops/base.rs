@@ -562,6 +562,13 @@ impl TchOps {
         TchTensor::from_existing(broadcasted_tensor, storage)
     }
 
+    pub fn unfold(tensor: TchTensor, dim: usize, size: usize, step: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let uf_tensor = tensor.tensor.unfold(dim as i64, size as i64, step as i64);
+
+        TchTensor::from_existing(uf_tensor, storage)
+    }
+
     pub fn sort(tensor: TchTensor, dim: usize, descending: bool) -> TchTensor {
         TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
     }

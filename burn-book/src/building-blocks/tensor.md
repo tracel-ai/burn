@@ -187,10 +187,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
 | --------------------------------------------------------------- | ---------------------------------------------- |
-| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
-| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
-| `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
-| `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
@@ -236,9 +232,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
-| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.one_hot(num_classes)`                                   | `torch.nn.functional.one_hot`                  |
 | `tensor.one_hot_fill(num_classes, on_value, off_value, axis)`   | N/A                                            |
+| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
@@ -253,14 +249,19 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sort_with_indices(dim)`                                 | `tensor.sort(dim)`                             |
 | `tensor.sub(other)` or `tensor - other`                         | `tensor - other`                               |
 | `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
-| `scalar - tensor`                                               | `scalar - tensor`                              |
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.unfold(dim, size, step)`                                | `tensor.unfold(dim, size, step)`               |
 | `tensor.zeros_like()`                                           | `torch.zeros_like(tensor)`                     |
+| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
+| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
+| `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
+| `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
+| `scalar - tensor`                                               | `scalar - tensor`                              |
 
 ### Float Operations
 

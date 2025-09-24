@@ -503,4 +503,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             TchTensor::new(tensor.tensor.to_kind(kind))
         }
     }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
+    }
 }

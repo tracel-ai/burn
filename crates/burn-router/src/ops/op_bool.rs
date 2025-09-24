@@ -1,13 +1,16 @@
 use alloc::vec::Vec;
 
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, InitOperationIr,
     OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
+    UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, Shape, Slice, TensorData, calculate_slice_output_shape};
-
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_tensor::{
+    Device, Element, Shape, Slice, TensorData, TensorMetadata, calculate_slice_output_shape,
+};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -312,6 +315,30 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc)));
+
+        out
+    }
+
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = client.register_empty_tensor(shape, tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        client.register(OperationIr::BaseBool(BaseOperationIr::Unfold(desc)));
 
         out
     }

@@ -2565,6 +2565,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     // TODO: Implement float_prod and float_sum
     // https://github.com/tracel-ai/burn/issues/1458
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        AutodiffTensor::new(B::float_unfold(tensor.primitive, dim, size, step))
+    }
 }
 
 #[derive(Debug, Clone)]

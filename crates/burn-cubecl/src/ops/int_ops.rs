@@ -1,6 +1,6 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     kernel::{
@@ -683,5 +683,14 @@ where
                 IntDType::U8 => kernel::cast::<R, I, u8>(tensor),
             }
         )
+    }
+
+    fn int_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }
