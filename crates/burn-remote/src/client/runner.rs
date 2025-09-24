@@ -3,7 +3,7 @@ use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
-    DType, TensorData,
+    TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use std::{
