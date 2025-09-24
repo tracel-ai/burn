@@ -51,9 +51,7 @@ where
         // We need to handle this case by replacing NaN with 0 when appropriate
 
         // Check if the product is NaN due to 0 * inf
-        let is_zero_times_inf = truncated
-            .equal_elem(0.0)
-            .bool_and(other.is_finite().bool_not());
+        let is_zero_times_inf = truncated.equal_elem(0.0).bool_and(other.is_inf());
         let zero_tensor = self.clone().mul_scalar(0.0);
         let corrected_product = product.mask_where(is_zero_times_inf, zero_tensor);
 
