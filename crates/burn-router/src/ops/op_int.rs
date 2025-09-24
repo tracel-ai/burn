@@ -10,7 +10,7 @@ use burn_ir::{
     ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
     SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
@@ -1423,12 +1423,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
 
-        let mut shape = tensor.shape().dims.clone();
-        let d_shape = shape[dim];
-        let windows = calculate_unfold_windows(d_shape, size, step);
-        shape[dim] = windows;
-        shape.push(size);
-
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
         let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
 
         let desc = UnfoldOpIr {

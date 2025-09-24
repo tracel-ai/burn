@@ -7,7 +7,7 @@ use crate::{
     unary_int_ops,
 };
 use burn_ir::*;
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
@@ -2196,17 +2196,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let mut shape = tensor.shape().dims.clone();
-        let d_shape = shape[dim];
-
-        let windows = calculate_unfold_windows(d_shape, size, step);
-
-        shape[dim] = windows;
-        shape.push(size);
-
-        let out = tensor
-            .client
-            .tensor_uninitialized(shape.clone(), tensor.dtype);
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
 
         let desc = UnfoldOpIr {
             input: tensor.into_ir(),

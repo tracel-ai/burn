@@ -2202,7 +2202,7 @@ where
     ///
     /// * `dim` - the dimension to unfold.
     /// * `size` - the size of each unfolded window.
-    /// * `stride` - the step between each window.
+    /// * `step` - the step between each window.
     ///
     /// # Returns
     ///
@@ -3125,7 +3125,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 
     /// Unfold windows along a dimension.
     ///
-    /// Returns a copy of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
     /// where windows are advanced by `step` at each index.
     ///
     /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
@@ -3139,7 +3139,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
     /// * `dim` - the dimension to unfold.
     /// * `size` - the size of each unfolded window.
-    /// * `stride` - the step between each window.
+    /// * `step` - the step between each window.
     ///
     /// # Returns
     ///

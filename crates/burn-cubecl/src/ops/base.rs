@@ -1,6 +1,6 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
 use burn_common::tensor::{ReshapeAction, reshape_action};
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
@@ -231,7 +231,7 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim
 /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
 /// * `dim` - the dimension to unfold.
 /// * `size` - the size of each unfolded window.
-/// * `stride` - the step between each window.
+/// * `step` - the step between each window.
 ///
 /// # Returns
 ///
@@ -242,21 +242,15 @@ pub fn unfold<R: CubeRuntime>(
     size: usize,
     step: usize,
 ) -> CubeTensor<R> {
-    let d_shape = tensor.shape.dims[dim];
+    let shape = calculate_unfold_shape(tensor.shape, dim, size, step);
+
     let d_stride = tensor.strides[dim];
-
-    let windows = calculate_unfold_windows(d_shape, size, step);
-
-    let mut shape = tensor.shape.clone();
-    shape.dims[dim] = windows;
-    shape.dims.push(size);
-
     let mut strides = tensor.strides.clone();
     strides[dim] = step * d_stride;
     strides.push(d_stride);
 
     CubeTensor {
-        shape,
+        shape: shape.into(),
         strides,
         ..tensor
     }

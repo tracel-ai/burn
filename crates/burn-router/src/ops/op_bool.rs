@@ -6,9 +6,11 @@ use burn_ir::{
     OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
     UnfoldOpIr,
 };
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{Device, Element, Shape, Slice, TensorData, calculate_slice_output_shape};
+use burn_tensor::{
+    Device, Element, Shape, Slice, TensorData, TensorMetadata, calculate_slice_output_shape,
+};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -325,13 +327,8 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
 
-        let mut shape = tensor.shape.clone();
-        let d_shape = shape[dim];
-        let windows = calculate_unfold_windows(d_shape, size, step);
-        shape[dim] = windows;
-        shape.push(size);
-
-        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = UnfoldOpIr {
             input: tensor.into_ir(),

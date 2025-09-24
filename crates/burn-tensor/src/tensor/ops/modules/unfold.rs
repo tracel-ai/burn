@@ -90,6 +90,38 @@ pub fn calculate_unfold_windows(dim_size: usize, window_size: usize, step_size: 
     }
 }
 
+/// Calculate the output shape for an unfold operation.
+///
+/// The operation yields a view with all complete windows of size `size` in dimension `dim`;
+/// where windows are advanced by `step` at each index.
+///
+/// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+///
+/// # Arguments
+///
+/// * `shape` - The input shape to unfold; of shape ``[pre=..., dim shape, post=...]``
+/// * `dim` - the dimension to unfold.
+/// * `size` - the size of each unfolded window.
+/// * `step` - the step between each window.
+///
+/// # Returns
+///
+/// A shape with ``[pre=..., windows, post=..., size]``.
+pub fn calculate_unfold_shape<S: Into<Shape>>(
+    shape: S,
+    dim: usize,
+    size: usize,
+    step: usize,
+) -> Vec<usize> {
+    let mut shape = shape.into().dims.to_vec();
+    let d_shape = shape[dim];
+    let windows = calculate_unfold_windows(d_shape, size, step);
+    shape[dim] = windows;
+    shape.push(size);
+
+    shape
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +137,10 @@ mod tests {
         assert_eq!(calculate_unfold_windows(3, 3, 2), 1);
         assert_eq!(calculate_unfold_windows(4, 3, 2), 1);
         assert_eq!(calculate_unfold_windows(5, 3, 2), 2);
+    }
+
+    #[test]
+    fn test_calculate_unfold_shape() {
+        assert_eq!(calculate_unfold_shape([2, 6, 6], 1, 3, 2), vec![2, 2, 6, 3]);
     }
 }

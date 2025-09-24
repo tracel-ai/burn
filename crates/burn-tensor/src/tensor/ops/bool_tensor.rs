@@ -432,7 +432,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
     /// * `dim` - the selected dim.
     /// * `size` - the size of each unfolded window.
-    /// * `stride` - the step between each window.
+    /// * `step` - the step between each window.
     ///
     /// # Returns
     ///

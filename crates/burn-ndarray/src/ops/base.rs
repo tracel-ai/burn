@@ -37,7 +37,7 @@ use crate::{
 };
 use crate::{SharedArray, element::NdArrayElement};
 use burn_tensor::Shape;
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use ndarray::Axis;
 use ndarray::Dim;
 use ndarray::IxDyn;
@@ -221,7 +221,7 @@ where
     /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
     /// * `dim` - the dimension to unfold.
     /// * `size` - the size of each unfolded window.
-    /// * `stride` - the step between each window.
+    /// * `step` - the step between each window.
     ///
     /// # Returns
     ///
@@ -233,11 +233,8 @@ where
         size: usize,
         step: usize,
     ) -> SharedArray<E> {
-        let mut result_shape = tensor.shape().to_vec();
-        let d_shape = result_shape[dim];
-        let windows = calculate_unfold_windows(d_shape, size, step);
-        result_shape[dim] = windows;
-        result_shape.push(size);
+        let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let windows = result_shape[dim];
 
         let mut select_ranges = Shape::from(tensor.shape()).into_ranges();
         let new_axis = select_ranges.len();

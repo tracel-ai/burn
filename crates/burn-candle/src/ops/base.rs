@@ -5,7 +5,7 @@ use crate::{
     Candle, CandleDevice, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
-use burn_tensor::ops::unfold::calculate_unfold_windows;
+use burn_tensor::ops::unfold::{calculate_unfold_shape, calculate_unfold_windows};
 use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
 use candle_core::{Layout, WithDType};
 use half::{bf16, f16};
@@ -195,11 +195,8 @@ pub fn expand(tensor: CandleTensor, shape: Shape) -> CandleTensor {
 }
 
 pub fn unfold(tensor: CandleTensor, dim: usize, size: usize, step: usize) -> CandleTensor {
-    let mut result_shape = tensor.shape().to_vec();
-    let d_shape = result_shape[dim];
-    let windows = calculate_unfold_windows(d_shape, size, step);
-    result_shape[dim] = windows;
-    result_shape.push(size);
+    let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+    let windows = result_shape[dim];
 
     let mut select_ranges = tensor.shape().into_ranges();
     let new_axis = select_ranges.len();
