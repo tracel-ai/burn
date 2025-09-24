@@ -683,9 +683,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     };
 
     let available_line_sizes = AvailableLineSizes {
-        lhs: R::line_size_type(&elem_lhs).collect(),
-        rhs: R::line_size_type(&elem_rhs).collect(),
-        out: R::line_size_type(&elem_out).collect(),
+        lhs: R::io_optimized_line_sizes_unchecked(&elem_lhs).collect(),
+        rhs: R::io_optimized_line_sizes_unchecked(&elem_rhs).collect(),
+        out: R::io_optimized_line_sizes_unchecked(&elem_out).collect(),
     };
     let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 
