@@ -83,7 +83,7 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
 pub fn calculate_unfold_windows(dim_size: usize, window_size: usize, step_size: usize) -> usize {
     assert!(step_size > 0);
     let x = dim_size + step_size;
-    if x < step_size {
+    if x < window_size {
         0
     } else {
         (x - window_size) / step_size
@@ -128,6 +128,8 @@ mod tests {
 
     #[test]
     fn test_calculate_unfold_windows() {
+        assert_eq!(calculate_unfold_windows(2, 5, 1), 0);
+
         assert_eq!(calculate_unfold_windows(2, 3, 1), 0);
         assert_eq!(calculate_unfold_windows(3, 3, 1), 1);
         assert_eq!(calculate_unfold_windows(4, 3, 1), 2);
