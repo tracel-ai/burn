@@ -91,7 +91,7 @@ mod wgpu {
     use burn::backend::{Autodiff, wgpu::Wgpu};
 
     pub fn run() {
-        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![Default::default(), Default::default()]);
     }
 }
 
@@ -102,7 +102,7 @@ mod vulkan {
 
     pub fn run() {
         type B = Autodiff<Vulkan<ElemType, i32>, BalancedCheckpointing>;
-        launch::<B>(vec![Default::default()]);
+        launch::<B>(vec![Default::default(), Default::default()]);
     }
 }
 
