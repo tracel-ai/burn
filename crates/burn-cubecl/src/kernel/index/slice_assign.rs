@@ -14,11 +14,10 @@ use cubecl::{
 fn slice_assign_kernel<E: CubePrimitive>(
     input: &mut Tensor<Line<E>>,
     value: &LinearView<Line<E>>,
-    value_len: u32,
     slice_shape: Sequence<FastDivmod>,
     slice_offsets: Sequence<u32>,
 ) {
-    if ABSOLUTE_POS >= value_len {
+    if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!()
     }
 
@@ -54,13 +53,12 @@ fn slice_assign_kernel<E: CubePrimitive>(
 fn slice_assign_with_steps_kernel<E: CubePrimitive>(
     input: &mut Tensor<E>,
     value: &LinearView<E>,
-    value_len: u32,
     value_shape: Sequence<FastDivmod>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
 ) {
-    if ABSOLUTE_POS >= value_len {
+    if !value.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
@@ -169,7 +167,6 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     let cube_count =
         calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
 
-    let value_len = value.shape.num_elements() / line_size as usize;
     unsafe {
         slice_assign_kernel::launch_unchecked::<E, R>(
             &tensor.client,
@@ -177,7 +174,6 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
             cube_dim,
             tensor.as_tensor_arg::<E>(line_size),
             linear_view(&value, &line_size),
-            ScalarArg::new(value_len as u32),
             shape,
             offsets,
         );
@@ -228,16 +224,13 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(value.shape.num_elements(), cube_dim);
 
-    let line_size = 1u8;
-    let value_len = value.shape.num_elements();
     unsafe {
         slice_assign_with_steps_kernel::launch_unchecked::<E, R>(
             &tensor.client,
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            linear_view(&value, &line_size),
-            ScalarArg::new(value_len as u32),
+            linear_view(&value, &1),
             shape_divmod(&value),
             starts,
             ends,
