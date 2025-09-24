@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
-use burn_tensor::{ElementConversion, Slice};
 #[cfg(feature = "simd")]
 use burn_tensor::{DType, quantization::QuantValue};
+use burn_tensor::{ElementConversion, Slice};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::IntoDimension;
@@ -251,8 +251,8 @@ where
             select_ranges[dim] = start..end;
             slices[dim] = Slice::new(start as isize, Some(end as isize), 1);
 
-            let mut window_slice =
-                tensor.slice(Self::to_slice_args_with_steps(&slices, select_ranges.len()).as_slice());
+            let mut window_slice = tensor
+                .slice(Self::to_slice_args_with_steps(&slices, select_ranges.len()).as_slice());
             window_slice.insert_axis_inplace(Axis(new_axis));
             window_slice.swap_axes(dim, new_axis);
 

@@ -325,7 +325,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
 
-        let mut shape = tensor.shape().dims.clone();
+        let mut shape = tensor.shape.clone();
         let d_shape = shape[dim];
         let windows = calculate_unfold_windows(d_shape, size, step);
         shape[dim] = windows;
