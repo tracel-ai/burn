@@ -717,7 +717,11 @@ fn conv1d_weight_grad_groups<B: Backend>(
         weight_grad_tmp = B::float_swap_dims(weight_grad_tmp, 0, 1);
         weight_grad = B::float_slice_assign(
             weight_grad,
-            &[start_idx_co..end_idx_co, 0..increment_ci, 0..kernel_size],
+            &[
+                Slice::from(start_idx_co..end_idx_co),
+                Slice::from(0..increment_ci),
+                Slice::from(0..kernel_size),
+            ],
             weight_grad_tmp,
         );
     }
@@ -777,10 +781,10 @@ fn conv2d_weight_grad_groups<B: Backend>(
         weight_grad = B::float_slice_assign(
             weight_grad,
             &[
-                start_idx_co..end_idx_co,
-                0..increment_ci,
-                0..kernel_size_1,
-                0..kernel_size_2,
+                Slice::from(start_idx_co..end_idx_co),
+                Slice::from(0..increment_ci),
+                Slice::from(0..kernel_size_1),
+                Slice::from(0..kernel_size_2),
             ],
             weight_grad_tmp,
         );
@@ -857,11 +861,11 @@ fn conv3d_weight_grad_groups<B: Backend>(
         weight_grad = B::float_slice_assign(
             weight_grad,
             &[
-                start_idx_co..end_idx_co,
-                0..increment_ci,
-                0..kernel_size_1,
-                0..kernel_size_2,
-                0..kernel_size_3,
+                Slice::from(start_idx_co..end_idx_co),
+                Slice::from(0..increment_ci),
+                Slice::from(0..kernel_size_1),
+                Slice::from(0..kernel_size_2),
+                Slice::from(0..kernel_size_3),
             ],
             weight_grad_tmp,
         );
@@ -1007,7 +1011,11 @@ fn conv_transpose1d_weight_grad_groups<B: Backend>(
 
         weight_grad = B::float_slice_assign(
             weight_grad,
-            &[start_idx_ci..end_idx_ci, 0..increment_co, 0..kernel_size],
+            &[
+                Slice::from(start_idx_ci..end_idx_ci),
+                Slice::from(0..increment_co),
+                Slice::from(0..kernel_size),
+            ],
             weight_grad_tmp,
         );
     }
@@ -1067,10 +1075,10 @@ fn conv_transpose2d_weight_grad_groups<B: Backend>(
         weight_grad = B::float_slice_assign(
             weight_grad,
             &[
-                start_idx_ci..end_idx_ci,
-                0..increment_co,
-                0..kernel_size_1,
-                0..kernel_size_2,
+                Slice::from(start_idx_ci..end_idx_ci),
+                Slice::from(0..increment_co),
+                Slice::from(0..kernel_size_1),
+                Slice::from(0..kernel_size_2),
             ],
             weight_grad_tmp,
         );
@@ -1146,11 +1154,11 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
         weight_grad = B::float_slice_assign(
             weight_grad,
             &[
-                start_idx_ci..end_idx_ci,
-                0..increment_co,
-                0..kernel_size_1,
-                0..kernel_size_2,
-                0..kernel_size_3,
+                Slice::from(start_idx_ci..end_idx_ci),
+                Slice::from(0..increment_co),
+                Slice::from(0..kernel_size_1),
+                Slice::from(0..kernel_size_2),
+                Slice::from(0..kernel_size_3),
             ],
             weight_grad_tmp,
         );

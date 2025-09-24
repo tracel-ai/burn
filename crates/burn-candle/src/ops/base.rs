@@ -168,10 +168,156 @@ pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> 
 
 pub fn slice_assign(
     tensor: CandleTensor,
-    ranges: &[std::ops::Range<usize>],
+    slices: &[burn_tensor::Slice],
     value: CandleTensor,
 ) -> CandleTensor {
-    CandleTensor::new(tensor.tensor.slice_assign(ranges, &value.tensor).unwrap())
+    // Check if all slices have step=1 (candle's native slice_assign requirement)
+    let all_unit_steps = slices.iter().all(|s| s.step == 1);
+
+    if all_unit_steps {
+        // Convert Slice to Range for candle's native slice_assign
+        let ranges: Vec<std::ops::Range<usize>> = slices
+            .iter()
+            .enumerate()
+            .map(|(dim, slice)| {
+                let dim_size = tensor.tensor.dim(dim).unwrap_or(usize::MAX);
+                slice.to_range(dim_size)
+            })
+            .collect();
+
+        CandleTensor::new(tensor.tensor.slice_assign(&ranges, &value.tensor).unwrap())
+    } else {
+        // Implement slice_assign with steps using scatter operations
+        slice_assign_with_steps_workaround(tensor, slices, value)
+    }
+}
+
+/// Implements slice_assign for non-unit steps using index operations
+fn slice_assign_with_steps_workaround(
+    tensor: CandleTensor,
+    slices: &[burn_tensor::Slice],
+    value: CandleTensor,
+) -> CandleTensor {
+    let shape = tensor.shape();
+    let ndims = shape.num_dims();
+    let device = tensor.tensor.device();
+
+    // Generate indices for each dimension based on slice specifications
+    let indices_per_dim = generate_slice_indices(slices, &shape.dims);
+
+    // Early return if no elements to assign
+    let total_elements: usize = indices_per_dim.iter().map(|v| v.len()).product();
+    if total_elements == 0 {
+        return tensor;
+    }
+
+    // Flatten tensors and get metadata
+    let value_flat = value.tensor.flatten_all().unwrap();
+    let strides = tensor.tensor.stride();
+    let tensor_shape = tensor.tensor.dims();
+
+    // Use a macro to handle different dtypes without code duplication
+    macro_rules! apply_slice_assign {
+        ($dtype:ty, $to_vec_fn:ident) => {{
+            let mut tensor_vec: Vec<$dtype> =
+                tensor.tensor.flatten_all().unwrap().$to_vec_fn().unwrap();
+            let value_vec: Vec<$dtype> = value_flat.$to_vec_fn().unwrap();
+
+            // Apply assignments using cartesian product of indices
+            for (value_idx, &value) in value_vec.iter().enumerate() {
+                let flat_idx = compute_flat_index(value_idx, &indices_per_dim, &strides);
+                if flat_idx < tensor_vec.len() {
+                    tensor_vec[flat_idx] = value;
+                }
+            }
+
+            candle_core::Tensor::from_vec(tensor_vec, tensor_shape, device).unwrap()
+        }};
+    }
+
+    use candle_core::DType;
+    let result = match tensor.tensor.dtype() {
+        DType::F32 => apply_slice_assign!(f32, to_vec1),
+        DType::F64 => apply_slice_assign!(f64, to_vec1),
+        DType::I64 => apply_slice_assign!(i64, to_vec1),
+        DType::U32 => apply_slice_assign!(u32, to_vec1),
+        DType::U8 => apply_slice_assign!(u8, to_vec1),
+        _ => panic!(
+            "Unsupported dtype {:?} for slice_assign with steps",
+            tensor.tensor.dtype()
+        ),
+    };
+
+    CandleTensor::new(result)
+}
+
+/// Generate indices for each dimension based on slice specifications
+fn generate_slice_indices(slices: &[burn_tensor::Slice], tensor_dims: &[usize]) -> Vec<Vec<usize>> {
+    let ndims = tensor_dims.len();
+    let mut indices_per_dim = Vec::with_capacity(ndims);
+
+    // Process provided slices
+    for (dim_idx, slice) in slices.iter().enumerate() {
+        let dim_size = tensor_dims[dim_idx];
+        let range = slice.to_range(dim_size);
+        let indices = generate_stepped_indices(range.start, range.end, slice.step);
+        indices_per_dim.push(indices);
+    }
+
+    // Fill remaining dimensions with full ranges
+    for &dim_size in tensor_dims.iter().skip(slices.len()) {
+        indices_per_dim.push((0..dim_size).collect());
+    }
+
+    indices_per_dim
+}
+
+/// Generate indices for a single dimension with stepping
+fn generate_stepped_indices(start: usize, end: usize, step: isize) -> Vec<usize> {
+    if step > 0 {
+        // Forward stepping
+        (start..end).step_by(step as usize).collect()
+    } else if step < 0 {
+        // Backward stepping: start from end-1 and go backwards
+        let step_size = step.unsigned_abs();
+        let mut indices = Vec::new();
+        let mut idx = end.saturating_sub(1);
+
+        while idx >= start && idx < end {
+            indices.push(idx);
+            if idx >= step_size {
+                idx -= step_size;
+            } else {
+                break;
+            }
+        }
+        indices
+    } else {
+        // This branch should never be reached since step is validated to be non-zero
+        panic!("Step cannot be zero")
+    }
+}
+
+/// Compute flat index from multi-dimensional indices using cartesian product logic
+fn compute_flat_index(
+    value_idx: usize,
+    indices_per_dim: &[Vec<usize>],
+    strides: &[usize],
+) -> usize {
+    let mut flat_idx = 0;
+    let mut remainder = value_idx;
+
+    // Convert value_idx to multi-dimensional indices and compute flat tensor index
+    for dim in (0..indices_per_dim.len()).rev() {
+        let dim_size = indices_per_dim[dim].len();
+        let idx_in_dim = remainder % dim_size;
+        remainder /= dim_size;
+
+        let actual_idx = indices_per_dim[dim][idx_in_dim];
+        flat_idx += actual_idx * strides[dim];
+    }
+
+    flat_idx
 }
 
 pub fn narrow(tensor: CandleTensor, dim: usize, start: usize, length: usize) -> CandleTensor {

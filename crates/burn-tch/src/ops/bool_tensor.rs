@@ -2,7 +2,6 @@ use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_tensor::ops::IntTensor;
 use burn_tensor::{Shape, TensorData, TensorMetadata, backend::Backend, ops::BoolTensorOps};
-use std::ops::Range;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
@@ -68,10 +67,10 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
 
     fn bool_slice_assign(
         tensor: TchTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: TchTensor,
     ) -> TchTensor {
-        TchOps::slice_assign(tensor, ranges, value)
+        TchOps::slice_assign(tensor, slices, value)
     }
 
     fn bool_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {

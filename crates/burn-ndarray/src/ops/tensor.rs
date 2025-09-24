@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 use burn_tensor::ops::FloatTensor;
 use burn_tensor::ops::InterpolateMode;
 use burn_tensor::{TensorMetadata, cast::ToElement};
-use core::ops::Range;
 
 // Current crate
 use super::{
@@ -220,11 +219,11 @@ where
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayOps::slice_assign(tensor, ranges, value)
+            NdArrayOps::slice_assign(tensor, slices, value)
         })
     }
 

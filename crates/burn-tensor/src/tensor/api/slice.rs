@@ -24,54 +24,150 @@ pub fn calculate_slice_output_shape(slices: &[Slice], original_shape: &[usize]) 
     shape
 }
 
-/// Creates a slice specification for tensor indexing operations.
+/// Slice argument constructor for tensor indexing.
 ///
-/// This macro simplifies the creation of tensor slices by allowing various range types
-/// to be used together in a concise way. It supports all standard Rust range types,
-/// negative indexing for accessing elements from the end of a dimension, and stepped
-/// slicing using semicolon notation.
+/// The `s![]` macro is used to create multi-dimensional slice specifications for tensors.
+/// It converts various range syntax forms into a `&[Slice]` that can be used with
+/// `tensor.slice()` and `tensor.slice_assign()` operations.
 ///
-/// # Syntax
+/// # Syntax Overview
 ///
-/// - `s![range]` - Single dimension slice
-/// - `s![range1, range2, ...]` - Multi-dimensional slice
-/// - `s![range;step]` - Slice with custom step
-/// - `s![range1;step1, range2, range3;step3]` - Mixed regular and stepped slices
+/// ## Basic Forms
 ///
-/// # Step Values
+/// * **`s![index]`** - Index a single element (produces a subview with that axis removed)
+/// * **`s![range]`** - Slice a range of elements
+/// * **`s![range;step]`** - Slice a range with a custom step
+/// * **`s![dim1, dim2, ...]`** - Multiple dimensions, each can be any of the above forms
 ///
-/// - Positive steps (e.g., `2`) select every nth element forward
-/// - Negative steps (e.g., `-1`) reverse the selection within the range
-/// - Step of `1` is the default when not specified
-/// - Step cannot be `0`
+/// ## Range Types
 ///
-/// # Negative Step Semantics
+/// All standard Rust range types are supported:
+/// * **`a..b`** - From `a` (inclusive) to `b` (exclusive)
+/// * **`a..=b`** - From `a` to `b` (both inclusive)
+/// * **`a..`** - From `a` to the end
+/// * **`..b`** - From the beginning to `b` (exclusive)
+/// * **`..=b`** - From the beginning to `b` (inclusive)
+/// * **`..`** - The full range (all elements)
 ///
-/// When using negative steps, the range still defines which elements to consider,
-/// but iteration proceeds backwards from the end of that range:
-/// - `s![0..5;-1]` selects indices [4, 3, 2, 1, 0]
-/// - `s![2..8;-2]` selects indices [7, 5, 3]
+/// ## Negative Indices
+///
+/// Negative indices count from the end of the axis:
+/// * **`-1`** refers to the last element
+/// * **`-2`** refers to the second-to-last element
+/// * And so on...
+///
+/// This works in all range forms: `s![-3..-1]`, `s![-2..]`, `s![..-1]`
+///
+/// ## Step Syntax
+///
+/// Steps control the stride between selected elements:
+/// * **`;step`** after a range specifies the step
+/// * **Positive steps** select every nth element going forward
+/// * **Negative steps** select every nth element going backward
+/// * Default step is `1` when not specified
+/// * Step cannot be `0`
+///
+/// ### Negative Step Behavior
+///
+/// With negative steps, the range bounds still specify *which* elements to include,
+/// but the traversal order is reversed:
+///
+/// * `s![0..5;-1]` selects indices `[4, 3, 2, 1, 0]` (not `[0, 1, 2, 3, 4]`)
+/// * `s![2..8;-2]` selects indices `[7, 5, 3]` (starting from 7, going backward by 2)
+/// * `s![..;-1]` reverses the entire axis
+///
+/// This matches the semantics of NumPy and the ndarray crate.
 ///
 /// # Examples
 ///
+/// ## Basic Slicing
+///
 /// ```rust,ignore
-/// // Basic slicing
-/// let slice = tensor.slice(s![0..5, .., 3]);
+/// use burn_tensor::{Tensor, s};
 ///
-/// // Using negative indices (counting from the end)
-/// let last_row = tensor.slice(s![-1, ..]);
+/// # fn example<B: Backend>(tensor: Tensor<B, 3>) {
+/// // Select rows 0-5 (exclusive)
+/// let subset = tensor.slice(s![0..5, .., ..]);
 ///
-/// // Slicing with positive steps (every 2nd element)
-/// let even = tensor.slice(s![0..10;2]);
+/// // Select the last row
+/// let last_row = tensor.slice(s![-1, .., ..]);
 ///
-/// // Reversing a dimension
-/// let reversed = tensor.slice(s![0..5;-1]);
+/// // Select columns 2, 3, 4
+/// let cols = tensor.slice(s![.., 2..5, ..]);
 ///
-/// // Complex multi-dimensional slicing
-/// let complex = tensor.slice(s![0..10;2, .., 5..15;-3, -1]);
+/// // Select a single element at position [1, 2, 3]
+/// let element = tensor.slice(s![1, 2, 3]);
+/// # }
+/// ```
 ///
-/// // Mixed range types and steps
-/// let mixed = tensor.slice(s![2..=5, 1..;2, ..10;-1]);
+/// ## Slicing with Steps
+///
+/// ```rust,ignore
+/// use burn_tensor::{Tensor, s};
+///
+/// # fn example<B: Backend>(tensor: Tensor<B, 2>) {
+/// // Select every 2nd row
+/// let even_rows = tensor.slice(s![0..10;2, ..]);
+///
+/// // Select every 3rd column
+/// let cols = tensor.slice(s![.., 0..9;3]);
+///
+/// // Select every 2nd element in reverse order
+/// let reversed_even = tensor.slice(s![10..0;-2, ..]);
+/// # }
+/// ```
+///
+/// ## Reversing Dimensions
+///
+/// ```rust,ignore
+/// use burn_tensor::{Tensor, s};
+///
+/// # fn example<B: Backend>(tensor: Tensor<B, 2>) {
+/// // Reverse the first dimension
+/// let reversed = tensor.slice(s![..;-1, ..]);
+///
+/// // Reverse both dimensions
+/// let fully_reversed = tensor.slice(s![..;-1, ..;-1]);
+///
+/// // Reverse a specific range
+/// let range_reversed = tensor.slice(s![2..8;-1, ..]);
+/// # }
+/// ```
+///
+/// ## Complex Multi-dimensional Slicing
+///
+/// ```rust,ignore
+/// use burn_tensor::{Tensor, s};
+///
+/// # fn example<B: Backend>(tensor: Tensor<B, 4>) {
+/// // Mix of different slice types
+/// let complex = tensor.slice(s![
+///     0..10;2,    // Every 2nd element from 0 to 10
+///     ..,         // All elements in dimension 1
+///     5..15;-3,   // Every 3rd element from 14 down to 5
+///     -1          // Last element in dimension 3
+/// ]);
+///
+/// // Using inclusive ranges
+/// let inclusive = tensor.slice(s![2..=5, 1..=3, .., ..]);
+///
+/// // Negative indices with steps
+/// let from_end = tensor.slice(s![-5..-1;2, .., .., ..]);
+/// # }
+/// ```
+///
+/// ## Slice Assignment
+///
+/// ```rust,ignore
+/// use burn_tensor::{Tensor, s};
+///
+/// # fn example<B: Backend>(tensor: Tensor<B, 2>, values: Tensor<B, 2>) {
+/// // Assign to every 2nd row
+/// let tensor = tensor.slice_assign(s![0..10;2, ..], values);
+///
+/// // Assign to a reversed slice
+/// let tensor = tensor.slice_assign(s![..;-1, 0..5], values);
+/// # }
 /// ```
 #[macro_export]
 macro_rules! s {
@@ -146,15 +242,48 @@ macro_rules! s {
     };
 }
 
-/// A slice (range) with optional step.
+/// A slice specification for a single tensor dimension.
 ///
-/// - `end` is an exclusive index.
-/// - Negative `start` or `end` indices are counted from the back of the axis.
-/// - If `end` is `None`, the slice extends to the end of the axis.
-/// - `step` defines the stride between elements (default: 1).
-/// - Negative `step` reverses the slice direction.
+/// This struct represents a range with an optional step, used for advanced indexing
+/// operations on tensors. It is typically created using the [`s!`] macro rather than
+/// constructed directly.
 ///
-/// See also the [`s![]`](s!) macro.
+/// # Fields
+///
+/// * `start` - The starting index (inclusive). Negative values count from the end.
+/// * `end` - The ending index (exclusive). `None` means to the end of the dimension.
+/// * `step` - The stride between elements. Must be non-zero.
+///
+/// # Index Interpretation
+///
+/// - **Positive indices**: Count from the beginning (0-based)
+/// - **Negative indices**: Count from the end (-1 is the last element)
+/// - **Bounds checking**: Indices are clamped to valid ranges
+///
+/// # Step Behavior
+///
+/// - **Positive step**: Traverse forward through the range
+/// - **Negative step**: Traverse backward through the range
+/// - **Step size**: Determines how many elements to skip
+///
+/// # Examples
+///
+/// While you typically use the [`s!`] macro, you can also construct slices directly:
+///
+/// ```rust,ignore
+/// use burn_tensor::Slice;
+///
+/// // Equivalent to s![2..8]
+/// let slice1 = Slice::new(2, Some(8), 1);
+///
+/// // Equivalent to s![0..10;2]
+/// let slice2 = Slice::new(0, Some(10), 2);
+///
+/// // Equivalent to s![..;-1] (reverse)
+/// let slice3 = Slice::new(0, None, -1);
+/// ```
+///
+/// See also the [`s!`] macro for the preferred way to create slices.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Slice {
     /// Slice start index.

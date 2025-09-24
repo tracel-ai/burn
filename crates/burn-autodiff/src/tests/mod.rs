@@ -60,6 +60,7 @@ mod sigmoid;
 mod sign;
 mod sin;
 mod slice;
+mod slice_assign;
 mod softmax;
 mod sort;
 mod sqrt;
@@ -198,6 +199,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_slice!();
+        burn_autodiff::testgen_ad_slice_assign!();
         burn_autodiff::testgen_ad_gather_scatter!();
         burn_autodiff::testgen_ad_select!();
         burn_autodiff::testgen_ad_log!();

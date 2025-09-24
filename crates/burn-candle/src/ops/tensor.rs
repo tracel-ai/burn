@@ -217,10 +217,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        super::base::slice_assign(tensor, ranges, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn float_mask_where(

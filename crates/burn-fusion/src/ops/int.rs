@@ -12,7 +12,6 @@ use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
 };
-use core::ops::Range;
 use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
@@ -170,7 +169,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]

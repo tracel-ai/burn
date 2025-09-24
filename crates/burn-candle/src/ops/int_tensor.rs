@@ -47,10 +47,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        indices: &[std::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        super::base::slice_assign(tensor, indices, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {

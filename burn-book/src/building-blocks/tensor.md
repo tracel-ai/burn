@@ -131,56 +131,55 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
-| Burn                                         | PyTorch Equivalent                                                        |
-|----------------------------------------------|---------------------------------------------------------------------------|
-| `Tensor::cat(tensors, dim)`                  | `torch.cat(tensors, dim)`                                                 |
-| `Tensor::empty(shape, device)`               | `torch.empty(shape, device=device)`                                       |
-| `Tensor::from_primitive(primitive)`          | N/A                                                                       |
-| `Tensor::stack(tensors, dim)`                | `torch.stack(tensors, dim)`                                               |
-| `tensor.all()`                               | `tensor.all()`                                                            |
-| `tensor.all_dim(dim)`                        | `tensor.all(dim)`                                                         |
-| `tensor.any()`                               | `tensor.any()`                                                            |
-| `tensor.any_dim(dim)`                        | `tensor.any(dim)`                                                         |
-| `tensor.chunk(num_chunks, dim)`              | `tensor.chunk(num_chunks, dim)`                                           |
-| `tensor.split(split_size, dim)`              | `tensor.split(split_size, dim)`                                           |
-| `tensor.split_with_sizes(split_sizes, dim)`  | `tensor.split([split_sizes], dim)`                                        |
-| `tensor.device()`                            | `tensor.device`                                                           |
-| `tensor.dtype()`                             | `tensor.dtype`                                                            |
-| `tensor.dims()`                              | `tensor.size()`                                                           |
-| `tensor.equal(other)`                        | `x == y`                                                                  |
-| `tensor.expand(shape)`                       | `tensor.expand(shape)`                                                    |
-| `tensor.flatten(start_dim, end_dim)`         | `tensor.flatten(start_dim, end_dim)`                                      |
-| `tensor.flip(axes)`                          | `tensor.flip(axes)`                                                       |
-| `tensor.into_data()`                         | N/A                                                                       |
-| `tensor.into_primitive()`                    | N/A                                                                       |
-| `tensor.into_scalar()`                       | `tensor.item()`                                                           |
-| `tensor.narrow(dim, start, length)`          | `tensor.narrow(dim, start, length)`                                       |
-| `tensor.not_equal(other)`                    | `x != y`                                                                  |
-| `tensor.permute(axes)`                       | `tensor.permute(axes)`                                                    |
-| `tensor.movedim(src, dst)`                   | `tensor.movedim(src, dst)`                                                |
-| `tensor.repeat_dim(dim, times)`              | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
-| `tensor.repeat(sizes)`                       | `tensor.repeat(sizes)`                                                    |
-| `tensor.reshape(shape)`                      | `tensor.view(shape)`                                                      |
-| `tensor.roll(shfts, dims)`                   | `tensor.roll(shifts, dims)`                                               |
-| `tensor.roll_dim(shift, dim)`                | `tensor.roll([shift], [dim])`                                             |
-| `tensor.select(dim, indices)`                | `tensor.index_select(dim, indices)`                                       |
-| `tensor.select_assign(dim, indices, values)` | N/A                                                                       |
-| `tensor.shape()`                             | `tensor.shape`                                                            |
-| `tensor.slice(s![range;step])`                       | `tensor[(*ranges,)]`                            or `tensor[start:end:step]`                          |
-| `tensor.slice_assign(ranges, values)`        | `tensor[(*ranges,)] = values`                                             |
-| `tensor.slice_fill(ranges, value)`           | `tensor[(*ranges,)] = value`                                              |
-| `tensor.slice_dim(dim, range)`               | N/A                                                                       |
-| `tensor.squeeze(dim)`                        | `tensor.squeeze(dim)`                                                     |
-| `tensor.swap_dims(dim1, dim2)`               | `tensor.transpose(dim1, dim2)`                                            |
-| `tensor.take(dim, indices)`                  | `numpy.take(tensor, indices, dim)`                                        |
-| `tensor.to_data()`                           | N/A                                                                       |
-| `tensor.to_device(device)`                   | `tensor.to(device)`                                                       |
-| `tensor.transpose()`                         | `tensor.T`                                                                |
-| `tensor.t()`                                 | `tensor.T`                                                                |
-| `tensor.unfold(dim, size, step)`             | `tensor.unfold(dim, size, step)`                                          |
-| `tensor.unsqueeze()`                         | `tensor.unsqueeze(0)`                                                     |
-| `tensor.unsqueeze_dim(dim)`                  | `tensor.unsqueeze(dim)`                                                   |
-| `tensor.unsqueeze_dims(dims)`                | N/A                                                                       |
+| Burn                                        | PyTorch Equivalent                                                        |
+|---------------------------------------------|---------------------------------------------------------------------------|
+| `Tensor::cat(tensors, dim)`                 | `torch.cat(tensors, dim)`                                                 |
+| `Tensor::empty(shape, device)`              | `torch.empty(shape, device=device)`                                       |
+| `Tensor::from_primitive(primitive)`         | N/A                                                                       |
+| `Tensor::stack(tensors, dim)`               | `torch.stack(tensors, dim)`                                               |
+| `tensor.all()`                              | `tensor.all()`                                                            |
+| `tensor.all_dim(dim)`                       | `tensor.all(dim)`                                                         |
+| `tensor.any()`                              | `tensor.any()`                                                            |
+| `tensor.any_dim(dim)`                       | `tensor.any(dim)`                                                         |
+| `tensor.chunk(num_chunks, dim)`             | `tensor.chunk(num_chunks, dim)`                                           |
+| `tensor.split(split_size, dim)`             | `tensor.split(split_size, dim)`                                           |
+| `tensor.split_with_sizes(split_sizes, dim)` | `tensor.split([split_sizes], dim)`                                        |
+| `tensor.device()`                           | `tensor.device`                                                           |
+| `tensor.dtype()`                            | `tensor.dtype`                                                            |
+| `tensor.dims()`                             | `tensor.size()`                                                           |
+| `tensor.equal(other)`                       | `x == y`                                                                  |
+| `tensor.expand(shape)`                      | `tensor.expand(shape)`                                                    |
+| `tensor.flatten(start_dim, end_dim)`        | `tensor.flatten(start_dim, end_dim)`                                      |
+| `tensor.flip(axes)`                         | `tensor.flip(axes)`                                                       |
+| `tensor.into_data()`                        | N/A                                                                       |
+| `tensor.into_primitive()`                   | N/A                                                                       |
+| `tensor.into_scalar()`                      | `tensor.item()`                                                           |
+| `tensor.narrow(dim, start, length)`         | `tensor.narrow(dim, start, length)`                                       |
+| `tensor.not_equal(other)`                   | `x != y`                                                                  |
+| `tensor.permute(axes)`                      | `tensor.permute(axes)`                                                    |
+| `tensor.movedim(src, dst)`                  | `tensor.movedim(src, dst)`                                                |
+| `tensor.repeat_dim(dim, times)`             | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
+| `tensor.repeat(sizes)`                      | `tensor.repeat(sizes)`                                                    |
+| `tensor.reshape(shape)`                     | `tensor.view(shape)`                                                      |
+| `tensor.roll(shfts, dims)`                  | `tensor.roll(shifts, dims)`                                               |
+| `tensor.roll_dim(shift, dim)`               | `tensor.roll([shift], [dim])`                                             |
+| `tensor.select(dim, indices)`               | `tensor.index_select(dim, indices)`                                       |
+| `tensor.select_assign(dim, indices, values)`| N/A                                                                       |
+| `tensor.shape()`                            | `tensor.shape`                                                            |
+| `tensor.slice(slices)`                      | `tensor[(*ranges,)]`                                                       |
+| `tensor.slice_assign(slices, values)`       | `tensor[(*ranges,)] = values`                                             |
+| `tensor.slice_fill(slices, value)`          | `tensor[(*ranges,)] = value`                                              |
+| `tensor.slice_dim(dim, range)`              | N/A                                                                       |
+| `tensor.squeeze(dim)`                       | `tensor.squeeze(dim)`                                                     |
+| `tensor.swap_dims(dim1, dim2)`              | `tensor.transpose(dim1, dim2)`                                            |
+| `tensor.take(dim, indices)`                 | `numpy.take(tensor, indices, dim)`                                        |
+| `tensor.to_data()`                          | N/A                                                                       |
+| `tensor.to_device(device)`                  | `tensor.to(device)`                                                       |
+| `tensor.transpose()`                        | `tensor.T`                                                                |
+| `tensor.t()`                                | `tensor.T`                                                                |
+| `tensor.unsqueeze()`                        | `tensor.unsqueeze(0)`                                                     |
+| `tensor.unsqueeze_dim(dim)`                 | `tensor.unsqueeze(dim)`                                                   |
+| `tensor.unsqueeze_dims(dims)`               | N/A                                                                       |
 
 ### Numeric Operations
 
@@ -188,10 +187,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
 | --------------------------------------------------------------- | ---------------------------------------------- |
-| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
-| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
-| `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
-| `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
@@ -237,9 +232,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
-| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.one_hot(num_classes)`                                   | `torch.nn.functional.one_hot`                  |
 | `tensor.one_hot_fill(num_classes, on_value, off_value, axis)`   | N/A                                            |
+| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
@@ -254,14 +249,19 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sort_with_indices(dim)`                                 | `tensor.sort(dim)`                             |
 | `tensor.sub(other)` or `tensor - other`                         | `tensor - other`                               |
 | `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
-| `scalar - tensor`                                               | `scalar - tensor`                              |
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.unfold(dim, size, step)`                                | `tensor.unfold(dim, size, step)`               |
 | `tensor.zeros_like()`                                           | `torch.zeros_like(tensor)`                     |
+| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
+| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
+| `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
+| `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
+| `scalar - tensor`                                               | `scalar - tensor`                              |
 
 ### Float Operations
 

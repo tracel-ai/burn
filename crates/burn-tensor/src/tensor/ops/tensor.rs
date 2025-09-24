@@ -6,7 +6,6 @@ use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use core::ops::Range;
 
 use crate::{argsort, sort, sort_with_indices};
 
@@ -506,7 +505,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The tensor with the selected elements assigned to the given value.
     fn float_slice_assign(
         tensor: FloatTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
