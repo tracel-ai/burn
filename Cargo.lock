@@ -576,6 +576,7 @@ dependencies = [
  "burn-ir",
  "burn-ndarray",
  "burn-nn",
+ "burn-optim",
  "burn-remote",
  "burn-rocm",
  "burn-router",
@@ -694,7 +695,6 @@ dependencies = [
  "ahash",
  "bincode 2.0.1",
  "burn-autodiff",
- "burn-collective",
  "burn-common",
  "burn-cuda",
  "burn-dataset",
@@ -953,6 +953,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-optim"
+version = "0.19.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-collective",
+ "burn-core",
+ "burn-cuda",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-nn",
+ "burn-remote",
+ "burn-rocm",
+ "burn-router",
+ "burn-tch",
+ "burn-wgpu",
+ "derive-new",
+ "hashbrown 0.15.5",
+ "log",
+ "num-traits",
+ "rstest",
+ "serde",
+]
+
+[[package]]
 name = "burn-remote"
 version = "0.19.0"
 dependencies = [
@@ -1084,6 +1108,7 @@ dependencies = [
  "burn-collective",
  "burn-core",
  "burn-ndarray",
+ "burn-optim",
  "derive-new",
  "log",
  "nvml-wrapper",

@@ -1,8 +1,9 @@
+use burn_core as burn;
+
 use core::marker::PhantomData;
 
-use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
-
-use burn_tensor::{Tensor, backend::AutodiffBackend};
+use burn::module::{AutodiffModule, ModuleVisitor, ParamId};
+use burn::tensor::{Tensor, backend::AutodiffBackend};
 
 use super::GradientsParams;
 
@@ -75,8 +76,8 @@ impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsA
 mod tests {
     use super::*;
     use crate::TestAutodiffBackend;
-    use crate::test_utils::SimpleLinear;
-    use burn_tensor::{Distribution, backend::Backend};
+    use burn::tensor::{Distribution, backend::Backend};
+    use burn_nn::{Linear, LinearConfig};
 
     #[test]
     fn test_accumulate_gradients_one_step() {
@@ -109,8 +110,8 @@ mod tests {
         assert_eq!(grads.len(), 2)
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
-        SimpleLinear::new(20, 20, device)
+    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+        LinearConfig::new(20, 20).init(device)
     }
 
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {

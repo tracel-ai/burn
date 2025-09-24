@@ -1,5 +1,8 @@
-use crate::{LearningRate, record::Record};
-use burn_tensor::{Tensor, backend::Backend};
+use burn_core as burn;
+
+use crate::LearningRate;
+use burn::record::Record;
+use burn::tensor::{Tensor, backend::Backend};
 
 /// Simple optimizer is an opinionated trait to simplify the process of implementing an
 /// optimizer.

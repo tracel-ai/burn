@@ -1,12 +1,15 @@
+use burn_core as burn;
+
+use super::cosine::{CosineAnnealingLrScheduler, CosineAnnealingLrSchedulerConfig};
+use super::exponential::{ExponentialLrScheduler, ExponentialLrSchedulerConfig};
+use super::linear::{LinearLrScheduler, LinearLrSchedulerConfig};
+use super::noam::{NoamLrScheduler, NoamLrSchedulerConfig};
 use super::{LrScheduler, String};
-use crate as burn;
-use crate::lr_scheduler::cosine::{CosineAnnealingLrScheduler, CosineAnnealingLrSchedulerConfig};
-use crate::lr_scheduler::exponential::{ExponentialLrScheduler, ExponentialLrSchedulerConfig};
-use crate::lr_scheduler::linear::{LinearLrScheduler, LinearLrSchedulerConfig};
-use crate::lr_scheduler::noam::{NoamLrScheduler, NoamLrSchedulerConfig};
-use crate::{LearningRate, config::Config};
-use burn_derive::Record;
-use burn_tensor::backend::Backend;
+use crate::LearningRate;
+
+use burn::config::Config;
+use burn::record::Record;
+use burn::tensor::backend::Backend;
 
 /// Compose multiple [learning rate schedulers](LrScheduler) together.
 #[derive(Config, Debug)]

@@ -1,8 +1,8 @@
-use crate::{
-    optim::SimpleOptimizer,
-    record::{PrecisionSettings, Record},
-};
-use burn_tensor::backend::Backend;
+use burn_core as burn;
+
+use crate::optim::SimpleOptimizer;
+use burn::record::{PrecisionSettings, Record};
+use burn::tensor::backend::Backend;
 use core::any::Any;
 use serde::{Deserialize, Serialize};
 

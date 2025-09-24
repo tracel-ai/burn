@@ -1,10 +1,9 @@
-use burn_tensor::backend::Backend;
+use burn_core as burn;
 
-use crate as burn;
-use crate::record::Record;
-
-use crate::config::Config;
-use crate::tensor::Tensor;
+use burn::config::Config;
+use burn::record::Record;
+use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 
 /// Configuration to create [weight decay](WeightDecay).
 #[derive(Config, Debug)]

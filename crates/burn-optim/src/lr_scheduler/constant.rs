@@ -1,4 +1,6 @@
-use burn_tensor::backend::Backend;
+use burn_core as burn;
+
+use burn::tensor::backend::Backend;
 
 use super::LrScheduler;
 use crate::LearningRate;

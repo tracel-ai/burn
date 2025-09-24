@@ -1,7 +1,8 @@
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
 use crate::{MultiDevicesTrainStep, TrainLoader, TrainStep};
 use crate::{components::LearnerComponentTypes, learner::base::Interrupter};
-use burn_core::{lr_scheduler::LrScheduler, optim::GradientsAccumulator, tensor::backend::Backend};
+use burn_core::tensor::backend::Backend;
+use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 
 /// A training epoch.
 #[derive(new)]

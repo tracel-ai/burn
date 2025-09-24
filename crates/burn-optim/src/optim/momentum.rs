@@ -1,9 +1,9 @@
-use crate as burn;
+use burn_core as burn;
 
-use crate::config::Config;
-use crate::record::Record;
-use crate::tensor::{ElementConversion, Tensor};
-use burn_tensor::backend::Backend;
+use burn::config::Config;
+use burn::record::Record;
+use burn::tensor::backend::Backend;
+use burn::tensor::{ElementConversion, Tensor};
 
 /// Configuration to create [momentum](Momentum).
 #[derive(Config, Debug)]

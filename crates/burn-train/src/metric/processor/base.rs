@@ -1,5 +1,5 @@
-use burn_core::LearningRate;
 use burn_core::data::dataloader::Progress;
+use burn_optim::LearningRate;
 
 use crate::renderer::{EvaluationName, MetricsRenderer};
 

@@ -18,16 +18,6 @@ pub mod config;
 #[cfg(feature = "std")]
 pub mod data;
 
-/// Optimizer module.
-pub mod optim;
-
-/// Learning rate scheduler module.
-#[cfg(feature = "std")]
-pub mod lr_scheduler;
-
-/// Gradient clipping module.
-pub mod grad_clipping;
-
 /// Module for the neural network module.
 pub mod module;
 
@@ -87,7 +77,6 @@ mod test_utils {
     use crate::module::Param;
     use burn_tensor::Tensor;
     use burn_tensor::backend::Backend;
-    use burn_tensor::module::linear;
 
     /// Simple linear module.
     #[derive(Module, Debug)]
@@ -110,22 +99,8 @@ mod test_utils {
                 bias: Some(Param::from_tensor(bias)),
             }
         }
-
-        pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-            linear(
-                input,
-                self.weight.val(),
-                self.bias.as_ref().map(|b| b.val()),
-            )
-        }
     }
 }
-
-/// Type alias for the learning rate.
-///
-/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
-/// can be used for constant learning rate.
-pub type LearningRate = f64; // We could potentially change the type.
 
 pub mod prelude {
     //! Structs and macros used by most projects. Add `use
