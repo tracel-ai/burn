@@ -1,6 +1,5 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
-use core::ops::Range;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
@@ -538,7 +537,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
@@ -547,7 +546,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };

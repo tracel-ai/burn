@@ -63,10 +63,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        super::base::slice_assign(tensor, ranges, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn bool_cat(tensors: Vec<BoolTensor<Self>>, dim: usize) -> BoolTensor<Self> {

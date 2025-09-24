@@ -232,6 +232,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_sinh!();
         burn_tensor::testgen_slice!();
+        burn_tensor::testgen_slice_assign!();
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_sqrt!();
         burn_tensor::testgen_abs!();

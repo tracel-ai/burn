@@ -50,8 +50,8 @@ impl Shape {
 
     /// Applies a slice to the shape.
     ///
-    /// For more complex indexing with different slice ranges, see also the slice
-    /// macro [`s!`](crate::s).
+    /// This method computes the resulting shape after applying slice ranges to the current shape.
+    /// For creating complex slice specifications, use the [`s!`] macro.
     ///
     /// # Arguments
     ///
@@ -59,6 +59,7 @@ impl Shape {
     ///   - A single range (slice the first dimension)
     ///   - A single index (slice the first dimension)
     ///   - An array of ranges
+    ///   - The [`s!`] macro for advanced slicing
     ///
     /// # Behavior
     ///
@@ -95,11 +96,13 @@ impl Shape {
     /// }
     /// ```
     ///
-    /// # Note
+    /// # See Also
     ///
-    /// This function uses the `RangesArg` trait for flexible range specification. The trait
-    /// handles the conversion of various range formats and applies clamping and negative
-    /// index handling internally.
+    /// - [`s!`] - The recommended macro for creating slice specifications
+    /// - [`Tensor::slice`] - Apply slicing to a tensor
+    ///
+    /// [`s!`]: crate::s!
+    /// [`Tensor::slice`]: crate::Tensor::slice
     pub fn slice<const D: usize, R: RangesArg<D>>(self, ranges: R) -> [Range<usize>; D] {
         ranges.into_ranges(self)
     }

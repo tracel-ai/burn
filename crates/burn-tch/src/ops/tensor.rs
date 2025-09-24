@@ -7,7 +7,6 @@ use burn_tensor::{
     ops::{FloatTensorOps, IntTensor},
 };
 use half::{bf16, f16};
-use std::ops::Range;
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
@@ -230,10 +229,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
 
     fn float_slice_assign(
         tensor: TchTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: TchTensor,
     ) -> TchTensor {
-        TchOps::slice_assign(tensor, ranges, value)
+        TchOps::slice_assign(tensor, slices, value)
     }
 
     fn float_mask_where(tensor: TchTensor, mask: TchTensor, value: TchTensor) -> TchTensor {

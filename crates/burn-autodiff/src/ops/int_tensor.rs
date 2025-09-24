@@ -42,10 +42,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        ranges: &[core::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<B>,
     ) -> IntTensor<B> {
-        B::int_slice_assign(tensor, ranges, value)
+        B::int_slice_assign(tensor, slices, value)
     }
 
     fn int_cat(tensors: Vec<IntTensor<B>>, dim: usize) -> IntTensor<B> {

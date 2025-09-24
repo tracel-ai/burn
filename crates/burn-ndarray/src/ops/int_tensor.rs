@@ -6,7 +6,6 @@ use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
 
 use burn_tensor::ElementConversion;
-use core::ops::Range;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
@@ -86,11 +85,11 @@ where
 
     fn int_slice_assign(
         tensor: NdArrayTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), |tensor, value| NdArrayOps::slice_assign(
-            tensor, ranges, value
+            tensor, slices, value
         ))
     }
 

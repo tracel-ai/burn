@@ -3,7 +3,7 @@ use alloc::{vec, vec::Vec};
 use burn_tensor::{DType, quantization::QuantValue};
 use burn_tensor::{ElementConversion, Slice};
 use core::fmt::Debug;
-use core::{marker::PhantomData, ops::Range};
+use core::marker::PhantomData;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
@@ -62,14 +62,10 @@ where
 
     pub fn slice_assign(
         tensor: SharedArray<E>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: SharedArray<E>,
     ) -> SharedArray<E> {
-        let slices_vec: Vec<burn_tensor::Slice> = ranges
-            .iter()
-            .map(|r| burn_tensor::Slice::new(r.start as isize, Some(r.end as isize), 1))
-            .collect();
-        let slices = Self::to_slice_args_with_steps(&slices_vec, tensor.shape().num_dims());
+        let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
         let mut array = tensor.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value);
         array.into_shared()
@@ -107,56 +103,41 @@ where
         ndims: usize,
     ) -> Vec<SliceInfoElem> {
         let mut slices = vec![SliceInfoElem::NewAxis; ndims];
-        for i in 0..ndims {
-            if i >= burn_slices.len() {
-                slices[i] = SliceInfoElem::Slice {
-                    start: 0,
-                    end: None,
-                    step: 1,
-                }
-            } else {
-                let slice = &burn_slices[i];
-                // ndarray's semantics for negative steps:
-                // s![a..b;-k] means: take the range [a..b), but iterate backwards with step k
-                // - The range [a..b) defines which elements to consider
-                // - With negative step, we start from the END of that range and go backwards
-                //
-                // Examples:
-                // - s![2..8;-2] -> range [2,3,4,5,6,7], traverse from 7 backwards by 2 -> [7,5,3]
-                // - s![0..5;-1] -> range [0,1,2,3,4], traverse from 4 backwards by 1 -> [4,3,2,1,0]
-                //
-                // This matches Burn's intended semantics perfectly!
-                if slice.step < 0 {
-                    // For negative step, we need to compute the range
-                    // Slice doesn't store range directly, but we can extract it
-                    let range = slice.to_range(usize::MAX); // Use large size for now
-                    let range_len = range.end - range.start;
 
-                    if range_len == 0 {
-                        // Empty range
-                        slices[i] = SliceInfoElem::Slice {
-                            start: 0,
-                            end: Some(0),
-                            step: 1,
-                        }
-                    } else {
-                        // ndarray handles negative steps by passing the range and step as-is
-                        // The SliceInfoElem with negative step tells ndarray to traverse backwards
-                        slices[i] = SliceInfoElem::Slice {
-                            start: slice.start,
-                            end: slice.end,
-                            step: slice.step,
-                        }
+        for i in 0..ndims {
+            slices[i] = if i < burn_slices.len() {
+                let slice = &burn_slices[i];
+
+                // Check for empty range (would result in no elements)
+                if let Some(end) = slice.end
+                    && slice.start == end
+                {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: Some(0),
+                        step: 1,
                     }
                 } else {
-                    slices[i] = SliceInfoElem::Slice {
+                    // Pass slice parameters directly to ndarray
+                    // ndarray handles both positive and negative steps correctly:
+                    // - Positive step: iterates forward from start
+                    // - Negative step: iterates backward from the last element in range
+                    SliceInfoElem::Slice {
                         start: slice.start,
                         end: slice.end,
                         step: slice.step,
                     }
                 }
+            } else {
+                // Dimension not specified in slices - use full range
+                SliceInfoElem::Slice {
+                    start: 0,
+                    end: None,
+                    step: 1,
+                }
             }
         }
+
         slices
     }
 

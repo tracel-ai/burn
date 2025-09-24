@@ -76,7 +76,7 @@ where
 
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         kernel::slice_assign::<R, BT>(tensor, ranges, value)

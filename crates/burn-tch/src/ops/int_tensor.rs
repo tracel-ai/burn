@@ -58,8 +58,12 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::slice_with_steps(tensor, slices)
     }
 
-    fn int_slice_assign(tensor: TchTensor, ranges: &[Range<usize>], value: TchTensor) -> TchTensor {
-        TchOps::slice_assign(tensor, ranges, value)
+    fn int_slice_assign(
+        tensor: TchTensor,
+        slices: &[burn_tensor::Slice],
+        value: TchTensor,
+    ) -> TchTensor {
+        TchOps::slice_assign(tensor, slices, value)
     }
 
     fn int_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {

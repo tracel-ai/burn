@@ -65,6 +65,7 @@ mod sign;
 mod sin;
 mod sinh;
 mod slice;
+mod slice_assign;
 mod sort_argsort;
 mod split;
 mod sqrt;
