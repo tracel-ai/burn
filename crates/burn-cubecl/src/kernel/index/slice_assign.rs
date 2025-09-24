@@ -1,18 +1,24 @@
-use crate::{CubeRuntime, element::CubeElement, kernel::utils::shape_divmod, tensor::CubeTensor};
+use crate::{
+    CubeRuntime,
+    element::CubeElement,
+    kernel::utils::{linear_view, shape_divmod},
+    tensor::CubeTensor,
+};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
-    std::{FastDivmod, FastDivmodArgs},
+    std::{FastDivmod, FastDivmodArgs, tensor::layout::linear::LinearView},
 };
 
 #[cube(launch_unchecked)]
 fn slice_assign_kernel<E: CubePrimitive>(
     input: &mut Tensor<Line<E>>,
-    value: &Tensor<Line<E>>,
+    value: &LinearView<Line<E>>,
+    value_len: u32,
     slice_shape: Sequence<FastDivmod>,
     slice_offsets: Sequence<u32>,
 ) {
-    if ABSOLUTE_POS >= value.len() {
+    if ABSOLUTE_POS >= value_len {
         terminate!()
     }
 
@@ -21,7 +27,6 @@ fn slice_assign_kernel<E: CubePrimitive>(
     let line_size = input.line_size();
     let mut offset_remainder = ABSOLUTE_POS * line_size;
     let mut offset_input = 0;
-    let mut offset_value = 0;
 
     let mut i = comptime![0];
 
@@ -34,27 +39,28 @@ fn slice_assign_kernel<E: CubePrimitive>(
         let range_start = *slice_offsets.index(dim);
         let offset_local_input = offset_local + range_start;
 
-        offset_value += offset_local * value.stride(dim);
         offset_input += offset_local_input * input.stride(dim);
         offset_remainder = rem;
 
         comptime![i += 1;]
     }
 
-    input[offset_input / line_size] = value[offset_value / line_size];
+    // Value tensor is accessed linearly since it's a LinearView
+    input[offset_input / line_size] = value[ABSOLUTE_POS];
 }
 
 /// Kernel for slice assign with steps
 #[cube(launch_unchecked)]
 fn slice_assign_with_steps_kernel<E: CubePrimitive>(
     input: &mut Tensor<E>,
-    value: &Tensor<E>,
+    value: &LinearView<E>,
+    value_len: u32,
     value_shape: Sequence<FastDivmod>,
     starts: Sequence<u32>,
     ends: Sequence<u32>,
     steps: Sequence<i32>,
 ) {
-    if ABSOLUTE_POS >= value.len() {
+    if ABSOLUTE_POS >= value_len {
         terminate!();
     }
 
@@ -163,13 +169,15 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     let cube_count =
         calculate_cube_count_elemwise(value.shape.num_elements() / line_size as usize, cube_dim);
 
+    let value_len = value.shape.num_elements() / line_size as usize;
     unsafe {
         slice_assign_kernel::launch_unchecked::<E, R>(
             &tensor.client,
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(line_size),
-            value.as_tensor_arg::<E>(line_size),
+            linear_view(&value, &line_size),
+            ScalarArg::new(value_len as u32),
             shape,
             offsets,
         );
@@ -220,13 +228,16 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(value.shape.num_elements(), cube_dim);
 
+    let line_size = 1u8;
+    let value_len = value.shape.num_elements();
     unsafe {
         slice_assign_with_steps_kernel::launch_unchecked::<E, R>(
             &tensor.client,
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            value.as_tensor_arg::<E>(1),
+            linear_view(&value, &line_size),
+            ScalarArg::new(value_len as u32),
             shape_divmod(&value),
             starts,
             ends,
