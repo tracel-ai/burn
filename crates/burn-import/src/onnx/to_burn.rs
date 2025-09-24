@@ -61,6 +61,7 @@ use crate::{
             matmul_integer::MatMulIntegerNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            modulo::ModNode,
             one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
@@ -127,6 +128,7 @@ use onnx_ir::{
         log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config,
         max_pool2d::max_pool2d_config,
+        modulo::mod_config,
         nonzero::nonzero_config,
         one_hot::one_hot_config,
         pad::pad_config,
@@ -368,6 +370,7 @@ impl ParsedOnnxGraph {
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
+                NodeType::Mod => graph.register(Self::mod_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
@@ -834,6 +837,15 @@ impl ParsedOnnxGraph {
         let output = Type::from(node.outputs.first().unwrap());
 
         BinaryNode::div(lhs, rhs, output)
+    }
+
+    fn mod_conversion(node: Node) -> ModNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = mod_config(&node);
+
+        ModNode::new(lhs, rhs, output, config.fmod)
     }
 
     fn matmul_conversion(node: Node) -> MatmulNode {

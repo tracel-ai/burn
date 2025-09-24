@@ -275,6 +275,8 @@ Those operations are only available for `Float` tensors.
 | `tensor.erf()`                               | `tensor.erf()`                             |
 | `tensor.exp()`                               | `tensor.exp()`                             |
 | `tensor.floor()`                             | `tensor.floor()`                           |
+| `tensor.fmod(other)`                         | `tensor.fmod(other)`                       |
+| `tensor.fmod_scalar(scalar)`                 | `tensor.fmod(scalar)`                      |
 | `tensor.from_floats(floats, device)`         | N/A                                        |
 | `tensor.from_full_precision(tensor)`         | N/A                                        |
 | `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
@@ -295,6 +297,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
 | `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                   |
+| `tensor.trunc()`                             | `tensor.trunc()`                           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                          |
 | `tensor.var_bias(dim)`                       | N/A                                        |
 | `tensor.var_mean(dim)`                       | N/A                                        |

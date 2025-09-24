@@ -44,6 +44,7 @@ pub(crate) mod matmul_integer;
 pub(crate) mod max_pool1d;
 pub(crate) mod max_pool2d;
 pub(crate) mod mean;
+pub(crate) mod modulo;
 pub(crate) mod nonzero;
 pub(crate) mod one_hot;
 pub(crate) mod pad;

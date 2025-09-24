@@ -74,6 +74,7 @@ pub mod max;
 pub mod maxpool;
 pub mod mean;
 pub mod min;
+pub mod r#mod;
 pub mod mul;
 pub mod neg;
 pub mod nonzero;
