@@ -124,12 +124,12 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges to get the values from.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
-    /// The tensor with the values for the given ranges.
-    fn bool_slice(tensor: BoolTensor<B>, ranges: &[Range<usize>]) -> BoolTensor<B>;
+    /// The tensor with the values for the given slices.
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[crate::Slice]) -> BoolTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.
     ///

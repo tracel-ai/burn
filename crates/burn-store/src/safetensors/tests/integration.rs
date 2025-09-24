@@ -121,10 +121,10 @@ fn basic_usage() {
 
     // Load using new API
     let mut load_store = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
@@ -151,10 +151,10 @@ fn with_filtering() {
 
     // Load into new model - need to allow partial loading since we only saved encoder tensors
     let mut load_store = SafetensorsStore::from_bytes(None).allow_partial(true);
-    if let SafetensorsStore::Memory(ref mut p) = load_store {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);

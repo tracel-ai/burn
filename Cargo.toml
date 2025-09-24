@@ -38,7 +38,7 @@ axum = "0.8.4"
 bytemuck = "1.23.2"
 bytes = "1"
 candle-core = { version = "0.9.1" }
-clap = { version = "4.5.44", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
@@ -110,8 +110,8 @@ tracing-subscriber = "0.3.20"
 zip = "4.6.0"
 
 # Persist related
-safetensors = { version = "0.6.2", default-features = false }
 memmap2 = { version = "0.9" }
+safetensors = { version = "0.6.2", default-features = false }
 
 # Async handling
 async-channel = "2.5"
@@ -169,9 +169,9 @@ portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "018341e10e98dd6e93ac28592adc56f5710c1453" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c038fb30634ab4b27bc55f49729eed91c38ecf55" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c038fb30634ab4b27bc55f49729eed91c38ecf55" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c038fb30634ab4b27bc55f49729eed91c38ecf55" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -182,7 +182,7 @@ cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features =
 # cubecl-quant = { version = "0.6.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "2.1.7" }
+tracel-xtask = { version = "2.1.9" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.

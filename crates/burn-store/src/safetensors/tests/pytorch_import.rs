@@ -1,9 +1,9 @@
 use crate::{ModuleSnapshot, SafetensorsStore};
-use burn_core::module::Module;
-use burn_core::nn::{
+use burn::nn::{
     BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     conv::{Conv2d, Conv2dConfig},
 };
+use burn_core::module::Module;
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
@@ -64,9 +64,9 @@ fn multi_layer_model_import() {
 
     // Since we have shape mismatches with PyTorch model (transposed weights),
     // we expect some errors but should still load what we can
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
     // fc1.weight will have errors due to shape mismatch
-    assert!(result.errors.len() > 0);
+    assert!(!result.errors.is_empty());
 
     // Test forward pass with the loaded weights
     // Note: Due to shape mismatches (PyTorch vs Burn conventions for linear layers),
@@ -99,7 +99,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     let mut model = Net::<TestBackend>::new(&device);
     let load_result = model.apply_from(&mut load_store).unwrap();
     // We expect some errors due to shape mismatch but some tensors should load
-    assert!(load_result.applied.len() > 0);
+    assert!(!load_result.applied.is_empty());
 
     // Save the model to memory
     // Note: format, producer and version are automatically added
@@ -109,14 +109,14 @@ fn safetensors_round_trip_with_pytorch_model() {
     // Load into a new model
     let mut model2 = Net::<TestBackend>::new(&device);
     let mut load_store2 = SafetensorsStore::from_bytes(None);
-    if let SafetensorsStore::Memory(ref mut p) = load_store2 {
-        if let SafetensorsStore::Memory(ref p_save) = save_store {
-            p.set_data(p_save.data().unwrap().as_ref().clone());
-        }
+    if let SafetensorsStore::Memory(ref mut p) = load_store2
+        && let SafetensorsStore::Memory(ref p_save) = save_store
+    {
+        p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
     let result = model2.apply_from(&mut load_store2).unwrap();
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // Verify both models produce the same output
     let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
@@ -156,7 +156,7 @@ fn partial_load_from_pytorch_model() {
     let result = model.apply_from(&mut store).unwrap();
 
     // Should load available tensors (with some errors due to shape mismatch)
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // fc1 weight should remain unchanged if not in the file
     // or should be updated if it is in the file
@@ -182,7 +182,7 @@ fn verify_tensor_names_from_pytorch() {
     let result = model.apply_from(&mut store).unwrap();
 
     // Check that we loaded some tensors (with errors due to shape mismatch)
-    assert!(result.applied.len() > 0);
+    assert!(!result.applied.is_empty());
 
     // Collect tensor names from the model
     let views = model.collect();

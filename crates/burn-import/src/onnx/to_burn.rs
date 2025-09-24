@@ -127,6 +127,7 @@ use onnx_ir::{
         log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config,
         max_pool2d::max_pool2d_config,
+        nonzero::nonzero_config,
         one_hot::one_hot_config,
         pad::pad_config,
         range::range_config,
@@ -152,6 +153,7 @@ use onnx_ir::node::bitshift::bitshift_config;
 
 pub use crate::burn::graph::RecordType;
 use crate::burn::node::mean::MeanNode;
+use crate::burn::node::nonzero::NonZeroNode;
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
@@ -391,6 +393,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMulInteger => graph.register(Self::matmul_integer_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::NonZero => graph.register(Self::nonzero_conversion(node)),
                 NodeType::And => graph.register(Self::and_conversion(node)),
                 NodeType::Or => graph.register(Self::or_conversion(node)),
                 NodeType::Xor => graph.register(Self::xor_conversion(node)),
@@ -902,9 +905,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir)
             && let Some(k) = k_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length K)
             assert!(
-                zp_len == k,
-                "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
+                zp_len == 1 || zp_len == k,
+                "MatMulInteger: a_zero_point length {} must be 1 (scalar) or K {} (cols of A)",
                 zp_len,
                 k
             );
@@ -916,9 +920,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir)
             && let Some(n) = n_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length N)
             assert!(
-                zp_len == n,
-                "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
+                zp_len == 1 || zp_len == n,
+                "MatMulInteger: b_zero_point length {} must be 1 (scalar) or N {} (cols of B)",
                 zp_len,
                 n
             );
@@ -1343,13 +1348,6 @@ impl ParsedOnnxGraph {
             SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
         };
 
-        // Validate steps if present
-        if let Some(SliceInput::Static(steps)) = &config.steps
-            && steps.iter().any(|&x| x != 1)
-        {
-            panic!("Slice: steps other than 1 are not supported");
-        }
-
         let mut slice_node = SliceNode::new(input, output, starts_param, ends_param);
 
         // Convert axes parameter if present
@@ -1359,6 +1357,15 @@ impl ParsedOnnxGraph {
                 SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
             };
             slice_node = slice_node.with_axes(axes_param);
+        }
+
+        // Convert steps parameter if present
+        if let Some(steps) = config.steps {
+            let steps_param = match steps {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_steps(steps_param);
         }
 
         slice_node
@@ -1643,18 +1650,33 @@ impl ParsedOnnxGraph {
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let mut weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
-        let config = PReluConfig::new();
+        let mut weight =
+            extract_data_serialize::<PS::FloatElem>(1, &node).expect("PRelu weight is required");
         let name = &node.name;
 
-        if weight.shape.len() > 1 {
-            if weight.shape[1..].iter().product::<usize>() == 1 {
-                // Burn accepts rank 1 alpha weight
-                weight.shape = weight.shape[..1].to_vec();
+        // Determine weight shape and flatten if necessary
+        let weight_shape = if weight.shape.len() > 1 {
+            let trailing_dims_product: usize = weight.shape[1..].iter().product();
+
+            if trailing_dims_product == 1 {
+                // Flatten to rank 1 as Burn expects
+                weight.shape = vec![weight.shape[0]];
+                weight.shape[0]
             } else {
-                panic!("Invalid PRelu weight with shape {:?}", weight.shape);
+                panic!(
+                    "PRelu weight shape {:?} is invalid. Expected shape [C] or [C, 1, ...] where trailing dimensions are 1",
+                    weight.shape
+                );
             }
-        }
+        } else if weight.shape.is_empty() {
+            // Scalar weight
+            1
+        } else {
+            // Already rank 1
+            weight.shape[0]
+        };
+
+        let config = PReluConfig::new().with_num_parameters(weight_shape);
 
         PReluNode::new(name, input, output, weight, config)
     }
@@ -1793,6 +1815,13 @@ impl ParsedOnnxGraph {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::not(input, output)
+    }
+
+    fn nonzero_conversion(node: Node) -> NonZeroNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = nonzero_config(&node);
+        NonZeroNode::new(input, output, config)
     }
 
     fn and_conversion(node: Node) -> BinaryNode {

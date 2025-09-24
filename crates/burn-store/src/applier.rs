@@ -793,6 +793,7 @@ mod tests {
     #[cfg(feature = "std")]
     fn regex_error_conversion() {
         // Test that regex errors convert properly
+        #[allow(clippy::invalid_regex)]
         let regex_err = regex::Regex::new("[invalid").unwrap_err();
         let apply_err: ApplyError = regex_err.into();
         match apply_err {

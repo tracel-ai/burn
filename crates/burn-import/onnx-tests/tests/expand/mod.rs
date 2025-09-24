@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(expand, expand_tensor, expand_shape);
+include_models!(expand, expand_tensor, expand_shape, expand_with_where_shape);
 
 #[cfg(test)]
 mod tests {
@@ -46,6 +46,26 @@ mod tests {
 
         let output = model.forward(input1, input2);
         let expected_shape = Shape::from([4, 4]);
+
+        assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn expand_with_where_shape() {
+        let device = Default::default();
+        // Use Model::default() to load constants from the record file
+        let model: expand_with_where_shape::Model<TestBackend> =
+            expand_with_where_shape::Model::default();
+
+        // Input tensor to be expanded
+        let input = Tensor::<TestBackend, 3>::ones([1, 1, 4], &device);
+
+        // The model doesn't actually take condition as input - it's built into the model
+        let output = model.forward(input);
+
+        // The model has two constant shapes [2,3,4] selected by Where, then used in Expand
+        // Result should be expanded to shape [2, 3, 4]
+        let expected_shape = Shape::from([2, 3, 4]);
 
         assert_eq!(output.shape(), expected_shape);
     }

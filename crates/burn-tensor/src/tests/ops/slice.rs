@@ -191,6 +191,16 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "slice_fill does not support steps != 1 yet")]
+    fn slice_fill_should_panic_with_non_unit_step() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::ones([4, 4], &device);
+
+        // This should panic because slice_fill doesn't support steps != 1
+        let _result = tensor.slice_fill(s![0..4;2, ..], 5.0);
+    }
+
+    #[test]
     fn slice_should_not_corrupt_potentially_inplace_operations() {
         let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &Default::default());
         let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
@@ -215,6 +225,21 @@ mod tests {
         let expected = TensorData::from([3, 4, 5, 6, 7]);
 
         tensor_2.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "slice_assign does not support steps != 1 yet")]
+    fn slice_assign_should_panic_with_non_unit_step() {
+        let device = Default::default();
+        // Create tensors where the shapes would match if steps were supported
+        let tensor = TestTensor::<2>::ones([4, 4], &device);
+        // With step=2 on first dim, we'd select indices 0 and 2, so we need a [2, 4] values tensor
+        // But since steps aren't supported, this should panic before shape validation
+        let values = TestTensor::<2>::zeros([2, 4], &device);
+
+        // This should panic because slice_assign doesn't support steps != 1
+        // We use s! macro to create a slice with step=2
+        let _result = tensor.slice_assign(s![0..3;2, ..], values);
     }
 
     #[test]
@@ -312,5 +337,167 @@ mod tests {
         let output = tensor.slice([1..1]);
 
         output.into_data().assert_eq(&data, false);
+    }
+
+    #[test]
+    fn test_slice_with_positive_step() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+            ],
+            &device,
+        );
+
+        // Test step=2 along first dimension
+        let sliced = tensor.clone().slice([s![0..3;2]]);
+        let expected = TensorData::from([[1.0, 2.0, 3.0, 4.0], [9.0, 10.0, 11.0, 12.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=2 along second dimension
+        let sliced = tensor.clone().slice(s![.., 0..4;2]);
+        let expected = TensorData::from([[1.0, 3.0], [5.0, 7.0], [9.0, 11.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=2 along both dimensions
+        let sliced = tensor.clone().slice(s![0..3;2, 0..4;2]);
+        let expected = TensorData::from([[1.0, 3.0], [9.0, 11.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_slice_with_negative_step() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+            ],
+            &device,
+        );
+
+        // Test step=-1 along first dimension (reverse rows)
+        let sliced = tensor.clone().slice([s![0..3;-1]]);
+        let expected = TensorData::from([
+            [9.0, 10.0, 11.0, 12.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [1.0, 2.0, 3.0, 4.0],
+        ]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=-1 along second dimension (reverse columns)
+        let sliced = tensor.clone().slice(s![.., 0..4;-1]);
+        let expected = TensorData::from([
+            [4.0, 3.0, 2.0, 1.0],
+            [8.0, 7.0, 6.0, 5.0],
+            [12.0, 11.0, 10.0, 9.0],
+        ]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=-2 along first dimension
+        let sliced = tensor.clone().slice([s![0..3;-2]]);
+        let expected = TensorData::from([[9.0, 10.0, 11.0, 12.0], [1.0, 2.0, 3.0, 4.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=-2 along second dimension
+        let sliced = tensor.clone().slice(s![.., 0..4;-2]);
+        let expected = TensorData::from([[4.0, 2.0], [8.0, 6.0], [12.0, 10.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_slice_with_mixed_steps() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_data(
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+            ],
+            &device,
+        );
+
+        // Test positive step along first dimension, negative along second
+        let sliced = tensor.clone().slice(s![0..3;2, 0..4;-1]);
+        let expected = TensorData::from([[4.0, 3.0, 2.0, 1.0], [12.0, 11.0, 10.0, 9.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test negative step along first dimension, positive along second
+        let sliced = tensor.clone().slice(s![0..3;-1, 0..4;2]);
+        let expected = TensorData::from([[9.0, 11.0], [5.0, 7.0], [1.0, 3.0]]);
+        sliced.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_slice_with_steps_1d() {
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            &device,
+        );
+
+        // Test positive step
+        let sliced = tensor.clone().slice([s![0..10;2]]);
+        let expected = TensorData::from([1.0, 3.0, 5.0, 7.0, 9.0]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test negative step
+        let sliced = tensor.clone().slice([s![0..10;-1]]);
+        let expected = TensorData::from([10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test negative step with partial range
+        let sliced = tensor.clone().slice([s![2..8;-2]]);
+        let expected = TensorData::from([8.0, 6.0, 4.0]);
+        sliced.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_slice_with_steps_3d() {
+        let device = Default::default();
+        let tensor = TestTensor::<3>::from_data(
+            [
+                [[1.0, 2.0], [3.0, 4.0]],
+                [[5.0, 6.0], [7.0, 8.0]],
+                [[9.0, 10.0], [11.0, 12.0]],
+                [[13.0, 14.0], [15.0, 16.0]],
+            ],
+            &device,
+        );
+
+        // Test step=2 along first dimension
+        let sliced = tensor.clone().slice(s![0..4;2, .., ..]);
+        let expected = TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[9.0, 10.0], [11.0, 12.0]]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=-1 along all dimensions
+        let sliced = tensor.clone().slice(s![0..4;-1, 0..2;-1, 0..2;-1]);
+        let expected = TensorData::from([
+            [[16.0, 15.0], [14.0, 13.0]],
+            [[12.0, 11.0], [10.0, 9.0]],
+            [[8.0, 7.0], [6.0, 5.0]],
+            [[4.0, 3.0], [2.0, 1.0]],
+        ]);
+        sliced.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_slice_int_tensor_with_steps() {
+        let device = Default::default();
+        let tensor =
+            TestTensorInt::<2>::from_data([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], &device);
+
+        // Test step=2 along first dimension
+        let sliced = tensor.clone().slice([s![0..3;2]]);
+        let expected = TensorData::from([[1i32, 2, 3, 4], [9, 10, 11, 12]]);
+        sliced.into_data().assert_eq(&expected, false);
+
+        // Test step=-1 along second dimension
+        let sliced = tensor.clone().slice(s![.., 0..4;-1]);
+        let expected = TensorData::from([[4i32, 3, 2, 1], [8, 7, 6, 5], [12, 11, 10, 9]]);
+        sliced.into_data().assert_eq(&expected, false);
     }
 }

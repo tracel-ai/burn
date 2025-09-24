@@ -1161,10 +1161,20 @@ where
     ///     let slice = tensor.slice([1..-1]); // Equivalent to 1..4
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![1i32, 2, 3]);
     ///
-    ///     // Using the slice macro to select different ranges
+    ///     // Using the slice macro with steps
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..10, &device);
+    ///     let slice = tensor.slice(s![0..10;2]); // Every second element
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![0i32, 2, 4, 6, 8]);
+    ///
+    ///     // Using negative steps to reverse
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..5, &device);
+    ///     let slice = tensor.slice(s![0..5;-1]); // Reverse the range
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![4i32, 3, 2, 1, 0]);
+    ///
+    ///     // Combining regular slices and slices with steps
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device).reshape([3, 4]);
-    ///     let slice = tensor.slice(s![1.., ..]); // Select rows 1 and 2, all columns
-    ///     assert_eq!(slice.dims(), [2, 4]);
+    ///     let slice = tensor.slice(s![0..3;2, 1..4]); // Every second row, columns 1-3
+    ///     assert_eq!(slice.dims(), [2, 3]);
     ///
     ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..16, &device).reshape([2, 4, 2]);
     ///     let slice = tensor.slice(s![1.., 1..=3, -1]);
@@ -1178,10 +1188,13 @@ where
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
-        let ranges = self.shape().slice(ranges);
+        let slices = ranges.into_slices(self.shape());
 
-        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
-        Self::new(K::slice(self.primitive, &ranges))
+        // Validate slices
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &slices));
+
+        // Use the slice method that supports steps
+        Self::new(K::slice(self.primitive, &slices))
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
@@ -1191,6 +1204,7 @@ where
     ///
     /// - If a range exceeds the number of elements on a dimension.
     /// - If the given values don't match the given ranges.
+    /// - If any step is not equal to 1 (stepped slicing is not yet supported for slice_assign).
     ///
     /// # Example
     ///
@@ -1212,35 +1226,64 @@ where
     /// This function uses the `RangesArg` trait for flexible range specification. The trait
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
+    ///
+    /// **Important**: Stepped slicing (e.g., `s![0..10;2]`) is not currently supported for
+    /// slice_assign and will panic if attempted. Only unit steps (step = 1) are allowed.
     pub fn slice_assign<const D2: usize, R: RangesArg<D2>>(self, ranges: R, values: Self) -> Self {
-        let ranges = self.shape().slice(ranges);
+        let slices = ranges.into_slices(self.shape());
+
+        // Check that all steps are 1, as backends don't support stepped slice_assign yet
+        for (i, slice) in slices.iter().enumerate() {
+            if slice.step() != 1 {
+                panic!(
+                    "slice_assign does not support steps != 1 yet. Got step {} at dimension {}",
+                    slice.step(),
+                    i
+                );
+            }
+        }
+
+        // Extract ranges for validation
+        let ranges: [Range<usize>; D2] = slices
+            .iter()
+            .enumerate()
+            .map(|(i, s)| s.to_range(self.shape().dims[i]))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
         check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
             &ranges
         ));
-        Self::new(K::slice_assign(self.primitive, &ranges, values.primitive))
+
+        Self::new(K::slice_assign(self.primitive, &slices, values.primitive))
     }
 
-    /// Returns a copy of the current tensor with the selected elements changed to the new ones at
-    /// the selected indices.
+    /// Returns a copy of the current tensor with the selected elements filled with the specified value.
     ///
     /// # Panics
     ///
     /// - If a range exceeds the number of elements on a dimension.
-    /// - If the given values don't match the given ranges.
+    /// - If a step is zero.
+    /// - If any step is not equal to 1 (stepped slicing is not yet supported for slice_fill).
     ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
+    /// use burn_tensor::{Tensor, s};
     ///
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 3>::ones([2, 3, 3], &device);
-    ///   let tensor_sliced = tensor.slice_fill([0..1, 0..1, 0..1], 2.0);
+    ///
+    ///   // Basic fill
+    ///   let tensor_sliced = tensor.clone().slice_fill([0..1, 0..1, 0..1], 2.0);
     ///   println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
+    ///
+    ///   // Note: Stepped slicing like s![0..2;2] is not yet supported for slice_fill
     /// }
     /// ```
     ///
@@ -1249,15 +1292,30 @@ where
     /// This function uses the `RangesArg` trait for flexible range specification. The trait
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
+    ///
+    /// **Important**: Stepped slicing (e.g., `s![0..10;2]`) is not currently supported for
+    /// slice_fill and will panic if attempted. Only unit steps (step = 1) are allowed.
     pub fn slice_fill<const D2: usize, R: RangesArg<D2>, E: ElementConversion>(
         self,
         ranges: R,
         value: E,
     ) -> Self {
-        let ranges = self.shape().slice(ranges);
-        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+        let slices = ranges.into_slices(self.shape());
 
-        Self::new(K::slice_fill(self.primitive, &ranges, value.elem()))
+        // Check that all steps are 1, as backends don't support stepped slice_fill yet
+        for (i, slice) in slices.iter().enumerate() {
+            if slice.step() != 1 {
+                panic!(
+                    "slice_fill does not support steps != 1 yet. Got step {} at dimension {}",
+                    slice.step(),
+                    i
+                );
+            }
+        }
+
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &slices));
+
+        Self::new(K::slice_fill(self.primitive, &slices, value.elem()))
     }
 
     /// Returns a new tensor with the specified dimension sliced.
@@ -1286,8 +1344,9 @@ where
     {
         check!(TensorCheck::check_dim::<D>(dim));
         let range = range.into_range(self.shape().dims[dim]);
+        let slice = Slice::new(range.start as isize, Some(range.end as isize), 1);
 
-        Self::new(K::slice_dim(self.primitive, dim, &range))
+        Self::new(K::slice_dim(self.primitive, dim, &slice))
     }
 
     /// Returns the device of the current tensor.
@@ -2566,12 +2625,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The tensor with the axes flipped.
     fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
 
-    ///  Select tensor elements corresponding for the given ranges.
+    ///  Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges of the elements to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
@@ -2585,15 +2644,20 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For selecting elements of a tensor, users should prefer the [Tensor::slice](Tensor::slice) function,
     /// which is more high-level and designed for public use.
-    fn slice(tensor: Self::Primitive, range: &[Range<usize>]) -> Self::Primitive;
+    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive;
 
-    ///  Assigns the given value to the tensor elements corresponding for the given ranges.
+    ///  Assigns the given value to the tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges of the elements to select.
+    /// * `slices` - The slices specifying which elements to assign.
     /// * `value` - The value to assign.
+    ///
+    /// # Note
+    ///
+    /// Currently, this method does not support steps != 1. If any slice has a step != 1,
+    /// the method will panic.
     ///
     /// # Returns
     ///
@@ -2609,21 +2673,21 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn slice_assign(
         tensor: Self::Primitive,
-        ranges: &[Range<usize>],
+        slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive;
 
-    /// Fills the tensor elements corresponding for the given ranges with the given value.
+    /// Fills the tensor elements corresponding to the given slices with the given value.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges of the elements to fill.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     /// * `value` - The value to fill.
     ///
     /// # Returns
     ///
-    /// The tensor with the filled values.
+    /// The tensor with the filled values at the specified slice positions.
     ///
     /// # Remarks
     ///
@@ -2633,25 +2697,28 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
     /// which is more high-level and designed for public use.
-    fn slice_fill(
-        tensor: Self::Primitive,
-        ranges: &[Range<usize>],
-        value: Self::Elem,
-    ) -> Self::Primitive {
-        let slice_shape = Self::slice(tensor.clone(), ranges).shape();
+    ///
+    /// Note: While the slice information structure supports steps, the actual filling operation
+    /// currently requires all steps to be 1. Non-unit steps will cause a panic.
+    fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
+        use crate::tensor::api::slice::calculate_slice_output_shape;
+
+        let tensor_shape = tensor.shape();
+        let slice_shape_vec = calculate_slice_output_shape(slices, &tensor_shape.dims);
+        let slice_shape = Shape::from(slice_shape_vec);
 
         let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
         let value = Self::expand(value, slice_shape);
-        Self::slice_assign(tensor, ranges, value)
+        Self::slice_assign(tensor, slices, value)
     }
 
-    /// Slices the tensor along a given dimension with the specified range.
+    /// Slices the tensor along a given dimension.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to slice.
     /// * `dim` - The dimension along which to slice.
-    /// * `range` - The range of indices to slice along the specified dimension.
+    /// * `slice_info` - The slice information containing range and step.
     ///
     /// # Returns
     ///
@@ -2662,11 +2729,16 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
-    fn slice_dim(tensor: Self::Primitive, dim: usize, range: &Range<usize>) -> Self::Primitive {
-        let mut ranges: Vec<Range<usize>> = tensor.shape().dims.iter().map(|&s| 0..s).collect();
-        ranges[dim] = range.clone();
+    fn slice_dim(tensor: Self::Primitive, dim: usize, slice: &Slice) -> Self::Primitive {
+        let mut slices: Vec<Slice> = tensor
+            .shape()
+            .dims
+            .iter()
+            .map(|&s| Slice::new(0, Some(s as isize), 1))
+            .collect();
+        slices[dim] = slice.clone();
 
-        Self::slice(tensor, &ranges)
+        Self::slice(tensor, &slices)
     }
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
@@ -3060,23 +3132,31 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
+    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_slice(tensor, ranges))
+                TensorPrimitive::Float(B::float_slice(tensor, slices))
             }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_slice(tensor, ranges)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_slice(tensor, slices)),
         }
     }
 
     fn slice_assign(
         tensor: Self::Primitive,
-        ranges: &[Range<usize>],
+        slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
+        // Convert Slice to ranges for backend implementations
+        // Note: step validation is done in Tensor::slice_assign before calling this method
+        let tensor_shape = tensor.shape();
+        let ranges: Vec<Range<usize>> = slices
+            .iter()
+            .zip(tensor_shape.dims.iter())
+            .map(|(s, &dim_size)| s.to_range(dim_size))
+            .collect();
         TensorPrimitive::Float(B::float_slice_assign(
             tensor.tensor(),
-            ranges,
+            &ranges,
             value.tensor(),
         ))
     }
@@ -3261,16 +3341,24 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_swap_dims(tensor, dim1, dim2)
     }
 
-    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
-        B::int_slice(tensor, ranges)
+    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
+        B::int_slice(tensor, slices)
     }
 
     fn slice_assign(
         tensor: Self::Primitive,
-        ranges: &[Range<usize>],
+        slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        B::int_slice_assign(tensor, ranges, value)
+        // Convert Slice to ranges for backend implementations
+        // Note: step validation is done in Tensor::slice_assign before calling this method
+        let tensor_shape = tensor.shape();
+        let ranges: Vec<Range<usize>> = slices
+            .iter()
+            .zip(tensor_shape.dims.iter())
+            .map(|(s, &dim_size)| s.to_range(dim_size))
+            .collect();
+        B::int_slice_assign(tensor, &ranges, value)
     }
 
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
@@ -3397,16 +3485,24 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
 
-    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
-        B::bool_slice(tensor, ranges)
+    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
+        B::bool_slice(tensor, slices)
     }
 
     fn slice_assign(
         tensor: Self::Primitive,
-        ranges: &[Range<usize>],
+        slices: &[Slice],
         value: Self::Primitive,
     ) -> Self::Primitive {
-        B::bool_slice_assign(tensor, ranges, value)
+        // Convert Slice to ranges for backend implementations
+        // Note: step validation is done in Tensor::slice_assign before calling this method
+        let tensor_shape = tensor.shape();
+        let ranges: Vec<Range<usize>> = slices
+            .iter()
+            .zip(tensor_shape.dims.iter())
+            .map(|(s, &dim_size)| s.to_range(dim_size))
+            .collect();
+        B::bool_slice_assign(tensor, &ranges, value)
     }
 
     fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
@@ -3558,9 +3654,12 @@ pub trait RangeArg {
     fn into_range(self, shape_dim: usize) -> Range<usize>;
 }
 
+// Slice already has an into_range method, so we just delegate to it
+// But we need to use the full path to avoid ambiguity
+// Blanket implementation for types that can be converted to Slice
 impl<T: Into<Slice>> RangeArg for T {
     fn into_range(self, shape_dim: usize) -> Range<usize> {
-        self.into().into_range(shape_dim)
+        self.into().to_range(shape_dim)
     }
 }
 
@@ -3568,6 +3667,9 @@ impl<T: Into<Slice>> RangeArg for T {
 pub trait RangesArg<const D2: usize> {
     /// Converts into a set of ranges to `[Range<usize>; D2]` for the `tensor.slice()` function
     fn into_ranges(self, shape: Shape) -> [Range<usize>; D2];
+
+    /// Converts into a set of Slice structs for backends that support steps
+    fn into_slices(self, shape: Shape) -> [Slice; D2];
 }
 
 impl<const D2: usize, T: Into<Slice>> RangesArg<D2> for [T; D2] {
@@ -3580,11 +3682,39 @@ impl<const D2: usize, T: Into<Slice>> RangesArg<D2> for [T; D2] {
             .collect::<Vec<_>>();
         ranges.try_into().unwrap()
     }
+
+    fn into_slices(self, shape: Shape) -> [Slice; D2] {
+        let slices = self
+            .into_iter()
+            .enumerate()
+            .map(|(i, range)| {
+                let slice: Slice = range.into();
+                // Apply shape clamping by converting to range and back
+                let clamped_range = slice.to_range(shape.dims[i]);
+                Slice::new(
+                    clamped_range.start as isize,
+                    Some(clamped_range.end as isize),
+                    slice.step(),
+                )
+            })
+            .collect::<Vec<_>>();
+        slices.try_into().unwrap()
+    }
 }
 
 impl<T: Into<Slice>> RangesArg<1> for T {
     fn into_ranges(self, shape: Shape) -> [Range<usize>; 1] {
         [self.into().into_range(shape.dims[0])]
+    }
+
+    fn into_slices(self, shape: Shape) -> [Slice; 1] {
+        let slice: Slice = self.into();
+        let clamped_range = slice.to_range(shape.dims[0]);
+        [Slice::new(
+            clamped_range.start as isize,
+            Some(clamped_range.end as isize),
+            slice.step(),
+        )]
     }
 }
 

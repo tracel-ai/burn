@@ -260,6 +260,14 @@ impl ArgType {
             ArgType::Tensor(t) => &t.elem_type,
         }
     }
+
+    /// returns the static shape if available
+    pub fn static_shape(&self) -> Option<&Vec<usize>> {
+        match self {
+            ArgType::Tensor(t) => t.static_shape.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 impl Argument {
