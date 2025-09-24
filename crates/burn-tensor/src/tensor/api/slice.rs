@@ -169,19 +169,6 @@ pub fn calculate_slice_output_shape(slices: &[Slice], original_shape: &[usize]) 
 /// let tensor = tensor.slice_assign(s![..;-1, 0..5], values);
 /// # }
 /// ```
-///
-/// # Comparison with Other Libraries
-///
-/// The `s![]` macro is designed to be familiar to users of:
-/// * **NumPy**: Similar to Python's slice notation `[start:stop:step]`
-/// * **ndarray**: Direct inspiration, nearly identical syntax
-/// * **PyTorch/TensorFlow**: Similar indexing semantics
-///
-/// # Performance Notes
-///
-/// * The macro is expanded at compile time with zero runtime overhead
-/// * Slicing creates views when possible, avoiding data copies
-/// * Step values other than 1 may impact performance on some backends
 #[macro_export]
 macro_rules! s {
     // Empty - should not happen
@@ -277,7 +264,7 @@ macro_rules! s {
 ///
 /// - **Positive step**: Traverse forward through the range
 /// - **Negative step**: Traverse backward through the range
-/// - **Step magnitude**: Determines how many elements to skip
+/// - **Step step**: Determines how many elements to skip
 ///
 /// # Examples
 ///
