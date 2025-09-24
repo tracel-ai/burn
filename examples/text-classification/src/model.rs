@@ -66,22 +66,22 @@ impl<B: Backend> TextClassificationModel<B> {
         let device = &self.embedding_token.devices()[0];
 
         // Move tensors to the correct device
-        let tokens = item.tokens.to_device(device);
-        let labels = item.labels.to_device(device);
-        let mask_pad = item.mask_pad.to_device(device);
+        // let tokens = item.tokens.to_device(device);
+        // let labels = item.labels.to_device(device);
+        // let mask_pad = item.mask_pad.to_device(device);
 
         // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
             .repeat_dim(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
-        let embedding_tokens = self.embedding_token.forward(tokens);
+        let embedding_tokens = self.embedding_token.forward(item.tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
         // Perform transformer encoding, calculate output and loss
         let encoded = self
             .transformer
-            .forward(TransformerEncoderInput::new(embedding).mask_pad(mask_pad));
+            .forward(TransformerEncoderInput::new(embedding).mask_pad(item.mask_pad));
         let output = self.output.forward(encoded);
 
         let output_classification = output
@@ -90,13 +90,13 @@ impl<B: Backend> TextClassificationModel<B> {
 
         let loss = CrossEntropyLossConfig::new()
             .init(&output_classification.device())
-            .forward(output_classification.clone(), labels.clone());
+            .forward(output_classification.clone(), item.labels.clone());
 
         // Return the output and loss
         ClassificationOutput {
             loss,
             output: output_classification,
-            targets: labels,
+            targets: item.labels,
         }
     }
 
