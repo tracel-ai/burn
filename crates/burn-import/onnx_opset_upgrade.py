@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "onnx-weekly==1.19.0.dev20250419",
+#   "onnx==1.19.0",
 # ]
 # ///
 #

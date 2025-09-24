@@ -50,6 +50,7 @@ pub mod matmulinteger;
 pub mod max_pool1d;
 pub mod max_pool2d;
 pub mod modulo;
+pub mod nonzero;
 pub mod one_hot;
 pub mod pad;
 pub mod padding;

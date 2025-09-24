@@ -256,7 +256,6 @@ jobs:
       - publish-burn-derive
       - publish-burn-tensor
       - publish-burn-vision
-      - publish-burn-collective
       # dev dependencies
       - publish-burn-autodiff
       - publish-burn-wgpu
@@ -283,6 +282,23 @@ jobs:
       - publish-burn-remote
     with:
       crate: burn-nn
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-optim:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v4
+    needs:
+      - publish-burn-core
+      - publish-burn-collective
+      # dev dependencies
+      - publish-burn-autodiff
+      - publish-burn-wgpu
+      - publish-burn-tch
+      - publish-burn-ndarray
+      - publish-burn-candle
+      - publish-burn-remote
+    with:
+      crate: burn-optim
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 

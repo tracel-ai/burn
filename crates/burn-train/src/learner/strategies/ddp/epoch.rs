@@ -1,7 +1,8 @@
 use burn_collective::{PeerId, ReduceOperation};
-use burn_core::optim::GradientsParams;
+use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_core::{lr_scheduler::LrScheduler, module::AutodiffModule, optim::GradientsAccumulator};
+use burn_optim::GradientsParams;
+use burn_optim::{GradientsAccumulator, lr_scheduler::LrScheduler};
 use std::marker::PhantomData;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};

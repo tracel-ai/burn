@@ -12,7 +12,10 @@ use burn_ir::{
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
-use burn_tensor::{Device, Distribution, Element, IntDType, Shape, TensorData, TensorMetadata};
+use burn_tensor::{
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
+    calculate_slice_output_shape,
+};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
@@ -74,22 +77,17 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
 

@@ -2,10 +2,10 @@ use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy
 use crate::components::LearnerComponentTypes;
 use crate::metric::store::EventStoreClient;
 use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
-use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
-use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
+use burn_optim::Optimizer;
+use burn_optim::lr_scheduler::LrScheduler;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

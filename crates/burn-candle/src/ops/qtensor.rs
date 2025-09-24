@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use burn_tensor::{
     DType, Device, Shape, TensorData,
     backend::Backend,
@@ -80,7 +78,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        _tensor: QuantizedTensor<Self>,
+        _slices: &[burn_tensor::Slice],
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

@@ -70,8 +70,31 @@ where
         super::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
-        execute_with_dtype!(int(tensor.dtype), I, kernel::slice::<R, I>(tensor, ranges))
+    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .collect();
+
+            execute_with_dtype!(
+                int(tensor.dtype),
+                I,
+                kernel::slice::<R, I>(tensor, &simple_ranges)
+            )
+        } else {
+            // Use slice with steps kernel
+            execute_with_dtype!(
+                int(tensor.dtype),
+                I,
+                kernel::slice_with_steps::<R, I>(tensor, slices)
+            )
+        }
     }
 
     fn int_slice_assign(
