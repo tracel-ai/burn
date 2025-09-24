@@ -6,7 +6,7 @@ pub(crate) mod cat;
 /// Module with repeat operation
 pub(crate) mod repeat_dim;
 /// Module with unfold operations.
-pub(crate) mod unfold;
+pub mod unfold;
 
 /// Module with pooling operations.
 pub mod pool;

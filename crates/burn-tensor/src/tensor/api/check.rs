@@ -1342,6 +1342,29 @@ impl TensorCheck {
         check
     }
 
+    /// Checks if unfold operation is possible for the given shapes.
+    pub fn unfold<const D1: usize, const D2: usize>(
+        ops: &str,
+        _shape: &Shape,
+        _dim: usize,
+        _size: usize,
+        _step: usize,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if D2 != D1 + 1 {
+            check = check.register(
+                ops,
+                TensorError::new("The unfold rank is incompatible with the input tensor rank.")
+                    .details(format!(
+                        "The output rank '{D2}' != the input rank + 1 '{D1}'.",
+                    )),
+            );
+        }
+
+        check
+    }
+
     /// Checks if input is compatible with convolution weights.
     pub fn conv<const D1: usize, const D2: usize>(
         ops: &str,

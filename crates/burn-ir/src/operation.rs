@@ -239,6 +239,10 @@ pub enum BaseOperationIr {
     /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
     Expand(ExpandOpIr),
 
+    /// Unfold windows along an axis.
+    ///
+    Unfold(UnfoldOpIr),
+
     /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
@@ -634,6 +638,22 @@ pub struct ExpandOpIr {
     pub out: TensorIr,
     /// The new shape.
     pub shape: Vec<usize>,
+}
+
+/// Unfold operation intermediate representation.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct UnfoldOpIr {
+    /// Input tensor intermediate representation.
+    pub input: TensorIr,
+    /// Output tensor intermediate representation.
+    pub out: TensorIr,
+
+    /// The selected dim.
+    pub dim: usize,
+    /// The window size.
+    pub size: usize,
+    /// The window step along dim.
+    pub step: usize,
 }
 
 /// Flip operation intermediate representation.
@@ -1483,6 +1503,9 @@ impl BaseOperationIr {
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
+            BaseOperationIr::Unfold(repr) => {
+                vec![&repr.input, &repr.out]
+            }
         }
     }
 
@@ -1530,6 +1553,9 @@ impl BaseOperationIr {
                 }
             }
             BaseOperationIr::Cast(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Unfold(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Empty(_) => {}
