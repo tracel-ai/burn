@@ -187,6 +187,11 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Relaxed);
 
+        // Workaround to prevent segfaults when an operation panics
+        if std::thread::panicking() {
+            return;
+        }
+
         match self.status(count) {
             TensorStatus::ReadWrite => {
                 let mut shape = Vec::new();
