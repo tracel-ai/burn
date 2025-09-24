@@ -135,7 +135,7 @@ mod cuda {
 
     pub fn run() {
         let type_id = 0;
-        let num_devices = 1;
+        let num_devices = 4;
 
         let devices = (0..num_devices)
             .map(|i| CudaDevice::new(i as usize))
