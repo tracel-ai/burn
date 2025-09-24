@@ -177,7 +177,12 @@ fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused::<BT, S>(context),
+        TuneContext::Original(context) => match optimization.execute_fused::<BT, S>(context) {
+            Ok(out) => Ok(out),
+            Err(_) => {
+                return tune_fallback::<R, BT>(input);
+            }
+        },
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fused::<BT, S>(&mut context_owned.as_context())
         }
