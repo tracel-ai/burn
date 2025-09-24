@@ -22,11 +22,11 @@ use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
-use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
-use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::Optimizer;
+use burn_optim::lr_scheduler::LrScheduler;
 
 /// Struct to configure and create a [learner](Learner).
 ///
@@ -320,7 +320,7 @@ where
 
     /// Create the [learner](Learner) from a [model](AutodiffModule) and an [optimizer](Optimizer).
     /// The [learning rate scheduler](LrScheduler) can also be a simple
-    /// [learning rate](burn_core::LearningRate).
+    /// [learning rate](burn_optim::LearningRate).
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
     // creates a clean learner.
     pub fn build(

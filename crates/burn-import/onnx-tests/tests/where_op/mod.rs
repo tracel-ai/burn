@@ -8,7 +8,8 @@ include_models!(
     where_op_all_scalar,
     where_shape_all_shapes,
     where_shape_scalar_cond,
-    where_shapes_from_inputs
+    where_shapes_from_inputs,
+    where_static_shape
 );
 
 #[cfg(test)]
@@ -155,5 +156,23 @@ mod tests {
         let expected: [i64; 3] = [4, 8, 6];
 
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn where_static_shape() {
+        let device = Default::default();
+        // Use Model::default() to load constants from the record file
+        let model: where_static_shape::Model<TestBackend> = where_static_shape::Model::default();
+
+        // Create condition tensor (needs to be Bool type)
+        let condition = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let output = model.forward(condition);
+
+        // The model has constant tensors [[1,2],[3,4]] and [[5,6],[7,8]]
+        // With condition [[true,false],[false,true]] the output should be [[1,6],[7,4]]
+        let expected = TensorData::from([[1.0f32, 6.0], [7.0, 4.0]]);
+
+        output.to_data().assert_eq(&expected, true);
     }
 }

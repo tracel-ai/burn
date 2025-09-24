@@ -50,7 +50,6 @@ std = [
 ]
 vision = ["burn-vision", "burn-dataset?/vision", "burn-common/network"]
 audio = ["burn-dataset?/audio"]
-collective = ["burn-collective"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror"]
@@ -91,7 +90,6 @@ burn-dataset = { path = "../burn-dataset", version = "0.19.0", optional = true, 
 burn-derive = { path = "../burn-derive", version = "0.19.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
 burn-vision = { path = "../burn-vision", version = "0.19.0", optional = true, default-features = false }
-burn-collective = { path = "../burn-collective", version = "0.19.0", optional = true, default-features = false }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }
