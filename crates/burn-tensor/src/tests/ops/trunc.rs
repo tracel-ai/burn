@@ -43,4 +43,29 @@ mod tests {
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
+
+    #[test]
+    fn should_handle_special_cases() {
+        // Test special IEEE 754 cases
+        let data = TensorData::from([0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN]);
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+
+        let output = tensor.trunc();
+        let values = output.into_data().as_slice::<f32>().unwrap().to_vec();
+
+        // Check positive zero
+        assert_eq!(values[0], 0.0);
+        assert!(values[0].is_sign_positive());
+
+        // Check negative zero is preserved
+        assert_eq!(values[1], 0.0);
+        assert!(values[1].is_sign_negative());
+
+        // Check infinity is preserved
+        assert!(values[2].is_infinite() && values[2].is_sign_positive());
+        assert!(values[3].is_infinite() && values[3].is_sign_negative());
+
+        // Check NaN is preserved
+        assert!(values[4].is_nan());
+    }
 }
