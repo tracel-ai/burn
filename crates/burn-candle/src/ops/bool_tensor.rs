@@ -9,7 +9,7 @@ use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute};
+use super::base::{expand, permute, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -135,5 +135,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         expand(tensor, shape)
+    }
+
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

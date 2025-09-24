@@ -1,12 +1,12 @@
-use alloc::vec;
-use core::num::NonZeroUsize;
-
-use super::{conv, pool, unfold::unfold4d_using_conv2d};
+use super::{conv, pool};
+use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
+use alloc::vec;
+use core::num::NonZeroUsize;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -579,14 +579,36 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      `[batch_size, channels_in, height, width]`,
-    /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`,
+    /// * x:      ``[batch_size, channels_in, height, width]``,
+    /// * returns: ``[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]``,
     fn unfold4d(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
     ) -> FloatTensor<B> {
-        unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        if options.padding == [0, 0] && options.dilation == [1, 1] {
+            let blocks = B::float_unfold(x, 2, kernel_size[0], options.stride[0]);
+            let blocks = B::float_unfold(blocks, 3, kernel_size[1], options.stride[1]);
+
+            // batch, channels, h_blocks, w_blocks, h_kern, w_kern
+
+            let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
+            let shape = &blocks.shape().dims;
+
+            // batch, channels, h_kern, w_kern, h_blocks, w_blocks
+
+            B::float_reshape(
+                blocks,
+                [
+                    shape[0],
+                    shape[1] * shape[2] * shape[3],
+                    shape[4] * shape[5],
+                ]
+                .into(),
+            )
+        } else {
+            unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        }
     }
 
     /// One dimensional avg pooling.

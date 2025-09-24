@@ -1,4 +1,4 @@
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
@@ -701,5 +701,14 @@ where
             (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
             _ => unimplemented!("Unsupported floating point type cast"),
         }
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

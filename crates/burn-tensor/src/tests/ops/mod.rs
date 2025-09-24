@@ -79,3 +79,4 @@ mod transpose;
 mod tri;
 mod tri_mask;
 mod trunc;
+mod unfold;

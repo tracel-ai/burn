@@ -1,3 +1,4 @@
+use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
@@ -8,13 +9,12 @@ use crate::{
     unary_float_ops,
 };
 use burn_ir::*;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
 };
 use std::{marker::PhantomData, ops::Range};
-
-use super::NoOp;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -2255,6 +2255,53 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseFloat(BaseOperationIr::Cast(desc.clone())),
             CastOps::<B>::new(desc, dtype),
+        );
+
+        out
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct UnfoldOps<B: FusionBackend> {
+            desc: UnfoldOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::Unfold(desc.clone())),
+            UnfoldOps::<B>::new(desc),
         );
 
         out

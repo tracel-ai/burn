@@ -154,4 +154,8 @@ where
     fn bool_flip(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
         NdArrayOps::flip(tensor.bool(), axes).into()
     }
+
+    fn bool_unfold(tensor: NdArrayTensor, dim: usize, size: usize, step: usize) -> NdArrayTensor {
+        NdArrayOps::unfold(tensor.bool(), dim, size, step).into()
+    }
 }
