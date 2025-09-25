@@ -18,14 +18,9 @@ fn cross_kernel<E: Float>(
     let vector_idx = ABSOLUTE_POS;
     let base_pos = vector_idx * 3;
 
-    // Use output.is_in_bounds to check if the mapped index is valid
     if !output.is_in_bounds(base_pos) {
         terminate!();
     }
-
-    // Calculate base position - each vector occupies 3 contiguous elements in the linear view
-    // Note: The underlying tensor storage may not be contiguous, but LinearView ensures correct mapping for cross product computation.
-    // let base_pos = vector_idx * 3;
 
     // Extract vectors
     let a0 = lhs[base_pos];
@@ -70,8 +65,8 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
-    // Let the runtime choose the best line size for performance
-    let line_size = crate::ops::max_line_size_many::<R>(&[&lhs, &rhs], dim);
+    // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
+    let line_size = 1;
 
     let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), output_shape.clone());
 

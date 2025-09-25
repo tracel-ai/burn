@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::might_panic;
-    use burn_tensor::{Tensor, TensorData, backend::Backend};
+    use burn_tensor::{Tensor, TensorData, backend::Backend, s};
 
     #[test]
     fn test_cross_3d_last_dim() {
@@ -17,8 +17,21 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_cross_3d_non_contiguous_last_dim() {
+        let tensor_1 = TestTensor::<2>::from([[1.0, 3.0, -5.0], [2.0, -1.0, 4.0]]);
+        let tensor_2 = TestTensor::from([[4.0, 3.0], [-2.0, 5.0], [1.0, -2.0]]);
+
+        let output = tensor_1.cross(tensor_2.permute([1, 0]), -1);
+
+        output.into_data().assert_eq(
+            &TensorData::from([[-7.0, -21.0, -14.0], [-18.0, 16.0, 13.0]]),
+            false,
+        );
+    }
+
     #[cfg(feature = "std")]
-    #[might_panic(reason = "Cross product on non-last dimension not yet implemented")]
+    #[might_panic(reason = "not implemented: Cross product on non-last dimension")]
     #[test]
     fn test_cross_3d_dim0() {
         let tensor_1 = TestTensor::<2>::from([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]);

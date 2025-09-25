@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "Cross product on non-last dimension not yet implemented")]
+    #[might_panic(reason = "not implemented: Cross product on non-last dimension")]
     #[test]
     fn different_dim() {
         // Also check when the cross is along a different dimension (e.g. dim 0).
