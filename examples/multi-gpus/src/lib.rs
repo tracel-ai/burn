@@ -190,7 +190,6 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
         tokenizer.vocab_size(),
         seq_length,
     );
-    let model_main = model_config.init(&devices[0]);
     let datasets = PartialDataset::split(dataset, devices.len());
 
     let handles = devices
@@ -198,11 +197,13 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
         .zip(datasets.into_iter())
         .enumerate()
         .map(|(id, (device, dataset))| {
-            let model_main = model_main.clone();
+            // let model_main = model_main.clone();
             let tokenizer = tokenizer.clone();
+            let model_config = model_config.clone();
 
             std::thread::spawn(move || {
-                let mut model = model_main.fork(&device);
+                let model = model_config.init(&device);
+                // let mut model = model_main.fork(&device);
                 let id = PeerId::from(id);
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
