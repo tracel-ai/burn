@@ -2808,18 +2808,13 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive;
 
-    ///  Assigns the given value to the tensor elements corresponding to the given slices.
+    /// Assigns the given value to the tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `slices` - The slices specifying which elements to assign.
+    /// * `slices` - The slices specifying which elements to assign, including support for steps.
     /// * `value` - The value to assign.
-    ///
-    /// # Note
-    ///
-    /// Currently, this method does not support steps != 1. If any slice has a step != 1,
-    /// the method will panic.
     ///
     /// # Returns
     ///
@@ -2859,9 +2854,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
     /// which is more high-level and designed for public use.
-    ///
-    /// Note: While the slice information structure supports steps, the actual filling operation
-    /// currently requires all steps to be 1. Non-unit steps will cause a panic.
     fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
         use crate::tensor::api::slice::calculate_slice_output_shape;
 
