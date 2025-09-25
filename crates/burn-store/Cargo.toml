@@ -35,6 +35,7 @@ byteorder = { workspace = true, default-features = false }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
+rmp-serde = { workspace = true }
 serde = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 

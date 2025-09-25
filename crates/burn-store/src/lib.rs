@@ -104,3 +104,6 @@ pub use pytorch::{PytorchStore, PytorchStoreError};
 mod safetensors;
 #[cfg(feature = "safetensors")]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
+
+mod burnpack;
+pub use burnpack::BurnpackStore;
