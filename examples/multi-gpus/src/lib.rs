@@ -210,7 +210,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                 let batcher = TextClassificationBatcher::new(tokenizer, seq_length);
                 let dataloader_train = DataLoaderBuilder::new(batcher.clone())
                     .batch_size(config.batch_size)
-                    .num_workers(1)
+                    .set_device(device.clone())
                     .build(dataset);
 
                 println!("[{id}] Register collective operation {config_col:?}");
@@ -226,9 +226,9 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let stat = loss.into_scalar().elem::<f32>();
 
                     let grads = GradientsParams::from_grads(grads, &model);
-                    let grads = grads
-                        .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
-                        .unwrap();
+                    // let grads = grads
+                    //     .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
+                    //     .unwrap();
 
                     model = optim.step(1.0e-5, model, grads);
 
