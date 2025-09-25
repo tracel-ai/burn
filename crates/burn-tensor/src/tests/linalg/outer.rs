@@ -16,6 +16,7 @@ mod tests {
 
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
+
     #[test]
     fn test_outer_shapes_only() {
         let device = Default::default();
@@ -24,6 +25,7 @@ mod tests {
         let out = linalg::outer(u, v);
         assert_eq!(out.shape().dims(), [3, 5]);
     }
+
     #[test]
     fn test_outer_asymmetry_and_shapes() {
         let u = TestTensor::<1>::from([1.0, 2.0]);
@@ -144,7 +146,9 @@ mod tests {
 
         let out = linalg::outer(u, v).into_data();
 
-        let values = out.value;
+        // Updated for latest Burn API
+        let values: Vec<f32> = out.as_slice::<f32>().to_vec();
+
         assert!(values[0].is_nan()); // first row, col0
         assert!(values[1].is_nan()); // first row, col1
         assert_eq!(values[2], 6.0); // second row, col0

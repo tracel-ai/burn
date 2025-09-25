@@ -78,12 +78,12 @@ mod tests {
         let expected = TestTensor::<3>::from([
             [
                 [-3.0, 4.0], // -1*3, -1*-4
-                [6.0, -8.0],
-            ], //  2*3,  2*-4
+                [6.0, -8.0], //  2*3,  2*-4
+            ],
             [
                 [-15.0, 18.0], //  3*-5, 3*6
-                [20.0, -24.0],
-            ], // -4*-5,-4*6
+                [20.0, -24.0], // -4*-5,-4*6
+            ],
         ])
         .into_data();
 
@@ -101,10 +101,16 @@ mod tests {
 
         // Compare each batch slice with linalg::outer(x[b], y[b])
         for b in 0..2 {
-            let xb = x.clone().select(0, b); // (m,)
-            let yb = y.clone().select(0, b); // (n,)
+            // select expects a Tensor<_,1,Int> index, not a raw usize
+            let idx = TestTensorInt::<1>::from([b as i64]); // use i32/i64 depending on TestTensorInt
+            let xb = x.clone().select(0, idx.clone()); // (m,)
+            let yb = y.clone().select(0, idx); // (n,)
+
             let per = linalg::outer(xb, yb).into_data();
-            let bat = out_batched.clone().select(0, b).into_data();
+
+            let idx_b = TestTensorInt::<1>::from([b as i64]);
+            let bat = out_batched.clone().select(0, idx_b).into_data();
+
             bat.assert_approx_eq::<FT>(&per, Tolerance::default());
         }
     }
@@ -114,16 +120,16 @@ mod tests {
     fn test_outer_batch_nan_propagation() {
         let x = TestTensor::<2>::from([
             [f32::NAN, 2.0], // batch 0
-            [3.0, 4.0],
-        ]); // batch 1
+            [3.0, 4.0],      // batch 1
+        ]);
         let y = TestTensor::<2>::from([
             [5.0, 6.0], // batch 0
-            [7.0, 8.0],
-        ]); // batch 1
+            [7.0, 8.0], // batch 1
+        ]);
         let out = linalg::outer_batch(x, y).into_data();
 
-        // out shape (2,2,2), flatten to check values quickly
-        let v = out.value;
+        // out shape (2,2,2); flatten to check values
+        let v: Vec<f32> = out.as_slice::<f32>().to_vec();
 
         // batch 0 rows: [NaN, NaN], [10, 12]
         assert!(v[0].is_nan() && v[1].is_nan()); // b0,i0,*
