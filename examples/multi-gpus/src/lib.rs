@@ -223,7 +223,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let loss: Tensor<B, 1> = output.loss.clone();
 
                     let grads = loss.backward();
-                    let stat = loss.into_scalar().elem::<f32>();
+                    // let stat = loss.into_scalar().elem::<f32>();
 
                     let grads = GradientsParams::from_grads(grads, &model);
                     // let grads = grads
@@ -233,7 +233,8 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     model = optim.step(1.0e-5, model, grads);
 
                     if id == PeerId::from(0) {
-                        println!("Iter {i} => {stat}");
+                        println!("Iter {i}");
+                        // println!("Iter {i} => {stat}");
                     }
                 }
                 // collective::finish_collective::<B::InnerBackend>(id).unwrap();
