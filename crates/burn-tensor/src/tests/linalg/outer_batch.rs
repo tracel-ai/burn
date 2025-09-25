@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::linalg;
-    use burn_tensor::{ops::FloatElem, Tolerance};
+    use burn_tensor::{Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestBackend>;
 
@@ -66,17 +66,9 @@ mod tests {
         let y = TestTensor::<2>::from([[3.0, -4.0], [-5.0, 6.0]]);
         let out = linalg::outer_batch(x, y).into_data();
 
-        let expected = TestTensor::<3>::from([
-            [
-                [-3.0, 4.0],
-                [6.0, -8.0],
-            ],
-            [
-                [-15.0, 18.0],
-                [20.0, -24.0],
-            ],
-        ])
-        .into_data();
+        let expected =
+            TestTensor::<3>::from([[[-3.0, 4.0], [6.0, -8.0]], [[-15.0, 18.0], [20.0, -24.0]]])
+                .into_data();
 
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
@@ -94,7 +86,7 @@ mod tests {
             // select expects a Tensor<_,1,Int> index, not a raw usize
             let idx = TestTensorInt::<1>::from([b as i32]);
             let xb = x.clone().select(0, idx.clone()); // (m,)
-            let yb = y.clone().select(0, idx);         // (n,)
+            let yb = y.clone().select(0, idx); // (n,)
 
             let per = linalg::outer(xb, yb).into_data();
 

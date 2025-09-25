@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::linalg;
-    use burn_tensor::{ops::FloatElem, Tolerance};
+    use burn_tensor::{Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestBackend>;
 
@@ -153,7 +153,7 @@ mod tests {
 
         assert!(s[0].is_nan()); // first row, col0
         assert!(s[1].is_nan()); // first row, col1
-        assert_eq!(s[2], 6.0);  // second row, col0
-        assert_eq!(s[3], 8.0);  // second row, col1
+        assert_eq!(s[2], 6.0); // second row, col0
+        assert_eq!(s[3], 8.0); // second row, col1
     }
 }
