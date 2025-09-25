@@ -31,7 +31,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     let targets = batch.targets;
 
     // Display the predicted vs expected values
-    let predicted = predicted.squeeze::<1>(1).into_data();
+    let predicted = predicted.squeeze_dim::<1>(1).into_data();
     let expected = targets.into_data();
 
     let points = predicted
