@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::linalg;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{ops::FloatElem, Tolerance};
 
     type FT = FloatElem<TestBackend>;
 
@@ -146,14 +146,14 @@ mod tests {
 
         let out = linalg::outer(u, v).into_data();
 
-        let values: Vec<f32> = out
+        // Use slice directly (no Vec) for no_std backends
+        let s: &[f32] = out
             .as_slice::<f32>()
-            .expect("outer nan_propagation: as_slice failed")
-            .to_vec();
+            .expect("outer nan_propagation: as_slice failed");
 
-        assert!(values[0].is_nan()); // first row, col0
-        assert!(values[1].is_nan()); // first row, col1
-        assert_eq!(values[2], 6.0); // second row, col0
-        assert_eq!(values[3], 8.0); // second row, col1
+        assert!(s[0].is_nan()); // first row, col0
+        assert!(s[1].is_nan()); // first row, col1
+        assert_eq!(s[2], 6.0);  // second row, col0
+        assert_eq!(s[3], 8.0);  // second row, col1
     }
 }
