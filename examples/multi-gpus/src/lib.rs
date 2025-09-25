@@ -1,15 +1,24 @@
-use std::time::Instant;
-
 use burn::{
     backend::Autodiff,
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
+    data::{
+        dataloader::DataLoaderBuilder,
+        dataset::{transform::PartialDataset, vision::MnistDataset},
+    },
     nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
-    optim::{GradientsParams, Optimizer, SgdConfig},
+    optim::{AdamConfig, GradientsParams, Optimizer, SgdConfig, decay::WeightDecayConfig},
     prelude::*,
     tensor::{
         TensorPrimitive,
         backend::{AutodiffBackend, DeviceId},
     },
+};
+use std::{sync::Arc, time::Instant};
+use text_classification::{
+    AgNewsDataset, TextClassificationDataset,
+    data::{TextClassificationBatcher, TextClassificationTrainingBatch, Tokenizer},
+    model::TextClassificationModel,
+    training::ExperimentConfig,
 };
 
 pub fn run<B: Backend>() {
@@ -168,18 +177,32 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
-    let batch = 32;
-    let seq_length = 512;
-    let d_model = 1024;
-    let shape_signal = [batch, seq_length, d_model];
-    let config = TransformerEncoderConfig::new(d_model, 2048, 4, 4);
-    let model_main = config.init::<B>(&devices[0]);
+    let seq_length = 256;
+    let config = ExperimentConfig::new(
+        TransformerEncoderConfig::new(256, 1024, 8, 4)
+            .with_norm_first(true)
+            .with_quiet_softmax(true),
+        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
+    );
+
+    let dataset = text_classification::AgNewsDataset::train();
+    let tokenizer = Arc::new(text_classification::data::BertCasedTokenizer::default());
+    let model_config = text_classification::model::TextClassificationModelConfig::new(
+        config.transformer,
+        AgNewsDataset::num_classes(),
+        tokenizer.vocab_size(),
+        seq_length,
+    );
+    let model_main = model_config.init(&devices[0]);
+    let datasets = PartialDataset::split(dataset, devices.len());
 
     let handles = devices
         .into_iter()
+        .zip(datasets.into_iter())
         .enumerate()
-        .map(|(id, device)| {
+        .map(|(id, (device, dataset))| {
             let model_main = model_main.clone();
+            let tokenizer = tokenizer.clone();
 
             std::thread::spawn(move || {
                 let mut model = model_main.fork(&device);
@@ -187,25 +210,23 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                 let config_col = CollectiveConfig::default()
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
+                let batcher = TextClassificationBatcher::new(tokenizer, seq_length);
+                let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+                    .batch_size(config.batch_size)
+                    .num_workers(1)
+                    .build(dataset);
 
                 println!("[{id}] Register collective operation {config_col:?}");
                 collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
-                let mut optim = SgdConfig::new().init::<B, TransformerEncoder<B>>();
+                let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
 
-                for i in 0..num_iterations {
-                    let x = Tensor::<B, 3>::random(
-                        shape_signal,
-                        burn::tensor::Distribution::Default,
-                        &device,
-                    ) - 0.5;
+                for (i, batch) in dataloader_train.iter().enumerate() {
+                    let output = model.forward(batch);
+                    let loss: Tensor<B, 1> = output.loss.clone();
 
-                    let x = TransformerEncoderInput::new(x);
-                    let x = model.forward(x);
-                    let sum = x.sum();
-
-                    let grads = sum.backward();
-                    let stat = sum.into_scalar().elem::<f32>();
+                    let grads = loss.backward();
+                    let stat = loss.into_scalar().elem::<f32>();
 
                     let grads = GradientsParams::from_grads(grads, &model);
                     let grads = grads
