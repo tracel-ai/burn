@@ -1,10 +1,7 @@
 use burn::{
     backend::Autodiff,
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
-    data::{
-        dataloader::DataLoaderBuilder,
-        dataset::{transform::PartialDataset, vision::MnistDataset},
-    },
+    data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
     nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     optim::{AdamConfig, GradientsParams, Optimizer, SgdConfig, decay::WeightDecayConfig},
     prelude::*,
