@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(outer)]
+#[burn_tensor_testgen::testgen(outer_batch)]
 mod tests {
     use super::*;
     use burn_tensor::linalg;
