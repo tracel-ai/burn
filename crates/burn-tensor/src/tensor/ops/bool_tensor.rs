@@ -284,6 +284,20 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the result of the logical or.
     fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
 
+    /// Element-wise exclusive or.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the comparison.
+    fn bool_xor(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        Self::bool_not_equal(lhs, rhs)
+    }
+
     /// Transposes a bool tensor.
     ///
     /// # Arguments

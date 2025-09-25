@@ -333,7 +333,7 @@ Those operations are only available for `Int` tensors.
 Those operations are only available for `Bool` tensors.
 
 | Burn API                             | PyTorch Equivalent              |
-| ------------------------------------ | ------------------------------- |
+|--------------------------------------|---------------------------------|
 | `Tensor::diag_mask(shape, diagonal)` | N/A                             |
 | `Tensor::tril_mask(shape, diagonal)` | N/A                             |
 | `Tensor::triu_mask(shape, diagonal)` | N/A                             |
@@ -341,6 +341,7 @@ Those operations are only available for `Bool` tensors.
 | `tensor.bool_and()`                  | `tensor.logical_and()`          |
 | `tensor.bool_not()`                  | `tensor.logical_not()`          |
 | `tensor.bool_or()`                   | `tensor.logical_or()`           |
+| `tensor.bool_xor()`                  | `tensor.logical_xor()`          |
 | `tensor.float()`                     | `tensor.to(torch.float)`        |
 | `tensor.int()`                       | `tensor.to(torch.long)`         |
 | `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
