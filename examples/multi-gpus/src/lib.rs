@@ -2,7 +2,7 @@ use burn::{
     backend::Autodiff,
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
-    nn::transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
+    nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, GradientsParams, Optimizer, SgdConfig, decay::WeightDecayConfig},
     prelude::*,
     tensor::{
@@ -13,7 +13,7 @@ use burn::{
 use std::{sync::Arc, time::Instant};
 use text_classification::{
     AgNewsDataset, TextClassificationDataset,
-    data::{TextClassificationBatcher, TextClassificationTrainingBatch, Tokenizer},
+    data::{TextClassificationBatcher, Tokenizer},
     model::TextClassificationModel,
     training::ExperimentConfig,
 };
@@ -213,8 +213,8 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     .set_device(device.clone())
                     .build(dataset);
 
-                println!("[{id}] Register collective operation {config_col:?}");
-                collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
+                // println!("[{id}] Register collective operation {config_col:?}");
+                // collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
                 let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
 
@@ -236,7 +236,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                         println!("Iter {i} => {stat}");
                     }
                 }
-                collective::finish_collective::<B::InnerBackend>(id).unwrap();
+                // collective::finish_collective::<B::InnerBackend>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
