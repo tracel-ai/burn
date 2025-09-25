@@ -6,7 +6,6 @@ use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use core::ops::Range;
 
 use crate::{argsort, sort, sort_with_indices};
 
@@ -468,19 +467,19 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice(tensor: FloatTensor<B>, ranges: &[Range<usize>]) -> FloatTensor<B>;
+    fn float_slice(tensor: FloatTensor<B>, slices: &[crate::Slice]) -> FloatTensor<B>;
 
-    /// Assign the selected elements corresponding for the given ranges to the given value.
+    /// Assign the selected elements corresponding to the given slices to the given value.
     ///
     /// # Arguments
     ///
@@ -493,7 +492,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The tensor with the selected elements assigned to the given value.
     fn float_slice_assign(
         tensor: FloatTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
@@ -1385,4 +1384,24 @@ pub trait FloatTensorOps<B: Backend> {
             _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
         }
     }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
+    -> FloatTensor<B>;
 }

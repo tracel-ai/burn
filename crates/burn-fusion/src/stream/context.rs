@@ -888,6 +888,13 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
                 shape: desc.shape.clone(),
             }),
+            BaseOperationIr::Unfold(desc) => BaseOperationIr::Unfold(UnfoldOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim: desc.dim,
+                size: desc.size,
+                step: desc.step,
+            }),
             BaseOperationIr::Flip(desc) => BaseOperationIr::Flip(FlipOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -895,12 +902,20 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|_info| burn_tensor::Slice::from(0..1))
+                    .collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|_range| burn_tensor::Slice::from(0..1))
+                    .collect(),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),

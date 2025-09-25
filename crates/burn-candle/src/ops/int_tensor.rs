@@ -9,7 +9,7 @@ use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign};
+use super::base::{expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -41,16 +41,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, indices: &[std::ops::Range<usize>]) -> IntTensor<Self> {
-        super::base::slice(tensor, indices)
+    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        indices: &[std::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        super::base::slice_assign(tensor, indices, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
@@ -382,6 +382,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         expand(tensor, shape)
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {

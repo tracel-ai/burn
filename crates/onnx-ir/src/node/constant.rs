@@ -33,31 +33,31 @@ pub fn constant_update_outputs(node: &mut Node) {
                 ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type(),
                     rank: tensor.shape.len(),
-                    static_shape: None,
+                    static_shape: Some(tensor.shape.clone()),
                 })
             }
             AttributeValue::Float32(_) => {
                 log::debug!("Constant Float32 scalar for {}", node.name);
                 ArgType::Scalar(ElementType::Float32)
             }
-            AttributeValue::Float32s(_) => {
+            AttributeValue::Float32s(values) => {
                 log::debug!("Constant Float32s tensor with rank 1 for {}", node.name);
                 ArgType::Tensor(TensorType {
                     elem_type: ElementType::Float32,
                     rank: 1,
-                    static_shape: None,
+                    static_shape: Some(vec![values.len()]),
                 })
             }
             AttributeValue::Int64(_) => {
                 log::debug!("Constant Int64 scalar for {}", node.name);
                 ArgType::Scalar(ElementType::Int64)
             }
-            AttributeValue::Int64s(_) => {
+            AttributeValue::Int64s(values) => {
                 log::debug!("Constant Int64s tensor with rank 1 for {}", node.name);
                 ArgType::Tensor(TensorType {
                     elem_type: ElementType::Int64,
                     rank: 1,
-                    static_shape: None,
+                    static_shape: Some(vec![values.len()]),
                 })
             }
             ty => panic!("Constant value of {ty:?} is not supported"),

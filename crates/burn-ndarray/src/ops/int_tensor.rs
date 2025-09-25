@@ -6,7 +6,6 @@ use burn_tensor::{IntDType, ops::IntTensorOps};
 use burn_tensor::{TensorMetadata, ops::FloatTensor};
 
 use burn_tensor::ElementConversion;
-use core::ops::Range;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
@@ -17,9 +16,8 @@ use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
 // Workspace crates
-use burn_tensor::{DType, Shape, TensorData, backend::Backend};
-
 use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
+use burn_tensor::{DType, Shape, TensorData, backend::Backend};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps<Self>
     for NdArray<E, I, Q>
@@ -47,8 +45,8 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
     }
 
-    fn int_slice(tensor: NdArrayTensor, ranges: &[Range<usize>]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, ranges))
+    fn int_slice(tensor: NdArrayTensor, slices: &[burn_tensor::Slice]) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
     }
 
     fn int_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
@@ -87,11 +85,11 @@ where
 
     fn int_slice_assign(
         tensor: NdArrayTensor,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: NdArrayTensor,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((tensor, value), |tensor, value| NdArrayOps::slice_assign(
-            tensor, ranges, value
+            tensor, slices, value
         ))
     }
 
@@ -444,5 +442,14 @@ where
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
         execute_with_int_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
     }
 }

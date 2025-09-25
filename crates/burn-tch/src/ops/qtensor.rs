@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use burn_tensor::{
     Shape, TensorData,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
@@ -74,7 +72,10 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(
+        _tensor: QuantizedTensor<Self>,
+        _slices: &[burn_tensor::Slice],
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

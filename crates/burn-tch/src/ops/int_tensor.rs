@@ -54,12 +54,16 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn int_slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
-        TchOps::slice(tensor, ranges)
+    fn int_slice(tensor: TchTensor, slices: &[burn_tensor::Slice]) -> TchTensor {
+        TchOps::slice_with_steps(tensor, slices)
     }
 
-    fn int_slice_assign(tensor: TchTensor, ranges: &[Range<usize>], value: TchTensor) -> TchTensor {
-        TchOps::slice_assign(tensor, ranges, value)
+    fn int_slice_assign(
+        tensor: TchTensor,
+        slices: &[burn_tensor::Slice],
+        value: TchTensor,
+    ) -> TchTensor {
+        TchOps::slice_assign(tensor, slices, value)
     }
 
     fn int_cat(tensors: Vec<TchTensor>, dim: usize) -> TchTensor {
@@ -498,5 +502,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         } else {
             TchTensor::new(tensor.tensor.to_kind(kind))
         }
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
     }
 }

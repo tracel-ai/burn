@@ -122,7 +122,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // Quantization normally triggers higher vectorization than anything else, no need to
             // compare to ref elem.
             Some(line_sizes) => line_sizes,
-            None => R::line_size_type(&ref_elem.0).collect::<Vec<u8>>(),
+            None => R::io_optimized_line_sizes_unchecked(&ref_elem.0).collect::<Vec<u8>>(),
         };
 
         runner.vectorization(
@@ -317,8 +317,10 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
     match scheme.store {
         QuantStore::Native => match scheme.value {
             QuantValue::Q8F | QuantValue::Q8S => {
-                let line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I8).into())
-                    .collect::<Vec<u8>>();
+                let line_sizes = R::io_optimized_line_sizes_unchecked(
+                    &ElemType::Int(cubecl::ir::IntKind::I8).into(),
+                )
+                .collect::<Vec<u8>>();
 
                 match &quants_line_sizes {
                     Some(sizes) => {
@@ -336,8 +338,10 @@ fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme
             }
         },
         QuantStore::U32 => {
-            let mut line_sizes = R::line_size_type(&ElemType::Int(cubecl::ir::IntKind::I32).into())
-                .collect::<Vec<u8>>();
+            let mut line_sizes = R::io_optimized_line_sizes_unchecked(
+                &ElemType::Int(cubecl::ir::IntKind::I32).into(),
+            )
+            .collect::<Vec<u8>>();
             for val in line_sizes.iter_mut() {
                 *val *= scheme.num_quants() as u8;
             }

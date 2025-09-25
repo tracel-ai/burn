@@ -1,3 +1,4 @@
+use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
     client::FusionClient,
@@ -6,14 +7,12 @@ use crate::{
     unary_int_ops,
 };
 use burn_ir::*;
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
-    Device, Distribution, Element, IntDType, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape},
 };
-use core::ops::Range;
 use std::marker::PhantomData;
-
-use super::NoOp;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -130,7 +129,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -149,19 +148,14 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
 
         let dtype = tensor.dtype;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
         out.client.register(
@@ -175,7 +169,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
@@ -204,7 +198,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: ranges.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };
@@ -2172,6 +2166,50 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::BaseInt(BaseOperationIr::Cast(desc.clone())),
             CastOps::<B>::new(desc, dtype),
+        );
+
+        out
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct UnfoldOps<B: FusionBackend> {
+            desc: UnfoldOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for UnfoldOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_unfold(input, self.desc.dim, self.desc.size, self.desc.step);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseInt(BaseOperationIr::Unfold(desc.clone())),
+            UnfoldOps::<B>::new(desc),
         );
 
         out

@@ -1,20 +1,22 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
-use core::ops::Range;
 
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
     InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
     PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
     ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr,
+    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps, binary_ops_shape,
 };
-use burn_tensor::{Device, Distribution, Element, IntDType, Shape, TensorData, TensorMetadata};
-
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use burn_tensor::{
+    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
+    calculate_slice_output_shape,
+};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -74,22 +76,17 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
 
@@ -100,7 +97,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
@@ -108,7 +105,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };
@@ -1413,6 +1410,30 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseInt(BaseOperationIr::Cast(desc)));
+
+        out
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        client.register(OperationIr::BaseInt(BaseOperationIr::Unfold(desc)));
 
         out
     }

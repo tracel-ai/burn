@@ -118,13 +118,13 @@ functionality.
 | [MelWeightMatrix][103]           | ❌             | ❌           |
 | [Min][104]                       | ✅             | ✅           |
 | [Mish][105]                      | ❌             | ❌           |
-| [Mod][106]                       | ❌             | ❌           |
+| [Mod][106]                       | ✅             | ✅           |
 | [Mul][107]                       | ✅             | ✅           |
 | [Multinomial][108]               | ❌             | ❌           |
 | [Neg][109]                       | ✅             | ✅           |
 | [NegativeLogLikelihoodLoss][110] | ❌             | ❌           |
 | [NonMaxSuppression][112]         | ❌             | ❌           |
-| [NonZero][113]                   | ❌             | ✅           |
+| [NonZero][113]                   | ✅             | ✅           |
 | [Not][114]                       | ✅             | ✅           |
 | [OneHot][115]                    | ✅             | ✅           |
 | [Optional][116]                  | ❌             | ❌           |

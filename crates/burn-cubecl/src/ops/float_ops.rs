@@ -1,4 +1,4 @@
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
@@ -259,17 +259,36 @@ where
         )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::slice::<R, E>(tensor, ranges)
-        )
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .collect();
+
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice::<R, E>(tensor, &simple_ranges)
+            )
+        } else {
+            // Use slice with steps kernel
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice_with_steps::<R, E>(tensor, slices)
+            )
+        }
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
@@ -682,5 +701,14 @@ where
             (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
             _ => unimplemented!("Unsupported floating point type cast"),
         }
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

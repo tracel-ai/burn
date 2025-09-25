@@ -1,9 +1,8 @@
-use crate::{BasicOps, Numeric, Shape, Tensor, backend::Backend, cast::ToElement};
+use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use core::ops::Range;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -710,59 +709,71 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice<const D1: usize, const D2: usize>(
-        shape: &Shape,
-        ranges: &[Range<usize>; D2],
-    ) -> Self {
+    pub(crate) fn slice<const D1: usize, const D2: usize>(shape: &Shape, slices: &[Slice]) -> Self {
         let mut check = Self::Ok;
         let n_dims_tensor = D1;
-        let n_dims_ranges = D2;
+        let n_dims_slices = slices.len();
 
-        if n_dims_tensor < n_dims_ranges {
+        if n_dims_tensor < n_dims_slices {
             check = check.register(
                 "Slice",
                 TensorError::new(
-                    "The provided ranges array has a higher number of dimensions than the current \
+                    "The provided slices array has a higher number of dimensions than the current \
                      tensor.",
                 )
                 .details(format!(
-                    "The ranges array must be smaller or equal to the tensor number of \
-                     dimensions. Tensor number of dimensions: {n_dims_tensor}, ranges array \
-                     length {n_dims_ranges}."
+                    "The slices array must be smaller or equal to the tensor number of \
+                     dimensions. Tensor number of dimensions: {n_dims_tensor}, slices array \
+                     length {n_dims_slices}."
                 )),
             );
         }
 
-        for i in 0..usize::min(D1, D2) {
+        for (i, slice) in slices.iter().enumerate().take(D1) {
             let d_tensor = shape.dims[i];
-            let range = ranges.get(i).unwrap();
 
-            if range.end > d_tensor {
+            // Check the raw end value before conversion
+            if let Some(end) = slice.end
+                && end > 0
+                && end as usize > d_tensor
+            {
                 check = check.register(
-                    "Slice",
-                    TensorError::new(
-                        "The provided ranges array has a range that exceeds the current tensor \
-                         size.",
-                    )
-                    .details(format!(
-                        "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                         Tensor shape {:?}, provided ranges {:?}.",
-                        range.start, range.end, d_tensor, i, shape.dims, ranges,
-                    )),
-                );
+                        "Slice",
+                        TensorError::new(
+                            "The provided slice has a range that exceeds the current tensor \
+                             size.",
+                        )
+                        .details(format!(
+                            "The slice end index {} exceeds the size of the tensor ({}) at dimension {}. \
+                             Tensor shape {:?}.",
+                            end, d_tensor, i, shape.dims,
+                        )),
+                    );
             }
+
+            let range = slice.to_range(d_tensor);
 
             if range.start >= range.end {
                 check = check.register(
                     "Slice",
                     TensorError::new(
-                        "The provided range array has a range where the start index is bigger or \
+                        "The provided slice has a range where the start index is bigger or \
                          equal to its end.",
                     )
                     .details(format!(
                         "The range at dimension '{}' starts at '{}' and is greater or equal to \
-                         its end '{}'. Tensor shape {:?}, provided ranges {:?}.",
-                        i, range.start, range.end, shape.dims, ranges,
+                         its end '{}'. Tensor shape {:?}.",
+                        i, range.start, range.end, shape.dims,
+                    )),
+                );
+            }
+
+            if slice.step() == 0 {
+                check = check.register(
+                    "Slice",
+                    TensorError::new("The provided slice has a step of 0.").details(format!(
+                        "The slice at dimension '{}' has a step of 0. Step must be non-zero.",
+                        i,
                     )),
                 );
             }
@@ -774,7 +785,7 @@ impl TensorCheck {
     pub(crate) fn slice_assign<const D1: usize, const D2: usize>(
         shape: &Shape,
         shape_value: &Shape,
-        ranges: &[Range<usize>; D2],
+        slices: &[crate::Slice],
     ) -> Self {
         let mut check = Self::Ok;
 
@@ -782,70 +793,72 @@ impl TensorCheck {
             check = check.register(
                 "Slice Assign",
                 TensorError::new(
-                    "The provided ranges array has a higher number of dimensions than the current \
+                    "The provided slices array has a higher number of dimensions than the current \
                      tensor.",
                 )
                 .details(format!(
-                    "The ranges array must be smaller or equal to the tensor number of \
-                     dimensions. Tensor number of dimensions: {D1}, ranges array length {D2}."
+                    "The slices array must be smaller or equal to the tensor number of \
+                     dimensions. Tensor number of dimensions: {D1}, slices array length {D2}."
                 )),
             );
         }
 
-        for i in 0..usize::min(D1, D2) {
+        for (i, slice) in slices.iter().enumerate().take(usize::min(D1, D2)) {
             let d_tensor = shape.dims[i];
             let d_tensor_value = shape_value.dims[i];
-            let range = ranges.get(i).unwrap();
+            let range = slice.to_range(d_tensor);
 
             if range.end > d_tensor {
                 check = check.register(
                     "Range Assign",
                     TensorError::new(
-                        "The provided ranges array has a range that exceeds the current tensor \
+                        "The provided slice has a range that exceeds the current tensor \
                          size.",
                     )
                     .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                         Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
-                        range.start, range.end, d_tensor, i, shape.dims, shape_value.dims, ranges,
+                         Current tensor shape {:?}, value tensor shape {:?}.",
+                        range.start, range.end, d_tensor, i, shape.dims, shape_value.dims,
                     )),
                 );
             }
 
-            if range.end - range.start != d_tensor_value {
+            // Calculate the number of elements selected with the given step
+            let num_elements = slice.output_size(d_tensor);
+
+            if num_elements != d_tensor_value {
                 check = check.register(
                     "Slice Assign",
                     TensorError::new(
                         "The value tensor must match the amount of elements selected with the \
-                         ranges array",
+                         slices array",
                     )
                     .details(format!(
-                        "The range ({}..{}) doesn't match the number of elements of the value \
-                         tensor ({}) at dimension {}. Current tensor shape {:?}, value tensor \
-                         shape {:?}, provided ranges {:?}.",
+                        "The slice with range ({}..{}) and step {} selects {} elements but the value \
+                         tensor has {} elements at dimension {}. Current tensor shape {:?}, value tensor \
+                         shape {:?}.",
                         range.start,
                         range.end,
+                        slice.step,
+                        num_elements,
                         d_tensor_value,
                         i,
                         shape.dims,
                         shape_value.dims,
-                        ranges,
                     )),
                 );
             }
 
-            if range.start >= range.end {
+            if range.start >= range.end && slice.step > 0 {
                 check = check.register(
                     "Slice Assign",
                     TensorError::new(
-                        "The provided ranges array has a range where the start index is bigger or \
-                         equal to its end.",
+                        "The provided slice has a range where the start index is bigger or \
+                         equal to its end with positive step.",
                     )
                     .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
-                         its end '{}'. Current tensor shape {:?}, value tensor shape {:?}, \
-                         provided ranges {:?}.",
-                        i, range.start, range.end, shape.dims, shape_value.dims, ranges,
+                        "The range start ({}) must be smaller than its end ({}) for positive step ({}) at dimension {}",
+                        range.start, range.end, slice.step, i
                     )),
                 );
             }
@@ -1274,6 +1287,29 @@ impl TensorCheck {
         check
     }
 
+    /// Checks if unfold operation is possible for the given shapes.
+    pub fn unfold<const D1: usize, const D2: usize>(
+        ops: &str,
+        _shape: &Shape,
+        _dim: usize,
+        _size: usize,
+        _step: usize,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if D2 != D1 + 1 {
+            check = check.register(
+                ops,
+                TensorError::new("The unfold rank is incompatible with the input tensor rank.")
+                    .details(format!(
+                        "The output rank '{D2}' != the input rank + 1 '{D1}'.",
+                    )),
+            );
+        }
+
+        check
+    }
+
     /// Checks if input is compatible with convolution weights.
     pub fn conv<const D1: usize, const D2: usize>(
         ops: &str,
@@ -1404,19 +1440,15 @@ mod tests {
     #[test]
     #[should_panic]
     fn index_range_exceed_dimension() {
-        check!(TensorCheck::slice::<3, 3>(
-            &Shape::new([3, 5, 7]),
-            &[0..2, 0..4, 1..8]
-        ));
+        let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
+        check!(TensorCheck::slice::<3, 3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
     #[should_panic]
     fn index_range_exceed_number_of_dimensions() {
-        check!(TensorCheck::slice::<2, 3>(
-            &Shape::new([3, 5]),
-            &[0..1, 0..1, 0..1]
-        ));
+        let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
+        check!(TensorCheck::slice::<2, 3>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]

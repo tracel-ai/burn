@@ -23,10 +23,10 @@ pub(crate) fn apply_padding_4d<E: Element>(
     x_new = NdArrayOps::slice_assign(
         x_new,
         &[
-            0..batch_size,
-            0..input_channels,
-            padding_height..height + padding_height,
-            padding_width..width + padding_width,
+            burn_tensor::Slice::from(0..batch_size),
+            burn_tensor::Slice::from(0..input_channels),
+            burn_tensor::Slice::from(padding_height..height + padding_height),
+            burn_tensor::Slice::from(padding_width..width + padding_width),
         ],
         x,
     );
@@ -60,11 +60,11 @@ pub(crate) fn apply_padding_5d<E: Element>(
     x_new = NdArrayOps::slice_assign(
         x_new,
         &[
-            0..batch_size,
-            0..input_channels,
-            padding_depth..depth + padding_depth,
-            padding_height..height + padding_height,
-            padding_width..width + padding_width,
+            burn_tensor::Slice::from(0..batch_size),
+            burn_tensor::Slice::from(0..input_channels),
+            burn_tensor::Slice::from(padding_depth..depth + padding_depth),
+            burn_tensor::Slice::from(padding_height..height + padding_height),
+            burn_tensor::Slice::from(padding_width..width + padding_width),
         ],
         x,
     );

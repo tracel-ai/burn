@@ -1,5 +1,4 @@
 use core::hash::Hash;
-use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use alloc::borrow::ToOwned;
@@ -7,7 +6,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
 use burn_tensor::{
-    DType, Distribution,
+    DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
@@ -237,6 +236,10 @@ pub enum BaseOperationIr {
     /// Int => [expand](burn_tensor::ops::IntTensorOps::int_expand).
     /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
     Expand(ExpandOpIr),
+
+    /// Unfold windows along an axis.
+    ///
+    Unfold(UnfoldOpIr),
 
     /// Operation corresponding to:
     ///
@@ -635,6 +638,22 @@ pub struct ExpandOpIr {
     pub shape: Vec<usize>,
 }
 
+/// Unfold operation intermediate representation.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct UnfoldOpIr {
+    /// Input tensor intermediate representation.
+    pub input: TensorIr,
+    /// Output tensor intermediate representation.
+    pub out: TensorIr,
+
+    /// The selected dim.
+    pub dim: usize,
+    /// The window size.
+    pub size: usize,
+    /// The window step along dim.
+    pub step: usize,
+}
+
 /// Flip operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct FlipOpIr {
@@ -737,7 +756,7 @@ pub struct SelectAssignOpIr {
 #[allow(missing_docs)]
 pub struct SliceOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<Slice>,
     pub out: TensorIr,
 }
 
@@ -745,7 +764,7 @@ pub struct SliceOpIr {
 #[allow(missing_docs)]
 pub struct SliceAssignOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<burn_tensor::Slice>,
     pub value: TensorIr,
     pub out: TensorIr,
 }
@@ -1473,6 +1492,9 @@ impl BaseOperationIr {
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
+            BaseOperationIr::Unfold(repr) => {
+                vec![&repr.input, &repr.out]
+            }
         }
     }
 
@@ -1520,6 +1542,9 @@ impl BaseOperationIr {
                 }
             }
             BaseOperationIr::Cast(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Unfold(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Empty(_) => {}

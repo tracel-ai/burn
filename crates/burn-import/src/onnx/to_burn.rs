@@ -61,6 +61,7 @@ use crate::{
             matmul_integer::MatMulIntegerNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            modulo::ModNode,
             one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
@@ -127,6 +128,8 @@ use onnx_ir::{
         log_softmax::log_softmax_config,
         max_pool1d::max_pool1d_config,
         max_pool2d::max_pool2d_config,
+        modulo::mod_config,
+        nonzero::nonzero_config,
         one_hot::one_hot_config,
         pad::pad_config,
         range::range_config,
@@ -152,6 +155,7 @@ use onnx_ir::node::bitshift::bitshift_config;
 
 pub use crate::burn::graph::RecordType;
 use crate::burn::node::mean::MeanNode;
+use crate::burn::node::nonzero::NonZeroNode;
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
@@ -366,6 +370,7 @@ impl ParsedOnnxGraph {
                 NodeType::Sub => graph.register(Self::sub_conversion(node)),
                 NodeType::Mul => graph.register(Self::mul_conversion(node)),
                 NodeType::Div => graph.register(Self::div_conversion(node)),
+                NodeType::Mod => graph.register(Self::mod_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
@@ -391,6 +396,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMulInteger => graph.register(Self::matmul_integer_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::NonZero => graph.register(Self::nonzero_conversion(node)),
                 NodeType::And => graph.register(Self::and_conversion(node)),
                 NodeType::Or => graph.register(Self::or_conversion(node)),
                 NodeType::Xor => graph.register(Self::xor_conversion(node)),
@@ -833,6 +839,15 @@ impl ParsedOnnxGraph {
         BinaryNode::div(lhs, rhs, output)
     }
 
+    fn mod_conversion(node: Node) -> ModNode {
+        let lhs = Type::from(node.inputs.first().unwrap());
+        let rhs = Type::from(node.inputs.get(1).unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = mod_config(&node);
+
+        ModNode::new(lhs, rhs, output, config.fmod)
+    }
+
     fn matmul_conversion(node: Node) -> MatmulNode {
         let lhs = TensorType::from(node.inputs.first().unwrap());
         let rhs = TensorType::from(node.inputs.get(1).unwrap());
@@ -902,9 +917,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(a_zp_ir)
             && let Some(k) = k_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length K)
             assert!(
-                zp_len == k,
-                "MatMulInteger: a_zero_point length {} must equal K {} (cols of A)",
+                zp_len == 1 || zp_len == k,
+                "MatMulInteger: a_zero_point length {} must be 1 (scalar) or K {} (cols of A)",
                 zp_len,
                 k
             );
@@ -916,9 +932,10 @@ impl ParsedOnnxGraph {
             && let Some(zp_len) = vec_len_if_1d_ir(b_zp_ir)
             && let Some(n) = n_dim
         {
+            // Zero point can be scalar (length 1, broadcast) or per-channel (length N)
             assert!(
-                zp_len == n,
-                "MatMulInteger: b_zero_point length {} must equal N {} (rows of B)",
+                zp_len == 1 || zp_len == n,
+                "MatMulInteger: b_zero_point length {} must be 1 (scalar) or N {} (cols of B)",
                 zp_len,
                 n
             );
@@ -1343,13 +1360,6 @@ impl ParsedOnnxGraph {
             SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
         };
 
-        // Validate steps if present
-        if let Some(SliceInput::Static(steps)) = &config.steps
-            && steps.iter().any(|&x| x != 1)
-        {
-            panic!("Slice: steps other than 1 are not supported");
-        }
-
         let mut slice_node = SliceNode::new(input, output, starts_param, ends_param);
 
         // Convert axes parameter if present
@@ -1359,6 +1369,15 @@ impl ParsedOnnxGraph {
                 SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
             };
             slice_node = slice_node.with_axes(axes_param);
+        }
+
+        // Convert steps parameter if present
+        if let Some(steps) = config.steps {
+            let steps_param = match steps {
+                SliceInput::Static(values) => SliceParam::Static(values),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+            };
+            slice_node = slice_node.with_steps(steps_param);
         }
 
         slice_node
@@ -1808,6 +1827,13 @@ impl ParsedOnnxGraph {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         UnaryNode::not(input, output)
+    }
+
+    fn nonzero_conversion(node: Node) -> NonZeroNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = nonzero_config(&node);
+        NonZeroNode::new(input, output, config)
     }
 
     fn and_conversion(node: Node) -> BinaryNode {

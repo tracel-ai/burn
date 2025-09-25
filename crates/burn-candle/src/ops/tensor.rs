@@ -12,7 +12,7 @@ use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign};
+use super::base::{expand, permute, sign, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
@@ -203,19 +203,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_slice(
-        tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
-    ) -> FloatTensor<Self> {
-        super::base::slice(tensor, ranges)
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        super::base::slice_assign(tensor, ranges, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn float_mask_where(
@@ -461,6 +458,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         expand(tensor, shape)
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
