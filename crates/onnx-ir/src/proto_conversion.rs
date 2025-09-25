@@ -40,6 +40,7 @@ impl TryFrom<TensorProto> for TensorData {
                 ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
+                ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
                 ElementType::Uint8 => Data::Uint8s(tensor.raw_data), // keep bytes
                 ElementType::Int8 => {
                     Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
