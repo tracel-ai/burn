@@ -146,7 +146,6 @@ mod tests {
 
         let out = linalg::outer(u, v).into_data();
 
-        
         let values: Vec<f32> = out
             .as_slice::<f32>()
             .expect("outer nan_propagation: as_slice failed")
@@ -154,7 +153,7 @@ mod tests {
 
         assert!(values[0].is_nan()); // first row, col0
         assert!(values[1].is_nan()); // first row, col1
-        assert_eq!(values[2], 6.0);  // second row, col0
-        assert_eq!(values[3], 8.0);  // second row, col1
+        assert_eq!(values[2], 6.0); // second row, col0
+        assert_eq!(values[3], 8.0); // second row, col1
     }
 }
