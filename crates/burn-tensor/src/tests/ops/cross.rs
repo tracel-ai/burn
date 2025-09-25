@@ -1,8 +1,8 @@
 #[burn_tensor_testgen::testgen(cross)]
 mod tests {
     use super::*;
+    use burn_tensor::might_panic;
     use burn_tensor::{Tensor, TensorData, backend::Backend};
-    use std::panic::{AssertUnwindSafe, catch_unwind};
 
     #[test]
     fn test_cross_3d_last_dim() {
@@ -17,38 +17,14 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "std")]
+    #[might_panic(reason = "Cross product on non-last dimension not yet implemented")]
     #[test]
     fn test_cross_3d_dim0() {
         let tensor_1 = TestTensor::<2>::from([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]);
         let tensor_2 = TestTensor::from([[0.0, 1.0], [0.0, 0.0], [1.0, 0.0]]);
 
-        // Some backends (for example CubeCL) may not support cross on non-last
-        // dimensions and will intentionally panic with a message like
-        // "Cross product on non-last dimension not yet implemented". In that
-        // case we treat the panic as a skipped test for that backend.
-        let res = catch_unwind(AssertUnwindSafe(|| tensor_1.cross(tensor_2, 0)));
-        let output = match res {
-            Ok(t) => t,
-            Err(err) => {
-                if let Some(s) = err.downcast_ref::<&str>() {
-                    if s.contains("Cross product on non-last dimension") {
-                        eprintln!(
-                            "Skipping cross dim0 test: backend does not support non-last-dim cross"
-                        );
-                        return;
-                    }
-                }
-                if let Some(s) = err.downcast_ref::<String>() {
-                    if s.contains("Cross product on non-last dimension") {
-                        eprintln!(
-                            "Skipping cross dim0 test: backend does not support non-last-dim cross"
-                        );
-                        return;
-                    }
-                }
-                std::panic::resume_unwind(err);
-            }
-        };
+        let output = tensor_1.cross(tensor_2, 0);
 
         output.into_data().assert_eq(
             &TensorData::from([[0.0, 0.0], [-1.0, 0.0], [0.0, -1.0]]),
@@ -80,5 +56,34 @@ mod tests {
             &TensorData::from([[[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]]),
             false,
         );
+    }
+
+    // Helper to compute expected cross product for 2-D (N × 3) tensors.
+    fn manual_cross(a: &[[f32; 3]], b: &[[f32; 3]]) -> Vec<[f32; 3]> {
+        a.iter()
+            .zip(b.iter())
+            .map(|(x, y)| {
+                [
+                    x[1] * y[2] - x[2] * y[1],
+                    x[2] * y[0] - x[0] * y[2],
+                    x[0] * y[1] - x[1] * y[0],
+                ]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn forward_matches_manual_cross() {
+        let a_raw = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+        let b_raw = [[7.0, 8.0, 9.0], [1.0, 0.0, -1.0]];
+        let a = TestTensor::<2>::from(a_raw);
+        let b = TestTensor::<2>::from(b_raw);
+
+        let out = a.cross(b.clone(), 1);
+        let expected_vec = manual_cross(&a_raw, &b_raw);
+        let expected: [[f32; 3]; 2] = [expected_vec[0], expected_vec[1]];
+
+        out.into_data()
+            .assert_eq(&TensorData::from(expected), false);
     }
 }

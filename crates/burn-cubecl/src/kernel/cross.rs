@@ -13,17 +13,19 @@ fn cross_kernel<E: Float>(
     lhs: &LinearView<Line<E>>,
     rhs: &LinearView<Line<E>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
-    #[comptime] num_vectors: u32,
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;
+    let base_pos = vector_idx * 3;
 
-    if vector_idx >= num_vectors {
+    // Use output.is_in_bounds to check if the mapped index is valid
+    if !output.is_in_bounds(base_pos) {
         terminate!();
     }
 
-    // Calculate base position - each vector occupies 3 contiguous elements
-    let base_pos = vector_idx * 3;
+    // Calculate base position - each vector occupies 3 contiguous elements in the linear view
+    // Note: The underlying tensor storage may not be contiguous, but LinearView ensures correct mapping for cross product computation.
+    // let base_pos = vector_idx * 3;
 
     // Extract vectors
     let a0 = lhs[base_pos];
@@ -87,7 +89,6 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
             linear_view_ref(&lhs, &output, &line_size),
             linear_view_ref(&rhs, &output, &line_size),
             linear_view(&output, &line_size),
-            num_vectors as u32,
         );
     }
 

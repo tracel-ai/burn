@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_cross)]
 mod tests {
     use super::*;
+    use burn_tensor::might_panic;
     use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
 
     // Helper to compute expected cross product for 2-D (N × 3) tensors.
@@ -15,24 +16,6 @@ mod tests {
                 ]
             })
             .collect()
-    }
-
-    #[test]
-    fn forward_matches_manual_cross() {
-        let device = Default::default();
-        let a_raw = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
-        let b_raw = [[7.0, 8.0, 9.0], [1.0, 0.0, -1.0]];
-        let a = TestTensor::<2>::from_data(TensorData::from(a_raw), &device);
-        let b = TestTensor::<2>::from_data(TensorData::from(b_raw), &device);
-
-        let out = a.cross(b.clone(), 1);
-        let expected_vec = manual_cross(&a_raw, &b_raw);
-        let expected: [[f32; 3]; 2] = [expected_vec[0], expected_vec[1]];
-
-        out.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
-            &TensorData::from(expected),
-            Tolerance::default(),
-        );
     }
 
     #[test]
@@ -93,9 +76,11 @@ mod tests {
         b_grad.assert_approx_eq::<FloatElem<TestBackend>>(&expected_b, Tolerance::default());
     }
 
+    #[cfg(feature = "std")]
+    #[might_panic(reason = "Cross product on non-last dimension not yet implemented")]
     #[test]
     fn different_dim() {
-        // Also check when the cross is along a different dimension (e.g. dim = 0).
+        // Also check when the cross is along a different dimension (e.g. dim 0).
         let device = Default::default();
         let a_raw = [[1.0, 4.0, 7.0], [2.0, 5.0, 8.0], [3.0, 6.0, 9.0]];
         let b_raw = [[9.0, 6.0, 3.0], [8.0, 5.0, 2.0], [7.0, 4.0, 1.0]];
@@ -106,33 +91,7 @@ mod tests {
         // cross on non-last dimensions and will intentionally panic with a
         // message like "Cross product on non-last dimension not yet implemented".
         // In that case we treat the panic as a skipped test for that backend.
-        use std::panic::{AssertUnwindSafe, catch_unwind};
-
-        let res = catch_unwind(AssertUnwindSafe(|| a.cross(b.clone(), 0)));
-        let out = match res {
-            Ok(t) => t,
-            Err(err) => {
-                // Inspect panic payload for the expected not-implemented message and skip
-                if let Some(s) = err.downcast_ref::<&str>() {
-                    if s.contains("Cross product on non-last dimension") {
-                        eprintln!(
-                            "Skipping different_dim cross test: backend does not support non-last-dim cross"
-                        );
-                        return;
-                    }
-                }
-                if let Some(s) = err.downcast_ref::<String>() {
-                    if s.contains("Cross product on non-last dimension") {
-                        eprintln!(
-                            "Skipping different_dim cross test: backend does not support non-last-dim cross"
-                        );
-                        return;
-                    }
-                }
-                // Unknown panic, re-raise
-                std::panic::resume_unwind(err);
-            }
-        };
+        let out = a.cross(b.clone(), 0);
 
         // Manually compute cross of each column vector using raw arrays
         let expected = [

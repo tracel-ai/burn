@@ -2027,16 +2027,19 @@ where
         Tensor::new(K::matmul(self.primitive, other.primitive))
     }
 
-    /// Computes the cross product of two tensors along a given dimension.
+    /// Computes the cross product of `self` and another tensor along a given dimension.
+    ///
+    /// Both `self` and `other` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
     ///
     /// # Arguments
     ///
-    /// * `other` - The other tensor.
-    /// * `dim` - The dimension to compute the cross product along.
+    /// * `other` - The other tensor to take the cross product with.
+    /// * `dim`   - The dimension along which to compute the cross product.
     ///
     /// # Returns
     ///
-    /// The cross product of the two tensors.
+    /// A tensor containing the cross product of `self` and `other` along `dim`.
     pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D, K>, dim: Dim) -> Tensor<B, D, K> {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::cross(&self, &other, dim));
@@ -3317,15 +3320,18 @@ where
 
     /// Computes the cross product of two tensors along a given dimension.
     ///
+    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
+    ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    /// * `dim` - The dimension to compute the cross product along.
+    /// * `lhs` - The left-hand-side tensor.
+    /// * `rhs` - The right-hand-side tensor.
+    /// * `dim` - The dimension along which to compute the cross product.
     ///
     /// # Returns
     ///
-    /// The cross product of the two tensors.
+    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
     fn cross(lhs: Self::Primitive, rhs: Self::Primitive, dim: usize) -> Self::Primitive;
 }
 
@@ -3586,15 +3592,18 @@ impl<B: Backend> Numeric<B> for Int {
 
     /// Computes the cross product of two tensors along a given dimension.
     ///
+    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
+    ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    /// * `dim` - The dimension to compute the cross product along.
+    /// * `lhs` - The left-hand-side tensor.
+    /// * `rhs` - The right-hand-side tensor.
+    /// * `dim` - The dimension along which to compute the cross product.
     ///
     /// # Returns
     ///
-    /// The cross product of the two tensors.
+    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
     fn cross(_lhs: Self::Primitive, _rhs: Self::Primitive, _dim: usize) -> Self::Primitive {
         // Cross product is not defined for integers
         unimplemented!("Cross product not supported for integer tensors")
@@ -4017,15 +4026,18 @@ impl<B: Backend> Numeric<B> for Float {
 
     /// Computes the cross product of two tensors along a given dimension.
     ///
+    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
+    ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    /// * `dim` - The dimension to compute the cross product along.
+    /// * `lhs` - The left-hand-side tensor.
+    /// * `rhs` - The right-hand-side tensor.
+    /// * `dim` - The dimension along which to compute the cross product.
     ///
     /// # Returns
     ///
-    /// The cross product of the two tensors.
+    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
     fn cross(lhs: Self::Primitive, rhs: Self::Primitive, dim: usize) -> Self::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {

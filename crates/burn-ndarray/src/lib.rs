@@ -35,7 +35,6 @@ mod tests {
     use alloc::format;
     use alloc::vec;
 
-    #[cfg(feature = "std")]
     burn_tensor::testgen_all!();
 
     #[cfg(feature = "std")]
