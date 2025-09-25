@@ -167,6 +167,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_diag!();
         burn_tensor::testgen_cosine_similarity!();
         burn_tensor::testgen_trace!();
+        burn_tensor::testgen_outer!();
+        burn_tensor::testgen_outer_batch!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
