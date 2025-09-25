@@ -37,7 +37,8 @@ fn run_with<B: Backend>(devices: Vec<B::Device>) {
     ] {
         println!("[Gradient Update - {strategy:?}] starting ...");
         let start = Instant::now();
-        task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 32, strategy);
+        // task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 32, strategy);
+        task_grad_all_reduce::<B>(devices.clone(), 32, strategy);
         println!(
             "[Gradient Update - {strategy:?}] took {:?}",
             start.elapsed()
@@ -168,24 +169,21 @@ fn task_all_reduce<B: Backend>(
     }
 }
 
-fn task_grad_all_reduce<B: AutodiffBackend>(
+fn task_grad_all_reduce<B: Backend>(
+// fn task_grad_all_reduce<B: AutodiffBackend>(
     devices: Vec<B::Device>,
     num_iterations: usize,
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
     let seq_length = 256;
-    let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
-            .with_norm_first(true)
-            .with_quiet_softmax(true),
-        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
-    );
+    let batch_size = 32;
+    let config = TransformerEncoderConfig::new(256, 1024, 8, 4);
 
     let dataset = text_classification::AgNewsDataset::train();
     let tokenizer = Arc::new(text_classification::data::BertCasedTokenizer::default());
     let model_config = text_classification::model::TextClassificationModelConfig::new(
-        config.transformer,
+        config,
         AgNewsDataset::num_classes(),
         tokenizer.vocab_size(),
         seq_length,
@@ -211,28 +209,28 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     .with_local_all_reduce_strategy(strategy);
                 let batcher = TextClassificationBatcher::new(tokenizer, seq_length);
                 let dataloader_train = DataLoaderBuilder::new(batcher.clone())
-                    .batch_size(config.batch_size)
+                    .batch_size(32)
                     .set_device(device.clone())
                     .build(dataset);
 
                 // println!("[{id}] Register collective operation {config_col:?}");
                 // collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
-                let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
+                // let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
 
                 for (i, batch) in dataloader_train.iter().enumerate() {
                     let output = model.forward(batch);
                     let loss: Tensor<B, 1> = output.loss.clone();
 
-                    let grads = loss.backward();
+                    // let grads = loss.backward();
                     // let stat = loss.into_scalar().elem::<f32>();
 
-                    let grads = GradientsParams::from_grads(grads, &model);
+                    // let grads = GradientsParams::from_grads(grads, &model);
                     // let grads = grads
                     //     .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
                     //     .unwrap();
 
-                    model = optim.step(1.0e-5, model, grads);
+                    // model = optim.step(1.0e-5, model, grads);
 
                     if id == PeerId::from(0) {
                         println!("Iter {i}");
