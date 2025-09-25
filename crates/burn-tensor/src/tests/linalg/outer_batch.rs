@@ -23,18 +23,17 @@ mod tests {
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    // (2) Shape check only
+    // (2) Shape check
     #[test]
     fn test_outer_batch_shapes() {
         let device = Default::default();
         let x = TestTensor::<2>::zeros([3, 4], &device); // (batch=3, m=4)
         let y = TestTensor::<2>::zeros([3, 5], &device); // (batch=3, n=5)
-
         let out = linalg::outer_batch(x, y);
         assert_eq!(out.shape().dims(), [3, 4, 5]);
     }
 
-    // (3) Zero cases (left & right)
+    // (3) Zero cases
     #[test]
     fn test_outer_batch_zero_left() {
         let device = Default::default();
@@ -43,7 +42,6 @@ mod tests {
 
         let out = linalg::outer_batch(x, y).into_data();
         let expected = TestTensor::<3>::zeros([2, 3, 2], &device).into_data();
-
         out.assert_eq(&expected, true);
     }
 
@@ -55,7 +53,6 @@ mod tests {
 
         let out = linalg::outer_batch(x, y).into_data();
         let expected = TestTensor::<3>::zeros([2, 3, 4], &device).into_data();
-
         out.assert_eq(&expected, true);
     }
 
@@ -73,36 +70,47 @@ mod tests {
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    // (5) Equivalence with per-sample outer
+    // (5) Equivalence with per-sample outer (no squeeze_dim, no dims[] indexing)
     #[test]
     fn test_outer_batch_equivalence_to_per_sample_outer() {
         // batch=2, m=2, n=3
         let x = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
         let y = TestTensor::<2>::from([[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]);
 
-        let out_batched = linalg::outer_batch(x.clone(), y.clone());
+        let batched = linalg::outer_batch(x.clone(), y.clone());
 
         for b in 0..2 {
             let idx = TestTensorInt::<1>::from([b as i32]);
 
-            // make them 1-D
-            let xb = x.clone().select(0, idx.clone()).squeeze_dim(0);
-            let yb = y.clone().select(0, idx).squeeze_dim(0);
+            // x.select(0, idx) and y.select(0, idx) have shape (1, m) / (1, n) → make them 1D
+            let xb2d = x.clone().select(0, idx.clone()); // (1, m)
+            let yb2d = y.clone().select(0, idx); // (1, n)
 
-            let per = linalg::outer(xb, yb).into_data();
+            // Pick m and n with a concrete array type to keep the compiler happy.
+            let dims_x: [usize; 2] = xb2d.shape().dims();
+            let dims_y: [usize; 2] = yb2d.shape().dims();
+            let (m, n) = (dims_x[1], dims_y[1]);
 
-            let idx_b = TestTensorInt::<1>::from([b as i32]);
-            let bat = out_batched
+            let per = linalg::outer(xb2d.reshape([m]), yb2d.reshape([n])); // (m, n)
+
+            // Batched slice has shape (1, m, n). Compare by flattening both.
+            let bat3d = batched
                 .clone()
-                .select(0, idx_b)
-                .squeeze_dim(0)
-                .into_data();
+                .select(0, TestTensorInt::<1>::from([b as i32]));
 
-            bat.assert_approx_eq::<FT>(&per, Tolerance::default());
+            // borrow the shape first, then move into reshape
+            let per_len = per.shape().num_elements();
+            let per_flat = per.reshape([per_len]).into_data();
+
+            let bat_len = bat3d.shape().num_elements();
+            let bat_flat = bat3d.reshape([bat_len]).into_data();
+
+            // compare
+            bat_flat.assert_approx_eq::<FT>(&per_flat, Tolerance::default());
         }
     }
 
-    // (6) NaN propagation within batches
+    // (6) NaN propagation (no Vec; slice-only for no_std friendliness)
     #[test]
     fn test_outer_batch_nan_propagation() {
         let x = TestTensor::<2>::from([
@@ -115,10 +123,7 @@ mod tests {
         ]);
         let out = linalg::outer_batch(x, y).into_data();
 
-        // Use slice directly (no Vec) for no_std friendly tests
-        let s: &[f32] = out
-            .as_slice::<f32>()
-            .expect("outer_batch nan_propagation: as_slice failed");
+        let s: &[f32] = out.as_slice::<f32>().expect("outer_batch as_slice failed");
 
         // batch 0 rows: [NaN, NaN], [10, 12]
         assert!(s[0].is_nan() && s[1].is_nan());
@@ -130,5 +135,25 @@ mod tests {
         assert_eq!(s[5], 24.0);
         assert_eq!(s[6], 28.0);
         assert_eq!(s[7], 32.0);
+    }
+
+    // (7) Mismatched batch size should panic
+    #[test]
+    #[should_panic]
+    fn test_outer_batch_mismatched_batches_panics() {
+        let device = Default::default();
+        let x = TestTensor::<2>::zeros([2, 3], &device); // batch=2
+        let y = TestTensor::<2>::zeros([3, 4], &device); // batch=3
+        let _ = linalg::outer_batch(x, y);
+    }
+
+    // (8) Mismatched batch sizes should panic at runtime.
+    #[test]
+    #[should_panic]
+    fn test_outer_batch_mismatched_batch_panics() {
+        let device = Default::default();
+        let x = TestTensor::<2>::zeros([2, 3], &device); // B=2
+        let y = TestTensor::<2>::zeros([3, 4], &device); // B=3 (mismatch)
+        let _ = linalg::outer_batch(x, y);
     }
 }
