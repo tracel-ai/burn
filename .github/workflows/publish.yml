@@ -91,6 +91,7 @@ jobs:
       - publish-burn-common
     with:
       crate: burn-tensor
+      copy-doc-assets: "docs/katex-header.html"
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
