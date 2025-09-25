@@ -1,6 +1,4 @@
-// tests/linalg/outer_batch.rs
-
-#[burn_tensor_testgen::testgen(outer_batch)]
+#[burn_tensor_testgen::testgen(outer)]
 mod tests {
     use super::*;
     use burn_tensor::linalg;
@@ -8,138 +6,155 @@ mod tests {
 
     type FT = FloatElem<TestBackend>;
 
-    // (1) Basic correctness: two batches
     #[test]
-    fn test_outer_batch_basic() {
-        // x: (2, 2), y: (2, 3)
-        let x = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
-        let y = TestTensor::<2>::from([[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]);
-        let out = linalg::outer_batch(x, y).into_data();
+    fn test_outer_basic() {
+        let u = TestTensor::<1>::from([1.0, 2.0, 3.0]);
+        let v = TestTensor::<1>::from([4.0, 5.0]);
 
-        // Manually computed:
-        // batch 0: [[1*5, 1*6, 1*7],
-        //           [2*5, 2*6, 2*7]]
-        //        = [[5,6,7],[10,12,14]]
-        // batch 1: [[3*8, 3*9, 3*10],
-        //           [4*8, 4*9, 4*10]]
-        //        = [[24,27,30],[32,36,40]]
-        let expected = TestTensor::<3>::from([
-            [[5.0, 6.0, 7.0], [10.0, 12.0, 14.0]],
-            [[24.0, 27.0, 30.0], [32.0, 36.0, 40.0]],
-        ])
-        .into_data();
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensor::<2>::from([[4.0, 5.0], [8.0, 10.0], [12.0, 15.0]]).into_data();
 
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    // (2) Shape check only
     #[test]
-    fn test_outer_batch_shapes() {
+    fn test_outer_shapes_only() {
         let device = Default::default();
-        let x = TestTensor::<2>::zeros([3, 4], &device); // (batch=3, m=4)
-        let y = TestTensor::<2>::zeros([3, 5], &device); // (batch=3, n=5)
-
-        let out = linalg::outer_batch(x, y);
-        assert_eq!(out.shape().dims(), [3, 4, 5]);
+        let u = TestTensor::<1>::zeros([3], &device);
+        let v = TestTensor::<1>::zeros([5], &device);
+        let out = linalg::outer(u, v);
+        assert_eq!(out.shape().dims(), [3, 5]);
     }
 
-    // (3) Zero cases (left & right)
     #[test]
-    fn test_outer_batch_zero_left() {
-        let device = Default::default();
-        let x = TestTensor::<2>::zeros([2, 3], &device); // (2,3)
-        let y = TestTensor::<2>::from([[7.0, 8.0], [9.0, 10.0]]); // (2,2)
+    fn test_outer_asymmetry_and_shapes() {
+        let u = TestTensor::<1>::from([1.0, 2.0]);
+        let v = TestTensor::<1>::from([3.0, 4.0, 5.0]);
 
-        let out = linalg::outer_batch(x, y).into_data();
-        let expected = TestTensor::<3>::zeros([2, 3, 2], &device).into_data();
+        let uv = linalg::outer(u.clone(), v.clone());
+        let vu = linalg::outer(v, u);
+
+        assert_eq!(uv.shape().dims(), [2, 3]);
+        assert_eq!(vu.shape().dims(), [3, 2]);
+    }
+
+    #[test]
+    fn test_outer_zero_left() {
+        let device = Default::default();
+        let u = TestTensor::<1>::zeros([3], &device);
+        let v = TestTensor::<1>::from([7.0, 8.0]);
+
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensor::<2>::zeros([3, 2], &device).into_data();
 
         out.assert_eq(&expected, true);
     }
 
     #[test]
-    fn test_outer_batch_zero_right() {
+    fn test_outer_zero_right() {
         let device = Default::default();
-        let x = TestTensor::<2>::from([[1.0, -2.0, 3.0], [4.0, 5.0, -6.0]]); // (2,3)
-        let y = TestTensor::<2>::zeros([2, 4], &device); // (2,4)
+        let u = TestTensor::<1>::from([1.0, -2.0, 3.0]);
+        let v = TestTensor::<1>::zeros([4], &device);
 
-        let out = linalg::outer_batch(x, y).into_data();
-        let expected = TestTensor::<3>::zeros([2, 3, 4], &device).into_data();
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensor::<2>::zeros([3, 4], &device).into_data();
 
         out.assert_eq(&expected, true);
     }
 
-    // (4) Signs
     #[test]
-    fn test_outer_batch_signs() {
-        let x = TestTensor::<2>::from([[-1.0, 2.0], [3.0, -4.0]]);
-        let y = TestTensor::<2>::from([[3.0, -4.0], [-5.0, 6.0]]);
-        let out = linalg::outer_batch(x, y).into_data();
+    fn test_outer_signs() {
+        let u = TestTensor::<1>::from([-1.0, 2.0]);
+        let v = TestTensor::<1>::from([3.0, -4.0]);
 
-        let expected = TestTensor::<3>::from([
-            [
-                [-3.0, 4.0], // -1*3, -1*-4
-                [6.0, -8.0], //  2*3,  2*-4
-            ],
-            [
-                [-15.0, 18.0], //  3*-5, 3*6
-                [20.0, -24.0], // -4*-5,-4*6
-            ],
-        ])
-        .into_data();
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensor::<2>::from([[-3.0, 4.0], [6.0, -8.0]]).into_data();
 
         out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    // (5) Equivalence with per-sample outer
     #[test]
-    fn test_outer_batch_equivalence_to_per_sample_outer() {
-        // batch=2, m=2, n=3
-        let x = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
-        let y = TestTensor::<2>::from([[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]);
+    fn test_outer_integer_inputs() {
+        let u = TestTensorInt::<1>::from([1, 2, 3]);
+        let v = TestTensorInt::<1>::from([4, 5]);
 
-        let out_batched = linalg::outer_batch(x.clone(), y.clone());
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensorInt::<2>::from([[4, 5], [8, 10], [12, 15]]).into_data();
 
-        // Compare each batch slice with linalg::outer(x[b], y[b])
-        for b in 0..2 {
-            // select expects a Tensor<_,1,Int> index, not a raw usize
-            let idx = TestTensorInt::<1>::from([b as i64]); // use i32/i64 depending on TestTensorInt
-            let xb = x.clone().select(0, idx.clone()); // (m,)
-            let yb = y.clone().select(0, idx); // (n,)
-
-            let per = linalg::outer(xb, yb).into_data();
-
-            let idx_b = TestTensorInt::<1>::from([b as i64]);
-            let bat = out_batched.clone().select(0, idx_b).into_data();
-
-            bat.assert_approx_eq::<FT>(&per, Tolerance::default());
-        }
+        out.assert_eq(&expected, true);
     }
 
-    // (6) NaN propagation within batches
     #[test]
-    fn test_outer_batch_nan_propagation() {
-        let x = TestTensor::<2>::from([
-            [f32::NAN, 2.0], // batch 0
-            [3.0, 4.0],      // batch 1
-        ]);
-        let y = TestTensor::<2>::from([
-            [5.0, 6.0], // batch 0
-            [7.0, 8.0], // batch 1
-        ]);
-        let out = linalg::outer_batch(x, y).into_data();
+    fn test_outer_equivalence_to_matmul() {
+        let u = TestTensor::<1>::from([1.0, 2.0, 3.0]);
+        let v = TestTensor::<1>::from([4.0, 5.0]);
 
-        // out shape (2,2,2); flatten to check values
-        let v: Vec<f32> = out.as_slice::<f32>().to_vec();
+        let out = linalg::outer(u.clone(), v.clone()).into_data();
 
-        // batch 0 rows: [NaN, NaN], [10, 12]
-        assert!(v[0].is_nan() && v[1].is_nan()); // b0,i0,*
-        assert_eq!(v[2], 10.0);
-        assert_eq!(v[3], 12.0);
+        let u2 = u.reshape([3, 1]);
+        let v2 = v.reshape([1, 2]);
+        let out_matmul = u2.matmul(v2).into_data();
 
-        // batch 1 rows: [21, 24], [28, 32]
-        assert_eq!(v[4], 21.0);
-        assert_eq!(v[5], 24.0);
-        assert_eq!(v[6], 28.0);
-        assert_eq!(v[7], 32.0);
+        out.assert_approx_eq::<FT>(&out_matmul, Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_vector_identity_right_mult() {
+        let u = TestTensor::<1>::from([2.0, -1.0]);
+        let v = TestTensor::<1>::from([3.0, 4.0]);
+        let w = TestTensor::<1>::from([5.0, 6.0]);
+
+        let uv = linalg::outer(u.clone(), v.clone());
+        let left = uv.matmul(w.clone().reshape([2, 1])).reshape([2]);
+
+        let v_dot_w = v.dot(w);
+        let right = u * v_dot_w;
+
+        left.into_data()
+            .assert_approx_eq::<FT>(&right.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_length_one_vectors() {
+        let u = TestTensor::<1>::from([3.0]);
+        let v = TestTensor::<1>::from([4.0, 5.0, 6.0]);
+
+        let out = linalg::outer(u, v).into_data();
+        let expected = TestTensor::<2>::from([[12.0, 15.0, 18.0]]).into_data();
+
+        out.assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_outer_large_values() {
+        let big = 1.0e10;
+        let u = TestTensor::<1>::from([big, -big]);
+        let v = TestTensor::<1>::from([big, big]);
+
+        let out = linalg::outer(u, v).into_data();
+        let expected =
+            TestTensor::<2>::from([[big * big, big * big], [-big * big, -big * big]]).into_data();
+
+        let tol = Tolerance::relative(1e-6).set_half_precision_relative(1e-3);
+        out.assert_approx_eq::<FT>(&expected, tol);
+    }
+
+    #[test]
+    fn test_outer_nan_propagation() {
+        let u = TestTensor::<1>::from([f32::NAN, 2.0]);
+        let v = TestTensor::<1>::from([3.0, 4.0]);
+
+        let out = linalg::outer(u, v).into_data();
+
+        // as_slice returns Result<&[f32], DataError> on latest Burn
+        let values: Vec<f32> = out
+            .as_slice::<f32>()
+            .expect("outer nan_propagation: as_slice failed")
+            .to_vec();
+
+        assert!(values[0].is_nan()); // first row, col0
+        assert!(values[1].is_nan()); // first row, col1
+        assert_eq!(values[2], 6.0);  // second row, col0
+        assert_eq!(values[3], 8.0);  // second row, col1
     }
 }
