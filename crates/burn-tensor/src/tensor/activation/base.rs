@@ -17,7 +17,7 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     doc,
     doc = r#"
 $$
-\text{LeakyReLU}\(x\) = \max\(0,x\) + \text{negative\\_slope} \times \min\(0, x\)
+\text{LeakyReLU}\(x\) = \max\(0,x\) + \text{negative\\_slope} \cdot \min\(0, x\)
 $$
 
 or
@@ -26,7 +26,7 @@ $$
 \text{LeakyReLU}(x) =
  \begin{cases}
      x & \text{if } x \geq 0 \newline
-     \text{negative\\_slope} \times x & \text{otherwise}
+     \text{negative\\_slope} \cdot x & \text{otherwise}
  \end{cases}
 $$
 "#
@@ -82,7 +82,7 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     doc,
     doc = r#"
 $$
-\text{PReLU}\(x\) = \max\(0,x\) + \alpha * \min\(0, x\)
+\text{PReLU}\(x\) = \max\(0,x\) + \alpha \cdot \min\(0, x\)
 $$
 
 or
@@ -281,7 +281,7 @@ pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D>
     doc,
     doc = r#"
 $$
-\text{hard\\_sigmoid}\(x\) = \max(0, \min(1, \alpha x + \beta))
+\text{hard\\_sigmoid}\(x\) = \max(0, \min(1, \alpha \cdot x + \beta))
 $$
 "#
 )]
@@ -321,7 +321,7 @@ pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B
     doc,
     doc = r#"
 $$
-\text{SiLU}\(x\) = x * \sigma(x) = \frac{x}{1 + \exp(-x)}
+\text{SiLU}\(x\) = x \cdot \sigma(x) = \frac{x}{1 + \exp(-x)}
 $$
 "#
 )]
@@ -338,7 +338,7 @@ pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     doc = r#"
 $$
 \text{Mish}\(x\)
-= x * \tanh(\text{Softplus}(x))
+= x \cdot \tanh(\text{Softplus}(x))
 = \tanh\left(\log\(1 + \exp\(x\)\)\right)
 $$
 "#
