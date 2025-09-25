@@ -1,10 +1,11 @@
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Node, NodeID, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use burn_common::id::StreamId;
 use burn_tensor::{TensorMetadata, backend::Backend};
 
 #[derive(Debug, Clone)]
@@ -41,11 +42,15 @@ impl Step for RootStep {
     }
 
     fn parents(&self) -> Vec<NodeID> {
-        self.node.parents.clone()
+        self.node.parents.iter().map(|p| p.id).collect()
     }
 
     fn depth(&self) -> usize {
         self.node.order
+    }
+
+    fn parent_streams(&self) -> Vec<StreamId> {
+        vec![]
     }
 }
 
@@ -57,6 +62,7 @@ impl<B: Backend> AutodiffTensor<B> {
             vec![],
             0,
             id,
+            StreamId::current(),
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
@@ -90,6 +96,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     vec![],
                     0,
                     self.node.id,
+                    self.node.stream,
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
@@ -106,6 +113,7 @@ impl<B: Backend> AutodiffTensor<B> {
     pub fn from_parents(
         primitive: B::FloatTensorPrimitive,
         parent_nodes: &[NodeRef],
+        stream_id: StreamId,
         requirement: Requirement,
         computing_properties: ComputingProperty,
     ) -> Self {
@@ -125,10 +133,11 @@ impl<B: Backend> AutodiffTensor<B> {
             parent_nodes
                 .iter()
                 .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| node.id)
+                .map(|node| Parent::new(node.id, node.stream))
                 .collect(),
             order,
             NodeID::new(),
+            stream_id,
             requirement,
             computing_properties,
             client,

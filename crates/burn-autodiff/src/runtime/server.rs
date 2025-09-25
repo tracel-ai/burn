@@ -20,6 +20,12 @@ pub struct AutodiffServer {
 }
 
 impl AutodiffServer {
+    pub fn extend(&mut self, other: AutodiffServer) {
+        self.steps.extend(other.steps);
+        self.actions_builder.extend(other.actions_builder);
+        self.memory_management.extend(other.memory_management);
+    }
+
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let parents = step.parents();
         let node_id = *rc.as_ref();

@@ -21,6 +21,12 @@ enum NodeMemoryStatus {
 }
 
 impl GraphMemoryManagement {
+    pub fn extend(&mut self, other: Self) {
+        self.nodes.extend(other.nodes);
+        self.leaves.extend(other.leaves);
+        self.statuses.extend(other.statuses);
+    }
+
     /// Register a new node with its parent.
     pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
         let node_id = *node.as_ref();

@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, vec, vec::Vec};
+use burn_common::id::StreamId;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -2143,6 +2144,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             fn depth(&self) -> usize {
                 self.output.order
             }
+
+            fn parent_streams(&self) -> Vec<StreamId> {
+                self.nodes
+                    .iter()
+                    .filter_map(|node| node.clone())
+                    .map(|node| node.stream)
+                    .collect()
+            }
         }
 
         let mut nodes = Vec::with_capacity(tensors.len());
@@ -2166,13 +2175,19 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             return AutodiffTensor::from_parents(
                 output,
                 &nodes,
+                StreamId::current(),
                 requirement,
                 cat_computing_property,
             );
         }
 
-        let output =
-            AutodiffTensor::from_parents(output, &nodes, requirement, cat_computing_property);
+        let output = AutodiffTensor::from_parents(
+            output,
+            &nodes,
+            StreamId::current(),
+            requirement,
+            cat_computing_property,
+        );
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())

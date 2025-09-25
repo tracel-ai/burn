@@ -1,4 +1,5 @@
 use alloc::{sync::Arc, vec::Vec};
+use burn_common::id::StreamId;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -31,14 +32,21 @@ unsafe impl Sync for ComputingProperty {}
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
-    pub parents: Vec<NodeID>,
+    pub parents: Vec<Parent>,
     pub order: usize,
     pub id: NodeID,
+    pub stream: StreamId,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
 }
 pub type NodeRef = Arc<Node>;
+
+#[derive(new, Debug)]
+pub struct Parent {
+    pub id: NodeID,
+    pub stream: StreamId,
+}
 
 impl Node {
     /// Returns the [node](Node) only if gradients are required.

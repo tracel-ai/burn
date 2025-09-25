@@ -20,4 +20,4 @@ pub type AutodiffClientImpl = super::mspc::ChannelClient;
 
 /// Client implementation in used.
 #[cfg(not(feature = "async"))]
-pub type AutodiffClientImpl = super::mutex::MutexClient;
+pub type AutodiffClientImpl = super::mutex::MultiThreadMutexClient;
