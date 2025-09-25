@@ -1050,6 +1050,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "memmap2",
  "regex",
+ "rmp-serde",
  "safetensors 0.6.2-dev.0",
  "serde",
  "tempfile",
