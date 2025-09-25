@@ -1379,30 +1379,18 @@ where
     ///     tensor = tensor.slice_fill(s![1..3, .., -2..], 0.0);
     ///     // Sets rows 1-2, all columns, last 2 in depth to 0
     ///
-    ///     // Note: Steps are NOT supported yet
-    ///     // This would panic: tensor.slice_fill(s![0..10;2], 1.0);
-    ///     // Use slice_assign instead for stepped patterns
+    ///     // Stepped slicing is supported
+    ///     let mut tensor = Tensor::<B, 1>::zeros([10], &device);
+    ///     tensor = tensor.slice_fill(s![0..10;2], 1.0);
+    ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
     /// }
-    /// ```
-    ///
-    /// # Limitations
-    ///
-    /// **Important**: Stepped slicing (e.g., `s![0..10;2]`) is not supported.
-    /// Only unit steps (step = 1) are allowed.
-    ///
-    /// For stepped slice filling, use [`slice_assign`](Self::slice_assign) with a tensor filled with the desired value:
-    /// ```rust,ignore
-    /// // Instead of: tensor.slice_fill(s![0..10;2], 5.0)
-    /// // Use:
-    /// let values = Tensor::full(shape_for_stepped_slice, 5.0, &device);
-    /// tensor.slice_assign(s![0..10;2], values)
     /// ```
     ///
     /// # See Also
     ///
-    /// - [`s!`] - The macro for creating slice specifications (note: steps not supported for slice_fill)
+    /// - [`s!`] - The macro for creating slice specifications with steps
     /// - [`slice`](Self::slice) - Extract a slice from a tensor
-    /// - [`slice_assign`](Self::slice_assign) - Assign values to a slice (supports steps)
+    /// - [`slice_assign`](Self::slice_assign) - Assign tensor values to a slice
     ///
     /// [`s!`]: crate::s!
     pub fn slice_fill<const D2: usize, S, E: ElementConversion>(self, slices: S, value: E) -> Self
@@ -1411,17 +1399,6 @@ where
     {
         let shape = self.shape();
         let slices = slices.into_slices(shape.clone());
-
-        // Check that all steps are 1, as backends don't support stepped slice_fill yet
-        for (i, slice) in slices.iter().enumerate() {
-            if slice.step() != 1 {
-                panic!(
-                    "slice_fill does not support steps != 1 yet. Got step {} at dimension {}",
-                    slice.step(),
-                    i
-                );
-            }
-        }
 
         check!(TensorCheck::slice::<D, D2>(&shape, &slices));
 
