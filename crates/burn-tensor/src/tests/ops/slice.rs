@@ -8,7 +8,15 @@ mod tests {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
-        let output = tensor.slice_dim(0, -2..);
+        // Test with range (negative index)
+        let output = tensor.clone().slice_dim(0, -2..);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([1.0, 2.0]), false);
+
+        // Test with Slice directly
+        let slice = Slice::new(1, None, 1); // equivalent to 1..
+        let output = tensor.slice_dim(0, slice);
         output
             .into_data()
             .assert_eq(&TensorData::from([1.0, 2.0]), false);
@@ -32,6 +40,37 @@ mod tests {
         output
             .into_data()
             .assert_eq(&TensorData::from([[1.0, 2.0], [4.0, 5.0]]), false);
+    }
+
+    #[test]
+    fn should_support_slice_dim_with_step() {
+        let data = TensorData::from([[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, 7.0]]);
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
+
+        // Test 1: Slice dimension 1 with step=2 using s! macro
+        let output = tensor.clone().slice_dim(1, s![0..4;2]);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0.0, 2.0], [4.0, 6.0]]), false);
+
+        // Test 2: Slice dimension 1 with step=2 using Slice directly
+        let slice = Slice::new(0, Some(4), 2);
+        let output = tensor.slice_dim(1, slice);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0.0, 2.0], [4.0, 6.0]]), false);
+    }
+
+    #[test]
+    fn should_support_slice_dim_with_negative_step() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
+
+        // Slice dimension 1 with negative step (reverse columns)
+        let output = tensor.slice_dim(1, s![..;-1]);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[2.0, 1.0, 0.0], [5.0, 4.0, 3.0]]), false);
     }
 
     #[test]

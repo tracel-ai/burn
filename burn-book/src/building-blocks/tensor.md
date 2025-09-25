@@ -169,7 +169,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice(slices)`                      | `tensor[(*ranges,)]`                                                       |
 | `tensor.slice_assign(slices, values)`       | `tensor[(*ranges,)] = values`                                             |
 | `tensor.slice_fill(slices, value)`          | `tensor[(*ranges,)] = value`                                              |
-| `tensor.slice_dim(dim, range)`              | N/A                                                                       |
+| `tensor.slice_dim(dim, slice)`              | N/A                                                                       |
 | `tensor.squeeze(dim)`                       | `tensor.squeeze(dim)`                                                     |
 | `tensor.swap_dims(dim1, dim2)`              | `tensor.transpose(dim1, dim2)`                                            |
 | `tensor.take(dim, indices)`                 | `numpy.take(tensor, indices, dim)`                                        |
