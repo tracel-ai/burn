@@ -83,15 +83,20 @@ mod tests {
         let out_batched = linalg::outer_batch(x.clone(), y.clone());
 
         for b in 0..2 {
-            // select expects a Tensor<_,1,Int> index, not a raw usize
             let idx = TestTensorInt::<1>::from([b as i32]);
-            let xb = x.clone().select(0, idx.clone()); // (m,)
-            let yb = y.clone().select(0, idx); // (n,)
+
+            // make them 1-D
+            let xb = x.clone().select(0, idx.clone()).squeeze_dim(0);
+            let yb = y.clone().select(0, idx).squeeze_dim(0);
 
             let per = linalg::outer(xb, yb).into_data();
 
             let idx_b = TestTensorInt::<1>::from([b as i32]);
-            let bat = out_batched.clone().select(0, idx_b).into_data();
+            let bat = out_batched
+                .clone()
+                .select(0, idx_b)
+                .squeeze_dim(0)
+                .into_data();
 
             bat.assert_approx_eq::<FT>(&per, Tolerance::default());
         }
