@@ -110,6 +110,10 @@ impl AutodiffClient for MultiThreadMutexClient {
         let stream_id = StreamId::current();
 
         let stream = MultiThreadMutexClient::stream(stream_id, [].into_iter());
+        println!(
+            "Backward on stream {} from stream {stream_id}",
+            stream.stream_id
+        );
 
         let node_id = root.node.id;
         let grads = Gradients::new::<B>(root.node, root.primitive);
