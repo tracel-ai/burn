@@ -15,8 +15,10 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "pytorch", "safetensors"]
+default = ["std", "pytorch", "safetensors", "memmap", "burnpack"]
 std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
+memmap = ["std", "dep:memmap2"]
+burnpack = ["serde"]
 wgpu = ["burn-wgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 cuda = ["burn-cuda"]

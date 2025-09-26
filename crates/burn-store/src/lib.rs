@@ -105,5 +105,7 @@ mod safetensors;
 #[cfg(feature = "safetensors")]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
+#[cfg(feature = "burnpack")]
 mod burnpack;
+#[cfg(feature = "burnpack")]
 pub use burnpack::BurnpackStore;
