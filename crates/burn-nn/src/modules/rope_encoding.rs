@@ -306,7 +306,7 @@ mod tests {
         );
 
         output
-            .squeeze::<3>(0)
+            .squeeze_dim::<3>(0)
             .to_data()
             .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
@@ -335,7 +335,7 @@ mod tests {
         );
 
         output
-            .squeeze::<3>(0)
+            .squeeze_dim::<3>(0)
             .to_data()
             .assert_approx_eq::<FT>(&expected_output.to_data(), Tolerance::default());
     }
