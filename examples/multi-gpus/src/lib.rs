@@ -3,6 +3,7 @@ use burn::{
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
     nn::transformer::TransformerEncoderConfig,
+    optim::{GradientsParams, Optimizer, SgdConfig},
     prelude::*,
     tensor::{
         TensorPrimitive,
@@ -13,6 +14,7 @@ use std::{sync::Arc, time::Instant};
 use text_classification::{
     AgNewsDataset, TextClassificationDataset,
     data::{TextClassificationBatcher, Tokenizer},
+    model::TextClassificationModel,
 };
 
 pub fn run<B: Backend>() {
@@ -209,10 +211,10 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     .set_device(device.clone())
                     .build(dataset);
 
-                // println!("[{id}] Register collective operation {config_col:?}");
-                // collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
+                println!("[{id}] Register collective operation {config_col:?}");
+                collective::register::<B::InnerBackend>(id, device.clone(), config_col).unwrap();
 
-                // let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
+                let mut optim = SgdConfig::new().init::<B, TextClassificationModel<B>>();
 
                 for (i, batch) in dataloader_train.iter().enumerate() {
                     let output = model.forward(batch);
@@ -221,19 +223,19 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let grads = loss.backward();
                     // let stat = loss.into_scalar().elem::<f32>();
 
-                    // let grads = GradientsParams::from_grads(grads, &model);
-                    // let grads = grads
-                    //     .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
-                    //     .unwrap();
+                    let grads = GradientsParams::from_grads(grads, &model);
+                    let grads = grads
+                        .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
+                        .unwrap();
 
-                    // model = optim.step(1.0e-5, model, grads);
+                    model = optim.step(1.0e-5, model, grads);
 
                     if id == PeerId::from(0) {
                         println!("Iter {i}");
                         // println!("Iter {i} => {stat}");
                     }
                 }
-                // collective::finish_collective::<B::InnerBackend>(id).unwrap();
+                collective::finish_collective::<B::InnerBackend>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
