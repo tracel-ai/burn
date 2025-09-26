@@ -64,7 +64,7 @@ where
         peer_count: usize,
         is_main: bool,
     ) -> JoinHandle<LC::Model> {
-        let mut worker = Self {
+        let worker = Self {
             peer_id,
             device,
             model,
@@ -86,10 +86,7 @@ where
             _p: PhantomData,
         };
 
-        std::thread::spawn(|| {
-            worker.model = worker.model.fork(&worker.device);
-            worker.fit()
-        })
+        std::thread::spawn(|| worker.fit())
     }
 
     /// Fits the model,
@@ -108,6 +105,7 @@ where
             self.num_epochs,
             self.grad_accumulation,
         );
+        self.model = self.model.fork(&self.device);
 
         for epoch in self.starting_epoch..self.num_epochs + 1 {
             (self.model, self.optim) = epoch_train.run(

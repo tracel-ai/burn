@@ -48,8 +48,8 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
     }
 
     fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        let main_device = self.devices.first().unwrap();
-        model.fork(main_device)
+        // let main_device = self.devices.first().unwrap();
+        model
     }
 
     fn learn(
