@@ -868,6 +868,7 @@ version = "0.19.0"
 dependencies = [
  "burn",
  "burn-ndarray",
+ "burn-store",
  "candle-core",
  "derive-new",
  "half",
@@ -1042,15 +1043,20 @@ dependencies = [
  "burn-cuda",
  "burn-import",
  "burn-ndarray",
+ "burn-nn",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
+ "byteorder",
  "divan",
  "hashbrown 0.15.5",
  "memmap2",
  "regex",
+ "rmp-serde",
  "safetensors 0.6.2-dev.0",
+ "serde",
  "tempfile",
+ "zip 4.6.1",
 ]
 
 [[package]]
