@@ -273,6 +273,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
 | `tensor.cosh()`                              | `tensor.cosh()`                            |
+| `tensor.cross(other)`                        | `torch.cross(tensor, other)`               |
 | `tensor.erf()`                               | `tensor.erf()`                             |
 | `tensor.exp()`                               | `tensor.exp()`                             |
 | `tensor.floor()`                             | `tensor.floor()`                           |

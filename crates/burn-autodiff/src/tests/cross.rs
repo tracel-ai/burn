@@ -4,20 +4,6 @@ mod tests {
     use burn_tensor::might_panic;
     use burn_tensor::{TensorData, Tolerance, ops::FloatElem};
 
-    // Helper to compute expected cross product for 2-D (N × 3) tensors.
-    fn manual_cross(a: &[[f32; 3]], b: &[[f32; 3]]) -> Vec<[f32; 3]> {
-        a.iter()
-            .zip(b.iter())
-            .map(|(x, y)| {
-                [
-                    x[1] * y[2] - x[2] * y[1],
-                    x[2] * y[0] - x[0] * y[2],
-                    x[0] * y[1] - x[1] * y[0],
-                ]
-            })
-            .collect()
-    }
-
     #[test]
     fn backward_basic() {
         let device = Default::default();

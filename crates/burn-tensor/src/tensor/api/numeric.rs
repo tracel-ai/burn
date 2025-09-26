@@ -3,12 +3,11 @@ use alloc::vec::Vec;
 use crate::alloc::borrow::ToOwned;
 
 use crate::{
-    AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
     backend::Backend,
     check,
     check::TensorCheck,
-    indexing::canonicalize_dim,
     ops::{Device, IntTensor},
 };
 use crate::{DType, TensorPrimitive};
@@ -2026,25 +2025,6 @@ where
         check!(TensorCheck::matmul(&self, &other));
         Tensor::new(K::matmul(self.primitive, other.primitive))
     }
-
-    /// Computes the cross product of `self` and another tensor along a given dimension.
-    ///
-    /// Both `self` and `other` **must have size 3** along the specified `dim`,
-    /// because the cross product is only defined in three-dimensional space.
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other tensor to take the cross product with.
-    /// * `dim`   - The dimension along which to compute the cross product.
-    ///
-    /// # Returns
-    ///
-    /// A tensor containing the cross product of `self` and `other` along `dim`.
-    pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D, K>, dim: Dim) -> Tensor<B, D, K> {
-        let dim = canonicalize_dim(dim, D, false);
-        check!(TensorCheck::cross(&self, &other, dim));
-        Tensor::new(K::cross(self.primitive, other.primitive, dim))
-    }
 }
 
 impl<B, K> Tensor<B, 1, K>
@@ -3317,22 +3297,6 @@ where
     /// C = AB
     /// ```
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
-    /// Computes the cross product of two tensors along a given dimension.
-    ///
-    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
-    /// because the cross product is only defined in three-dimensional space.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand-side tensor.
-    /// * `rhs` - The right-hand-side tensor.
-    /// * `dim` - The dimension along which to compute the cross product.
-    ///
-    /// # Returns
-    ///
-    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
-    fn cross(lhs: Self::Primitive, rhs: Self::Primitive, dim: usize) -> Self::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -3588,25 +3552,6 @@ impl<B: Backend> Numeric<B> for Int {
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_matmul(lhs, rhs)
-    }
-
-    /// Computes the cross product of two tensors along a given dimension.
-    ///
-    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
-    /// because the cross product is only defined in three-dimensional space.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand-side tensor.
-    /// * `rhs` - The right-hand-side tensor.
-    /// * `dim` - The dimension along which to compute the cross product.
-    ///
-    /// # Returns
-    ///
-    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
-    fn cross(_lhs: Self::Primitive, _rhs: Self::Primitive, _dim: usize) -> Self::Primitive {
-        // Cross product is not defined for integers
-        unimplemented!("Cross product not supported for integer tensors")
     }
 }
 
@@ -4022,36 +3967,6 @@ impl<B: Backend> Numeric<B> for Float {
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
-    }
-
-    /// Computes the cross product of two tensors along a given dimension.
-    ///
-    /// Both `lhs` and `rhs` **must have size 3** along the specified `dim`,
-    /// because the cross product is only defined in three-dimensional space.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand-side tensor.
-    /// * `rhs` - The right-hand-side tensor.
-    /// * `dim` - The dimension along which to compute the cross product.
-    ///
-    /// # Returns
-    ///
-    /// A tensor containing the cross product of `lhs` and `rhs` along `dim`.
-    fn cross(lhs: Self::Primitive, rhs: Self::Primitive, dim: usize) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_cross(lhs, rhs, dim))
-            }
-            (TensorPrimitive::QFloat(_lhs), _) => {
-                // Cross product not supported for quantized tensors
-                unimplemented!("Cross product not supported for quantized tensors")
-            }
-            (_, TensorPrimitive::QFloat(_rhs)) => {
-                // Cross product not supported for quantized tensors
-                unimplemented!("Cross product not supported for quantized tensors")
-            }
-        }
     }
 }
 
