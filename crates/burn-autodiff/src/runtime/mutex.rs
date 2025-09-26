@@ -61,10 +61,6 @@ impl AutodiffClient for MultiStreamMutexClient {
         let stream_id = StreamId::current();
 
         let stream = MultiStreamMutexClient::stream(stream_id, &[]);
-        println!(
-            "Backward on stream {} from stream {stream_id}",
-            stream.stream_id
-        );
 
         let node_id = root.node.id;
         let grads = Gradients::new::<B>(root.node, root.primitive);
@@ -76,18 +72,11 @@ impl AutodiffClient for MultiStreamMutexClient {
 
 impl ServerLocator {
     fn select(&mut self, stream_id: StreamId, parents: &[Parent]) -> Arc<Stream> {
-        let mut streams = self.select_many(StreamId { value: 0 }, &[]);
-        return streams.pop().unwrap().clone();
-
         let mut streams = self.select_many(stream_id, parents);
 
         if streams.len() == 1 {
             let stream = streams.pop().unwrap();
             if stream.stream_id != stream_id {
-                if let Some(current) = self.streams.get(&stream_id) {
-                    assert_eq!(current.stream_id, stream.stream_id);
-                }
-                println!("Assign {stream_id} to server {}", stream.stream_id);
                 self.streams.insert(stream_id, stream.clone());
             }
 
@@ -108,7 +97,6 @@ impl ServerLocator {
         }
 
         for parent in parents {
-            // println!("{parent:?}");
             match self.streams.get(&parent.stream) {
                 Some(val) => servers.insert(val.stream_id, val.clone()),
                 None => continue,
@@ -124,7 +112,6 @@ impl ServerLocator {
                         stream_id,
                     });
 
-                    println!("New stream {stream_id}");
                     self.streams.insert(stream_id, server.clone());
                     vec![server]
                 }
@@ -135,15 +122,12 @@ impl ServerLocator {
     }
 
     fn merge(&mut self, stream_id: StreamId, mut streams: Vec<Arc<Stream>>) -> Arc<Stream> {
-        println!("Merge on stream {stream_id}");
         let mut stream_ids = Vec::with_capacity(streams.len());
         let main = streams.pop().unwrap();
 
-        println!("Merge main {}", main.stream_id);
         let mut server = main.server.lock().unwrap();
 
         for stream in streams.drain(..) {
-            println!("Merge next {}", stream.stream_id);
             let mut locked = stream.server.lock().unwrap();
             let mut ser = AutodiffServer::default();
             core::mem::swap(&mut ser, &mut locked);
@@ -156,13 +140,13 @@ impl ServerLocator {
         }
         self.streams.insert(stream_id, main.clone());
 
-        println!("Drop main lock ..");
         core::mem::drop(server);
 
         main
     }
 }
 
+// For debug.
 pub(crate) mod tmp {
     use super::AutodiffClient;
     use super::*;
