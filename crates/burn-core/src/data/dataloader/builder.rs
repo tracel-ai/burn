@@ -14,6 +14,7 @@ pub struct DataLoaderBuilder<B: Backend, I, O> {
     num_threads: Option<usize>,
     shuffle: Option<u64>,
     device: Option<B::Device>,
+    drop_incomplete: bool,
 }
 
 impl<B, I, O> DataLoaderBuilder<B, I, O>
@@ -41,6 +42,7 @@ where
             num_threads: None,
             shuffle: None,
             device: None,
+            drop_incomplete: false,
         }
     }
 
@@ -56,7 +58,7 @@ where
     ///
     /// The data loader builder.
     pub fn batch_size(mut self, batch_size: usize) -> Self {
-        self.strategy = Some(Box::new(FixBatchStrategy::new(batch_size)));
+        self.strategy = Some(Box::new(FixBatchStrategy::new_with_drop_last(batch_size, self.drop_incomplete)));
         self
     }
 
@@ -110,6 +112,20 @@ where
         self
     }
 
+    /// Sets whether to drop incomplete batches (those with fewer than batch_size items).
+    ///
+    /// # Arguments
+    ///
+    /// * `drop_incomplete` - If true, incomplete batches will be dropped.
+    ///
+    /// # Returns
+    ///
+    /// The data loader builder.
+    pub fn drop_incomplete(mut self, drop_incomplete: bool) -> Self {
+        self.drop_incomplete = drop_incomplete;
+        self
+    }
+
     /// Builds the data loader.
     ///
     /// # Arguments
@@ -129,7 +145,7 @@ where
         let rng = self.shuffle.map(StdRng::seed_from_u64);
         let strategy = match self.strategy {
             Some(strategy) => strategy,
-            None => Box::new(FixBatchStrategy::new(1)),
+            None => Box::new(FixBatchStrategy::new_with_drop_last(1, self.drop_incomplete)),
         };
 
         if let Some(num_threads) = self.num_threads

@@ -61,22 +61,17 @@ impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
     fn add(&mut self, item: I) {
         self.items.push(item);
     }
-
     fn batch(&mut self, force: bool) -> Option<Vec<I>> {
         if self.items.len() < self.batch_size && !force {
             return None;
         }
-
         let mut items = Vec::with_capacity(self.batch_size);
         std::mem::swap(&mut items, &mut self.items);
-
         if items.is_empty() {
             return None;
         }
-
         Some(items)
     }
-
     fn clone_dyn(&self) -> Box<dyn BatchStrategy<I>> {
         Box::new(Self::new(self.batch_size))
     }
