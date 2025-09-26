@@ -61,6 +61,10 @@ impl AutodiffClient for MultiStreamMutexClient {
         let stream_id = StreamId::current();
 
         let stream = MultiStreamMutexClient::stream(stream_id, &[]);
+        log::info!(
+            "Backward from stream {stream_id} on server {}",
+            stream.stream_id
+        );
 
         let node_id = root.node.id;
         let grads = Gradients::new::<B>(root.node, root.primitive);
@@ -122,6 +126,7 @@ impl ServerLocator {
     }
 
     fn merge(&mut self, stream_id: StreamId, mut streams: Vec<Arc<Stream>>) -> Arc<Stream> {
+        log::info!("Merging graphs ...");
         let mut stream_ids = Vec::with_capacity(streams.len());
         let main = streams.pop().unwrap();
 

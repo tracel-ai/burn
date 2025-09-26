@@ -97,7 +97,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
             let handle = DdpWorker::<LC>::start(
                 peer_id.into(),
                 device.clone(),
-                model.clone().fork(device),
+                model.clone(),
                 components.optim.clone(),
                 components.early_stopping.clone(),
                 event_processor.clone(),

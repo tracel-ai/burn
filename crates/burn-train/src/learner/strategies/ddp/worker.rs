@@ -4,6 +4,7 @@ use crate::learner::strategies::ddp;
 use crate::metric::store::EventStoreClient;
 use crate::{EarlyStoppingStrategyRef, Interrupter, LearnerCheckpointer, TrainLoader, ValidLoader};
 use burn_collective::{self, CollectiveConfig, PeerId};
+use burn_core::module::Module;
 use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use std::marker::PhantomData;
@@ -63,7 +64,7 @@ where
         peer_count: usize,
         is_main: bool,
     ) -> JoinHandle<LC::Model> {
-        let worker = Self {
+        let mut worker = Self {
             peer_id,
             device,
             model,
@@ -85,7 +86,10 @@ where
             _p: PhantomData,
         };
 
-        std::thread::spawn(|| worker.fit())
+        std::thread::spawn(|| {
+            worker.model = worker.model.fork(&worker.device);
+            worker.fit()
+        })
     }
 
     /// Fits the model,
