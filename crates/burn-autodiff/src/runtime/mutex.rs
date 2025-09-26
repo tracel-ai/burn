@@ -147,7 +147,6 @@ impl ServerLocator {
                 None => continue,
             };
         }
-        println!("[{stream_id}]{:?}", servers.len());
 
         if servers.len() == 0 {
             let server = Arc::new(Stream {
