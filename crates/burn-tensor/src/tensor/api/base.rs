@@ -659,8 +659,7 @@ where
             .shape()
             .dims
             .iter()
-            .enumerate()
-            .filter_map(|(index, &dim)| if dim == 1 { Some(index) } else { None })
+            .filter_map(|&dim| if dim == 1 { None } else { Some(dim) })
             .collect::<Vec<_>>();
         check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
 
