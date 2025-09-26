@@ -28,7 +28,7 @@ pub struct MultiStreamMutexClient;
 ///
 /// Multiple stream IDs can point to the same stream, where an autodiff graph is tracked
 /// across multiple threads.
-pub struct ServerLocator {
+pub struct StreamLocator {
     streams: HashMap<StreamId, Arc<Stream>>,
 }
 
@@ -44,7 +44,7 @@ struct Stream {
 /// Global static mutex for storing the server locator state.
 ///
 /// This ensures thread-safe access to the [ServerLocator] instance.
-static STATE: spin::Mutex<Option<ServerLocator>> = spin::Mutex::new(None);
+static STATE: spin::Mutex<Option<StreamLocator>> = spin::Mutex::new(None);
 
 impl MultiStreamMutexClient {
     /// Retrieves or creates a stream for the given stream ID and parent dependencies.
@@ -61,7 +61,7 @@ impl MultiStreamMutexClient {
         match state.as_mut() {
             Some(locator) => locator.select(stream_id, parents),
             None => {
-                let mut locator = ServerLocator {
+                let mut locator = StreamLocator {
                     streams: HashMap::new(),
                 };
                 let stream = locator.select(stream_id, parents);
@@ -101,7 +101,7 @@ impl AutodiffClient for MultiStreamMutexClient {
     }
 }
 
-impl ServerLocator {
+impl StreamLocator {
     /// Selects a single stream for the given stream ID, considering parent dependencies.
     ///
     /// If multiple streams are found, they are merged into a single stream.
