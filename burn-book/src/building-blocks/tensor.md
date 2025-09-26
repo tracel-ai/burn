@@ -172,13 +172,14 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice_dim(dim, range)`               | N/A                                                                       |
 | `tensor.squeeze()`                           | `tensor.squeeze()`                                                        |
 | `tensor.squeeze_dim(dim)`                    | `tensor.squeeze(dim)`                                                     |
+| `tensor.squeeze_dims(dims)`                  | `tensor.squeeze(dims)` where `dims` is a tuple of ints                    |
 | `tensor.swap_dims(dim1, dim2)`               | `tensor.transpose(dim1, dim2)`                                            |
 | `tensor.take(dim, indices)`                  | `numpy.take(tensor, indices, dim)`                                        |
 | `tensor.to_data()`                           | N/A                                                                       |
 | `tensor.to_device(device)`                   | `tensor.to(device)`                                                       |
 | `tensor.transpose()`                         | `tensor.T`                                                                |
 | `tensor.t()`                                 | `tensor.T`                                                                |
-| `tensor.unsqueeze()`                         | `tensor.unsqueeze(0)`                                                     |
+| `tensor.unsqueeze()`                         | N/A                                                                       |
 | `tensor.unsqueeze_dim(dim)`                  | `tensor.unsqueeze(dim)`                                                   |
 | `tensor.unsqueeze_dims(dims)`                | N/A                                                                       |
 
