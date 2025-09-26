@@ -4004,31 +4004,31 @@ mod tests {
         let shape = Shape::new([8, 4]);
 
         // Half-open range
-        let slices = shape.clone().slice([0..5]);
+        let slices = shape.clone().into_slices([0..5]);
         assert_eq!(slices[0].to_range(8), 0..5);
-        let slices = shape.clone().slice([-3..-1]);
+        let slices = shape.clone().into_slices([-3..-1]);
         assert_eq!(slices[0].to_range(8), 5..7);
 
         // Inclusive range
-        let slices = shape.clone().slice([0..=4]);
+        let slices = shape.clone().into_slices([0..=4]);
         assert_eq!(slices[0].to_range(8), 0..5);
-        let slices = shape.clone().slice([-2..=-1]);
+        let slices = shape.clone().into_slices([-2..=-1]);
         assert_eq!(slices[0].to_range(8), 6..8);
 
         // Unbounded start
-        let slices = shape.clone().slice([..3]);
+        let slices = shape.clone().into_slices([..3]);
         assert_eq!(slices[0].to_range(8), 0..3);
-        let slices = shape.clone().slice([..-5]);
+        let slices = shape.clone().into_slices([..-5]);
         assert_eq!(slices[0].to_range(8), 0..3);
 
         // Unbounded end
-        let slices = shape.clone().slice([5..]);
+        let slices = shape.clone().into_slices([5..]);
         assert_eq!(slices[0].to_range(8), 5..8);
-        let slices = shape.clone().slice([-3..]);
+        let slices = shape.clone().into_slices([-3..]);
         assert_eq!(slices[0].to_range(8), 5..8);
 
         // Full range
-        let slices = shape.slice([..]);
+        let slices = shape.into_slices([..]);
         assert_eq!(slices[0].to_range(8), 0..8);
     }
 
@@ -4047,7 +4047,7 @@ mod tests {
 
         // Test with shape slice
         let shape = Shape::new([8, 4]);
-        let result = shape.clone().slice([-3..-1]);
+        let result = shape.clone().into_slices([-3..-1]);
         assert_eq!(result[0].to_range(8), 5..7);
 
         // Test more negative index cases
@@ -4068,23 +4068,23 @@ mod tests {
         let shape = Shape::new([8, 4]);
 
         // Multiple ways to provide ranges
-        let slices = shape.clone().slice([0..5, 0..4]);
+        let slices = shape.clone().into_slices([0..5, 0..4]);
         assert_eq!(slices[0].to_range(8), 0..5);
         assert_eq!(slices[1].to_range(4), 0..4);
 
-        let slices = shape.clone().slice([0.., 0..]);
+        let slices = shape.clone().into_slices([0.., 0..]);
         assert_eq!(slices[0].to_range(8), 0..8);
         assert_eq!(slices[1].to_range(4), 0..4);
 
-        let slices = shape.clone().slice([0..=7, 0..=3]);
+        let slices = shape.clone().into_slices([0..=7, 0..=3]);
         assert_eq!(slices[0].to_range(8), 0..8);
         assert_eq!(slices[1].to_range(4), 0..4);
 
-        let slices = shape.clone().slice([0..5, 0..3]);
+        let slices = shape.clone().into_slices([0..5, 0..3]);
         assert_eq!(slices[0].to_range(8), 0..5);
         assert_eq!(slices[1].to_range(4), 0..3);
 
-        let slices = shape.slice([0.., 0..]);
+        let slices = shape.into_slices([0.., 0..]);
         assert_eq!(slices[0].to_range(8), 0..8);
         assert_eq!(slices[1].to_range(4), 0..4);
     }
@@ -4094,11 +4094,11 @@ mod tests {
         let shape = Shape::new([8, 4]);
 
         // Indices (single integer) should also convert to correct range
-        let slices = shape.clone().slice([0, 2]);
+        let slices = shape.clone().into_slices([0, 2]);
         assert_eq!(slices[0].to_range(8), 0..1);
         assert_eq!(slices[1].to_range(4), 2..3);
 
-        let slices = shape.slice([-1, -1]);
+        let slices = shape.into_slices([-1, -1]);
         assert_eq!(slices[0].to_range(8), 7..8);
         assert_eq!(slices[1].to_range(4), 3..4);
     }
@@ -4108,14 +4108,14 @@ mod tests {
         // Slice macro `s![]` can be used to provide different range types
         let shape = Shape::new([8, 4, 2]);
         let slice = s![0..5, .., -1];
-        let slices = shape.slice(slice);
+        let slices = shape.into_slices(slice);
         assert_eq!(slices[0].to_range(8), 0..5);
         assert_eq!(slices[1].to_range(4), 0..4);
         assert_eq!(slices[2].to_range(2), 1..2);
 
         let shape = Shape::new([8, 4, 2, 3]);
         let slice = s![..=4, 0..=3, .., -2..];
-        let slices = shape.slice(slice);
+        let slices = shape.into_slices(slice);
         assert_eq!(slices[0].to_range(8), 0..5);
         assert_eq!(slices[1].to_range(4), 0..4);
         assert_eq!(slices[2].to_range(2), 0..2);
@@ -4123,7 +4123,7 @@ mod tests {
 
         let shape = Shape::new([3, 4]);
         let slice = s![1..-1, ..];
-        let slices = shape.slice(slice);
+        let slices = shape.into_slices(slice);
         assert_eq!(slices[0].to_range(3), 1..2);
         assert_eq!(slices[1].to_range(4), 0..4);
     }
