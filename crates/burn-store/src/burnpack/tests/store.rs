@@ -141,16 +141,13 @@ fn test_writer_multiple_tensors() {
         .unwrap();
     assert_eq!(weights_desc.dtype, burn_tensor::DType::F32);
     assert_eq!(weights_desc.shape, vec![2]);
-    assert_eq!(
-        weights_desc.data_offsets[1] - weights_desc.data_offsets[0],
-        8
-    );
+    assert_eq!(weights_desc.data_offsets.1 - weights_desc.data_offsets.0, 8);
 
     // Find bias descriptor
     let bias_desc = metadata.tensors.iter().find(|t| t.name == "bias").unwrap();
     assert_eq!(bias_desc.dtype, burn_tensor::DType::F64);
     assert_eq!(bias_desc.shape, vec![3]);
-    assert_eq!(bias_desc.data_offsets[1] - bias_desc.data_offsets[0], 24);
+    assert_eq!(bias_desc.data_offsets.1 - bias_desc.data_offsets.0, 24);
 }
 
 #[test]

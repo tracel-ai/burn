@@ -17,7 +17,7 @@
 // │    - name: string               │  Tensor identifier
 // │    - dtype: string              │  Data type (f32, f64, i32, etc.)
 // │    - shape: array<u64>          │  Tensor dimensions
-// │    - data_offsets: [u64, u64]   │  [start, end] byte offsets in data section
+// │    - data_offsets: (u64, u64)   │  (start, end) byte offsets in data section
 // │  - Additional metadata (opt)    │  User-defined key-value pairs
 // ├─────────────────────────────────┤
 // │  Tensor Data Section            │
@@ -48,7 +48,43 @@ pub const MAGIC_NUMBER: u32 = 0x4255524E;
 /// Current format version
 pub const FORMAT_VERSION: u16 = 0x0001;
 
-/// Header structure for Burnpack files (10 bytes total)
+/// Size of the magic number in bytes
+pub const MAGIC_SIZE: usize = 4;
+
+/// Size of the format version in bytes
+pub const VERSION_SIZE: usize = 2;
+
+/// Size of the metadata size field in bytes
+pub const METADATA_SIZE_FIELD_SIZE: usize = 4;
+
+/// Total header size (computed from components)
+pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_SIZE;
+
+/// Byte range for magic number in header
+pub const fn magic_range() -> core::ops::Range<usize> {
+    let start = 0;
+    let end = start + MAGIC_SIZE;
+    start..end
+}
+
+/// Byte range for format version in header
+pub const fn version_range() -> core::ops::Range<usize> {
+    let start = MAGIC_SIZE;
+    let end = start + VERSION_SIZE;
+    start..end
+}
+
+/// Byte range for metadata size field in header
+pub const fn metadata_size_range() -> core::ops::Range<usize> {
+    let start = MAGIC_SIZE + VERSION_SIZE;
+    let end = start + METADATA_SIZE_FIELD_SIZE;
+    start..end
+}
+
+// Compile-time validation that ranges are correct
+const _: () = assert!(MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_SIZE == HEADER_SIZE);
+
+/// Header structure for Burnpack files (HEADER_SIZE bytes total)
 #[derive(Debug, Clone, Copy)]
 pub struct BurnpackHeader {
     /// Magic number (4 bytes): 0x4255524E ("BURN")
@@ -70,27 +106,27 @@ impl BurnpackHeader {
     }
 
     /// Serialize header to bytes
-    pub fn to_bytes(self) -> [u8; 10] {
-        let mut bytes = [0u8; 10];
-        LittleEndian::write_u32(&mut bytes[0..4], self.magic);
-        LittleEndian::write_u16(&mut bytes[4..6], self.version);
-        LittleEndian::write_u32(&mut bytes[6..10], self.metadata_size);
+    pub fn to_bytes(self) -> [u8; HEADER_SIZE] {
+        let mut bytes = [0u8; HEADER_SIZE];
+        LittleEndian::write_u32(&mut bytes[magic_range()], self.magic);
+        LittleEndian::write_u16(&mut bytes[version_range()], self.version);
+        LittleEndian::write_u32(&mut bytes[metadata_size_range()], self.metadata_size);
         bytes
     }
 
     /// Deserialize header from bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, BurnpackError> {
-        if bytes.len() < 10 {
+        if bytes.len() < HEADER_SIZE {
             return Err(BurnpackError::InvalidHeader);
         }
 
-        let magic = LittleEndian::read_u32(&bytes[0..4]);
+        let magic = LittleEndian::read_u32(&bytes[magic_range()]);
         if magic != MAGIC_NUMBER {
             return Err(BurnpackError::InvalidMagicNumber);
         }
 
-        let version = LittleEndian::read_u16(&bytes[4..6]);
-        let metadata_size = LittleEndian::read_u32(&bytes[6..10]);
+        let version = LittleEndian::read_u16(&bytes[version_range()]);
+        let metadata_size = LittleEndian::read_u32(&bytes[metadata_size_range()]);
 
         Ok(Self {
             magic,
@@ -131,8 +167,8 @@ pub struct TensorDescriptor {
     pub dtype: DType,
     /// Tensor shape dimensions
     pub shape: Vec<u64>,
-    /// Byte offsets in data section [start, end)
-    pub data_offsets: [u64; 2],
+    /// Byte offsets in data section (start, end)
+    pub data_offsets: (u64, u64),
 }
 
 /// Error types for Burnpack operations
@@ -229,7 +265,7 @@ impl BurnpackWriter {
                 name: name.clone(),
                 dtype: snapshot.dtype,
                 shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
-                data_offsets: [start, end],
+                data_offsets: (start, end),
             });
 
             current_offset = end;
@@ -290,7 +326,7 @@ impl BurnpackWriter {
                 name: name.clone(),
                 dtype: snapshot.dtype,
                 shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
-                data_offsets: [start, end],
+                data_offsets: (start, end),
             });
 
             current_offset = end;
@@ -390,7 +426,7 @@ impl BurnpackReader {
         }
 
         // Read metadata
-        let metadata_start = 10;
+        let metadata_start = HEADER_SIZE;
         let metadata_end = metadata_start + header.metadata_size as usize;
 
         if bytes.len() < metadata_end {
@@ -444,7 +480,7 @@ impl BurnpackReader {
         }
 
         // Read metadata from mmap
-        let metadata_start = 10;
+        let metadata_start = HEADER_SIZE;
         let metadata_end = metadata_start + header.metadata_size as usize;
 
         if mmap.len() < metadata_end {
@@ -469,8 +505,8 @@ impl BurnpackReader {
         let file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
         let mut reader = BufReader::new(file);
 
-        // Read header (10 bytes)
-        let mut header_bytes = [0u8; 10];
+        // Read header
+        let mut header_bytes = [0u8; HEADER_SIZE];
         reader
             .read_exact(&mut header_bytes)
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
@@ -505,7 +541,7 @@ impl BurnpackReader {
         Ok(Self {
             metadata,
             storage: StorageBackend::Memory(Rc::new(bytes)),
-            data_offset: 10 + header.metadata_size as usize,
+            data_offset: HEADER_SIZE + header.metadata_size as usize,
         })
     }
 
@@ -525,8 +561,8 @@ impl BurnpackReader {
             .find(|t| t.name == name)
             .ok_or_else(|| BurnpackError::TensorNotFound(name.to_string()))?;
 
-        let start = self.data_offset + descriptor.data_offsets[0] as usize;
-        let end = self.data_offset + descriptor.data_offsets[1] as usize;
+        let start = self.data_offset + descriptor.data_offsets.0 as usize;
+        let end = self.data_offset + descriptor.data_offsets.1 as usize;
 
         Ok(&self.storage.as_bytes()[start..end])
     }
@@ -540,8 +576,8 @@ impl BurnpackReader {
             .find(|t| t.name == name)
             .ok_or_else(|| BurnpackError::TensorNotFound(name.to_string()))?;
 
-        let start = self.data_offset + descriptor.data_offsets[0] as usize;
-        let end = self.data_offset + descriptor.data_offsets[1] as usize;
+        let start = self.data_offset + descriptor.data_offsets.0 as usize;
+        let end = self.data_offset + descriptor.data_offsets.1 as usize;
 
         // Clone metadata for use in closure
         let shape: Vec<usize> = descriptor.shape.iter().map(|&s| s as usize).collect();
