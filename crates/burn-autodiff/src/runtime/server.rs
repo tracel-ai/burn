@@ -36,7 +36,12 @@ impl AutodiffServer {
         self.actions_builder.insert(node_id, actions);
     }
 
-    pub fn backward(&mut self, grads: Gradients, node_id: NodeID) -> Gradients {
+    pub fn backward<GC: FnMut(&NodeID)>(
+        &mut self,
+        grads: Gradients,
+        node_id: NodeID,
+        mut gc: GC,
+    ) -> Gradients {
         let step = self.steps.remove(&node_id).expect(
             "Node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
@@ -52,6 +57,7 @@ impl AutodiffServer {
             .free_unavailable_nodes(|node_id: &NodeID| {
                 self.steps.remove(node_id);
                 self.actions_builder.remove(node_id);
+                gc(node_id);
             });
 
         gradients

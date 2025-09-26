@@ -97,7 +97,7 @@ impl AutodiffClient for MultiStreamMutexClient {
         let grads = Gradients::new::<B>(root.node, root.primitive);
         let mut server = stream.server.lock().unwrap();
 
-        server.backward(grads, node_id)
+        server.backward(grads, node_id, |_| {})
     }
 }
 
