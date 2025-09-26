@@ -72,9 +72,15 @@ impl ProtocolServer for WsServer {
         };
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            ws.on_upgrade(async move |socket| {
-                callback(WsServerChannel { inner: socket }).await;
-            })
+            const MB: usize = 1024 * 1024;
+            ws.write_buffer_size(0)
+                .max_message_size(usize::MAX)
+                .max_frame_size(MB * 512)
+                .accept_unmasked_frames(true)
+                .read_buffer_size(64 * 1024)
+                .on_upgrade(async move |socket| {
+                    callback(WsServerChannel { inner: socket }).await;
+                })
         });
 
         self.router = self.router.route(&path, method);
