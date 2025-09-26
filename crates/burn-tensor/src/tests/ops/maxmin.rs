@@ -1,3 +1,5 @@
+use crate::TensorData;
+
 #[burn_tensor_testgen::testgen(maxmin)]
 mod tests {
     use super::*;
@@ -20,6 +22,12 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([[2.], [5.]]), false);
 
+        // Negative Index
+        f.clone()
+            .max_dim(-1)
+            .into_data()
+            .assert_eq(&TensorData::from([[2.], [5.]]), false);
+
         // Regression Test: https://github.com/tracel-ai/burn/issues/3139
         let z = f.clone().int();
         z.clone()
@@ -37,13 +45,16 @@ mod tests {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output, index) = tensor.max_dim_with_indices(0);
+        // Positive, Negative Index
+        for idx in [0, -2] {
+            let (output, index) = tensor.max_dim_with_indices(idx);
 
-        let output_expected = TensorData::from([[3., 4., 5.]]);
-        let index_expected = TensorData::from([[1, 1, 1]]);
+            let output_expected = TensorData::from([[3., 4., 5.]]);
+            let index_expected = TensorData::from([[1, 1, 1]]);
 
-        output.into_data().assert_eq(&output_expected, false);
-        index.into_data().assert_eq(&index_expected, false);
+            output.into_data().assert_eq(&output_expected, false);
+            index.into_data().assert_eq(&index_expected, false);
+        }
     }
 
     #[test]
@@ -91,8 +102,15 @@ mod tests {
             .min_dim(0)
             .into_data()
             .assert_eq(&TensorData::from([[0., 1., 2.]]), false);
+
         f.clone()
             .min_dim(1)
+            .into_data()
+            .assert_eq(&TensorData::from([[0.], [3.]]), false);
+
+        // Negative Index
+        f.clone()
+            .min_dim(-1)
             .into_data()
             .assert_eq(&TensorData::from([[0.], [3.]]), false);
 
@@ -138,13 +156,16 @@ mod tests {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
-        let (output, index) = tensor.min_dim_with_indices(0);
+        // Positive, Negative Index
+        for idx in [0, -2] {
+            let (output, index) = tensor.min_dim_with_indices(idx);
 
-        let output_expected = TensorData::from([[0., 1., 2.]]);
-        let index_expected = TensorData::from([[0, 0, 0]]);
+            let output_expected = TensorData::from([[0., 1., 2.]]);
+            let index_expected = TensorData::from([[0, 0, 0]]);
 
-        output.into_data().assert_eq(&output_expected, false);
-        index.into_data().assert_eq(&index_expected, false);
+            output.into_data().assert_eq(&output_expected, false);
+            index.into_data().assert_eq(&index_expected, false);
+        }
     }
 
     #[test]

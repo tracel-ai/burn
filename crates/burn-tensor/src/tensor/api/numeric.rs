@@ -2,8 +2,9 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
+use crate::indexing::canonicalize_dim;
 use crate::{
-    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
     backend::Backend,
     check,
@@ -463,7 +464,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -482,7 +484,8 @@ where
     ///   // [[0.6666667], [6.6666665]]
     /// }
     /// ```
-    pub fn mean_dim(self, dim: usize) -> Self {
+    pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
     }
@@ -492,7 +495,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -511,7 +515,8 @@ where
     ///    // [[2.0], [20.0]]
     /// }
     /// ```
-    pub fn sum_dim(self, dim: usize) -> Self {
+    pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
     }
@@ -541,7 +546,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements,
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -560,7 +566,8 @@ where
     ///    // [[-6.0], [270.0]]
     /// }
     /// ```
-    pub fn prod_dim(self, dim: usize) -> Self {
+    pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
         Self::new(K::prod_dim(self.primitive, dim))
     }
@@ -983,9 +990,9 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn max_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
-
         Tensor::new(K::max_dim(self.primitive, dim))
     }
 
@@ -1009,7 +1016,8 @@ where
     ///    println!("{index}");
     /// }
     /// ```
-    pub fn max_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
@@ -1087,7 +1095,8 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_abs_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
@@ -1149,7 +1158,8 @@ where
     ///    // [[1.0, -2.0, 3.0]]
     /// }
     /// ```
-    pub fn min_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn min_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
         Tensor::new(K::min_dim(self.primitive, dim))
     }
@@ -1174,7 +1184,8 @@ where
     ///    // [[1, 0, 0]]
     /// }
     /// ```
-    pub fn min_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);

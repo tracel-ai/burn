@@ -46,8 +46,13 @@ mod tests {
         let x = ones.clone() * tensor;
         let y = ones * tensor1;
 
-        let output = y.sum_dim(1);
+        let output = y.clone().sum_dim(1);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
 
+        // Negative Indexing.
+        let output = y.clone().sum_dim(-1);
         output
             .into_data()
             .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
@@ -68,7 +73,13 @@ mod tests {
 
         let output = tensor.mean_dim(1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
+        // Negative Indexing.
+        let output = tensor.mean_dim(-1);
+        let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
@@ -219,14 +230,19 @@ mod tests {
     fn test_prod_dim_int() {
         let tensor = TestTensorInt::<2>::from([[2, 1, 2], [3, 4, 5]]);
         let output = tensor.prod_dim(1);
-
         output
             .into_data()
             .assert_eq(&TensorData::from([[4], [60]]), false);
 
         let tensor_with_zero = TestTensorInt::<2>::from([[2, 0, 2], [3, 4, 5]]);
         let output = tensor_with_zero.prod_dim(1);
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0], [60]]), false);
 
+        // Negative Indexing.
+        let tensor_with_zero = TestTensorInt::<2>::from([[2, 0, 2], [3, 4, 5]]);
+        let output = tensor_with_zero.prod_dim(-1);
         output
             .into_data()
             .assert_eq(&TensorData::from([[0], [60]]), false);
