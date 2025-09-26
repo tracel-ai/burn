@@ -6,6 +6,8 @@ use crate::{
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
 use burn_common::{id::StreamId, stub::Mutex};
 use burn_tensor::backend::Backend;
 use hashbrown::HashMap;
@@ -34,7 +36,13 @@ impl core::fmt::Debug for MutexClient {
 static SERVER: spin::Mutex<Option<AutodiffServer>> = spin::Mutex::new(None);
 
 impl AutodiffClient for MutexClient {
-    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
+    fn register(
+        &self,
+        stream_id: StreamId,
+        node_id: NodeRefCount,
+        step: StepBoxed,
+        actions: CheckpointerBuilder,
+    ) {
         let mut server = SERVER.lock();
 
         if let Some(server) = server.as_mut() {
@@ -68,16 +76,16 @@ static STATE: spin::Mutex<Option<ServerLocator>> = spin::Mutex::new(None);
 
 impl MultiThreadMutexClient {
     fn stream(stream_id: StreamId, streams: impl Iterator<Item = StreamId>) -> Arc<Stream> {
-        let mut locator = STATE.lock();
+        let mut state = STATE.lock();
 
-        match locator.as_mut() {
-            Some(val) => val.select(stream_id, streams),
+        match state.as_mut() {
+            Some(locator) => locator.select(stream_id, streams),
             None => {
-                let mut l = ServerLocator {
+                let mut locator = ServerLocator {
                     streams: HashMap::new(),
                 };
-                let stream = l.select(stream_id, streams);
-                *locator = Some(l);
+                let stream = locator.select(stream_id, streams);
+                *state = Some(locator);
                 stream
             }
         }
@@ -85,8 +93,13 @@ impl MultiThreadMutexClient {
 }
 
 impl AutodiffClient for MultiThreadMutexClient {
-    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
-        let stream_id = StreamId::current();
+    fn register(
+        &self,
+        stream_id: StreamId,
+        node_id: NodeRefCount,
+        step: StepBoxed,
+        actions: CheckpointerBuilder,
+    ) {
         let stream =
             MultiThreadMutexClient::stream(stream_id, step.parent_streams().iter().map(|s| *s));
         let mut server = stream.server.lock().unwrap();
@@ -134,14 +147,21 @@ impl ServerLocator {
                 None => continue,
             };
         }
+        println!("[{stream_id}]{:?}", servers.len());
 
         if servers.len() == 0 {
             let server = Arc::new(Stream {
                 server: Mutex::new(AutodiffServer::default()),
                 stream_id,
             });
-            self.streams.insert(stream_id, server.clone());
-            return vec![server];
+
+            return match self.streams.get(&stream_id) {
+                Some(old) => vec![old.clone()],
+                None => {
+                    self.streams.insert(stream_id, server.clone());
+                    vec![server]
+                }
+            };
         }
 
         servers.drain().map(|(_, v)| v).collect()

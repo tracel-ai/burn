@@ -162,6 +162,7 @@ impl<B: Backend> AutodiffTensor<B> {
         actions: CheckpointerBuilder,
     ) -> Self {
         self.node.client.register(
+            self.node.stream,
             self.rc.clone(),
             Box::new(step_that_created_the_tensor),
             actions,
