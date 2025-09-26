@@ -29,7 +29,6 @@ impl AutodiffServer {
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let parents = step.parents();
         let node_id = *rc.as_ref();
-        println!("Register node id {node_id:?}");
 
         self.memory_management.register(rc, parents);
 
