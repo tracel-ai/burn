@@ -143,7 +143,7 @@ impl<B: Backend> Gru<B> {
         };
 
         for (t, input_t) in batched_input.iter_dim(1).enumerate() {
-            let input_t = input_t.squeeze(1);
+            let input_t = input_t.squeeze_dim(1);
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum =
                 self.gate_product(&input_t, &hidden_t, None, &self.update_gate);
@@ -332,7 +332,7 @@ mod tests {
 
         let output = state
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze::<2>(0);
+            .squeeze_dim::<2>(0);
 
         let tolerance = Tolerance::default();
         output
@@ -345,7 +345,7 @@ mod tests {
 
         let output = state
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze::<2>(0);
+            .squeeze_dim::<2>(0);
 
         output
             .to_data()
@@ -365,7 +365,7 @@ mod tests {
         let result = gru.forward(input.clone(), None);
         let output = result
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze::<2>(0);
+            .squeeze_dim::<2>(0);
 
         let tolerance = Tolerance::default();
         output
@@ -378,7 +378,7 @@ mod tests {
 
         let output = state
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze::<2>(0);
+            .squeeze_dim::<2>(0);
 
         output
             .to_data()

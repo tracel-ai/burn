@@ -93,7 +93,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
             let sum = exponents.clone().sum_dim(1);
             (exponents / sum)
                 .select(1, Tensor::arange(1..2, &input.outputs.device()))
-                .squeeze(1)
+                .squeeze_dim(1)
         };
 
         let area_under_curve = self.binary_auroc(&probabilities, &input.targets);

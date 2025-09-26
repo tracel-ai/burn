@@ -334,6 +334,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn float_matmul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
+    /// Computes the cross product of two tensors along a given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    /// * `dim` - The dimension to compute the cross product along.
+    ///
+    /// # Returns
+    ///
+    /// The cross product of the two tensors.
+    fn float_cross(lhs: FloatTensor<B>, rhs: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
     /// Negates a tensor element-wise.
     fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
         Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())

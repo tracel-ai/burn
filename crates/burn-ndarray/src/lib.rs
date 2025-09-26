@@ -34,6 +34,7 @@ mod tests {
 
     use alloc::format;
     use alloc::vec;
+    use alloc::vec::Vec;
 
     burn_tensor::testgen_all!();
 

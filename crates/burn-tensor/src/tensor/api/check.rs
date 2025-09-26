@@ -604,6 +604,62 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn cross<B: Backend, const D: usize, K>(
+        lhs: &Tensor<B, D, K>,
+        rhs: &Tensor<B, D, K>,
+        dim: usize,
+    ) -> Self
+    where
+        K: BasicOps<B>,
+    {
+        let mut check = Self::Ok;
+
+        check = check.binary_ops_device("Cross", &lhs.device(), &rhs.device());
+
+        let shape_lhs = lhs.shape();
+        let shape_rhs = rhs.shape();
+
+        if dim >= D {
+            check = check.register(
+                "Cross",
+                TensorError::new(format!(
+                    "Dimension {dim} is out of bounds for tensors with {D} dimensions."
+                )),
+            );
+            return check;
+        }
+
+        let dim_size_lhs = shape_lhs.dims[dim];
+        let dim_size_rhs = shape_rhs.dims[dim];
+
+        if dim_size_lhs != 3 || dim_size_rhs != 3 {
+            check = check.register(
+                "Cross",
+                TensorError::new(format!(
+                    "Cross product requires dimension {dim} to have size 3, but got {dim_size_lhs} and {dim_size_rhs}."
+                )),
+            );
+        }
+
+        // Check broadcastability of other dimensions
+        for i in 0..D {
+            if i != dim {
+                let l = shape_lhs.dims[i];
+                let r = shape_rhs.dims[i];
+                if l != r && l != 1 && r != 1 {
+                    check = check.register(
+                        "Cross",
+                        TensorError::new(format!(
+                            "Tensors are not broadcastable along dimension {i}: {l} and {r}."
+                        )),
+                    );
+                }
+            }
+        }
+
+        check
+    }
+
     pub(crate) fn stack<B: Backend, const D1: usize, K: BasicOps<B>, const D2: usize>(
         tensors: &[Tensor<B, D1, K>],
         dim: usize,

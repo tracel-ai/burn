@@ -35,11 +35,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
                         }
                     }
                     None => {
-                        // When axes is None, pass empty array to squeeze_dims
-                        // This will squeeze all dimensions with size 1
+                        // When axes is None, squeeze all dimensions with size 1
                         let output_rank = output.rank;
                         quote! {
-                            let #output_name = #input_tensor.squeeze_dims::<#output_rank>(&[]);
+                            let #output_name = #input_tensor.squeeze::<#output_rank>();
                         }
                     }
                 }

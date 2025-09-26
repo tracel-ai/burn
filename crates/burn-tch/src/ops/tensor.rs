@@ -181,6 +181,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
+    fn float_cross(lhs: TchTensor, rhs: TchTensor, dim: usize) -> TchTensor {
+        let tensor = lhs.tensor.cross(&rhs.tensor, dim as i64);
+        TchTensor::new(tensor)
+    }
+
     fn float_neg(tensor: TchTensor) -> TchTensor {
         Self::float_mul_scalar(tensor, (-1f32).elem::<E>())
     }

@@ -187,7 +187,7 @@ impl<B: Backend> Metric for PerplexityMetric<B> {
         // Gather the log probabilities for the target tokens
         let target_log_probs = log_probs
             .gather(1, targets.clone().unsqueeze_dim(1))
-            .squeeze(1);
+            .squeeze_dim(1);
 
         let (sum_log_prob, effective_tokens) = match self.pad_token {
             Some(pad_token) => {

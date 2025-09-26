@@ -40,5 +40,5 @@ where
     let range = Tensor::<B, 1, Int>::arange(0..diag_len as i64, &device);
     let step_tensor = Tensor::<B, 1, Int>::from_data([cols as i64 + 1], &device);
     let indices = range * step_tensor;
-    flat.take::<1, D>(D - 2, indices).squeeze(D - 1)
+    flat.take::<1, D>(D - 2, indices).squeeze_dim(D - 1)
 }
