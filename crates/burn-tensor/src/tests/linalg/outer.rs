@@ -47,7 +47,8 @@ mod tests {
         let out = linalg::outer(u, v).into_data();
         let expected = TestTensor::<2>::zeros([3, 2], &device).into_data();
 
-        out.assert_eq(&expected, true);
+        // float zeros may come out as -0.0, so use approx_eq
+        out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -59,7 +60,8 @@ mod tests {
         let out = linalg::outer(u, v).into_data();
         let expected = TestTensor::<2>::zeros([3, 4], &device).into_data();
 
-        out.assert_eq(&expected, true);
+        // same here, prevent -0.0 vs 0.0 mismatch
+        out.assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
@@ -146,14 +148,13 @@ mod tests {
 
         let out = linalg::outer(u, v).into_data();
 
-        // Use slice directly (no Vec) for no_std backends
         let s: &[f32] = out
             .as_slice::<f32>()
             .expect("outer nan_propagation: as_slice failed");
 
-        assert!(s[0].is_nan()); // first row, col0
-        assert!(s[1].is_nan()); // first row, col1
-        assert_eq!(s[2], 6.0); // second row, col0
-        assert_eq!(s[3], 8.0); // second row, col1
+        assert!(s[0].is_nan());
+        assert!(s[1].is_nan());
+        assert_eq!(s[2], 6.0);
+        assert_eq!(s[3], 8.0);
     }
 }
