@@ -22,5 +22,4 @@ pub trait AutodiffClient: Send + Clone {
 }
 
 /// Client implementation in used.
-// pub type AutodiffClientImpl = super::mutex::tmp::MutexClient;
 pub type AutodiffClientImpl = super::mutex::MultiStreamMutexClient;
