@@ -197,7 +197,11 @@ mod tests {
 
         let output = tensor.max_abs_dim(0);
         let expected = TensorData::from([[5., 6., 2.]]);
+        output.into_data().assert_eq(&expected, false);
 
+        // Negative Index
+        let output = tensor.max_abs_dim(-2);
+        let expected = TensorData::from([[5., 6., 2.]]);
         output.into_data().assert_eq(&expected, false);
     }
 
