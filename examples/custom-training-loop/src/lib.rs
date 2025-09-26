@@ -105,7 +105,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
 /// Create out own accuracy metric calculation.
 fn accuracy<B: Backend>(output: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> f32 {
-    let predictions = output.argmax(1).squeeze(1);
+    let predictions = output.argmax(1).squeeze_dim(1);
     let num_predictions: usize = targets.dims().iter().product();
     let num_corrects = predictions.equal(targets).int().sum().into_scalar();
 

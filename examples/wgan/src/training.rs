@@ -70,7 +70,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
             let image: Tensor<B, 3> = images
                 .clone()
                 .slice((row * nrow + col) as usize..(row * nrow + col + 1) as usize)
-                .squeeze(0);
+                .squeeze_dim(0);
             // The Rgb32 should be in range 0.0-1.0
             let image = image.into_data().iter::<f32>().collect::<Vec<f32>>();
             // Supports both 1 and 3 channels image

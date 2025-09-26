@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMinNode {
                     let output_rank = tensor.rank;
                     quote! {
                         let argmin_result = #input.argmin(#axis);
-                        let #output = argmin_result.squeeze::<#output_rank>(#axis);
+                        let #output = argmin_result.squeeze_dim::<#output_rank>(#axis);
                     }
                 }
             }
@@ -170,7 +170,7 @@ mod tests {
                     tensor1: Tensor<B, 2>
                 ) -> Tensor<B, 1, Int> {
                     let argmin_result = tensor1.argmin(1);
-                    let tensor2 = argmin_result.squeeze::<1usize>(1);
+                    let tensor2 = argmin_result.squeeze_dim::<1usize>(1);
 
                     tensor2
                 }

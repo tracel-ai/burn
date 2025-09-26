@@ -622,6 +622,50 @@ where
         Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
+    /// Squeeze the tensor along all dimensions, removing dimensions
+    /// of size one, and effectively reducing the rank of the tensor.
+    ///
+    /// # Type Parameters
+    ///
+    ///  - `D2`: The resulting number of dimensions in the squeezed tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     // Create a 4D tensor with dimensions [1, 3, 1, 3]
+    ///     let tensor = Tensor::<B, 4>::from_data(
+    ///         [[[[3.0, 4.9, 2.0]], [[2.0, 1.9, 3.0]], [[4.0, 5.9, 8.0]]]],
+    ///         &device,
+    ///     );
+    ///
+    ///     // Squeeze the tensor dimensions.
+    ///     // The resulting tensor will have dimensions [3, 3].
+    ///     let squeezed = tensor.squeeze::<2>();
+    ///     println!("{squeezed}");
+    /// }
+    /// ```
+    pub fn squeeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+        let new_dims = self
+            .shape()
+            .dims
+            .iter()
+            .filter_map(|&dim| if dim == 1 { None } else { Some(dim) })
+            .collect::<Vec<_>>();
+        check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
+
+        Tensor::new(K::reshape(self.primitive, new_dims.into()))
+    }
+
     /// Squeeze the tensor along the given dimension, removing the specified dimension
     /// of size one, and effectively reducing the rank of the tensor by one.
     ///
@@ -658,11 +702,11 @@ where
     ///
     ///     // Squeeze the dimension 1.
     ///     // The resulting tensor will have dimensions [3, 3].
-    ///     let squeezed = tensor.squeeze::<2>(1);
+    ///     let squeezed = tensor.squeeze_dim::<2>(1);
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
 
         let current_dims = self.shape().dims;
