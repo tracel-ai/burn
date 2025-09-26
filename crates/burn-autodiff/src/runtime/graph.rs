@@ -61,17 +61,18 @@ impl AutodiffClient for GraphMutexClient {
         step: StepBoxed,
         actions: CheckpointerBuilder,
     ) {
-        let stream = GraphMutexClient::graph(*node_id, step.parents());
-        let mut server = stream.server.lock().unwrap();
+        let graph = GraphMutexClient::graph(*node_id, step.parents());
+        let mut server = graph.server.lock().unwrap();
         server.register(node_id, step, actions);
     }
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
-        let stream = GraphMutexClient::graph(root.node.id, &[]);
+        let graph = GraphMutexClient::graph(root.node.id, &[]);
+        log::info!("Backward from node {node_id:?} on graph {:?}", graph.id);
 
         let grads = Gradients::new::<B>(root.node, root.primitive);
-        let mut server = stream.server.lock().unwrap();
+        let mut server = graph.server.lock().unwrap();
         let mut to_clean = Vec::new();
 
         let grads = server.backward(grads, node_id, |n| to_clean.push(*n));
