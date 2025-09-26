@@ -79,7 +79,10 @@ impl AutodiffServer {
             }
 
             if let Some(steps) = tape.get_mut(depth - 1) {
-                let parents = step.parents().into_iter().filter(|s| *s != id);
+                let parents = step.parents().into_iter().filter_map(|p| match p.id != id {
+                    true => Some(p.id),
+                    false => None,
+                });
                 tree.insert(id, parents.collect());
                 steps.push(step);
             }

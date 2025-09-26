@@ -42,7 +42,7 @@ pub struct Node {
 }
 pub type NodeRef = Arc<Node>;
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct Parent {
     pub id: NodeID,
     pub stream: StreamId,

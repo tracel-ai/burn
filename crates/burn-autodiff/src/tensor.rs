@@ -4,7 +4,7 @@ use crate::{
     graph::{ComputingProperty, Node, NodeID, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec};
 use burn_common::id::StreamId;
 use burn_tensor::{TensorMetadata, backend::Backend};
 
@@ -41,16 +41,12 @@ impl Step for RootStep {
         self.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.node.parents.iter().map(|p| p.id).collect()
+    fn parents(&self) -> &[Parent] {
+        &self.node.parents
     }
 
     fn depth(&self) -> usize {
         self.node.order
-    }
-
-    fn parent_streams(&self) -> Vec<StreamId> {
-        vec![]
     }
 }
 

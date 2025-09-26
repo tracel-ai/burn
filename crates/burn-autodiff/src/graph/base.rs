@@ -1,7 +1,6 @@
 use super::NodeID;
-use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use alloc::{boxed::Box, vec::Vec};
-use burn_common::id::StreamId;
+use crate::{checkpoint::base::Checkpointer, grads::Gradients, graph::Parent};
+use alloc::boxed::Box;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + core::fmt::Debug {
@@ -12,9 +11,7 @@ pub trait Step: Send + core::fmt::Debug {
     /// The node associated to the step.
     fn node(&self) -> NodeID;
     /// The parents of the node associated to the step.
-    fn parents(&self) -> Vec<NodeID>;
-    /// The parent streams of the node associated to the step.
-    fn parent_streams(&self) -> Vec<StreamId>;
+    fn parents(&self) -> &[Parent];
 }
 
 pub type StepBoxed = Box<dyn Step>;

@@ -1,6 +1,7 @@
 use crate::{
     NodeID,
     collections::{HashMap, HashSet},
+    graph::Parent,
     tensor::NodeRefCount,
 };
 use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
@@ -28,15 +29,16 @@ impl GraphMemoryManagement {
     }
 
     /// Register a new node with its parent.
-    pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
+    pub fn register(&mut self, node: NodeRefCount, parents: &[Parent]) {
         let node_id = *node.as_ref();
 
-        for parent_id in parents.iter() {
-            self.leaves.remove(parent_id);
+        for parent in parents.iter() {
+            self.leaves.remove(&parent.id);
         }
 
         self.leaves.insert(node_id);
-        self.nodes.insert(node, parents);
+        self.nodes
+            .insert(node, parents.iter().map(|p| p.id).collect());
     }
 
     /// Free the node from the state.

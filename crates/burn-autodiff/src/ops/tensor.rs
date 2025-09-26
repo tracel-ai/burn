@@ -13,7 +13,7 @@ use crate::{
         state::BackwardStates, strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeID, NodeRef, Parent, Requirement, Step},
     ops::{Backward, Ops, OpsKind, binary, broadcast_shape, unary},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
@@ -2103,6 +2103,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             output: NodeRef,
             phantom: PhantomData<B>,
             dim: usize,
+            parents: Vec<Parent>,
         }
 
         impl<B: Backend> Step for CatStep<B> {
@@ -2134,23 +2135,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 self.output.id
             }
 
-            fn parents(&self) -> Vec<NodeID> {
-                self.nodes
-                    .iter()
-                    .filter_map(|node| node.clone())
-                    .map(|node| node.id)
-                    .collect()
+            fn parents(&self) -> &[Parent] {
+                &self.parents
             }
             fn depth(&self) -> usize {
                 self.output.order
-            }
-
-            fn parent_streams(&self) -> Vec<StreamId> {
-                self.nodes
-                    .iter()
-                    .filter_map(|node| node.clone())
-                    .map(|node| node.stream)
-                    .collect()
             }
         }
 
@@ -2192,8 +2181,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
+        let parents = nodes
+            .iter()
+            .filter_map(|node| node.clone())
+            .map(|node| node.parents.clone())
+            .flatten()
+            .collect();
 
-        let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim);
+        let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         output.register_step(ops, checkpointer_builder)
     }
 

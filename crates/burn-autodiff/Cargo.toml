@@ -18,7 +18,6 @@ workspace = true
 default = ["std"]
 export_tests = ["burn-tensor-testgen"]
 std = []
-async = [] # Require std
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.19.0", default-features = false }
@@ -34,7 +33,7 @@ portable-atomic = { workspace = true }
 
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
-  "export_tests",
+    "export_tests",
 ] }
 
 [package.metadata.docs.rs]

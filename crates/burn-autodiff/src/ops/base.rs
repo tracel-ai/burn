@@ -7,10 +7,10 @@ use crate::{
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeID, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::boxed::Box;
 use burn_common::id::StreamId;
 use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 use core::marker::PhantomData;
@@ -264,23 +264,12 @@ where
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.iter().map(|p| p.id).collect()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
 
     fn depth(&self) -> usize {
         self.ops.node.order
-    }
-
-    fn parent_streams(&self) -> Vec<StreamId> {
-        self.ops
-            .parents
-            .iter()
-            .filter_map(|p| match p {
-                Some(p) => Some(p.stream),
-                None => None,
-            })
-            .collect()
     }
 }
 
@@ -298,22 +287,11 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.iter().map(|p| p.id).collect()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
     fn depth(&self) -> usize {
         self.ops.node.order
-    }
-
-    fn parent_streams(&self) -> Vec<StreamId> {
-        self.ops
-            .parents
-            .iter()
-            .filter_map(|p| match p {
-                Some(p) => Some(p.stream),
-                None => None,
-            })
-            .collect()
     }
 }
 
