@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::graph::NodeID;
+use crate::graph::NodeId;
 
 use alloc::sync::Arc;
 use core::fmt::Debug;
@@ -11,21 +11,21 @@ use super::state::{BackwardStates, State};
 /// the [BackwardStates] map instead of having a clear function signature.
 pub trait RetroForward: Debug + Send + 'static {
     /// Applies the forward pass for retropropagation.
-    fn forward(&self, states: &mut BackwardStates, out_node: NodeID);
+    fn forward(&self, states: &mut BackwardStates, out_node: NodeId);
 }
 
 #[derive(new, Debug)]
-/// Links [NodeID]s to their corresponding [RetroForward]
+/// Links [NodeId]s to their corresponding [RetroForward]
 pub(crate) struct RetroForwards {
-    map: HashMap<NodeID, Arc<dyn RetroForward>>,
+    map: HashMap<NodeId, Arc<dyn RetroForward>>,
 }
 
 impl RetroForwards {
-    /// Executes the [RetroForward] for a given [NodeID] if the node's
+    /// Executes the [RetroForward] for a given [NodeId] if the node's
     /// [State] is [State::Recompute], otherwise does nothing.
     pub(crate) fn execute_retro_forward(
         &mut self,
-        node_id: NodeID,
+        node_id: NodeId,
         backward_states: &mut BackwardStates,
     ) {
         if let State::Recompute { n_required: _ } = backward_states
@@ -53,13 +53,13 @@ macro_rules! retro_unary_scalar {
     ) => {
         #[derive(new, Debug, Clone)]
         struct $name<B: Backend> {
-            lhs_id: NodeID,
+            lhs_id: NodeId,
             rhs: FloatElem<B>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for $name<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
                 let out = $ops(lhs, self.rhs);
                 states.save(out_node, out)
@@ -77,12 +77,12 @@ macro_rules! retro_unary {
     ) => {
         #[derive(new, Debug, Clone)]
         struct $name<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for $name<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = $ops(input);
                 states.save(out_node, out)
@@ -100,13 +100,13 @@ macro_rules! retro_binary {
     ) => {
         #[derive(new, Debug, Clone)]
         struct $name<B: Backend> {
-            lhs_id: NodeID,
-            rhs_id: NodeID,
+            lhs_id: NodeId,
+            rhs_id: NodeId,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for $name<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
                 let rhs = states.get_state::<B::FloatTensorPrimitive>(&self.rhs_id);
                 let out = $ops(lhs, rhs);

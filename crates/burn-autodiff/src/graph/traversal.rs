@@ -1,6 +1,6 @@
 use super::{Step, StepBoxed};
 use crate::{
-    NodeID,
+    NodeId,
     collections::{HashMap, HashSet},
     graph::Parent,
 };
@@ -10,9 +10,9 @@ use alloc::vec::Vec;
 pub struct BreadthFirstSearch;
 
 pub trait TraversalItem {
-    fn id(&self) -> NodeID;
+    fn id(&self) -> NodeId;
     fn parents(&self) -> &[Parent];
-    fn parent_nodes(&self) -> Vec<NodeID> {
+    fn parent_nodes(&self) -> Vec<NodeId> {
         self.parents().iter().map(|p| p.id).collect()
     }
 }
@@ -21,12 +21,12 @@ impl BreadthFirstSearch {
     /// Traverse the graph of backward steps from a root node.
     pub fn traverse<F, I>(
         &self,
-        root_id: NodeID,
+        root_id: NodeId,
         root_step: I,
-        steps: &mut HashMap<NodeID, I>,
+        steps: &mut HashMap<NodeId, I>,
         mut callback: F,
     ) where
-        F: FnMut(NodeID, I),
+        F: FnMut(NodeId, I),
         I: TraversalItem,
     {
         let mut visited = HashSet::new();
@@ -64,7 +64,7 @@ impl BreadthFirstSearch {
 }
 
 impl TraversalItem for StepBoxed {
-    fn id(&self) -> NodeID {
+    fn id(&self) -> NodeId {
         Step::node(self.as_ref())
     }
 

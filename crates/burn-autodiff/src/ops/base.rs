@@ -7,7 +7,7 @@ use crate::{
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Parent, Requirement, Step},
+    graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use alloc::boxed::Box;
@@ -210,7 +210,7 @@ where
     }
 
     /// Checkpoints the tensor
-    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeID {
+    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeId {
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
@@ -260,7 +260,7 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 
@@ -283,7 +283,7 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 

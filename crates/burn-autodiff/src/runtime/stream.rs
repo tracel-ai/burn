@@ -3,6 +3,7 @@ use crate::{
     checkpoint::builder::CheckpointerBuilder,
     grads::Gradients,
     graph::{Parent, StepBoxed},
+    runtime::server::NoCleanup,
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
@@ -97,7 +98,7 @@ impl AutodiffClient for MultiStreamMutexClient {
         let grads = Gradients::new::<B>(root.node, root.primitive);
         let mut server = stream.server.lock().unwrap();
 
-        server.backward(grads, node_id, |_| {})
+        server.backward::<NoCleanup>(grads, node_id)
     }
 }
 

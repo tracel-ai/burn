@@ -1,7 +1,7 @@
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{ComputingProperty, Node, NodeID, NodeRef, Parent, Requirement, Step},
+    graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
@@ -25,7 +25,7 @@ impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
     }
 }
 
-pub type NodeRefCount = Arc<NodeID>;
+pub type NodeRefCount = Arc<NodeId>;
 
 #[derive(new, Debug)]
 pub(crate) struct RootStep {
@@ -37,7 +37,7 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.node.id
     }
 
@@ -53,7 +53,7 @@ impl Step for RootStep {
 impl<B: Backend> AutodiffTensor<B> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive) -> Self {
-        let id = NodeID::new();
+        let id = NodeId::new();
         let node: NodeRef = Node::new(
             vec![],
             0,
@@ -132,7 +132,7 @@ impl<B: Backend> AutodiffTensor<B> {
                 .map(|node| Parent::new(node.id, node.stream))
                 .collect(),
             order,
-            NodeID::new(),
+            NodeId::new(),
             stream_id,
             requirement,
             computing_properties,

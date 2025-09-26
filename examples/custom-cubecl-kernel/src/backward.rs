@@ -3,7 +3,7 @@ use crate::FloatTensor;
 use super::{AutodiffBackend, Backend};
 use burn::{
     backend::autodiff::{
-        Autodiff, NodeID,
+        Autodiff, NodeId,
         checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
         grads::Gradients,
         ops::{Backward, Ops, OpsKind, broadcast_shape},
@@ -36,7 +36,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B>, Shape);
+            type State = (NodeId, NodeId, FloatTensor<B>, Shape);
 
             fn backward(
                 self,

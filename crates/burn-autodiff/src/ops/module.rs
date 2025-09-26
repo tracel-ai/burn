@@ -2,7 +2,7 @@ use crate::Autodiff;
 use crate::checkpoint::base::Checkpointer;
 use crate::checkpoint::strategy::CheckpointStrategy;
 use crate::grads::Gradients;
-use crate::graph::NodeID;
+use crate::graph::NodeId;
 use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
@@ -66,7 +66,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Conv1DNoBias;
 
         impl<B: Backend> Backward<B, 3> for Conv1DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvOptions<1>);
+            type State = (NodeId, NodeId, NodeId, ConvOptions<1>);
 
             fn backward(
                 self,
@@ -104,7 +104,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for Conv1DNoBias {
-            type State = (NodeID, NodeID, ConvOptions<1>);
+            type State = (NodeId, NodeId, ConvOptions<1>);
 
             fn backward(
                 self,
@@ -189,7 +189,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct ConvTranspose1DNoBias;
 
         impl<B: Backend> Backward<B, 3> for ConvTranspose1DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<1>);
+            type State = (NodeId, NodeId, NodeId, ConvTransposeOptions<1>);
 
             fn backward(
                 self,
@@ -231,7 +231,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for ConvTranspose1DNoBias {
-            type State = (NodeID, NodeID, ConvTransposeOptions<1>);
+            type State = (NodeId, NodeId, ConvTransposeOptions<1>);
 
             fn backward(
                 self,
@@ -324,7 +324,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Conv2DNoBias;
 
         impl<B: Backend> Backward<B, 3> for Conv2DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, ConvOptions<2>);
 
             fn backward(
                 self,
@@ -363,7 +363,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for Conv2DNoBias {
-            type State = (NodeID, NodeID, ConvOptions<2>);
+            type State = (NodeId, NodeId, ConvOptions<2>);
 
             fn backward(
                 self,
@@ -456,7 +456,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct DeformConv2DNoMaskNoBias;
 
         impl<B: Backend> Backward<B, 5> for DeformConv2DWithMaskWithBias {
-            type State = (NodeID, NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, NodeId, NodeId, DeformConvOptions<2>);
 
             fn backward(
                 self,
@@ -497,7 +497,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 4> for DeformConv2DWithMaskNoBias {
-            type State = (NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, NodeId, DeformConvOptions<2>);
 
             fn backward(
                 self,
@@ -533,7 +533,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 4> for DeformConv2DNoMaskWithBias {
-            type State = (NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, NodeId, DeformConvOptions<2>);
 
             fn backward(
                 self,
@@ -569,7 +569,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 3> for DeformConv2DNoMaskNoBias {
-            type State = (NodeID, NodeID, NodeID, DeformConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, DeformConvOptions<2>);
 
             fn backward(
                 self,
@@ -787,7 +787,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct ConvTranspose2DNoBias;
 
         impl<B: Backend> Backward<B, 3> for ConvTranspose2DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<2>);
+            type State = (NodeId, NodeId, NodeId, ConvTransposeOptions<2>);
 
             fn backward(
                 self,
@@ -829,7 +829,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for ConvTranspose2DNoBias {
-            type State = (NodeID, NodeID, ConvTransposeOptions<2>);
+            type State = (NodeId, NodeId, ConvTransposeOptions<2>);
 
             fn backward(
                 self,
@@ -924,7 +924,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Conv3DNoBias;
 
         impl<B: Backend> Backward<B, 3> for Conv3DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvOptions<3>);
+            type State = (NodeId, NodeId, NodeId, ConvOptions<3>);
 
             fn backward(
                 self,
@@ -963,7 +963,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for Conv3DNoBias {
-            type State = (NodeID, NodeID, ConvOptions<3>);
+            type State = (NodeId, NodeId, ConvOptions<3>);
 
             fn backward(
                 self,
@@ -1050,7 +1050,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct ConvTranspose3DNoBias;
 
         impl<B: Backend> Backward<B, 3> for ConvTranspose3DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<3>);
+            type State = (NodeId, NodeId, NodeId, ConvTransposeOptions<3>);
 
             fn backward(
                 self,
@@ -1092,7 +1092,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for ConvTranspose3DNoBias {
-            type State = (NodeID, NodeID, ConvTransposeOptions<3>);
+            type State = (NodeId, NodeId, ConvTransposeOptions<3>);
 
             fn backward(
                 self,
@@ -1201,7 +1201,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool1D {
-            type State = (NodeID, usize, usize, usize, bool);
+            type State = (NodeId, usize, usize, usize, bool);
 
             fn backward(
                 self,
@@ -1267,7 +1267,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool2D {
-            type State = (NodeID, [usize; 2], [usize; 2], [usize; 2], bool);
+            type State = (NodeId, [usize; 2], [usize; 2], [usize; 2], bool);
 
             fn backward(
                 self,
@@ -1529,7 +1529,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AdaptiveAvgPool1D;
 
         impl<B: Backend> Backward<B, 1> for AdaptiveAvgPool1D {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1568,7 +1568,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AdaptiveAvgPool2D;
 
         impl<B: Backend> Backward<B, 1> for AdaptiveAvgPool2D {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1617,7 +1617,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         #[derive(Debug)]
         struct Interpolate;
         impl<B: Backend> Backward<B, 1> for Interpolate {
-            type State = (NodeID, [usize; 2], InterpolateOptions);
+            type State = (NodeId, [usize; 2], InterpolateOptions);
 
             fn backward(
                 self,
@@ -1668,7 +1668,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 struct MaxPool1D;
 
 impl<B: Backend> Backward<B, 1> for MaxPool1D {
-    type State = (NodeID, IntTensor<B>, usize, usize, usize, usize);
+    type State = (NodeId, IntTensor<B>, usize, usize, usize, usize);
 
     fn backward(
         self,
@@ -1702,7 +1702,7 @@ struct MaxPool2D;
 
 impl<B: Backend> Backward<B, 1> for MaxPool2D {
     type State = (
-        NodeID,
+        NodeId,
         IntTensor<B>,
         [usize; 2],
         [usize; 2],

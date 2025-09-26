@@ -1,9 +1,10 @@
 use super::{AutodiffClient, server::AutodiffServer};
 use crate::{
-    NodeID,
+    NodeId,
     checkpoint::builder::CheckpointerBuilder,
     grads::Gradients,
     graph::{Parent, StepBoxed},
+    runtime::server::NodeCleaner,
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
@@ -12,31 +13,37 @@ use alloc::vec::Vec;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::Backend;
 use hashbrown::HashMap;
+use spin::MutexGuard;
 
+/// A client for managing multiple graphs using mutex-based synchronization.
+///
+/// The biggest benefit of using this client implementation is that each graph can modify its own
+/// data without blocking other graphs, which is essential for multi-device training.
 #[derive(Clone, new, Debug)]
 pub struct GraphMutexClient;
 
+/// Manages a collection of graphs, mapping [node ids](NodeId) to their respective graph.
+///
+/// The `GraphLocator` is responsible for selecting and merging graphs based on their IDs and parent
+/// dependencies, ensuring proper synchronization and server allocation.
+///
+/// # Notes
+///
+/// Multiple node ids can point to the same graph, where the autodiff graph is stored.
 pub struct GraphLocator {
-    graphs: HashMap<NodeID, Arc<Graph>>,
+    graphs: HashMap<NodeId, Arc<Graph>>,
 }
 
 struct Graph {
     server: Mutex<AutodiffServer>,
-    id: NodeID,
+    /// Node where the graph was first created.
+    id: NodeId,
 }
 
 static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
 
 impl GraphMutexClient {
-    fn clean(nodes: Vec<NodeID>) {
-        let mut state = STATE.lock();
-        if let Some(locator) = state.as_mut() {
-            for node in nodes {
-                locator.graphs.remove(&node);
-            }
-        }
-    }
-    fn graph(node: NodeID, parents: &[Parent]) -> Arc<Graph> {
+    fn graph(node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         let mut state = STATE.lock();
 
         match state.as_mut() {
@@ -69,20 +76,36 @@ impl AutodiffClient for GraphMutexClient {
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
-        log::info!("Backward from node {node_id:?} on graph {:?}", graph.id);
+        log::info!("Backward from node {node_id} on graph {}", graph.id);
 
         let grads = Gradients::new::<B>(root.node, root.primitive);
         let mut server = graph.server.lock().unwrap();
-        let mut to_clean = Vec::new();
 
-        let grads = server.backward(grads, node_id, |n| to_clean.push(*n));
-        Self::clean(to_clean);
-        grads
+        server.backward::<GraphCleaner>(grads, node_id)
+    }
+}
+
+struct GraphCleaner<'a> {
+    guard: MutexGuard<'a, Option<GraphLocator>>,
+}
+
+impl<'a> NodeCleaner for GraphCleaner<'a> {
+    type Cleaner = Self;
+
+    fn init() -> Self::Cleaner {
+        let guard = STATE.lock();
+        Self { guard }
+    }
+
+    fn clean(cleaner: &mut Self::Cleaner, node: &NodeId) {
+        if let Some(state) = cleaner.guard.as_mut() {
+            state.graphs.remove(node);
+        }
     }
 }
 
 impl GraphLocator {
-    fn select(&mut self, node: NodeID, parents: &[Parent]) -> Arc<Graph> {
+    fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         let mut graphs = self.select_many(node, parents);
 
         if graphs.len() == 1 {
@@ -97,24 +120,24 @@ impl GraphLocator {
         self.merge(node, graphs)
     }
 
-    fn select_many(&mut self, node: NodeID, parents: &[Parent]) -> Vec<Arc<Graph>> {
-        let mut servers = HashMap::<NodeID, Arc<Graph>>::new();
+    fn select_many(&mut self, node: NodeId, parents: &[Parent]) -> Vec<Arc<Graph>> {
+        let mut graphs = HashMap::<NodeId, Arc<Graph>>::new();
 
         if let Some(val) = self.graphs.get(&node) {
             if parents.is_empty() {
                 return vec![val.clone()];
             }
-            servers.insert(val.id, val.clone());
+            graphs.insert(val.id, val.clone());
         }
 
         for parent in parents {
             match self.graphs.get(&parent.id) {
-                Some(val) => servers.insert(val.id, val.clone()),
+                Some(graph) => graphs.insert(graph.id, graph.clone()),
                 None => continue,
             };
         }
 
-        if servers.is_empty() {
+        if graphs.is_empty() {
             return match self.graphs.get(&node) {
                 Some(old) => vec![old.clone()],
                 None => {
@@ -129,10 +152,10 @@ impl GraphLocator {
             };
         }
 
-        servers.drain().map(|(_, v)| v).collect()
+        graphs.drain().map(|(_, v)| v).collect()
     }
 
-    fn merge(&mut self, node: NodeID, mut graphs: Vec<Arc<Graph>>) -> Arc<Graph> {
+    fn merge(&mut self, node: NodeId, mut graphs: Vec<Arc<Graph>>) -> Arc<Graph> {
         let mut graph_ids = Vec::with_capacity(graphs.len());
         let main = graphs.pop().unwrap();
 
