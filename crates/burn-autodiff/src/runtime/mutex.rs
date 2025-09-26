@@ -86,8 +86,7 @@ impl AutodiffClient for MultiStreamMutexClient {
     }
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
-        let stream_id = StreamId::current();
-
+        let stream_id = root.node.stream;
         let stream = MultiStreamMutexClient::stream(stream_id, &[]);
         log::info!(
             "Backward from stream {stream_id} on server {}",
