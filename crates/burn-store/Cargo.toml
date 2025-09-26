@@ -15,22 +15,28 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
-std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex"]
+default = ["std", "pytorch", "safetensors"]
+std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
 wgpu = ["burn-wgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 cuda = ["burn-cuda"]
 candle = ["burn-candle"]
 tch = ["burn-tch"]
+safetensors = []
+pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
+burn-nn = { path = "../burn-nn", version = "0.19.0", default-features = false }
 
 # External dependencies
+byteorder = { workspace = true, default-features = false }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
 
 # Note: safetensors requires either std or alloc feature
 # We always require std for file I/O functionality
@@ -52,5 +58,9 @@ divan = "0.1"
 tempfile = { workspace = true }
 
 [[bench]]
-name = "safetensor_loading"
+name = "resnet18_loading"
+harness = false
+
+[[bench]]
+name = "unified_loading"
 harness = false
