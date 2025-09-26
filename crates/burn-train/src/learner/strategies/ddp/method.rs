@@ -8,7 +8,6 @@ use burn_core::prelude::Backend;
 use crate::learner::strategies::ddp::DdpWorker;
 use crate::{LearnerComponents, LearningMethod, TrainLoader, ValidLoader};
 use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::module::Module;
 
 use crate::components::LearnerComponentTypes;
 
