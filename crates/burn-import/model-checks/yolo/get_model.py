@@ -2,8 +2,8 @@
 
 # /// script
 # dependencies = [
-#   "onnx-weekly==1.19.0.dev20250419",
-#   "onnxruntime>=1.22.0",
+#   "onnx>=1.17.0",
+#   "onnxruntime>=1.18.0",
 #   "ultralytics>=8.3.0",
 #   "numpy",
 #   "pillow",
@@ -17,6 +17,17 @@ import onnx
 from onnx import shape_inference, version_converter
 import numpy as np
 from pathlib import Path
+import argparse
+
+
+# Supported YOLO models configuration
+SUPPORTED_MODELS = {
+    'yolov5s': {'download_name': 'yolov5s.pt', 'display_name': 'YOLOv5s'},
+    'yolov8n': {'download_name': 'yolov8n.pt', 'display_name': 'YOLOv8n'},
+    'yolov8s': {'download_name': 'yolov8s.pt', 'display_name': 'YOLOv8s'},
+    'yolov10n': {'download_name': 'yolov10n.pt', 'display_name': 'YOLOv10n'},
+    'yolo11x': {'download_name': 'yolo11x.pt', 'display_name': 'YOLO11x'},
+}
 
 
 def get_input_shape(model):
@@ -35,25 +46,30 @@ def get_input_shape(model):
     return shape
 
 
-def download_and_convert_model(output_path):
-    """Download YOLO11x model and export to ONNX format."""
+def download_and_convert_model(model_name, output_path):
+    """Download YOLO model and export to ONNX format."""
     from ultralytics import YOLO
 
-    print("Downloading YOLO11x model...")
-    pt_path = Path("artifacts/yolo11x.pt")
-    model = YOLO(str(pt_path))
+    model_config = SUPPORTED_MODELS[model_name]
+    display_name = model_config['display_name']
+    download_name = model_config['download_name']
+
+    print(f"Downloading {display_name} model...")
+    model = YOLO(download_name)
 
     print("Exporting to ONNX format...")
     model.export(format="onnx", simplify=True)
 
     # Move exported file to artifacts
-    exported_file = Path("yolo11x.onnx")
+    base_name = download_name.replace('.pt', '')
+    exported_file = Path(f"{base_name}.onnx")
     if exported_file.exists():
         exported_file.rename(output_path)
 
     # Clean up PyTorch file
-    if pt_path.exists():
-        pt_path.unlink()
+    pt_file = Path(download_name)
+    if pt_file.exists():
+        pt_file.unlink()
 
     if not output_path.exists():
         raise FileNotFoundError(f"Failed to create ONNX file at {output_path}")
@@ -81,7 +97,7 @@ def process_model(input_path, output_path, target_opset=16):
     return model
 
 
-def generate_test_data(model_path, output_dir):
+def generate_test_data(model_path, output_path, model_name):
     """Generate test input/output data and save as PyTorch tensors."""
     import torch
     import onnxruntime as ort
@@ -108,29 +124,46 @@ def generate_test_data(model_path, output_dir):
         'output': torch.from_numpy(outputs[0])
     }
 
-    test_data_path = Path(output_dir) / "test_data.pt"
-    torch.save(test_data, test_data_path)
+    torch.save(test_data, output_path)
 
-    print(f"  ✓ Test data saved to: {test_data_path}")
+    print(f"  ✓ Test data saved to: {output_path}")
     print(f"    Input shape: {test_input.shape}, Output shape: {outputs[0].shape}")
 
 
 def main():
+    parser = argparse.ArgumentParser(description='YOLO Model Preparation Tool')
+    parser.add_argument('--model', type=str, default='yolov8n',
+                        choices=list(SUPPORTED_MODELS.keys()),
+                        help=f'YOLO model to download and prepare (default: yolov8n). Choices: {", ".join(SUPPORTED_MODELS.keys())}')
+    parser.add_argument('--list', action='store_true',
+                        help='List all supported models')
+
+    args = parser.parse_args()
+
+    if args.list:
+        print("Supported YOLO models:")
+        for model_id, config in SUPPORTED_MODELS.items():
+            print(f"  - {model_id:10s} ({config['display_name']})")
+        return
+
+    model_name = args.model
+    display_name = SUPPORTED_MODELS[model_name]['display_name']
+
     print("=" * 60)
-    print("YOLO11x Model Preparation Tool")
+    print(f"{display_name} Model Preparation Tool")
     print("=" * 60)
 
     # Setup paths
     artifacts_dir = Path("artifacts")
     artifacts_dir.mkdir(exist_ok=True)
 
-    original_path = artifacts_dir / "yolo11x.onnx"
-    processed_path = artifacts_dir / "yolo11x_opset16.onnx"
-    test_data_path = artifacts_dir / "test_data.pt"
+    original_path = artifacts_dir / f"{model_name}.onnx"
+    processed_path = artifacts_dir / f"{model_name}_opset16.onnx"
+    test_data_path = artifacts_dir / f"{model_name}_test_data.pt"
 
     # Check if we already have everything
     if processed_path.exists() and test_data_path.exists():
-        print(f"\n✓ All files already exist:")
+        print(f"\n✓ All files already exist for {display_name}:")
         print(f"  Model: {processed_path}")
         print(f"  Test data: {test_data_path}")
         print("\nNothing to do!")
@@ -138,8 +171,8 @@ def main():
 
     # Download and convert if needed
     if not original_path.exists() and not processed_path.exists():
-        print("\nStep 1: Downloading and converting YOLO11x model...")
-        download_and_convert_model(original_path)
+        print(f"\nStep 1: Downloading and converting {display_name} model...")
+        download_and_convert_model(model_name, original_path)
 
     # Process model if needed
     if not processed_path.exists():
@@ -153,10 +186,10 @@ def main():
     # Generate test data if needed
     if not test_data_path.exists():
         print("\nStep 3: Generating test data...")
-        generate_test_data(processed_path, artifacts_dir)
+        generate_test_data(processed_path, test_data_path, model_name)
 
     print("\n" + "=" * 60)
-    print("✓ YOLO11x model preparation completed!")
+    print(f"✓ {display_name} model preparation completed!")
     print(f"  Model: {processed_path}")
     print(f"  Test data: {test_data_path}")
     print("=" * 60)
