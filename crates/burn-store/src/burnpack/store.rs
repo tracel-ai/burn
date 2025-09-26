@@ -29,6 +29,7 @@
 
 use crate::{ApplyResult, ModuleSnapshot, ModuleSnapshoter, PathFilter, TensorSnapshot};
 use alloc::collections::BTreeMap;
+use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_tensor::{DType, TensorData};
@@ -38,7 +39,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]
-use std::io::{Read, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 #[cfg(feature = "std")]
 use std::path::{Path, PathBuf};
 
@@ -70,7 +71,7 @@ impl BurnpackHeader {
     }
 
     /// Serialize header to bytes
-    pub fn to_bytes(&self) -> [u8; 10] {
+    pub fn to_bytes(self) -> [u8; 10] {
         let mut bytes = [0u8; 10];
         LittleEndian::write_u32(&mut bytes[0..4], self.magic);
         LittleEndian::write_u16(&mut bytes[4..6], self.version);
@@ -101,6 +102,8 @@ impl BurnpackHeader {
 }
 
 /// Metadata structure serialized with MessagePack
+///
+/// This is serialized using rmp_serde::to_vec for compact binary representation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BurnpackMetadata {
     /// Tensor descriptors
@@ -143,6 +146,7 @@ pub enum BurnpackError {
     MetadataDeserializationError(String),
     IoError(String),
     TensorNotFound(String),
+    TensorBytesSizeMismatch(String),
 }
 
 impl core::fmt::Display for BurnpackError {
@@ -159,62 +163,51 @@ impl core::fmt::Display for BurnpackError {
             }
             BurnpackError::IoError(e) => write!(f, "I/O error: {}", e),
             BurnpackError::TensorNotFound(name) => write!(f, "Tensor not found: {}", name),
+            BurnpackError::TensorBytesSizeMismatch(e) => {
+                write!(f, "Tensor bytes size mismatch: {}", e)
+            }
         }
     }
 }
 
 /// Writer for creating Burnpack files
+///
+/// This writer stores TensorSnapshots lazily and only materializes tensor data
+/// when writing to file or bytes, allowing efficient handling of large models.
 pub struct BurnpackWriter {
-    tensors: Vec<TensorDescriptor>,
-    tensor_data: Vec<u8>,
+    /// Tensor snapshots with lazy data loading
+    snapshots: Vec<(String, TensorSnapshot)>,
+    /// Additional metadata
     metadata: BTreeMap<String, String>,
-    current_offset: u64,
 }
 
 impl BurnpackWriter {
     /// Create a new writer
     pub fn new() -> Self {
         Self {
-            tensors: Vec::new(),
-            tensor_data: Vec::new(),
+            snapshots: Vec::new(),
             metadata: BTreeMap::new(),
-            current_offset: 0,
         }
     }
 
-    /// Add a tensor from TensorSnapshot
+    /// Add a tensor from TensorSnapshot (stores lazily without materializing data)
     pub fn add_tensor_snapshot(&mut self, name: String, snapshot: &TensorSnapshot) {
-        let data = snapshot.to_data();
-        let bytes = data.bytes;
-
-        let start = self.current_offset;
-        let end = start + bytes.len() as u64;
-
-        self.tensors.push(TensorDescriptor {
-            name,
-            dtype: snapshot.dtype,
-            shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
-            data_offsets: [start, end],
-        });
-
-        self.tensor_data.extend_from_slice(&bytes);
-        self.current_offset = end;
+        // Clone the snapshot (cheap - just clones the Rc to the closure)
+        self.snapshots.push((name, snapshot.clone()));
     }
 
     /// Add a tensor with raw data
+    #[allow(dead_code)]
     pub fn add_tensor(&mut self, name: String, dtype: DType, shape: Vec<u64>, data: &[u8]) {
-        let start = self.current_offset;
-        let end = start + data.len() as u64;
+        // Convert raw data to TensorSnapshot for consistency
+        let shape_usize: Vec<usize> = shape.iter().map(|&s| s as usize).collect();
+        let tensor_data = TensorData::from_bytes_vec(data.to_vec(), shape_usize.clone(), dtype);
 
-        self.tensors.push(TensorDescriptor {
-            name,
-            dtype,
-            shape,
-            data_offsets: [start, end],
-        });
+        use burn_core::module::ParamId;
+        let snapshot =
+            TensorSnapshot::from_data(tensor_data, vec![name.clone()], vec![], ParamId::new());
 
-        self.tensor_data.extend_from_slice(data);
-        self.current_offset = end;
+        self.snapshots.push((name, snapshot));
     }
 
     /// Add metadata key-value pair
@@ -224,13 +217,32 @@ impl BurnpackWriter {
 
     /// Write to a byte buffer
     pub fn to_bytes(&self) -> Result<Vec<u8>, BurnpackError> {
+        // Build tensor descriptors and calculate offsets
+        let mut tensors = Vec::new();
+        let mut current_offset = 0u64;
+
+        for (name, snapshot) in &self.snapshots {
+            let data_len = snapshot.data_len() as u64;
+            let start = current_offset;
+            let end = start + data_len;
+
+            tensors.push(TensorDescriptor {
+                name: name.clone(),
+                dtype: snapshot.dtype,
+                shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
+                data_offsets: [start, end],
+            });
+
+            current_offset = end;
+        }
+
         // Create metadata structure
         let metadata = BurnpackMetadata {
-            tensors: self.tensors.clone(),
+            tensors,
             metadata: self.metadata.clone(),
         };
 
-        // Serialize metadata with MessagePack
+        // Serialize metadata with MessagePack (unnamed for compactness)
         let metadata_bytes = rmp_serde::to_vec(&metadata)
             .map_err(|e| BurnpackError::MetadataSerializationError(e.to_string()))?;
 
@@ -238,31 +250,132 @@ impl BurnpackWriter {
         let header = BurnpackHeader::new(metadata_bytes.len() as u32);
         let header_bytes = header.to_bytes();
 
-        // Combine all parts
-        let mut result =
-            Vec::with_capacity(header_bytes.len() + metadata_bytes.len() + self.tensor_data.len());
+        // Calculate total size for pre-allocation
+        let total_size = header_bytes.len() + metadata_bytes.len() + current_offset as usize;
+        let mut result = Vec::with_capacity(total_size);
+
+        // Write header and metadata
         result.extend_from_slice(&header_bytes);
         result.extend_from_slice(&metadata_bytes);
-        result.extend_from_slice(&self.tensor_data);
+
+        // Materialize and write tensor data one at a time
+        for (_, snapshot) in &self.snapshots {
+            let data = snapshot.to_data();
+            let data_len = data.bytes.len();
+            if data.bytes.len() != data_len {
+                return Err(BurnpackError::IoError(format!(
+                    "Tensor data size mismatch: expected {} bytes but got {} bytes",
+                    data_len,
+                    data.bytes.len()
+                )));
+            }
+            result.extend_from_slice(&data.bytes);
+        }
 
         Ok(result)
     }
 
-    /// Write to a file
+    /// Write to a file (streams tensors one at a time to minimize memory usage)
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), BurnpackError> {
-        let bytes = self.to_bytes()?;
+        // Build tensor descriptors and calculate offsets
+        let mut tensors = Vec::new();
+        let mut current_offset = 0u64;
+
+        for (name, snapshot) in &self.snapshots {
+            let data_len = snapshot.data_len() as u64;
+            let start = current_offset;
+            let end = start + data_len;
+
+            tensors.push(TensorDescriptor {
+                name: name.clone(),
+                dtype: snapshot.dtype,
+                shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
+                data_offsets: [start, end],
+            });
+
+            current_offset = end;
+        }
+
+        // Create metadata structure
+        let metadata = BurnpackMetadata {
+            tensors,
+            metadata: self.metadata.clone(),
+        };
+
+        // Serialize metadata with MessagePack (unnamed for compactness)
+        let metadata_bytes = rmp_serde::to_vec(&metadata)
+            .map_err(|e| BurnpackError::MetadataSerializationError(e.to_string()))?;
+
+        // Create header
+        let header = BurnpackHeader::new(metadata_bytes.len() as u32);
+        let header_bytes = header.to_bytes();
+
+        // Write directly to file, streaming tensors one at a time
         let mut file = File::create(path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
-        file.write_all(&bytes)
+
+        // Write header
+        file.write_all(&header_bytes)
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        // Write metadata
+        file.write_all(&metadata_bytes)
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        // Stream tensor data one at a time (only one tensor in memory at a time)
+        for (_, snapshot) in &self.snapshots {
+            let data = snapshot.to_data();
+            let data_len = data.bytes.len();
+            if data.bytes.len() != data_len {
+                return Err(BurnpackError::IoError(format!(
+                    "Tensor data size mismatch: expected {} bytes but got {} bytes",
+                    data_len,
+                    data.bytes.len()
+                )));
+            }
+            file.write_all(&data.bytes)
+                .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+        }
+
         Ok(())
+    }
+}
+
+/// Storage backend for BurnpackReader
+enum StorageBackend {
+    /// Memory-based storage
+    Memory(Rc<Vec<u8>>),
+    /// Memory-mapped file storage (efficient for large files)
+    #[cfg(all(feature = "std", feature = "memmap"))]
+    Mmap(Rc<memmap2::Mmap>),
+}
+
+impl StorageBackend {
+    /// Get data slice from the storage
+    fn get_slice(&self, start: usize, end: usize) -> Vec<u8> {
+        match self {
+            StorageBackend::Memory(data) => data[start..end].to_vec(),
+            #[cfg(all(feature = "std", feature = "memmap"))]
+            StorageBackend::Mmap(mmap) => mmap[start..end].to_vec(),
+        }
+    }
+
+    /// Get full data reference for raw access
+    #[allow(dead_code)]
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            StorageBackend::Memory(data) => data.as_ref(),
+            #[cfg(all(feature = "std", feature = "memmap"))]
+            StorageBackend::Mmap(mmap) => mmap.as_ref(),
+        }
     }
 }
 
 /// Reader for loading Burnpack files
 pub struct BurnpackReader {
     metadata: BurnpackMetadata,
-    data: Vec<u8>,
+    /// Storage backend (memory or mmap)
+    storage: StorageBackend,
     data_offset: usize,
 }
 
@@ -291,27 +404,120 @@ impl BurnpackReader {
 
         Ok(Self {
             metadata,
-            data: bytes,
+            storage: StorageBackend::Memory(Rc::new(bytes)),
             data_offset: metadata_end,
         })
     }
 
-    /// Read from a file
+    /// Read from a file with automatic strategy selection:
+    /// - Uses memory mapping if available (most efficient for large files)
+    /// - Falls back to buffered reading if memmap is not available
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
-        let mut file = File::open(path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)
+        #[cfg(feature = "memmap")]
+        {
+            Self::from_file_mmap(path)
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            Self::from_file_buffered(path)
+        }
+    }
+
+    /// Read from a file using memory mapping for efficiency
+    #[cfg(all(feature = "std", feature = "memmap"))]
+    pub fn from_file_mmap<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
+        use memmap2::MmapOptions;
+
+        let file = File::open(path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
+        let mmap = unsafe {
+            MmapOptions::new()
+                .map(&file)
+                .map_err(|e| BurnpackError::IoError(e.to_string()))?
+        };
+
+        // Read header from mmap
+        let header = BurnpackHeader::from_bytes(&mmap)?;
+
+        // Verify version
+        if header.version > FORMAT_VERSION {
+            return Err(BurnpackError::InvalidVersion);
+        }
+
+        // Read metadata from mmap
+        let metadata_start = 10;
+        let metadata_end = metadata_start + header.metadata_size as usize;
+
+        if mmap.len() < metadata_end {
+            return Err(BurnpackError::InvalidHeader);
+        }
+
+        let metadata: BurnpackMetadata = rmp_serde::from_slice(&mmap[metadata_start..metadata_end])
+            .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+
+        Ok(Self {
+            metadata,
+            storage: StorageBackend::Mmap(Rc::new(mmap)),
+            data_offset: metadata_end,
+        })
+    }
+
+    /// Read from a file using buffered reading
+    /// This is less efficient than memory mapping but works everywhere
+    #[cfg(feature = "std")]
+    #[allow(dead_code)]
+    pub fn from_file_buffered<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
+        let file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
+        let mut reader = BufReader::new(file);
+
+        // Read header (10 bytes)
+        let mut header_bytes = [0u8; 10];
+        reader
+            .read_exact(&mut header_bytes)
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
-        Self::from_bytes(bytes)
+
+        let header = BurnpackHeader::from_bytes(&header_bytes)?;
+
+        // Verify version
+        if header.version > FORMAT_VERSION {
+            return Err(BurnpackError::InvalidVersion);
+        }
+
+        // Read metadata
+        let mut metadata_bytes = vec![0u8; header.metadata_size as usize];
+        reader
+            .read_exact(&mut metadata_bytes)
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        let metadata: BurnpackMetadata = rmp_serde::from_slice(&metadata_bytes)
+            .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+
+        // For non-mmap, we still need to load the full file for tensor access
+        // But we've at least parsed the header and metadata efficiently
+        reader
+            .seek(SeekFrom::Start(0))
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        Ok(Self {
+            metadata,
+            storage: StorageBackend::Memory(Rc::new(bytes)),
+            data_offset: 10 + header.metadata_size as usize,
+        })
     }
 
     /// Get metadata
+    #[allow(dead_code)]
     pub fn metadata(&self) -> &BurnpackMetadata {
         &self.metadata
     }
 
     /// Get tensor data by name
+    #[allow(dead_code)]
     pub fn get_tensor_data(&self, name: &str) -> Result<&[u8], BurnpackError> {
         let descriptor = self
             .metadata
@@ -323,10 +529,10 @@ impl BurnpackReader {
         let start = self.data_offset + descriptor.data_offsets[0] as usize;
         let end = self.data_offset + descriptor.data_offsets[1] as usize;
 
-        Ok(&self.data[start..end])
+        Ok(&self.storage.as_bytes()[start..end])
     }
 
-    /// Get tensor as TensorSnapshot
+    /// Get tensor as TensorSnapshot with lazy loading
     pub fn get_tensor_snapshot(&self, name: &str) -> Result<TensorSnapshot, BurnpackError> {
         let descriptor = self
             .metadata
@@ -337,19 +543,31 @@ impl BurnpackReader {
 
         let start = self.data_offset + descriptor.data_offsets[0] as usize;
         let end = self.data_offset + descriptor.data_offsets[1] as usize;
-        let data_bytes = self.data[start..end].to_vec();
 
-        // Convert shape
+        // Clone metadata for use in closure
         let shape: Vec<usize> = descriptor.shape.iter().map(|&s| s as usize).collect();
+        let dtype = descriptor.dtype;
 
-        // Create TensorData with proper dtype
-        let tensor_data = TensorData::from_bytes_vec(data_bytes, shape.clone(), descriptor.dtype);
+        // Clone storage reference for the closure
+        let storage = match &self.storage {
+            StorageBackend::Memory(data) => StorageBackend::Memory(data.clone()),
+            #[cfg(all(feature = "std", feature = "memmap"))]
+            StorageBackend::Mmap(mmap) => StorageBackend::Mmap(mmap.clone()),
+        };
 
-        // Create TensorSnapshot from TensorData
-        // We use a dummy ParamId since this is loaded from storage
+        // Clone shape for the closure
+        let shape_for_closure = shape.clone();
+
+        // Create lazy TensorSnapshot
         use burn_core::module::ParamId;
-        Ok(TensorSnapshot::from_data(
-            tensor_data,
+        Ok(TensorSnapshot::from_closure(
+            Rc::new(move || {
+                // This closure is only called when data is actually needed
+                let data_bytes = storage.get_slice(start, end);
+                TensorData::from_bytes_vec(data_bytes, shape_for_closure.clone(), dtype)
+            }),
+            dtype,
+            shape,
             vec![name.to_string()], // path_stack with just the tensor name
             vec![],                 // empty container_stack
             ParamId::new(),         // new unique id
@@ -491,13 +709,14 @@ impl ModuleSnapshoter for BurnpackStore {
 
         // Write to storage based on mode
         if let Some(writer) = &self.writer {
-            match &self.mode {
+            match &mut self.mode {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
                     writer.write_to_file(path)?;
                 }
-                StoreMode::Bytes(_) => {
-                    // For bytes mode, we keep the writer to generate bytes on demand
+                StoreMode::Bytes(bytes) => {
+                    // Generate and store the bytes
+                    *bytes = Some(writer.to_bytes()?);
                 }
             }
         }
