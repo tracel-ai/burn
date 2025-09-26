@@ -1,6 +1,10 @@
+use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
 use crate::cast::ToElement;
+use crate::check;
+use crate::check::TensorCheck;
+use crate::indexing::canonicalize_dim;
 use crate::ops::InterpolateMode;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
@@ -653,6 +657,29 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             self.primitive.tensor(),
             grid.primitive.tensor(),
             method,
+        )))
+    }
+
+    /// Computes the cross product of `self` and another tensor along a given dimension.
+    ///
+    /// Both `self` and `other` **must have size 3** along the specified `dim`,
+    /// because the cross product is only defined in three-dimensional space.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other tensor to take the cross product with.
+    /// * `dim`   - The dimension along which to compute the cross product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor containing the cross product of `self` and `other` along `dim`.
+    pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D>, dim: Dim) -> Tensor<B, D> {
+        let dim = canonicalize_dim(dim, D, false);
+        check!(TensorCheck::cross(&self, &other, dim));
+        Tensor::new(TensorPrimitive::Float(B::float_cross(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+            dim,
         )))
     }
 }

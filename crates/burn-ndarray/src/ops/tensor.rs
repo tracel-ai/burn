@@ -5,7 +5,10 @@ use burn_tensor::ops::InterpolateMode;
 use burn_tensor::{TensorMetadata, cast::ToElement};
 
 // Current crate
-use super::{NdArrayMathOps, NdArrayOps, matmul::matmul};
+use super::{
+    NdArrayMathOps, NdArrayOps,
+    matmul::{cross, matmul},
+};
 use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
@@ -134,6 +137,14 @@ where
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!((lhs, rhs), matmul)
+    }
+
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_float_dtype!((lhs, rhs), |lhs, rhs| cross(lhs, rhs, dim))
     }
 
     fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
