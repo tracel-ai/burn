@@ -11,7 +11,6 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::boxed::Box;
-use burn_common::id::StreamId;
 use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 use core::marker::PhantomData;
 
@@ -175,7 +174,6 @@ where
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
-            StreamId::current(),
             self.requirement,
             self.compute_property,
         );
@@ -199,7 +197,6 @@ where
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
-            StreamId::current(),
             self.requirement,
             self.compute_property,
         );

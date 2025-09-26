@@ -19,6 +19,12 @@ use spin::MutexGuard;
 ///
 /// The biggest benefit of using this client implementation is that each graph can modify its own
 /// data without blocking other graphs, which is essential for multi-device training.
+///
+/// # Notes
+///
+/// The [AutodiffServer] fully support multiple graphs with sharing nodes, however those type of
+/// graphs will be store under a single mutex-protected graph by the client, limiting
+/// parralelisation.
 #[derive(Clone, new, Debug)]
 pub struct GraphMutexClient;
 
@@ -34,15 +40,26 @@ pub struct GraphLocator {
     graphs: HashMap<NodeId, Arc<Graph>>,
 }
 
-struct Graph {
+/// Represents a single computation graph with a mutex-protected server.
+///
+/// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
+/// first created.
+pub(crate) struct Graph {
     server: Mutex<AutodiffServer>,
-    /// Node where the graph was first created.
     id: NodeId,
 }
 
 static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
 
 impl GraphMutexClient {
+    /// Retrieves or creates a raph for the given [NodeId] and parent dependencies.
+    ///
+    /// # Parameters
+    /// - `node`: The unique identifier for the stream.
+    /// - `parents`: A slice of parent nodes that the stream depends on.
+    ///
+    /// # Returns
+    /// An `Arc<Graph>` representing the selected or newly created stream.
     fn graph(node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         let mut state = STATE.lock();
 
@@ -61,13 +78,7 @@ impl GraphMutexClient {
 }
 
 impl AutodiffClient for GraphMutexClient {
-    fn register(
-        &self,
-        _stream_id: burn_common::stream_id::StreamId,
-        node_id: NodeRefCount,
-        step: StepBoxed,
-        actions: CheckpointerBuilder,
-    ) {
+    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let graph = GraphMutexClient::graph(*node_id, step.parents());
         let mut server = graph.server.lock().unwrap();
         server.register(node_id, step, actions);
@@ -90,22 +101,31 @@ struct GraphCleaner<'a> {
 }
 
 impl<'a> NodeCleaner for GraphCleaner<'a> {
-    type Cleaner = Self;
-
-    fn init() -> Self::Cleaner {
+    fn init() -> Self {
         let guard = STATE.lock();
         Self { guard }
     }
 
-    fn clean(cleaner: &mut Self::Cleaner, node: &NodeId) {
-        if let Some(state) = cleaner.guard.as_mut() {
+    fn clean(&mut self, node: &NodeId) {
+        if let Some(state) = self.guard.as_mut() {
             state.graphs.remove(node);
         }
     }
 }
 
 impl GraphLocator {
-    fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
+    /// Selects a single graph for the given [NodeId], considering parent dependencies.
+    ///
+    /// If multiple graphs are found, they are merged into a single one.
+    ///
+    /// # Parameters
+    /// - `node`: The node ID of the graph to select.
+    /// - `parents`: A slice of parent nodes that the graph depends on.
+    ///
+    /// # Returns
+    ///
+    /// An `Arc<Graph>` representing the selected or merged graph.
+    pub(crate) fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         let mut graphs = self.select_many(node, parents);
 
         if graphs.len() == 1 {

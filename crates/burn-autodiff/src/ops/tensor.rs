@@ -1,5 +1,4 @@
 use alloc::{boxed::Box, vec, vec::Vec};
-use burn_common::id::StreamId;
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
@@ -2164,19 +2163,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             return AutodiffTensor::from_parents(
                 output,
                 &nodes,
-                StreamId::current(),
                 requirement,
                 cat_computing_property,
             );
         }
 
-        let output = AutodiffTensor::from_parents(
-            output,
-            &nodes,
-            StreamId::current(),
-            requirement,
-            cat_computing_property,
-        );
+        let output =
+            AutodiffTensor::from_parents(output, &nodes, requirement, cat_computing_property);
 
         let mut parents = Vec::new();
 
@@ -2185,10 +2178,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
         for node in nodes.iter().flatten() {
-            parents.push(Parent {
-                id: node.id,
-                stream: node.stream,
-            });
+            parents.push(Parent { id: node.id });
         }
         let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         output.register_step(ops, checkpointer_builder)

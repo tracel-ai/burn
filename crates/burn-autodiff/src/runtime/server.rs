@@ -19,21 +19,12 @@ pub struct AutodiffServer {
     memory_management: GraphMemoryManagement,
 }
 
+/// Defines how nodes are clean.
 pub trait NodeCleaner {
-    type Cleaner;
-
-    fn init() -> Self::Cleaner;
-    fn clean(cleaner: &mut Self::Cleaner, node: &NodeId);
-}
-
-pub struct NoCleanup;
-
-impl NodeCleaner for NoCleanup {
-    type Cleaner = ();
-
-    fn init() -> Self::Cleaner {}
-
-    fn clean(_cleaner: &mut Self::Cleaner, _node: &NodeId) {}
+    /// Initialize a new cleaner.
+    fn init() -> Self;
+    /// Cleans a single [node](NodeId).
+    fn clean(&mut self, node: &NodeId);
 }
 
 impl AutodiffServer {

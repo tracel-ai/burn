@@ -35,7 +35,6 @@ pub struct Node {
     pub parents: Vec<Parent>,
     pub order: usize,
     pub id: NodeId,
-    pub stream: StreamId,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
@@ -45,7 +44,6 @@ pub type NodeRef = Arc<Node>;
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Parent {
     pub id: NodeId,
-    pub stream: StreamId,
 }
 
 impl Node {

@@ -5,7 +5,6 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_common::id::StreamId;
 use burn_tensor::{TensorMetadata, backend::Backend};
 
 #[derive(Debug, Clone)]
@@ -58,7 +57,6 @@ impl<B: Backend> AutodiffTensor<B> {
             vec![],
             0,
             id,
-            StreamId::current(),
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
@@ -92,7 +90,6 @@ impl<B: Backend> AutodiffTensor<B> {
                     vec![],
                     0,
                     self.node.id,
-                    StreamId::current(),
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
@@ -109,7 +106,6 @@ impl<B: Backend> AutodiffTensor<B> {
     pub fn from_parents(
         primitive: B::FloatTensorPrimitive,
         parent_nodes: &[NodeRef],
-        stream_id: StreamId,
         requirement: Requirement,
         computing_properties: ComputingProperty,
     ) -> Self {
@@ -129,11 +125,10 @@ impl<B: Backend> AutodiffTensor<B> {
             parent_nodes
                 .iter()
                 .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| Parent::new(node.id, node.stream))
+                .map(|node| Parent::new(node.id))
                 .collect(),
             order,
             NodeId::new(),
-            stream_id,
             requirement,
             computing_properties,
             client,
@@ -158,7 +153,6 @@ impl<B: Backend> AutodiffTensor<B> {
         actions: CheckpointerBuilder,
     ) -> Self {
         self.node.client.register(
-            self.node.stream,
             self.rc.clone(),
             Box::new(step_that_created_the_tensor),
             actions,
