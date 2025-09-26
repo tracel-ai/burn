@@ -2184,13 +2184,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
-        for node in nodes.iter() {
-            if let Some(node) = node {
-                parents.push(Parent {
-                    id: node.id,
-                    stream: node.stream,
-                });
-            }
+        for node in nodes.iter().flatten() {
+            parents.push(Parent {
+                id: node.id,
+                stream: node.stream,
+            });
         }
         let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         output.register_step(ops, checkpointer_builder)

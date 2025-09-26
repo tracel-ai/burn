@@ -152,7 +152,7 @@ impl ServerLocator {
             };
         }
 
-        if servers.len() == 0 {
+        if servers.is_empty() {
             return match self.streams.get(&stream_id) {
                 Some(old) => vec![old.clone()],
                 None => {
