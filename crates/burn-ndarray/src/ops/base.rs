@@ -217,20 +217,17 @@ where
         let result_shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
         let windows = result_shape[dim];
 
-        let mut select_ranges = Shape::from(tensor.shape()).into_ranges();
-        let new_axis = select_ranges.len();
-
-        let mut slices = vec![Slice::new(0, None, 1); select_ranges.len()];
+        let mut slices = vec![Slice::new(0, None, 1); tensor.shape().len()];
+        let new_axis = slices.len();
 
         let mut stack = Vec::with_capacity(windows);
         for widx in 0..windows {
             let start = widx * step;
             let end = start + size;
-            select_ranges[dim] = start..end;
             slices[dim] = Slice::new(start as isize, Some(end as isize), 1);
 
-            let mut window_slice = tensor
-                .slice(Self::to_slice_args_with_steps(&slices, select_ranges.len()).as_slice());
+            let mut window_slice =
+                tensor.slice(Self::to_slice_args_with_steps(&slices, slices.len()).as_slice());
             window_slice.insert_axis_inplace(Axis(new_axis));
             window_slice.swap_axes(dim, new_axis);
 

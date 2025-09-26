@@ -570,6 +570,48 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct CrossOps<B: FusionBackend> {
+            desc: CrossOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CrossOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
+                let output = B::float_cross(lhs, rhs, self.desc.dim);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&lhs);
+        streams.tensor(&rhs);
+        let dtype = lhs.dtype;
+        let shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+        let out = lhs.client.tensor_uninitialized(shape, dtype);
+        let desc = CrossOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::Cross(desc.clone())),
+            CrossOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct SwapDimsOps<B: FusionBackend> {

@@ -2134,6 +2134,7 @@ impl From<&ElementType> for ScalarKind {
             ElementType::Int32 => ScalarKind::Int32,
             ElementType::Int64 => ScalarKind::Int64,
             ElementType::Bool => ScalarKind::Bool,
+            ElementType::Uint16 => ScalarKind::Int32,
             ElementType::Int8 | ElementType::Uint8 => ScalarKind::Int32,
             ElementType::String => panic!("String tensor unsupported"),
             ElementType::Float16 => panic!("Float16 tensor unsupported"),
@@ -2157,9 +2158,11 @@ impl From<ElementType> for TensorKind {
 
 fn tensor_type_from_elem_and_rank(name: String, elem: &ElementType, rank: usize) -> TensorType {
     match elem {
-        ElementType::Uint8 | ElementType::Int8 | ElementType::Int32 | ElementType::Int64 => {
-            TensorType::new(name, rank, TensorKind::Int)
-        }
+        ElementType::Uint8
+        | ElementType::Int8
+        | ElementType::Uint16
+        | ElementType::Int32
+        | ElementType::Int64 => TensorType::new(name, rank, TensorKind::Int),
 
         ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
             // If you have TensorType::new_float, use that; otherwise:

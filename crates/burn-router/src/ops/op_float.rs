@@ -3,10 +3,10 @@ use burn_tensor::backend::Backend;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr,
-    GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
-    PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
-    ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CrossOpIr, ExpandOpIr, FlipOpIr,
+    FloatOperationIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr,
+    OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr,
+    ScalarIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
     SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::unfold::calculate_unfold_shape;
@@ -377,6 +377,28 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::Float(dtype, FloatOperationIr::Matmul(desc)));
+
+        out
+    }
+
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = CrossOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+        };
+
+        client.register(OperationIr::Float(dtype, FloatOperationIr::Cross(desc)));
 
         out
     }

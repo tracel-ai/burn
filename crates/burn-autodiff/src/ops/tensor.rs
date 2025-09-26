@@ -602,6 +602,59 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Cross;
+
+        impl<B: Backend> Backward<B, 2> for Cross {
+            type State = (Option<NodeID>, Option<NodeID>, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (lhs_id, rhs_id, dim) = ops.state;
+                let lhs = lhs_id.map(|id| checkpointer.retrieve_node_output(id));
+                let rhs = rhs_id.map(|id| checkpointer.retrieve_node_output(id));
+
+                binary::<B, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| B::float_cross(rhs.unwrap(), grad, dim),
+                    |grad| B::float_cross(lhs.unwrap(), grad, dim),
+                );
+            }
+        }
+
+        let lhs_tracked = lhs.is_tracked();
+        let rhs_tracked = rhs.is_tracked();
+
+        match Cross
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let lhs_state = rhs_tracked.then(|| prep.checkpoint(&lhs));
+                let rhs_state = lhs_tracked.then(|| prep.checkpoint(&rhs));
+                prep.finish(
+                    (lhs_state, rhs_state, dim),
+                    B::float_cross(lhs.primitive, rhs.primitive, dim),
+                )
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_cross(lhs.primitive, rhs.primitive, dim))
+            }
+        }
+    }
+
     fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Neg;

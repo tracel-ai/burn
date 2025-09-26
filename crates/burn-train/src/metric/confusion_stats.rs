@@ -80,7 +80,7 @@ impl<B: Backend> ConfusionStats<B> {
         use ClassReduction::{Macro, Micro};
         match class_reduction {
             Micro => sample_class_mask.float().sum(),
-            Macro => sample_class_mask.float().sum_dim(0).squeeze(0),
+            Macro => sample_class_mask.float().sum_dim(0).squeeze_dim(0),
         }
     }
 

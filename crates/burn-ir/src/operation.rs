@@ -115,6 +115,8 @@ pub enum FloatOperationIr {
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOpIr),
+    /// Operation corresponding to [cross](burn_tensor::ops::FloatTensorOps::float_cross).
+    Cross(CrossOpIr),
     /// Operation corresponding to [random](burn_tensor::ops::FloatTensorOps::float_random).
     Random(RandomOpIr),
     /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
@@ -687,6 +689,15 @@ pub struct BinaryOpIr {
     pub lhs: TensorIr,
     pub rhs: TensorIr,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CrossOpIr {
+    pub lhs: TensorIr,
+    pub rhs: TensorIr,
+    pub out: TensorIr,
+    pub dim: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1868,6 +1879,9 @@ impl FloatOperationIr {
             FloatOperationIr::Matmul(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
             }
+            FloatOperationIr::Cross(repr) => {
+                vec![&repr.lhs, &repr.rhs, &repr.out]
+            }
             FloatOperationIr::Random(repr) => vec![&repr.out],
             FloatOperationIr::Exp(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Log(repr) => vec![&repr.input, &repr.out],
@@ -1893,6 +1907,10 @@ impl FloatOperationIr {
 
         match self {
             FloatOperationIr::Matmul(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Cross(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }

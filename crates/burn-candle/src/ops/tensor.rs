@@ -149,6 +149,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs_contiguous.broadcast_matmul(&rhs_contiguous).unwrap())
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        super::base::cross(lhs, rhs, dim)
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::base::swap_dims(tensor, dim1, dim2)
     }

@@ -38,6 +38,15 @@ mod tests {
     }
 
     #[test]
+    fn test_bool_xor() {
+        let tensor1 = TestTensorBool::<2>::from([[false, true, false], [true, false, true]]);
+        let tensor2 = TestTensorBool::<2>::from([[true, true, false], [false, false, true]]);
+        let data_actual = tensor1.bool_xor(tensor2).into_data();
+        let data_expected = TensorData::from([[true, false, false], [true, false, false]]);
+        data_expected.assert_eq(&data_actual, false);
+    }
+
+    #[test]
     fn test_bool_or_vec() {
         let device = Default::default();
         let tensor1 = TestTensorBool::<1>::full([256], 0, &device);
