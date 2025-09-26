@@ -3,7 +3,6 @@ use burn::{
     collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
     nn::transformer::TransformerEncoderConfig,
-    optim::{AdamConfig, GradientsParams, Optimizer, SgdConfig, decay::WeightDecayConfig},
     prelude::*,
     tensor::{
         TensorPrimitive,
@@ -14,8 +13,6 @@ use std::{sync::Arc, time::Instant};
 use text_classification::{
     AgNewsDataset, TextClassificationDataset,
     data::{TextClassificationBatcher, Tokenizer},
-    model::TextClassificationModel,
-    training::ExperimentConfig,
 };
 
 pub fn run<B: Backend>() {
@@ -37,8 +34,8 @@ fn run_with<B: Backend>(devices: Vec<B::Device>) {
     ] {
         println!("[Gradient Update - {strategy:?}] starting ...");
         let start = Instant::now();
-        // task_grad_all_reduce::<Autodiff<B>>(devices.clone(), 32, strategy);
-        task_grad_all_reduce::<B>(devices.clone(), 32, strategy);
+        task_grad_all_reduce::<Autodiff<B>>(devices.clone(), strategy);
+        // task_grad_all_reduce::<B>(devices.clone(), 32, strategy);
         println!(
             "[Gradient Update - {strategy:?}] took {:?}",
             start.elapsed()
@@ -169,10 +166,9 @@ fn task_all_reduce<B: Backend>(
     }
 }
 
-fn task_grad_all_reduce<B: Backend>(
-// fn task_grad_all_reduce<B: AutodiffBackend>(
+// fn task_grad_all_reduce<B: Backend>(
+fn task_grad_all_reduce<B: AutodiffBackend>(
     devices: Vec<B::Device>,
-    num_iterations: usize,
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
@@ -222,7 +218,7 @@ fn task_grad_all_reduce<B: Backend>(
                     let output = model.forward(batch);
                     let loss: Tensor<B, 1> = output.loss.clone();
 
-                    // let grads = loss.backward();
+                    let grads = loss.backward();
                     // let stat = loss.into_scalar().elem::<f32>();
 
                     // let grads = GradientsParams::from_grads(grads, &model);
