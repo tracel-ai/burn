@@ -29,6 +29,7 @@ impl AutodiffServer {
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let parents = step.parents();
         let node_id = *rc.as_ref();
+        println!("Register node id {node_id:?}");
 
         self.memory_management.register(rc, parents);
 
@@ -79,10 +80,11 @@ impl AutodiffServer {
             }
 
             if let Some(steps) = tape.get_mut(depth - 1) {
-                let parents = step.parents().into_iter().filter_map(|p| match p.id != id {
-                    true => Some(p.id),
-                    false => None,
-                });
+                // let parents = step.parents().into_iter().filter_map(|p| match p.id != id {
+                //     true => Some(p.id),
+                //     false => None,
+                // });
+                let parents = step.parents().iter().map(|p| p.id).filter(|s| *s != id);
                 tree.insert(id, parents.collect());
                 steps.push(step);
             }

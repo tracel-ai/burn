@@ -2177,12 +2177,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             requirement,
             cat_computing_property,
         );
+
+        let mut parents = Vec::new();
+
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
-        let mut parents = Vec::new();
-
         for node in nodes.iter() {
             let node = if let Some(node) = node {
                 node
@@ -2190,12 +2191,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 continue;
             };
             for parent in node.parents.iter() {
-                if !parents.contains(parent) {
-                    parents.push(parent.clone());
-                }
+                // if !parents.contains(parent) {
+                parents.push(parent.clone());
+                // }
             }
         }
-
+        println!("{parents:?} num nodes {}", nodes.len());
         let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         output.register_step(ops, checkpointer_builder)
     }

@@ -33,7 +33,9 @@ mod tests {
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
         let grads = tensor_3_cat.backward();
 
+        println!("Here");
         let grad_1_slice_1 = tensor_1.grad(&grads).unwrap().slice([0..1]);
+        println!("Nop");
         let grad_1_slice_2 = tensor_1.grad(&grads).unwrap().slice([1..2]);
 
         let grad_2_slice_1 = tensor_2.grad(&grads).unwrap().slice([0..1]);

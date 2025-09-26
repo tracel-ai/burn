@@ -105,14 +105,14 @@ impl ServerLocator {
         }
 
         if servers.len() == 0 {
-            let server = Arc::new(Stream {
-                server: Mutex::new(AutodiffServer::default()),
-                stream_id,
-            });
-
             return match self.streams.get(&stream_id) {
                 Some(old) => vec![old.clone()],
                 None => {
+                    let server = Arc::new(Stream {
+                        server: Mutex::new(AutodiffServer::default()),
+                        stream_id,
+                    });
+
                     self.streams.insert(stream_id, server.clone());
                     vec![server]
                 }
@@ -123,6 +123,7 @@ impl ServerLocator {
     }
 
     fn merge(&mut self, stream_id: StreamId, mut streams: Vec<Arc<Stream>>) -> Arc<Stream> {
+        println!("Merge");
         let mut stream_ids = Vec::with_capacity(streams.len());
         let main = streams.pop().unwrap();
 
