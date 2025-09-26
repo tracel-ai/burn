@@ -1,8 +1,7 @@
 // Burnpack File Format Specification
 // ===================================
 //
-// The Burnpack format is a binary file format designed specifically for Burn tensors,
-// using MessagePack for metadata serialization instead of JSON (as in SafeTensors).
+// The Burnpack format is a binary file format designed specifically for Burn tensors.
 //
 // File Structure:
 // ┌─────────────────────────────────┐
