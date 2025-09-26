@@ -160,20 +160,7 @@ impl TensorSnapshot {
 
     /// Get the size of the tensor data in bytes without materializing it
     pub fn data_len(&self) -> usize {
-        let elem_size = match self.dtype {
-            burn_tensor::DType::F64 | burn_tensor::DType::I64 | burn_tensor::DType::U64 => 8,
-            burn_tensor::DType::F32
-            | burn_tensor::DType::I32
-            | burn_tensor::DType::U32
-            | burn_tensor::DType::Flex32 => 4,
-            burn_tensor::DType::F16
-            | burn_tensor::DType::BF16
-            | burn_tensor::DType::I16
-            | burn_tensor::DType::U16 => 2,
-            burn_tensor::DType::I8 | burn_tensor::DType::U8 | burn_tensor::DType::Bool => 1,
-            burn_tensor::DType::QFloat(_) => 1, // Simplified for quantized types
-        };
-        self.shape.iter().product::<usize>() * elem_size
+        self.shape.iter().product::<usize>() * self.dtype.size()
     }
 
     /// Clone the data function for lazy composition
