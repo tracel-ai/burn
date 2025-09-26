@@ -204,7 +204,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                 println!("[{id}] Running on device {device:?}");
                 let mut model = model_main.fork(&device);
                 let batcher = TextClassificationBatcher::new(tokenizer, seq_length);
-                let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+                let dataloader_train = DataLoaderBuilder::new(batcher)
                     .batch_size(batch_size)
                     .set_device(device.clone())
                     .build(dataset);

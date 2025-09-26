@@ -92,7 +92,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     vec![],
                     0,
                     self.node.id,
-                    self.node.stream,
+                    StreamId::current(),
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
