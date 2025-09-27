@@ -6,10 +6,12 @@ mod tests {
     #[test]
     fn should_support_num_dims() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        assert_eq!(data.num_dims(), 1);
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        assert_eq!(tensor.num_dims(), 1);
 
         let data = TensorData::from([[0.0, 1.0, 2.0]]);
-        assert_eq!(data.num_dims(), 2);
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
+        assert_eq!(tensor.num_dims(), 2);
     }
 
     #[test]
