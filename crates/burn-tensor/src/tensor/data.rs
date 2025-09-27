@@ -296,6 +296,11 @@ impl TensorData {
         }
     }
 
+    /// Returns the number of dimensions.
+    pub fn num_dims(&self) -> usize {
+        self.shape.len()
+    }
+
     /// Returns the total number of elements of the tensor data.
     pub fn num_elements(&self) -> usize {
         Self::numel(&self.shape)
