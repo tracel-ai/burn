@@ -4,6 +4,15 @@ mod tests {
     use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
+    fn should_support_num_dims() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        assert_eq!(data.num_dims(), 1);
+
+        let data = TensorData::from([[0.0, 1.0, 2.0]]);
+        assert_eq!(data.num_dims(), 2);
+    }
+
+    #[test]
     fn should_support_reshape_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data, &Default::default());

@@ -22,6 +22,10 @@ impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
     fn shape(&self) -> burn_tensor::Shape {
         self.primitive.shape()
     }
+
+    fn num_dims(&self) -> usize {
+        self.primitive.num_dims()
+    }
 }
 
 pub type NodeRefCount = Arc<NodeID>;

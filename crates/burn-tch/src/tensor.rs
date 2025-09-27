@@ -85,6 +85,10 @@ impl TensorMetadata for TchTensor {
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
     }
+
+    fn num_dims(&self) -> usize {
+        self.tensor.dim()
+    }
 }
 
 impl burn_tensor::quantization::QTensorPrimitive for TchTensor {

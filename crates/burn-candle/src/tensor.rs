@@ -27,6 +27,10 @@ impl TensorMetadata for CandleTensor {
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.dims().to_vec())
     }
+
+    fn num_dims(&self) -> usize {
+        self.tensor.dims().len()
+    }
 }
 
 impl QTensorPrimitive for CandleTensor {
