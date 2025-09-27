@@ -331,7 +331,7 @@ macro_rules! s {
 /// ```
 ///
 /// See also the [`s!`] macro for the preferred way to create slices.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Slice {
     /// Slice start index.
     pub start: isize,
@@ -341,11 +341,22 @@ pub struct Slice {
     pub step: isize,
 }
 
+impl Default for Slice {
+    fn default() -> Self {
+        Self::full()
+    }
+}
+
 impl Slice {
     /// Creates a new slice with start, end, and step
-    pub fn new(start: isize, end: Option<isize>, step: isize) -> Self {
+    pub const fn new(start: isize, end: Option<isize>, step: isize) -> Self {
         assert!(step != 0, "Step cannot be zero");
         Self { start, end, step }
+    }
+
+    /// Creates a slice that represents the full range.
+    pub const fn full() -> Self {
+        Self::new(0, None, 1)
     }
 
     /// Creates a slice that represents a single index
