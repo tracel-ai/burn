@@ -49,6 +49,11 @@ where
         Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
+    /// Performs logical xor (`^`) on two boolean tensors
+    pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_xor(self.primitive, rhs.primitive))
+    }
+
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
     ///
     /// # Returns

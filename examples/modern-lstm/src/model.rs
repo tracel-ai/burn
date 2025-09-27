@@ -227,7 +227,7 @@ impl<B: Backend> StackedLstm<B> {
 
         let mut layer_outputs = vec![];
         for t in 0..seq_length {
-            let mut input_t = x.clone().slice(s![.., t..t + 1, ..]).squeeze::<2>(1);
+            let mut input_t = x.clone().slice(s![.., t..t + 1, ..]).squeeze_dim::<2>(1);
             for (i, lstm_cell) in self.layers.iter().enumerate() {
                 let mut state: LstmState<B, 2> =
                     LstmState::new(states[i].cell.clone(), states[i].hidden.clone());
@@ -353,7 +353,7 @@ impl<B: Backend> LstmNetwork<B> {
         self.fc.forward(
             output
                 .slice(s![.., seq_length - 1..seq_length, ..])
-                .squeeze::<2>(1),
+                .squeeze_dim::<2>(1),
         )
     }
 }
