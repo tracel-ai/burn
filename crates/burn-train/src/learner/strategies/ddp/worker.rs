@@ -4,6 +4,7 @@ use crate::learner::strategies::ddp;
 use crate::metric::store::EventStoreClient;
 use crate::{EarlyStoppingStrategyRef, Interrupter, LearnerCheckpointer, TrainLoader, ValidLoader};
 use burn_collective::{self, CollectiveConfig, PeerId};
+use burn_core::module::Module;
 use burn_core::prelude::Backend;
 use burn_core::tensor::backend::AutodiffBackend;
 use std::marker::PhantomData;
@@ -104,6 +105,7 @@ where
             self.num_epochs,
             self.grad_accumulation,
         );
+        self.model = self.model.fork(&self.device);
 
         for epoch in self.starting_epoch..self.num_epochs + 1 {
             (self.model, self.optim) = epoch_train.run(

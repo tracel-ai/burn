@@ -25,6 +25,8 @@ pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
+pub use burn_common::stream_id::StreamId;
+
 pub use burn_common::reader::*; // Useful so that backends don't have to add `burn_common` as a dependency.
 
 #[cfg(feature = "cubecl")]

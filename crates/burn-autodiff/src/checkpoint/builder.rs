@@ -1,6 +1,6 @@
 use crate::{
     collections::HashMap,
-    graph::{ComputingProperty, NodeID},
+    graph::{ComputingProperty, NodeId},
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -20,14 +20,14 @@ pub enum CheckpointingAction {
     /// The node's already computed output should be saved
     Computed {
         /// The node
-        node_id: NodeID,
+        node_id: NodeId,
         /// The node's output
         state_content: Box<dyn Any + Send>,
     },
     /// The node should recompute itself when asked
     Recompute {
         /// The node
-        node_id: NodeID,
+        node_id: NodeId,
         /// How the node should recompute itself
         retro_forward: Arc<dyn RetroForward>,
     },
@@ -38,7 +38,7 @@ unsafe impl Send for CheckpointingAction {}
 
 impl CheckpointingAction {
     /// Utilitary function to access the id of the node of the checkpointing action
-    pub fn id(&self) -> NodeID {
+    pub fn id(&self) -> NodeId {
         match self {
             CheckpointingAction::Computed {
                 node_id: node_ref,
@@ -113,7 +113,7 @@ impl CheckpointerBuilder {
         let mut retro_forwards_map = HashMap::new();
 
         // Find recursion stopping points
-        let stop_nodes: Vec<NodeID> = self.find_stop_nodes();
+        let stop_nodes: Vec<NodeId> = self.find_stop_nodes();
 
         // We start by identifying how many times each node will be required.
         let n_required_map = self.build_n_required_map(&node_tree, stop_nodes);
@@ -132,7 +132,7 @@ impl CheckpointerBuilder {
         )
     }
 
-    fn find_stop_nodes(&self) -> Vec<NodeID> {
+    fn find_stop_nodes(&self) -> Vec<NodeId> {
         let mut stop_nodes = Vec::default();
         for action in self
             .explicit_actions
@@ -156,9 +156,9 @@ impl CheckpointerBuilder {
     fn build_n_required_map(
         &self,
         node_tree: &NodeTree,
-        stop_nodes: Vec<NodeID>,
-    ) -> HashMap<NodeID, usize> {
-        let mut n_required_map = HashMap::<NodeID, usize>::default();
+        stop_nodes: Vec<NodeId>,
+    ) -> HashMap<NodeId, usize> {
+        let mut n_required_map = HashMap::<NodeId, usize>::default();
 
         for action in self.explicit_actions.iter() {
             match action {
@@ -196,9 +196,9 @@ impl CheckpointerBuilder {
 
     fn insert_checkpoints(
         mut self,
-        backward_states_map: &mut HashMap<NodeID, State>,
-        retro_forward_map: &mut HashMap<NodeID, Arc<dyn RetroForward>>,
-        n_required_map: HashMap<NodeID, usize>,
+        backward_states_map: &mut HashMap<NodeId, State>,
+        retro_forward_map: &mut HashMap<NodeId, Arc<dyn RetroForward>>,
+        n_required_map: HashMap<NodeId, usize>,
     ) {
         // We do not loop over checkpointing actions anymore because they can contain
         // duplicates or miss some that are in backup. We loop over the n_required_map
@@ -247,10 +247,10 @@ impl CheckpointerBuilder {
     }
 
     fn update_n_required_of_parents(
-        id: NodeID,
-        n_required_map: &mut HashMap<NodeID, usize>,
+        id: NodeId,
+        n_required_map: &mut HashMap<NodeId, usize>,
         node_tree: &NodeTree,
-        stop_nodes: &Vec<NodeID>,
+        stop_nodes: &Vec<NodeId>,
     ) {
         match n_required_map.remove(&id) {
             Some(n) => {
@@ -276,8 +276,8 @@ impl CheckpointerBuilder {
 
     fn checkpoint_compute(
         &self,
-        backward_states_map: &mut HashMap<NodeID, State>,
-        node_id: NodeID,
+        backward_states_map: &mut HashMap<NodeId, State>,
+        node_id: NodeId,
         state_content: Box<dyn Any + Send>,
         n_required: usize,
     ) {
@@ -292,9 +292,9 @@ impl CheckpointerBuilder {
 
     fn checkpoint_lazy(
         &self,
-        backward_states_map: &mut HashMap<NodeID, State>,
-        retro_forward_map: &mut HashMap<NodeID, Arc<dyn RetroForward>>,
-        node_id: NodeID,
+        backward_states_map: &mut HashMap<NodeId, State>,
+        retro_forward_map: &mut HashMap<NodeId, Arc<dyn RetroForward>>,
+        node_id: NodeId,
         retro_forward: Arc<dyn RetroForward>,
         n_required: usize,
     ) {
