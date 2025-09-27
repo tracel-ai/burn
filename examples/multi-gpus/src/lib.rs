@@ -33,9 +33,9 @@ pub fn run<B: Backend>() {
 
 fn run_with<B: Backend>(devices: Vec<B::Device>) {
     for strategy in [
-        collective::AllReduceStrategy::Centralized,
-        collective::AllReduceStrategy::Ring,
         collective::AllReduceStrategy::Tree(2),
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Centralized,
     ] {
         println!("[Gradient Update - {strategy:?}] starting ...");
         let start = Instant::now();
@@ -261,7 +261,8 @@ impl GradSyncer {
         std::thread::spawn(move || {
             println!("[{id}] Register collective operation {config:?}");
             collective::register::<B::InnerBackend>(id, device, config).unwrap();
-            let mut buffer: Option<GradientsParams> = None;
+            let num_stages = 5;
+            let mut buffers: Vec<GradientsParams> = Vec::new();
 
             while let Ok(msg) = receiver.recv() {
                 let grads = msg
@@ -269,8 +270,13 @@ impl GradSyncer {
                     .all_reduce::<B::InnerBackend>(id, ReduceOperation::Mean)
                     .unwrap();
 
-                let mut result = Some(grads);
-                core::mem::swap(&mut result, &mut buffer);
+                buffers.push(grads);
+
+                let result = if buffers.len() >= num_stages {
+                    Some(buffers.remove(0))
+                } else {
+                    None
+                };
 
                 msg.callback.send(result).unwrap();
             }
