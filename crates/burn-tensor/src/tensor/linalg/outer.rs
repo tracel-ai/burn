@@ -1,43 +1,48 @@
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{Numeric, Shape};
-/// Computes the outer product of two 1D tensors (vectors).
+
+/// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensors.
 ///
-/// Given `x` of shape `(m,)` and `y` of shape `(n,)`, returns a tensor
-/// of shape `(m, n)` where `out[i, j] = x[i] * y[j]`.
+/// Supported ranks:
+/// - D = 1, R = 2: vectors (m,) × (n,) → (m, n)
+/// - D = 2, R = 3: batched (b, m) × (b, n) → (b, m, n)
 ///
-/// See:
-/// - [torch.outer](https://pytorch.org/docs/stable/generated/torch.outer.html)
-/// - [numpy.outer](https://numpy.org/doc/stable/reference/generated/numpy.outer.html)
+/// Panics:
+/// - if D > 2
+/// - if (D, R) is not (1,2) or (2,3)
+/// - if D = 2 and batch dimensions differ
 ///
-/// # Arguments
-///
-/// * `x` - A 1D input tensor.
-/// * `y` - A 1D input tensor.
-///
-/// # Returns
-///
-/// A 2D tensor containing the outer product of `x` and `y`.
-pub fn outer<B: Backend, K>(
-    x: Tensor<B, 1, K>, // x is a 1-D vector (rank 1)
-    y: Tensor<B, 1, K>, // y is a 1-D vector (rank 1)
-) -> Tensor<B, 2, K>
-// we return a 2-D matrix (rank 2)
+/// Notes:
+/// - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
+///   than broadcasted elemwise multiply; benchmarking needed to confirm.
+pub fn outer<B: Backend, const D: usize, const R: usize, K>(
+    x: Tensor<B, D, K>,
+    y: Tensor<B, D, K>,
+) -> Tensor<B, R, K>
 where
-    K: BasicOps<B> + Numeric<B>, // works for floats AND ints
+    K: BasicOps<B> + Numeric<B>,
 {
-    // x.shape().dims() returns an array of dimension sizes.
-    // because x is rank-1, it's exactly [m].
-    let [m] = x.shape().dims();
-    let [n] = y.shape().dims();
+    if D == 1 {
+        assert!(R == 2, "`outer` with D=1 must use R=2 (got R={})", R);
+        let [m] = x.shape().dims();
+        let [n] = y.shape().dims();
 
-    // reshape x to (m, 1) => column
-    let x_col = x.reshape(Shape::new([m, 1]));
+        let x_col = x.reshape(Shape::new([m, 1])); // (m, 1)
+        let y_row = y.reshape(Shape::new([1, n])); // (1, n)
 
-    // reshape y to (1, n) => row
-    let y_row = y.reshape(Shape::new([1, n]));
+        x_col * y_row // (m, n)
+    } else if D == 2 {
+        assert!(R == 3, "`outer` with D=2 must use R=3 (got R={})", R);
+        let [bx, m] = x.shape().dims();
+        let [by, n] = y.shape().dims();
+        assert_eq!(bx, by, "batch dimensions must match (got {} vs {})", bx, by);
 
-    // broadcasted multiply:
-    // (m,1) * (1,n) -> (m,n), with M[i,j] = x[i] * y[j]
-    x_col * y_row
+        let x_col = x.reshape(Shape::new([bx, m, 1])); // (b, m, 1)
+        let y_row = y.reshape(Shape::new([by, 1, n])); // (b, 1, n)
+
+        x_col * y_row // (b, m, n)
+    } else {
+        panic!("`outer` only supports rank 1 or 2 tensors (got D={})", D);
+    }
 }
