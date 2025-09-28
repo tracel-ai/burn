@@ -108,4 +108,4 @@ pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 #[cfg(feature = "burnpack")]
 mod burnpack;
 #[cfg(feature = "burnpack")]
-pub use burnpack::BurnpackStore;
+pub use burnpack::store::BurnpackStore;
