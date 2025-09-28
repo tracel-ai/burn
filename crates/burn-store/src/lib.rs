@@ -87,7 +87,7 @@ pub use adapter::{BurnToPyTorchAdapter, IdentityAdapter, ModuleAdapter, PyTorchT
 pub use applier::{Applier, ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
-pub use tensor_snapshot::TensorSnapshot;
+pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
 pub use traits::{ModuleSnapshot, ModuleSnapshoter};
 
 #[cfg(feature = "std")]

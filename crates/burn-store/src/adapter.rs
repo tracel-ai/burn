@@ -203,8 +203,8 @@ fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
 
     // Create a lazy closure that transposes when called
     let transposed_data_fn = Rc::new(move || {
-        let data = original_data_fn();
-        transpose_tensor_data(data)
+        let data = original_data_fn()?;
+        Ok(transpose_tensor_data(data))
     });
 
     TensorSnapshot::from_closure(
@@ -263,7 +263,7 @@ mod tests {
         let data = TensorData::new(values, shape.clone());
 
         TensorSnapshot::from_closure(
-            Rc::new(move || data.clone()),
+            Rc::new(move || Ok(data.clone())),
             DType::F32,
             shape,
             path_parts,

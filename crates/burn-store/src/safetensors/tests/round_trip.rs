@@ -98,6 +98,7 @@ fn complex_module_round_trip() {
         .iter()
         .find(|v| v.full_path() == "encoder.weight")
         .unwrap()
-        .to_data();
+        .to_data()
+        .unwrap();
     assert_eq!(encoder_weight.shape, vec![2, 2, 2]);
 }

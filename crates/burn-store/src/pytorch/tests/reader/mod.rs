@@ -25,7 +25,7 @@ fn test_float32_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![4]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 4);
     assert!((values[0] - 1.0).abs() < 1e-6);
@@ -42,7 +42,7 @@ fn test_float64_tensor() {
     assert_eq!(tensor.dtype, DType::F64);
     assert_eq!(tensor.shape, vec![3]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert_eq!(values.len(), 3);
     assert!((values[0] - 1.1).abs() < 1e-10);
@@ -58,7 +58,7 @@ fn test_int64_tensor() {
     assert_eq!(tensor.dtype, DType::I64);
     assert_eq!(tensor.shape, vec![4]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[100, -200, 300, 0]);
 }
@@ -71,7 +71,7 @@ fn test_int32_tensor() {
     assert_eq!(tensor.dtype, DType::I32);
     assert_eq!(tensor.shape, vec![3]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     // Convert to the appropriate element type
     let data_converted = data.convert::<i32>();
     let values = data_converted.as_slice::<i32>().unwrap();
@@ -86,7 +86,7 @@ fn test_int16_tensor() {
     assert_eq!(tensor.dtype, DType::I16);
     assert_eq!(tensor.shape, vec![3]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let data_converted = data.convert::<i16>();
     let values = data_converted.as_slice::<i16>().unwrap();
     assert_eq!(values, &[1000, -2000, 3000]);
@@ -100,7 +100,7 @@ fn test_int8_tensor() {
     assert_eq!(tensor.dtype, DType::I8);
     assert_eq!(tensor.shape, vec![4]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let data_converted = data.convert::<i8>();
     let values = data_converted.as_slice::<i8>().unwrap();
     assert_eq!(values, &[127, -128, 0, 50]);
@@ -114,7 +114,7 @@ fn test_bool_tensor() {
     assert_eq!(tensor.dtype, DType::Bool);
     assert_eq!(tensor.shape, vec![5]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<bool>().unwrap();
     assert_eq!(values, &[true, false, true, true, false]);
 }
@@ -128,7 +128,7 @@ fn test_float16_tensor() {
     assert_eq!(tensor.shape, vec![3]);
 
     // F16 support may vary, just check shape and dtype
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![3]);
 }
 
@@ -141,7 +141,7 @@ fn test_bfloat16_tensor() {
     assert_eq!(tensor.shape, vec![3]);
 
     // BF16 support may vary, just check shape and dtype
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![3]);
 }
 
@@ -153,7 +153,7 @@ fn test_2d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![3, 2]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6);
     // Check flattened values [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
@@ -170,7 +170,7 @@ fn test_3d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![2, 3, 4]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![2, 3, 4]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
@@ -184,7 +184,7 @@ fn test_4d_tensor() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![2, 3, 2, 2]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![2, 3, 2, 2]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
@@ -215,14 +215,14 @@ fn test_state_dict() {
     // Check running_mean (should be zeros)
     let running_mean = reader.get("running_mean").unwrap();
     assert_eq!(running_mean.shape, vec![3]);
-    let mean_data = running_mean.to_data();
+    let mean_data = running_mean.to_data().unwrap();
     let mean_values = mean_data.as_slice::<f32>().unwrap();
     assert!(mean_values.iter().all(|&v| v.abs() < 1e-6));
 
     // Check running_var (should be ones)
     let running_var = reader.get("running_var").unwrap();
     assert_eq!(running_var.shape, vec![3]);
-    let var_data = running_var.to_data();
+    let var_data = running_var.to_data().unwrap();
     let var_values = var_data.as_slice::<f32>().unwrap();
     assert!(var_values.iter().all(|&v| (v - 1.0).abs() < 1e-6));
 }
@@ -291,7 +291,7 @@ fn test_scalar_tensor() {
     assert_eq!(tensor.shape, Vec::<usize>::new()); // Scalar has empty shape
     assert_eq!(tensor.dtype, DType::F32);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 1);
     assert!((values[0] - 42.0).abs() < 1e-6);
@@ -305,7 +305,7 @@ fn test_large_shape() {
     assert_eq!(tensor.shape, vec![100, 100]);
     assert_eq!(tensor.dtype, DType::F32);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 10000);
 
@@ -352,7 +352,7 @@ fn test_special_values() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![5]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 5);
 
@@ -372,7 +372,7 @@ fn test_extreme_values() {
     assert_eq!(tensor.dtype, DType::F32);
     assert_eq!(tensor.shape, vec![4]);
 
-    let data = tensor.to_data();
+    let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 4);
 
@@ -398,7 +398,7 @@ fn test_parameter() {
     assert_eq!(param.shape, vec![3, 3]);
     assert_eq!(param.dtype, DType::F32);
 
-    let data = param.to_data();
+    let data = param.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 9);
 }
@@ -415,7 +415,7 @@ fn test_buffers() {
     let buffer1 = reader.get("buffer1").unwrap();
     assert_eq!(buffer1.dtype, DType::I32);
     assert_eq!(buffer1.shape, vec![3]);
-    let data1 = buffer1.to_data();
+    let data1 = buffer1.to_data().unwrap();
     let data1_converted = data1.convert::<i32>();
     let values1 = data1_converted.as_slice::<i32>().unwrap();
     assert_eq!(values1, &[1, 2, 3]);
@@ -424,7 +424,7 @@ fn test_buffers() {
     let buffer2 = reader.get("buffer2").unwrap();
     assert_eq!(buffer2.dtype, DType::Bool);
     assert_eq!(buffer2.shape, vec![2]);
-    let data2 = buffer2.to_data();
+    let data2 = buffer2.to_data().unwrap();
     let values2 = data2.as_slice::<bool>().unwrap();
     assert_eq!(values2, &[true, false]);
 }
@@ -465,7 +465,7 @@ fn test_read_pytorch_tensors_convenience() {
 
     // Check that data can be materialized
     let weight = reader.get("weight").unwrap();
-    let weight_data = weight.to_data();
+    let weight_data = weight.to_data().unwrap();
     assert_eq!(weight_data.shape, vec![3, 4]);
     assert_eq!(weight_data.dtype, DType::F32);
 }
@@ -518,7 +518,7 @@ fn test_legacy_format() {
     assert_eq!(bias.dtype, DType::F32);
 
     // Verify bias values are all ones
-    let bias_data = bias.to_data();
+    let bias_data = bias.to_data().unwrap();
     let bias_values = bias_data.as_slice::<f32>().unwrap();
     // Note: values in simple_legacy.pt are randomly generated, not necessarily 1.0
     assert_eq!(bias_values.len(), 2);
@@ -529,7 +529,7 @@ fn test_legacy_format() {
     assert_eq!(running_mean.dtype, DType::F32);
 
     // Verify running_mean values are accessible
-    let mean_data = running_mean.to_data();
+    let mean_data = running_mean.to_data().unwrap();
     let mean_values = mean_data.as_slice::<f32>().unwrap();
     assert_eq!(mean_values.len(), 2);
 }
@@ -547,7 +547,7 @@ fn test_legacy_with_offsets() {
     for key in &keys {
         assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
         let tensor = reader.get(key).unwrap();
-        let data = tensor.to_data();
+        let data = tensor.to_data().unwrap();
         let values = data.as_slice::<f32>().unwrap();
         assert!(!values.is_empty(), "Tensor {} should have data", key);
     }
@@ -566,7 +566,7 @@ fn test_legacy_shared_storage() {
     for key in &keys {
         assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
         let tensor = reader.get(key).unwrap();
-        let data = tensor.to_data();
+        let data = tensor.to_data().unwrap();
 
         // Verify tensor data can be accessed
         match tensor.dtype {

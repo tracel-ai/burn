@@ -39,6 +39,13 @@ pub enum ApplyError {
         /// Error message
         message: String,
     },
+    /// Error loading tensor data
+    LoadError {
+        /// Path of the tensor
+        path: String,
+        /// Error message
+        message: String,
+    },
 }
 
 impl core::fmt::Display for ApplyError {
@@ -68,6 +75,9 @@ impl core::fmt::Display for ApplyError {
             }
             Self::AdapterError { path, message } => {
                 write!(f, "Adapter error for '{}': {}", path, message)
+            }
+            Self::LoadError { path, message } => {
+                write!(f, "Load error for '{}': {}", path, message)
             }
         }
     }
@@ -233,7 +243,16 @@ impl<B: Backend> Applier<B> {
 
         // Apply adapter with current container context
         let adapted_snapshot = self.adapt_snapshot(snapshot);
-        let data = adapted_snapshot.to_data();
+        let data = match adapted_snapshot.to_data() {
+            Ok(data) => data,
+            Err(e) => {
+                self.errors.push(ApplyError::LoadError {
+                    path: path.clone(),
+                    message: format!("Failed to load tensor data: {:?}", e),
+                });
+                return tensor;
+            }
+        };
 
         // Validate shape
         let expected_shape = tensor.shape().dims;

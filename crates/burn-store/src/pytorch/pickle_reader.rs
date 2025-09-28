@@ -491,7 +491,10 @@ fn rebuild_tensor_v2(
                 // Apply storage offset
                 let offset_bytes = storage_offset * element_size;
                 if offset_bytes >= data.len() {
-                    return TensorData::new(vec![0.0f32; num_elements], shape_clone.clone());
+                    return Ok(TensorData::new(
+                        vec![0.0f32; num_elements],
+                        shape_clone.clone(),
+                    ));
                 }
 
                 let data_slice = &data[offset_bytes..];
@@ -513,7 +516,7 @@ fn rebuild_tensor_v2(
                         }
                         // Pad with zeros if needed
                         values.resize(num_elements, 0.0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::F64 => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -523,7 +526,7 @@ fn rebuild_tensor_v2(
                             values.push(f64::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0.0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::I64 => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -533,7 +536,7 @@ fn rebuild_tensor_v2(
                             values.push(i64::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::I32 => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -543,7 +546,7 @@ fn rebuild_tensor_v2(
                             values.push(i32::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::I16 => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -553,7 +556,7 @@ fn rebuild_tensor_v2(
                             values.push(i16::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::I8 => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -561,7 +564,7 @@ fn rebuild_tensor_v2(
                             values.push(byte as i8);
                         }
                         values.resize(num_elements, 0);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     DType::Bool => {
                         let mut values = Vec::with_capacity(num_elements);
@@ -569,24 +572,48 @@ fn rebuild_tensor_v2(
                             values.push(byte != 0);
                         }
                         values.resize(num_elements, false);
-                        TensorData::new(values, shape_clone.clone())
+                        Ok(TensorData::new(values, shape_clone.clone()))
                     }
                     _ => {
                         // For other types, default to f32 zeros for now
-                        TensorData::new(vec![0.0f32; num_elements], shape_clone.clone())
+                        Ok(TensorData::new(
+                            vec![0.0f32; num_elements],
+                            shape_clone.clone(),
+                        ))
                     }
                 }
             } else {
                 // If no data file found, return zeros of the appropriate type
                 let num_elements = shape_clone.iter().product::<usize>().max(1);
                 match dtype {
-                    DType::I64 => TensorData::new(vec![0i64; num_elements], shape_clone.clone()),
-                    DType::I32 => TensorData::new(vec![0i32; num_elements], shape_clone.clone()),
-                    DType::I16 => TensorData::new(vec![0i16; num_elements], shape_clone.clone()),
-                    DType::I8 => TensorData::new(vec![0i8; num_elements], shape_clone.clone()),
-                    DType::F64 => TensorData::new(vec![0.0f64; num_elements], shape_clone.clone()),
-                    DType::Bool => TensorData::new(vec![false; num_elements], shape_clone.clone()),
-                    _ => TensorData::new(vec![0.0f32; num_elements], shape_clone.clone()),
+                    DType::I64 => Ok(TensorData::new(
+                        vec![0i64; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::I32 => Ok(TensorData::new(
+                        vec![0i32; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::I16 => Ok(TensorData::new(
+                        vec![0i16; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::I8 => Ok(TensorData::new(
+                        vec![0i8; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::F64 => Ok(TensorData::new(
+                        vec![0.0f64; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::Bool => Ok(TensorData::new(
+                        vec![false; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    _ => Ok(TensorData::new(
+                        vec![0.0f32; num_elements],
+                        shape_clone.clone(),
+                    )),
                 }
             }
         }),

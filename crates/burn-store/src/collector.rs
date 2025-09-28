@@ -232,7 +232,7 @@ mod tests {
 
         // Verify the tensor can be converted to data
         let view = &collector.tensors[0];
-        let data = view.to_data();
+        let data = view.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
     }
 
@@ -656,7 +656,7 @@ mod tests {
             .iter()
             .find(|v| v.full_path() == "backbone.encoder.block1.layer.weight")
             .unwrap();
-        let data = view.to_data();
+        let data = view.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
     }
 

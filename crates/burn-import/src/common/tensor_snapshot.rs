@@ -31,7 +31,10 @@ impl Serializable for TensorSnapshotWrapper {
         PS: PrecisionSettings,
     {
         // Get the tensor data
-        let data = self.0.to_data();
+        let data = self
+            .0
+            .to_data()
+            .map_err(|e| error::Error::Other(format!("Failed to get tensor data: {:?}", e)))?;
         let shape = data.shape.clone();
         let dtype = data.dtype;
         let bytes = data.into_bytes();

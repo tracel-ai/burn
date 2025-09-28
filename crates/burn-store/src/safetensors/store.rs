@@ -469,7 +469,10 @@ impl safetensors::View for TensorSnapshotAdapter {
 
     fn data(&self) -> alloc::borrow::Cow<'_, [u8]> {
         // Only materialize data when actually needed for serialization
-        let data = self.0.to_data();
+        let data = self
+            .0
+            .to_data()
+            .unwrap_or_else(|e| panic!("Failed to get tensor data: {:?}", e));
         alloc::borrow::Cow::Owned(data.bytes.deref().to_vec())
     }
 
@@ -704,19 +707,29 @@ fn safetensors_to_snapshots_lazy(
         let name_clone = name.to_string();
         let data_fn = alloc::rc::Rc::new(move || {
             // Re-deserialize when needed (this is cheap, just parsing header)
-            let tensors = safetensors::SafeTensors::deserialize(&data_clone)
-                .expect("Failed to re-deserialize safetensors");
+            let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
+                crate::TensorSnapshotError::IoError(format!(
+                    "Failed to re-deserialize safetensors: {}",
+                    e
+                ))
+            })?;
 
             // Find our specific tensor
-            let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
+            let tensor = tensors.tensor(&name_clone).map_err(|e| {
+                crate::TensorSnapshotError::DataError(format!(
+                    "Tensor '{}' not found: {}",
+                    name_clone, e
+                ))
+            })?;
 
             // Now materialize just this tensor's data
             let bytes = burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
-            TensorData {
+            Ok(TensorData {
                 bytes,
                 shape: tensor.shape().to_vec(),
-                dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
-            }
+                dtype: safetensor_dtype_to_burn(tensor.dtype())
+                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
+            })
         });
 
         let snapshot = TensorSnapshot::from_closure(
@@ -762,16 +775,23 @@ fn safetensors_to_snapshots_lazy_file(
 
         let data_fn = alloc::rc::Rc::new(move || {
             // Re-parse to get the tensor snapshot (this is cheap with mmap)
-            let tensors =
-                safetensors::SafeTensors::deserialize(&mmap_clone).expect("Failed to deserialize");
-            let tensor = tensors.tensor(&name_clone).expect("Tensor should exist");
+            let tensors = safetensors::SafeTensors::deserialize(&mmap_clone).map_err(|e| {
+                crate::TensorSnapshotError::IoError(format!("Failed to deserialize: {}", e))
+            })?;
+            let tensor = tensors.tensor(&name_clone).map_err(|e| {
+                crate::TensorSnapshotError::DataError(format!(
+                    "Tensor '{}' not found: {}",
+                    name_clone, e
+                ))
+            })?;
 
             // Only now do we actually copy the tensor data
-            TensorData {
+            Ok(TensorData {
                 bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
                 shape: tensor.shape().to_vec(),
-                dtype: safetensor_dtype_to_burn(tensor.dtype()).expect("Valid dtype"),
-            }
+                dtype: safetensor_dtype_to_burn(tensor.dtype())
+                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
+            })
         });
 
         let snapshot = TensorSnapshot::from_closure(
