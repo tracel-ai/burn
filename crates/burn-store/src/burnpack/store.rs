@@ -4,10 +4,11 @@ use std::path::PathBuf;
 use super::reader::BurnpackReader;
 use super::writer::BurnpackWriter;
 use crate::burnpack::base::BurnpackError;
-use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
+use crate::{KeyRemapper, ModuleSnapshot, ModuleSnapshoter, PathFilter};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
+use burn_core::prelude::Backend;
 
 /// Store mode for BurnpackStore
 enum StoreMode {
@@ -26,6 +27,8 @@ pub struct BurnpackStore {
     metadata: BTreeMap<String, String>,
     /// Allow partial loading (ignore missing tensors)
     allow_partial: bool,
+    /// Key remapper for tensor name transformations
+    remapper: KeyRemapper,
     /// Writer for saving
     writer: Option<BurnpackWriter>,
     /// Reader for loading
@@ -41,6 +44,7 @@ impl BurnpackStore {
             filter: None,
             metadata: BTreeMap::new(),
             allow_partial: false,
+            remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
         }
@@ -53,6 +57,7 @@ impl BurnpackStore {
             filter: None,
             metadata: BTreeMap::new(),
             allow_partial: false,
+            remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
         }
@@ -96,6 +101,31 @@ impl BurnpackStore {
         self
     }
 
+    /// Set key remapper for tensor name transformations during loading
+    pub fn remap(mut self, remapper: KeyRemapper) -> Self {
+        self.remapper = remapper;
+        self
+    }
+
+    /// Add a single regex pattern for key remapping
+    pub fn with_remap_pattern<S1, S2>(mut self, from: S1, to: S2) -> Self
+    where
+        S1: AsRef<str>,
+        S2: Into<String>,
+    {
+        self.remapper = self
+            .remapper
+            .add_pattern(from.as_ref(), to.into())
+            .expect("Invalid regex pattern");
+        self
+    }
+
+    /// Set the path filter
+    pub fn filter(mut self, filter: PathFilter) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
     /// Get the bytes after writing (only valid for bytes mode after collecting)
     pub fn get_bytes(&self) -> Result<Vec<u8>, BurnpackError> {
         if let Some(writer) = &self.writer {
@@ -112,7 +142,7 @@ impl BurnpackStore {
 impl ModuleSnapshoter for BurnpackStore {
     type Error = BurnpackError;
 
-    fn collect_from<B: burn_tensor::backend::Backend, M: ModuleSnapshot<B>>(
+    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &M,
     ) -> Result<(), Self::Error> {
@@ -147,31 +177,40 @@ impl ModuleSnapshoter for BurnpackStore {
         Ok(())
     }
 
-    fn apply_to<B: burn_tensor::backend::Backend, M: ModuleSnapshot<B>>(
+    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
         // Load reader if not already loaded
         if self.reader.is_none() {
-            self.reader = Some(match &self.mode {
+            let reader = match &self.mode {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => BurnpackReader::from_file(path)?,
                 StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
                 StoreMode::Bytes(None) => {
                     return Err(BurnpackError::IoError("No bytes to read from".into()));
                 }
-            });
+            };
+            self.reader = Some(reader);
         }
 
-        let reader = self.reader.as_ref().unwrap();
+        let reader = self
+            .reader
+            .as_ref()
+            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))?;
 
         // Get all snapshots at once for efficient loading
-        let snapshots = reader.get_snapshots();
+        let mut snapshots = reader.get_snapshots();
 
-        // TODO add remapping
+        // Apply remapping to snapshots if remapper has patterns
+        if !self.remapper.patterns.is_empty() {
+            let (remapped, _) = self.remapper.remap(snapshots);
+            // TODO figure how to handle remapping (old/new)
+            snapshots = remapped;
+        }
 
         // Apply all snapshots at once to the module
-        // The apply method returns the actual ApplyResult with details
+        // The apply method handles filtering internally
         let result = module.apply(snapshots, self.filter.clone(), None);
 
         // TODO handle IO errors
