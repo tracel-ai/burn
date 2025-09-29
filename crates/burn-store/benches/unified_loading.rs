@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 
 //! Unified benchmark comparing all loading methods:
+//! - BurnpackStore (new native format)
+//! - NamedMpkFileRecorder (old native format)
 //! - SafetensorsStore (new)
 //! - SafetensorsFileRecorder (old)
 //! - PytorchStore (new)
@@ -19,11 +21,11 @@
 
 use burn_core::module::Module;
 use burn_core::prelude::*;
-use burn_core::record::{FullPrecisionSettings, Recorder};
+use burn_core::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
-use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore};
 use burn_nn as nn;
+use burn_store::{BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore};
 use divan::{AllocProfiler, Bencher};
 use std::fs;
 use std::path::PathBuf;
@@ -72,10 +74,38 @@ fn get_model_dir() -> PathBuf {
     std::env::temp_dir().join("simple_bench_models")
 }
 
+/// Generate Burnpack and NamedMpk files from existing SafeTensors file
+fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBuf) {
+    type TestBackend = NdArrayBackend;
+    let device = Default::default();
+
+    // Load the model from SafeTensors
+    let mut model = LargeModel::<TestBackend>::new(&device);
+    let mut store = SafetensorsStore::from_file(st_path.clone())
+        .with_from_adapter(PyTorchToBurnAdapter);
+    model.apply_from(&mut store).expect("Failed to load from SafeTensors");
+
+    // Save as Burnpack
+    if !bp_path.exists() {
+        println!("  Creating Burnpack file...");
+        let mut burnpack_store = BurnpackStore::from_file(bp_path.clone());
+        model.collect_to(&mut burnpack_store).expect("Failed to save as Burnpack");
+    }
+
+    // Save as NamedMpk
+    if !mpk_path.exists() {
+        println!("  Creating NamedMpk file...");
+        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
+        model.save_file(mpk_path.clone(), &recorder).expect("Failed to save as NamedMpk");
+    }
+}
+
 /// Get paths to the model files
-fn get_model_paths() -> (PathBuf, PathBuf) {
+fn get_model_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let dir = get_model_dir();
     (
+        dir.join("large_model.burnpack"),
+        dir.join("large_model.mpk"),
         dir.join("large_model.safetensors"),
         dir.join("large_model.pt"),
     )
@@ -83,8 +113,9 @@ fn get_model_paths() -> (PathBuf, PathBuf) {
 
 /// Check if model files exist
 fn check_model_files() -> Result<(), String> {
-    let (st_path, pt_path) = get_model_paths();
+    let (bp_path, mpk_path, st_path, pt_path) = get_model_paths();
 
+    // For now, only check safetensors and pytorch files (will generate burnpack/mpk later)
     if !st_path.exists() || !pt_path.exists() {
         return Err(format!(
             "\n❌ Model files not found!\n\
@@ -109,21 +140,38 @@ fn main() {
     // Check if model files exist before running benchmarks
     match check_model_files() {
         Ok(()) => {
-            let (st_path, pt_path) = get_model_paths();
+            let (bp_path, mpk_path, st_path, pt_path) = get_model_paths();
+
+            // First, generate Burnpack and MPK files if they don't exist
+            if !bp_path.exists() || !mpk_path.exists() {
+                println!("⏳ Generating Burnpack and NamedMpk files from SafeTensors...");
+                generate_burn_formats(&st_path, &bp_path, &mpk_path);
+            }
+
+            let bp_size = fs::metadata(&bp_path).ok().map(|m| m.len() as f64 / 1_048_576.0);
+            let mpk_size = fs::metadata(&mpk_path).ok().map(|m| m.len() as f64 / 1_048_576.0);
             let st_size = fs::metadata(&st_path).unwrap().len() as f64 / 1_048_576.0;
             let pt_size = fs::metadata(&pt_path).unwrap().len() as f64 / 1_048_576.0;
 
             println!("✅ Found model files:");
+            if let Some(size) = bp_size {
+                println!("  Burnpack: {} ({:.1} MB)", bp_path.display(), size);
+            }
+            if let Some(size) = mpk_size {
+                println!("  NamedMpk: {} ({:.1} MB)", mpk_path.display(), size);
+            }
             println!("  SafeTensors: {} ({:.1} MB)", st_path.display(), st_size);
             println!("  PyTorch: {} ({:.1} MB)", pt_path.display(), pt_size);
             println!();
             println!("🚀 Running unified loading benchmarks...");
             println!();
-            println!("Comparing 4 loading methods:");
-            println!("  1. SafetensorsStore (new)");
-            println!("  2. SafetensorsFileRecorder (old)");
-            println!("  3. PytorchStore (new)");
-            println!("  4. PyTorchFileRecorder (old)");
+            println!("Comparing 6 loading methods:");
+            println!("  1. BurnpackStore (new native format - lazy loading)");
+            println!("  2. NamedMpkFileRecorder (old native format - loads all to memory)");
+            println!("  3. SafetensorsStore (new)");
+            println!("  4. SafetensorsFileRecorder (old)");
+            println!("  5. PytorchStore (new)");
+            println!("  6. PyTorchFileRecorder (old)");
             println!();
             println!("Available backends:");
             println!("  - NdArray (CPU)");
@@ -159,8 +207,40 @@ macro_rules! bench_backend {
             type TestDevice = <TestBackend as Backend>::Device;
 
             #[divan::bench]
+            fn burnpack_store(bencher: Bencher) {
+                let (bp_path, _, _, _) = get_model_paths();
+                let file_size = fs::metadata(&bp_path).unwrap().len();
+
+                bencher
+                    .counter(divan::counter::BytesCount::new(file_size))
+                    .bench(|| {
+                        let device: TestDevice = Default::default();
+                        let mut model = LargeModel::<TestBackend>::new(&device);
+                        let mut store = BurnpackStore::from_file(bp_path.clone());
+                        model.apply_from(&mut store).expect("Failed to load");
+                    });
+            }
+
+            #[divan::bench]
+            fn namedmpk_recorder(bencher: Bencher) {
+                let (_, mpk_path, _, _) = get_model_paths();
+                let file_size = fs::metadata(&mpk_path).unwrap().len();
+
+                bencher
+                    .counter(divan::counter::BytesCount::new(file_size))
+                    .bench(|| {
+                        let device: TestDevice = Default::default();
+                        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
+                        let record = recorder
+                            .load(mpk_path.clone().into(), &device)
+                            .expect("Failed to load");
+                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+                    });
+            }
+
+            #[divan::bench]
             fn safetensors_store(bencher: Bencher) {
-                let (st_path, _) = get_model_paths();
+                let (_, _, st_path, _) = get_model_paths();
                 let file_size = fs::metadata(&st_path).unwrap().len();
 
                 bencher
@@ -176,7 +256,7 @@ macro_rules! bench_backend {
 
             #[divan::bench]
             fn safetensors_recorder(bencher: Bencher) {
-                let (st_path, _) = get_model_paths();
+                let (_, _, st_path, _) = get_model_paths();
                 let file_size = fs::metadata(&st_path).unwrap().len();
 
                 bencher
@@ -193,7 +273,7 @@ macro_rules! bench_backend {
 
             #[divan::bench]
             fn pytorch_store(bencher: Bencher) {
-                let (_, pt_path) = get_model_paths();
+                let (_, _, _, pt_path) = get_model_paths();
                 let file_size = fs::metadata(&pt_path).unwrap().len();
 
                 bencher
@@ -210,7 +290,7 @@ macro_rules! bench_backend {
 
             #[divan::bench]
             fn pytorch_recorder(bencher: Bencher) {
-                let (_, pt_path) = get_model_paths();
+                let (_, _, _, pt_path) = get_model_paths();
                 let file_size = fs::metadata(&pt_path).unwrap().len();
 
                 bencher
