@@ -67,9 +67,10 @@ impl BurnpackWriter {
             metadata: self.metadata.clone(),
         };
 
-        // Serialize metadata with MessagePack
-        let metadata_bytes =
-            rmp_serde::to_vec(&metadata).map_err(|e| BurnpackError::IoError(e.to_string()))?;
+        // Serialize metadata with CBOR
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
         // Create header
         let header = BurnpackHeader {
@@ -135,8 +136,9 @@ impl BurnpackWriter {
         };
 
         // Serialize metadata
-        let metadata_bytes =
-            rmp_serde::to_vec(&metadata).map_err(|e| BurnpackError::IoError(e.to_string()))?;
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
         // Create and write header
         let header = BurnpackHeader {

@@ -18,7 +18,7 @@ workspace = true
 default = ["std", "pytorch", "safetensors", "memmap", "burnpack"]
 std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
 memmap = ["std", "dep:memmap2"]
-burnpack = ["serde"]
+burnpack = ["serde", "ciborium"]
 wgpu = ["burn-wgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 cuda = ["burn-cuda"]
@@ -37,7 +37,7 @@ byteorder = { workspace = true, default-features = false }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-rmp-serde = { workspace = true }
+ciborium = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 

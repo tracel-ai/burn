@@ -124,7 +124,7 @@ impl BurnpackReader {
         }
 
         let metadata: BurnpackMetadata =
-            rmp_serde::from_slice(&bytes[metadata_start..metadata_end])
+            ciborium::de::from_reader(&bytes[metadata_start..metadata_end])
                 .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
 
         Ok(Self {
@@ -171,8 +171,9 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidHeader);
         }
 
-        let metadata: BurnpackMetadata = rmp_serde::from_slice(&mmap[metadata_start..metadata_end])
-            .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+        let metadata: BurnpackMetadata =
+            ciborium::de::from_reader(&mmap[metadata_start..metadata_end])
+                .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
 
         Ok(Self {
             metadata,
@@ -213,7 +214,7 @@ impl BurnpackReader {
         file.read_exact(&mut metadata_bytes)
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
-        let metadata: BurnpackMetadata = rmp_serde::from_slice(&metadata_bytes)
+        let metadata: BurnpackMetadata = ciborium::de::from_reader(metadata_bytes.as_slice())
             .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
 
         // Store file handle for reuse

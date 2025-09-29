@@ -77,7 +77,7 @@ fn test_writer_to_bytes_empty() {
     // Verify metadata
     let metadata_end = HEADER_SIZE + header.metadata_size as usize;
     let metadata_bytes = &bytes[HEADER_SIZE..metadata_end];
-    let metadata: BurnpackMetadata = rmp_serde::from_slice(metadata_bytes).unwrap();
+    let metadata: BurnpackMetadata = ciborium::de::from_reader(metadata_bytes).unwrap();
 
     assert_eq!(metadata.tensors.len(), 0);
     assert!(metadata.metadata.is_empty());
@@ -113,7 +113,7 @@ fn test_writer_to_bytes_with_tensors() {
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata_end = HEADER_SIZE + header.metadata_size as usize;
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..metadata_end]).unwrap();
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..metadata_end]).unwrap();
 
     // Verify metadata
     assert_eq!(
@@ -179,7 +179,7 @@ fn test_writer_all_dtypes() {
     // Parse and verify
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
             .unwrap();
 
     assert_eq!(metadata.tensors.len(), 8);
@@ -211,9 +211,10 @@ fn test_writer_large_tensor() {
 
     // Verify the large tensor is correctly stored
     let header = BurnpackHeader::from_bytes(&result[..HEADER_SIZE]).unwrap();
-    let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&result[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
-            .unwrap();
+    let metadata: BurnpackMetadata = ciborium::de::from_reader(
+        &result[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize],
+    )
+    .unwrap();
 
     assert_eq!(metadata.tensors.len(), 1);
     let tensor = metadata.tensors.get("large_tensor").unwrap();
@@ -240,7 +241,7 @@ fn test_writer_empty_tensors() {
 
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
             .unwrap();
 
     assert_eq!(metadata.tensors.len(), 1);
@@ -282,7 +283,7 @@ fn test_writer_special_characters_in_names() {
 
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
             .unwrap();
 
     assert_eq!(metadata.tensors.len(), 10);
@@ -331,7 +332,7 @@ fn test_writer_tensor_order_preserved() {
 
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
             .unwrap();
 
     // Verify all tensors are present (BTreeMap stores in sorted order by key)
@@ -366,7 +367,7 @@ fn test_writer_lazy_snapshot_evaluation() {
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata_end = HEADER_SIZE + header.metadata_size as usize;
     let metadata: BurnpackMetadata =
-        rmp_serde::from_slice(&bytes[HEADER_SIZE..metadata_end]).unwrap();
+        ciborium::de::from_reader(&bytes[HEADER_SIZE..metadata_end]).unwrap();
 
     assert_eq!(metadata.tensors.len(), 1);
     let tensor = metadata.tensors.get("lazy").unwrap();

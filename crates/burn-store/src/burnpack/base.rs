@@ -9,9 +9,9 @@
 // ├──────────────────────────────────┤
 // │  - Magic number (4 bytes)        │  (0x4E525542) - Little Endian
 // │  - Version (2 bytes)             │  Format version (0x0001)
-// │  - Metadata size (4 bytes)       │  Size of MessagePack metadata in bytes (u32)
+// │  - Metadata size (4 bytes)       │  Size of CBOR metadata in bytes (u32)
 // ├──────────────────────────────────┤
-// │  Metadata (MessagePack)          │
+// │  Metadata (CBOR)                 │
 // ├──────────────────────────────────┤
 // │  - Tensor descriptors (BTreeMap) │  Sorted map of tensor metadata
 // │    Key: tensor name (string)     │  Tensor identifier (e.g., "model.layer1.weight")
