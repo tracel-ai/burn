@@ -294,6 +294,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         panic!("Not supported by Candle")
     }
 
+    fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        // Candle's cumsum doesn't support integer types, so we convert to float,
+        // compute cumsum, and convert back to int
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+        let result_float = tensor_float.cumsum(dim).unwrap();
+        CandleTensor::new(result_float.to_dtype(dtype).unwrap())
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor

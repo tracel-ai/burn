@@ -119,6 +119,7 @@ mod tests {
     burn_tensor::testgen_tanh!();
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_expand!();
+    burn_tensor::testgen_cumsum!();
 
     // test stats
     burn_tensor::testgen_var!();
