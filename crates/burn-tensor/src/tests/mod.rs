@@ -11,6 +11,7 @@ mod quantization;
 mod stats;
 
 pub use cubecl::prelude::{Float, Int, Numeric};
+pub use num_traits::Float as NumFloat;
 
 #[allow(missing_docs)]
 #[macro_export]

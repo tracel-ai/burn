@@ -26,6 +26,7 @@ pub fn mod_config(node: &crate::ir::Node) -> ModConfig {
 }
 
 #[cfg(test)]
+#[allow(clippy::bool_assert_comparison)]
 mod tests {
     use super::*;
     use crate::ir::{AttributeValue, NodeType};

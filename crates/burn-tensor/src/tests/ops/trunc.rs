@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(trunc)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{ElementConversion, Tensor, TensorData};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -51,14 +51,14 @@ mod tests {
         let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
         let output = tensor.trunc();
-        let values = output.into_data().as_slice::<f32>().unwrap().to_vec();
+        let values = output.into_data().as_slice::<FT>().unwrap().to_vec();
 
         // Check positive zero
-        assert_eq!(values[0], 0.0);
+        assert_eq!(values[0], 0.0f32.elem::<FT>());
         assert!(values[0].is_sign_positive());
 
         // Check negative zero is preserved
-        assert_eq!(values[1], 0.0);
+        assert_eq!(values[1], 0.0f32.elem::<FT>());
         assert!(values[1].is_sign_negative());
 
         // Check infinity is preserved
