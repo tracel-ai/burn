@@ -278,6 +278,12 @@ pub enum BaseOperationIr {
 
     /// Operation corresponding to:
     ///
+    /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
+    Cumsum(ReduceDimOpIr),
+
+    /// Operation corresponding to:
+    ///
     /// Float => [empty](burn_tensor::ops::FloatTensorOps::float_empty).
     /// Int => [empty](burn_tensor::ops::IntTensorOps::int_empty).
     /// Bool => [empty](burn_tensor::ops::BoolTensorOps::bool_empty).
@@ -1502,6 +1508,7 @@ impl BaseOperationIr {
                 tensors
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::Cumsum(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
             BaseOperationIr::Unfold(repr) => {
                 vec![&repr.input, &repr.out]
@@ -1553,6 +1560,9 @@ impl BaseOperationIr {
                 }
             }
             BaseOperationIr::Cast(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Cumsum(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Unfold(repr) => {

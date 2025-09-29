@@ -945,6 +945,23 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::Cumsum(desc)));
+
+        out
+    }
+
     fn float_exp(lhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;

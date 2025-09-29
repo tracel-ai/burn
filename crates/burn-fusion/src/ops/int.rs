@@ -1279,6 +1279,41 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct CumsumOps<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CumsumOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_cumsum(input, self.desc.axis);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let dtype = tensor.dtype;
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let shape = tensor.shape.clone();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = ReduceDimOpIr {
+            out: out.to_ir_out(),
+            input: tensor.into_ir(),
+            axis: dim,
+        };
+        out.client.register(
+            streams,
+            OperationIr::BaseInt(BaseOperationIr::Cumsum(desc.clone())),
+            CumsumOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce_int_ops!(ArgMaxOps, B::int_argmax);
 
