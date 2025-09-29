@@ -611,7 +611,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Cross;
 
         impl<B: Backend> Backward<B, 2> for Cross {
-            type State = (Option<NodeID>, Option<NodeID>, usize);
+            type State = (Option<NodeId>, Option<NodeId>, usize);
 
             fn backward(
                 self,
