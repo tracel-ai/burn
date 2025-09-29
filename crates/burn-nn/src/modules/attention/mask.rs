@@ -38,9 +38,9 @@ pub enum SeqLengthOption {
     Fixed(usize),
 }
 
-impl Into<SeqLengthOption> for Option<usize> {
-    fn into(self) -> SeqLengthOption {
-        match self {
+impl From<Option<usize>> for SeqLengthOption {
+    fn from(val: Option<usize>) -> Self {
+        match val {
             Some(max) => SeqLengthOption::Max(max),
             None => SeqLengthOption::NoMax,
         }
