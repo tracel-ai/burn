@@ -1,5 +1,4 @@
 use alloc::{sync::Arc, vec::Vec};
-use burn_common::id::StreamId;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};
