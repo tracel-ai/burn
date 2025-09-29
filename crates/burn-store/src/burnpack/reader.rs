@@ -182,12 +182,19 @@ impl BurnpackReader {
         })
     }
 
-    /// Load from file without memory mapping
+    /// Load from file - automatically uses memory mapping if available, otherwise uses buffered reading
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
-        use std::fs;
-        let bytes = fs::read(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
-        Self::from_bytes(bytes)
+        #[cfg(feature = "memmap")]
+        {
+            // Use memory mapping for efficient access
+            Self::from_file_mmap(path)
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            // Fall back to buffered reading for memory efficiency
+            Self::from_file_buffered(path)
+        }
     }
 
     /// Load from file with buffered reading (memory efficient but slower)
