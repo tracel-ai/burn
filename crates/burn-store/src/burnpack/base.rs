@@ -4,28 +4,28 @@
 // The Burnpack format is a binary file format designed specifically for Burn tensors.
 //
 // File Structure:
-// ┌─────────────────────────────────┐
-// │  Header (10 bytes)              │
-// ├─────────────────────────────────┤
-// │  - Magic number (4 bytes)       │  "NRUB" (0x4E525542) - Little Endian
-// │  - Version (2 bytes)            │  Format version (0x0001)
-// │  - Metadata size (4 bytes)      │  Size of MessagePack metadata in bytes (u32)
-// ├─────────────────────────────────┤
-// │  Metadata (MessagePack)         │
-// ├─────────────────────────────────┤
-// │  - Tensor descriptors (BTreeMap)│  Sorted map of tensor metadata
-// │    Key: tensor name (string)    │  Tensor identifier (e.g., "model.layer1.weight")
-// │    Value: TensorDescriptor      │
-// │      - dtype: enum              │  Data type (F32, F64, I32, I64, U32, U64, U8, Bool)
-// │      - shape: Vec<u64>          │  Tensor dimensions
-// │      - data_offsets: (u64, u64) │  (start, end) byte offsets relative to data section
-// │  - Additional metadata(BTreeMap)│  User-defined key-value pairs (string -> string)
-// ├─────────────────────────────────┤
-// │  Tensor Data Section            │
-// ├─────────────────────────────────┤
-// │  Raw tensor bytes               │  Contiguous tensor data (little-endian)
-// │  (in order of offsets)          │  Each tensor's data at specified offsets
-// └─────────────────────────────────┘
+// ┌──────────────────────────────────┐
+// │  Header (10 bytes)               │
+// ├──────────────────────────────────┤
+// │  - Magic number (4 bytes)        │  (0x4E525542) - Little Endian
+// │  - Version (2 bytes)             │  Format version (0x0001)
+// │  - Metadata size (4 bytes)       │  Size of MessagePack metadata in bytes (u32)
+// ├──────────────────────────────────┤
+// │  Metadata (MessagePack)          │
+// ├──────────────────────────────────┤
+// │  - Tensor descriptors (BTreeMap) │  Sorted map of tensor metadata
+// │    Key: tensor name (string)     │  Tensor identifier (e.g., "model.layer1.weight")
+// │    Value: TensorDescriptor       │
+// │      - dtype: enum               │  Data type (F32, F64, I32, I64, U32, U64, U8, Bool)
+// │      - shape: Vec<u64>           │  Tensor dimensions
+// │      - data_offsets: (u64, u64)  │  (start, end) byte offsets relative to data section
+// │  - Additional metadata(BTreeMap) │  User-defined key-value pairs (string -> string)
+// ├──────────────────────────────────┤
+// │  Tensor Data Section             │
+// ├──────────────────────────────────┤
+// │  Raw tensor bytes                │  Contiguous tensor data (little-endian)
+// │  (in order of offsets)           │  Each tensor's data at specified offsets
+// └──────────────────────────────────┘
 //
 // Implementation Details:
 // - Tensors are stored in a BTreeMap for O(log n) lookup by name and consistent ordering
