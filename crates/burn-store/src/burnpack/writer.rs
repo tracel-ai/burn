@@ -4,7 +4,8 @@ use super::base::{
 };
 use crate::TensorSnapshot;
 use alloc::collections::BTreeMap;
-use alloc::string::String;
+use alloc::format;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 #[cfg(feature = "std")]

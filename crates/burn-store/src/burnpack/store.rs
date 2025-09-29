@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use super::reader::BurnpackReader;
 use super::writer::BurnpackWriter;
 use crate::burnpack::base::BurnpackError;
-use crate::{KeyRemapper, ModuleSnapshot, ModuleSnapshoter, PathFilter};
+#[cfg(feature = "std")]
+use crate::KeyRemapper;
+use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -28,6 +30,7 @@ pub struct BurnpackStore {
     /// Allow partial loading (ignore missing tensors)
     allow_partial: bool,
     /// Key remapper for tensor name transformations
+    #[cfg(feature = "std")]
     remapper: KeyRemapper,
     /// Writer for saving
     writer: Option<BurnpackWriter>,
@@ -44,6 +47,7 @@ impl BurnpackStore {
             filter: None,
             metadata: BTreeMap::new(),
             allow_partial: false,
+            #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
@@ -57,6 +61,7 @@ impl BurnpackStore {
             filter: None,
             metadata: BTreeMap::new(),
             allow_partial: false,
+            #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
             reader: None,
@@ -82,6 +87,7 @@ impl BurnpackStore {
     }
 
     /// Add regex pattern to filter
+    #[cfg(feature = "std")]
     pub fn with_regex(mut self, pattern: &str) -> Self {
         let filter = self.filter.unwrap_or_default();
         self.filter = Some(filter.with_regex(pattern));
@@ -102,12 +108,14 @@ impl BurnpackStore {
     }
 
     /// Set key remapper for tensor name transformations during loading
+    #[cfg(feature = "std")]
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
         self.remapper = remapper;
         self
     }
 
     /// Add a single regex pattern for key remapping
+    #[cfg(feature = "std")]
     pub fn with_remap_pattern<S1, S2>(mut self, from: S1, to: S2) -> Self
     where
         S1: AsRef<str>,
@@ -200,14 +208,17 @@ impl ModuleSnapshoter for BurnpackStore {
             .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))?;
 
         // Get all snapshots at once for efficient loading
-        let mut snapshots = reader.get_snapshots();
-
-        // Apply remapping to snapshots if remapper has patterns
-        if !self.remapper.patterns.is_empty() {
-            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+        #[cfg(feature = "std")]
+        let snapshots = if !self.remapper.patterns.is_empty() {
+            let (remapped, _remapped_names) = self.remapper.remap(reader.get_snapshots());
             // TODO figure what to do with remapped names
-            snapshots = remapped;
-        }
+            remapped
+        } else {
+            reader.get_snapshots()
+        };
+
+        #[cfg(not(feature = "std"))]
+        let snapshots = reader.get_snapshots();
 
         // Apply all snapshots at once to the module
         let result = module.apply(snapshots, self.filter.clone(), None);

@@ -2,8 +2,10 @@ use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
 };
 use crate::TensorSnapshot;
+use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::ToString;
+use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::TensorData;
