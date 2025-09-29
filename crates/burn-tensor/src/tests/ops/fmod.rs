@@ -276,6 +276,11 @@ mod tests {
             .assert_approx_eq::<FT>(&expected_inf, Tolerance::default());
 
         // Test with very small divisor
+        // Doesn't work if the test divisor is subnormal
+        if FT::MIN_POSITIVE > 1e-5f32.elem::<FT>() {
+            return;
+        }
+
         let output_small = tensor.clone().fmod_scalar(1e-5);
         let data = output_small.into_data();
         let values = data.as_slice::<FT>().unwrap();
