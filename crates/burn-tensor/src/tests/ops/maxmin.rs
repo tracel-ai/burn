@@ -47,7 +47,7 @@ mod tests {
 
         // Positive, Negative Index
         for idx in [0, -2] {
-            let (output, index) = tensor.max_dim_with_indices(idx);
+            let (output, index) = tensor.clone().max_dim_with_indices(idx);
 
             let output_expected = TensorData::from([[3., 4., 5.]]);
             let index_expected = TensorData::from([[1, 1, 1]]);
@@ -158,7 +158,7 @@ mod tests {
 
         // Positive, Negative Index
         for idx in [0, -2] {
-            let (output, index) = tensor.min_dim_with_indices(idx);
+            let (output, index) = tensor.clone().min_dim_with_indices(idx);
 
             let output_expected = TensorData::from([[0., 1., 2.]]);
             let index_expected = TensorData::from([[0, 0, 0]]);
