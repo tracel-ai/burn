@@ -18,12 +18,12 @@
 //! ```
 
 use burn_core::module::Module;
-use burn_core::nn;
 use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, Recorder};
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore};
+use burn_nn as nn;
 use divan::{AllocProfiler, Bencher};
 use std::fs;
 use std::path::PathBuf;
@@ -47,7 +47,7 @@ type CandleBackend = burn_candle::Candle<f32, i64>;
 type TchBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(feature = "metal")]
-type MetalBackend = burn_metal::Metal;
+type MetalBackend = burn_wgpu::Metal;
 
 // Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
