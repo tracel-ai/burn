@@ -175,7 +175,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
-    let seq_length = 512;
+    let seq_length = nn::attention::SeqLengthOption::Fixed(512);
     let batch_size = 32;
     let config = TransformerEncoderConfig::new(256, 1024, 8, 4);
 

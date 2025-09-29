@@ -11,14 +11,18 @@
 // generates a padding mask, and returns a batch object.
 
 use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
-use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
+use burn::{
+    data::dataloader::batcher::Batcher,
+    nn::attention::{SeqLengthOption, generate_padding_mask},
+    prelude::*,
+};
 use std::sync::Arc;
 
 /// Struct for batching text classification items
 #[derive(Clone, new)]
 pub struct TextClassificationBatcher {
     tokenizer: Arc<dyn Tokenizer>, // Tokenizer for converting text to token IDs
-    max_seq_length: usize,         // Maximum sequence length for tokenized text
+    seq_length: SeqLengthOption,   // Sequence length option for tokenized text
 }
 
 /// Struct for training batch in text classification task
@@ -62,7 +66,7 @@ impl<B: Backend> Batcher<B, TextClassificationItem, TextClassificationTrainingBa
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
-            Some(self.max_seq_length),
+            self.seq_length,
             device,
         );
 
@@ -92,7 +96,7 @@ impl<B: Backend> Batcher<B, String, TextClassificationInferenceBatch<B>>
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
-            Some(self.max_seq_length),
+            self.seq_length,
             device,
         );
 
