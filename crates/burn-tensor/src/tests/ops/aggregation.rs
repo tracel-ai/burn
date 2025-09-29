@@ -71,14 +71,14 @@ mod tests {
     fn test_should_mean_last_dim() {
         let tensor = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-        let output = tensor.mean_dim(1);
+        let output = tensor.clone().mean_dim(1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
 
         // Negative Indexing.
-        let output = tensor.mean_dim(-1);
+        let output = tensor.clone().mean_dim(-1);
         let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
         output
             .into_data()
