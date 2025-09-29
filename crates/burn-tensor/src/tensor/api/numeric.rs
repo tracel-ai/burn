@@ -565,6 +565,34 @@ where
         Self::new(K::prod_dim(self.primitive, dim))
     }
 
+    /// Computes the cumulative sum of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative sum.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///    let result = tensor.clone().cumsum(0);
+    ///    println!("{result}");
+    ///    // [[1.0, 2.0, 3.0], [5.0, 7.0, 9.0]]
+    ///    let result = tensor.cumsum(1);
+    ///    println!("{result}");
+    ///    // [[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]
+    /// }
+    /// ```
+    pub fn cumsum(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("Cumsum", dim));
+        Self::new(K::cumsum(self.primitive, dim))
+    }
+
     /// Applies element wise equal comparison and returns a boolean tensor.
     ///
     /// # Arguments
@@ -2518,6 +2546,28 @@ where
     /// the [Tensor::mean_dim](Tensor::mean_dim) function, which is more high-level and designed for public use.
     fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the cumulative sum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative sum of elements along a dimension, users should prefer
+    /// the [Tensor::cumsum](Tensor::cumsum) function, which is more high-level and designed for public use.
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
     /// Element-wise equality between two tensors.
     ///
     /// # Arguments
@@ -3362,6 +3412,9 @@ impl<B: Backend> Numeric<B> for Int {
     fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_mean_dim(tensor, dim)
     }
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cumsum(tensor, dim)
+    }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
         B::int_equal_elem(lhs, rhs)
@@ -3673,6 +3726,15 @@ impl<B: Backend> Numeric<B> for Float {
                 TensorPrimitive::Float(B::float_mean_dim(tensor, dim))
             }
             TensorPrimitive::QFloat(tensor) => B::q_mean_dim(tensor, dim),
+        }
+    }
+
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_cumsum(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => B::q_cumsum(tensor, dim),
         }
     }
 
