@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use super::reader::BurnpackReader;
 use super::writer::BurnpackWriter;
-use crate::burnpack::base::BurnpackError;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
+use crate::burnpack::base::BurnpackError;
 use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
