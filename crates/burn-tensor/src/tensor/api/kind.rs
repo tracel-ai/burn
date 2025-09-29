@@ -46,10 +46,10 @@ impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
         }
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         match self {
-            TensorPrimitive::Float(tensor) => tensor.num_dims(),
-            TensorPrimitive::QFloat(tensor) => tensor.num_dims(),
+            TensorPrimitive::Float(tensor) => tensor.rank(),
+            TensorPrimitive::QFloat(tensor) => tensor.rank(),
         }
     }
 }
@@ -62,7 +62,7 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     fn shape(&self) -> Shape;
 
     /// The number of dimensions of the tensor.
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape().num_dims()
     }
 }

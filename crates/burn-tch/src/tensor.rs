@@ -86,7 +86,7 @@ impl TensorMetadata for TchTensor {
         Shape::from(self.tensor.size())
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.tensor.dim()
     }
 }

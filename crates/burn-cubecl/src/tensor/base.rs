@@ -153,7 +153,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
         self.shape.clone()
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape.num_dims()
     }
 }

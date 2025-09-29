@@ -25,7 +25,7 @@ impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
         Shape::from(self.shape.clone())
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape.len()
     }
 }

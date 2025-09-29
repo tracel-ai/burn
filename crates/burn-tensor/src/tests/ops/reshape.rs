@@ -4,14 +4,14 @@ mod tests {
     use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
-    fn should_support_num_dims() {
+    fn should_support_rank() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data, &Default::default());
-        assert_eq!(tensor.num_dims(), 1);
+        assert_eq!(tensor.rank(), 1);
 
         let data = TensorData::from([[0.0, 1.0, 2.0]]);
         let tensor = TestTensor::<2>::from_data(data, &Default::default());
-        assert_eq!(tensor.num_dims(), 2);
+        assert_eq!(tensor.rank(), 2);
     }
 
     #[test]

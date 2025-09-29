@@ -309,7 +309,7 @@ impl TensorMetadata for NdArrayTensor {
         ))
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape().num_dims()
     }
 }
@@ -557,7 +557,7 @@ impl TensorMetadata for NdArrayQTensor {
         self.qtensor.shape()
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape().num_dims()
     }
 }

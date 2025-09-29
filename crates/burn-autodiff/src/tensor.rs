@@ -23,8 +23,8 @@ impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
         self.primitive.shape()
     }
 
-    fn num_dims(&self) -> usize {
-        self.primitive.num_dims()
+    fn rank(&self) -> usize {
+        self.primitive.rank()
     }
 }
 

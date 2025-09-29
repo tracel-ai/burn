@@ -28,7 +28,7 @@ impl TensorMetadata for CandleTensor {
         Shape::from(self.tensor.dims().to_vec())
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.tensor.dims().len()
     }
 }

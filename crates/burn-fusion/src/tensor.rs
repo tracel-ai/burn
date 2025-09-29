@@ -66,7 +66,7 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
         Shape::from(self.shape.clone())
     }
 
-    fn num_dims(&self) -> usize {
+    fn rank(&self) -> usize {
         self.shape.len()
     }
 }
