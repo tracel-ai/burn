@@ -20,9 +20,10 @@ mod tests {
 
         let output = tensor.cumsum(1);
 
-        output
-            .into_data()
-            .assert_eq(&TensorData::from([[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]), false);
+        output.into_data().assert_eq(
+            &TensorData::from([[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]),
+            false,
+        );
     }
 
     #[test]

@@ -3731,9 +3731,7 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_cumsum(tensor, dim))
-            }
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumsum(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => B::q_cumsum(tensor, dim),
         }
     }

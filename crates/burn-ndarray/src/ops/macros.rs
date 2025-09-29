@@ -51,10 +51,7 @@ pub(crate) fn prod_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) ->
         .into_shared()
 }
 
-pub(crate) fn cumsum_dim<E: NdArrayElement>(
-    tensor: SharedArray<E>,
-    dim: usize,
-) -> SharedArray<E> {
+pub(crate) fn cumsum_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
     let axis = Axis(dim);
     let shape = tensor.shape().to_vec();
     let mut result = tensor.to_owned();
