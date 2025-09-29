@@ -52,7 +52,7 @@ pub(crate) struct Graph {
 static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
 
 impl GraphMutexClient {
-    /// Retrieves or creates a raph for the given [NodeId] and parent dependencies.
+    /// Retrieves or creates a graph for the given [NodeId] and parent dependencies.
     ///
     /// # Parameters
     /// - `node`: The unique identifier for the stream.
@@ -87,7 +87,6 @@ impl AutodiffClient for GraphMutexClient {
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
-        log::info!("Backward from node {node_id} on graph {}", graph.id);
 
         let grads = Gradients::new::<B>(root.node, root.primitive);
         let mut server = graph.server.lock().unwrap();

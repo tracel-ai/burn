@@ -170,13 +170,12 @@ fn task_all_reduce<B: Backend>(
     }
 }
 
-// fn task_grad_all_reduce<B: Backend>(
 fn task_grad_all_reduce<B: AutodiffBackend>(
     devices: Vec<B::Device>,
     strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
-    let seq_length = 256;
+    let seq_length = 512;
     let batch_size = 32;
     let config = TransformerEncoderConfig::new(256, 1024, 8, 4);
 
@@ -193,12 +192,11 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
 
     let handles = devices
         .into_iter()
-        .zip(datasets.into_iter())
+        .zip(datasets)
         .enumerate()
         .map(|(id, (device, dataset))| {
             let model_main = model_main.clone();
             let tokenizer = tokenizer.clone();
-            // let model_config = model_config.clone();
 
             std::thread::spawn(move || {
                 println!("[{id}] Running on device {device:?}");
@@ -224,7 +222,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                     let loss: Tensor<B, 1> = output.loss.clone();
 
                     let grads = loss.backward();
-                    // let stat = loss.into_scalar().elem::<f32>();
+                    let loss = loss.into_scalar().elem::<f32>();
 
                     let grads = GradientsParams::from_grads(grads, &model);
                     let grads = syncher.sync(grads);
@@ -233,8 +231,7 @@ fn task_grad_all_reduce<B: AutodiffBackend>(
                         model = optim.step(1.0e-5, model, grads);
                     }
 
-                    println!("Iter {i}");
-                    // println!("Iter {i} => {stat}");
+                    println!("[{id}] Iter {i} => {loss}");
                 }
             })
         })
@@ -261,7 +258,7 @@ impl GradSyncer {
         std::thread::spawn(move || {
             println!("[{id}] Register collective operation {config:?}");
             collective::register::<B::InnerBackend>(id, device, config).unwrap();
-            let num_stages = 5;
+            let num_stages = 4;
             let mut buffers: Vec<GradientsParams> = Vec::new();
 
             while let Ok(msg) = receiver.recv() {
