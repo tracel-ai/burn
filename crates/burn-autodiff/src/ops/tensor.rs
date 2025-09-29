@@ -1620,6 +1620,43 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Cumsum;
+
+        impl<B: Backend> Backward<B, 1> for Cumsum {
+            type State = (Shape, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (_shape, dim) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient of cumsum is cumsum of gradient in reverse
+                    let grad_reversed = B::float_flip(grad.clone(), &[dim]);
+                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
+                    B::float_flip(grad_cumsum, &[dim])
+                });
+            }
+        }
+
+        match Cumsum
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.shape(), dim),
+                B::float_cumsum(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cumsum(tensor.primitive, dim)),
+        }
+    }
+
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<B> {
         B::float_argmax(tensor.primitive, dim)
     }
