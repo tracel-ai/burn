@@ -33,7 +33,7 @@ use crate::ops::simd::{
 use crate::reshape;
 use crate::{
     IntNdArrayElement, ShapeOps,
-    ops::macros::{keepdim, mean_dim, prod_dim, sum_dim},
+    ops::macros::{cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim},
 };
 use crate::{SharedArray, element::NdArrayElement};
 use burn_tensor::Shape;
@@ -610,6 +610,10 @@ where
             d if (1..=6).contains(&d) => keepdim!(dim, tensor, prod),
             _ => panic!("Dim not supported {ndims}"),
         }
+    }
+
+    pub fn cumsum(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cumsum_dim(tensor, dim)
     }
 
     pub fn gather<I: NdArrayElement>(
