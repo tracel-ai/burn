@@ -51,7 +51,7 @@ mod tests {
         let expected2_scalar = 1.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[1.0f32], [2.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[1.0f32, 4., 9., 25.]]);
 
         // Assert scalar outputs
@@ -82,7 +82,7 @@ mod tests {
         let expected2_scalar = 26.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[25.0f32], [26.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[2.0f32, 5., 10., 26.]]);
 
         // Assert scalar outputs
@@ -113,7 +113,7 @@ mod tests {
         let expected2_scalar = 82.0f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[39.0f32], [43.]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[3.0f32, 9., 19., 51.]]);
 
         // Assert scalar outputs
@@ -179,7 +179,7 @@ mod tests {
         let expected2_scalar = 10.25f32;
         let expected3 = input.to_data();
         let expected4 = TensorData::from([[[[9.75f32], [10.75]]]]);
-        let expected5 = input.clone().squeeze::<3>(0).to_data();
+        let expected5 = input.clone().squeeze_dim::<3>(0).to_data();
         let expected6 = TensorData::from([[1.5f32, 4.5, 9.5, 25.5]]);
 
         // Assert scalar outputs

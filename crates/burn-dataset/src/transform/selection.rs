@@ -179,7 +179,7 @@ where
     ///
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
-    // TODO: RangeArg in burn-tensor should be lifted to burn-common; this should use RangeArg.
+    // TODO: SliceArg in burn-tensor should be lifted to burn-common; this should use SliceArg.
     pub fn slice(&self, start: usize, end: usize) -> Self {
         Self::from_indices_unchecked(self.wrapped.clone(), self.indices[start..end].to_vec())
     }

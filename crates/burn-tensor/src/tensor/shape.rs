@@ -1,4 +1,4 @@
-use crate::RangesArg;
+use crate::{Slice, SliceArg};
 use alloc::vec::Vec;
 use core::ops::Range;
 
@@ -43,23 +43,25 @@ impl Shape {
         }
     }
 
-    /// Convert to covering ranges for each dimension in the shape.
+    /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
     pub fn into_ranges(self) -> Vec<Range<usize>> {
         self.into_iter().map(|d| 0..d).collect()
     }
 
-    /// Applies a slice to the shape.
+    /// Converts slice arguments into an array of slice specifications for the shape.
     ///
-    /// This method computes the resulting shape after applying slice ranges to the current shape.
+    /// This method returns an array of `Slice` objects that can be used for slicing operations.
+    /// The slices are clamped to the shape's dimensions. Similar to `into_ranges()`, but
+    /// allows custom slice specifications instead of full ranges.
     /// For creating complex slice specifications, use the [`s!`] macro.
     ///
     /// # Arguments
     ///
-    /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
-    ///   - A single range (slice the first dimension)
-    ///   - A single index (slice the first dimension)
-    ///   - An array of ranges
-    ///   - The [`s!`] macro for advanced slicing
+    /// * `slices` - An array of slice specifications, where each element can be:
+    ///   - A range (e.g., `2..5`)
+    ///   - An index
+    ///   - A `Slice` object
+    ///   - The output of the [`s!`] macro for advanced slicing
     ///
     /// # Behavior
     ///
@@ -68,31 +70,35 @@ impl Shape {
     /// - Handles negative indices by wrapping around from the end of the dimension.
     /// - Clamps ranges to the shape's dimensions if they exceed the bounds.
     ///
-    /// # Panics
+    /// # Returns
     ///
-    /// - If the number of ranges provided exceeds the shape's dimensions.
-    /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1).
+    /// An array of `Slice` objects corresponding to the provided slice specifications,
+    /// clamped to the shape's actual dimensions.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape, s};
+    /// use burn_tensor::{Tensor, Shape, Slice, s};
     ///
     /// fn example<B: Backend>() {
     ///     // 1D slicing
-    ///     assert_eq!(Shape::new([4]).slice(s![1..4]), [1..3]);
+    ///     let slices = Shape::new([4]).into_slices(1..4);
+    ///     assert_eq!(slices[0].to_range(4), 1..3);
     ///
     ///     // 2D slicing
-    ///     assert_eq!(Shape::new([3, 4]).slice(s![1..4, 0..2]), [1..3, 0..2]);
+    ///     let slices = Shape::new([3, 4]).into_slices(s![1..4, 0..2]);
+    ///     assert_eq!(slices[0].to_range(3), 1..3);
+    ///     assert_eq!(slices[1].to_range(4), 0..2);
     ///
     ///     // Using negative indices
-    ///     assert_eq!(Shape::new([3]).slice(s![..-2]), [0..1]);
+    ///     let slices = Shape::new([3]).into_slices(..-2);
+    ///     assert_eq!(slices[0].to_range(3), 0..1);
     ///
     ///     // Using the slice macro to select different ranges
-    ///     assert_eq!(
-    ///         Shape::new([2, 3, 4]).slice(s![.., 1..-1]),
-    ///         [0..2, 1..2]);
+    ///     let slices = Shape::new([2, 3, 4]).into_slices(s![.., 1..-1]);
+    ///     assert_eq!(slices[0].to_range(2), 0..2);
+    ///     assert_eq!(slices[1].to_range(3), 1..2);
     /// }
     /// ```
     ///
@@ -100,11 +106,15 @@ impl Shape {
     ///
     /// - [`s!`] - The recommended macro for creating slice specifications
     /// - [`Tensor::slice`] - Apply slicing to a tensor
+    /// - [`Shape::into_ranges`] - Convert to full covering ranges
     ///
     /// [`s!`]: crate::s!
     /// [`Tensor::slice`]: crate::Tensor::slice
-    pub fn slice<const D: usize, R: RangesArg<D>>(self, ranges: R) -> [Range<usize>; D] {
-        ranges.into_ranges(self)
+    pub fn into_slices<const D: usize, S>(self, slices: S) -> [Slice; D]
+    where
+        S: SliceArg<D>,
+    {
+        slices.into_slices(self)
     }
 
     /// Construct a vector of the dims.
@@ -223,15 +233,23 @@ mod tests {
 
     #[allow(clippy::single_range_in_vec_init)]
     #[test]
-    fn test_slice() {
-        assert_eq!(Shape::new([3]).slice(s![1..4]), [1..3]);
+    fn test_into_slices() {
+        let slices = Shape::new([3]).into_slices(1..4);
+        assert_eq!(slices[0].to_range(3), 1..3);
 
-        assert_eq!(Shape::new([3, 4]).slice(s![1..4, 0..2]), [1..3, 0..2]);
+        let slices = Shape::new([3, 4]).into_slices(s![1..4, 0..2]);
+        assert_eq!(slices[0].to_range(3), 1..3);
+        assert_eq!(slices[1].to_range(4), 0..2);
 
-        assert_eq!(Shape::new([3]).slice(s![..-2]), [0..1]);
+        let slices = Shape::new([3]).into_slices(..-2);
+        assert_eq!(slices[0].to_range(3), 0..1);
 
-        assert_eq!(Shape::new([2, 3, 4]).slice(s![.., 1..-1]), [0..2, 1..2]);
+        let slices = Shape::new([2, 3, 4]).into_slices(s![.., 1..-1]);
+        assert_eq!(slices[0].to_range(2), 0..2);
+        assert_eq!(slices[1].to_range(3), 1..2);
 
-        assert_eq!(Shape::new([2, 3, 4]).slice(s![..20, 2]), [0..2, 2..3]);
+        let slices = Shape::new([2, 3, 4]).into_slices(s![..20, 2]);
+        assert_eq!(slices[0].to_range(2), 0..2);
+        assert_eq!(slices[1].to_range(3), 2..3);
     }
 }

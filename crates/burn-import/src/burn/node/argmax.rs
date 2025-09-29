@@ -55,7 +55,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
                     let output_rank = tensor.rank;
                     quote! {
                         let argmax_result = #input.argmax(#axis);
-                        let #output = argmax_result.squeeze::<#output_rank>(#axis);
+                        let #output = argmax_result.squeeze_dim::<#output_rank>(#axis);
                     }
                 }
             }
@@ -168,7 +168,7 @@ mod tests {
                     tensor1: Tensor<B, 2>
                 ) -> Tensor<B, 1, Int> {
                     let argmax_result = tensor1.argmax(1);
-                    let tensor2 = argmax_result.squeeze::<1usize>(1);
+                    let tensor2 = argmax_result.squeeze_dim::<1usize>(1);
 
                     tensor2
                 }

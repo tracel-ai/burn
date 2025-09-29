@@ -59,6 +59,7 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
         DT::FLOAT16 => Ok(ElementType::Float16),
         DT::INT64 => Ok(ElementType::Int64),
         DT::INT32 => Ok(ElementType::Int32),
+        DT::UINT16 => Ok(ElementType::Uint16),
         DT::UINT8 => Ok(ElementType::Uint8),
         DT::INT8 => Ok(ElementType::Int8),
         DT::BOOL => Ok(ElementType::Bool),

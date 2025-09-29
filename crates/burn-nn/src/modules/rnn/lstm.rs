@@ -152,7 +152,7 @@ impl<B: Backend> Lstm<B> {
         };
 
         for (input_t, t) in input_timestep_iter {
-            let input_t = input_t.squeeze(1);
+            let input_t = input_t.squeeze_dim(1);
             // f(orget)g(ate) tensors
             let biased_fg_input_sum = self
                 .forget_gate
@@ -294,20 +294,20 @@ impl<B: Backend> BiLstm<B> {
                     .cell
                     .clone()
                     .slice([0..1, 0..batch_size, 0..self.d_hidden])
-                    .squeeze(0);
+                    .squeeze_dim(0);
                 let hidden_state_forward = state
                     .hidden
                     .clone()
                     .slice([0..1, 0..batch_size, 0..self.d_hidden])
-                    .squeeze(0);
+                    .squeeze_dim(0);
                 let cell_state_reverse = state
                     .cell
                     .slice([1..2, 0..batch_size, 0..self.d_hidden])
-                    .squeeze(0);
+                    .squeeze_dim(0);
                 let hidden_state_reverse = state
                     .hidden
                     .slice([1..2, 0..batch_size, 0..self.d_hidden])
-                    .squeeze(0);
+                    .squeeze_dim(0);
 
                 [
                     Some(LstmState::new(cell_state_forward, hidden_state_forward)),
@@ -482,7 +482,7 @@ mod tests {
 
         output
             .select(0, Tensor::arange(0..1, &device))
-            .squeeze::<2>(0)
+            .squeeze_dim::<2>(0)
             .to_data()
             .assert_approx_eq::<FT>(&state.hidden.to_data(), tolerance);
     }

@@ -904,6 +904,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 FloatOperationIr::Matmul(desc) => {
                     binary_float_ops!(handles, desc, B::float_matmul)
                 }
+                FloatOperationIr::Cross(desc) => {
+                    let lhs = handles.get_float_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_float_tensor::<B>(&desc.rhs);
+                    let output = B::float_cross(lhs, rhs, desc.dim);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 FloatOperationIr::Random(desc) => {
                     let shape = Shape::from(desc.out.shape.clone());
 
