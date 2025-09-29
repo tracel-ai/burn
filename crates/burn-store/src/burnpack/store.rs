@@ -204,16 +204,13 @@ impl ModuleSnapshoter for BurnpackStore {
 
         // Apply remapping to snapshots if remapper has patterns
         if !self.remapper.patterns.is_empty() {
-            let (remapped, _) = self.remapper.remap(snapshots);
-            // TODO figure how to handle remapping (old/new)
+            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+            // TODO figure what to do with remapped names
             snapshots = remapped;
         }
 
         // Apply all snapshots at once to the module
-        // The apply method handles filtering internally
         let result = module.apply(snapshots, self.filter.clone(), None);
-
-        // TODO handle IO errors
 
         Ok(result)
     }

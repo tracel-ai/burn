@@ -411,6 +411,31 @@ mod tests {
     }
 
     #[test]
+    fn error_propagation_in_closure() {
+        use alloc::rc::Rc;
+
+        // Create a snapshot with a closure that returns an error
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
+            DType::F32,
+            vec![2, 2],
+            vec!["error_test".into()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // Should return an error when trying to get data
+        let result = snapshot.to_data();
+        assert!(result.is_err());
+        match result {
+            Err(TensorSnapshotError::IoError(msg)) => {
+                assert!(msg.contains("Simulated IO error"));
+            }
+            _ => panic!("Expected IoError"),
+        }
+    }
+
+    #[test]
     fn container_type_extraction() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data([1.0, 2.0, 3.0], &device);

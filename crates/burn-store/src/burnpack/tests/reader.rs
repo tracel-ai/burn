@@ -128,7 +128,7 @@ fn test_reader_get_tensor_snapshot() {
     assert_eq!(loaded_snapshot.shape, vec![2, 2]);
 
     // Verify data through closure
-    let tensor_data = loaded_snapshot.to_data();
+    let tensor_data = loaded_snapshot.to_data().unwrap();
     assert_eq!(tensor_data.shape, vec![2, 2]);
 }
 
@@ -181,7 +181,7 @@ fn test_reader_lazy_loading() {
     let snapshot = reader.get_tensor_snapshot("large").unwrap();
 
     // Data should only be accessed when to_data is called
-    let tensor_data = snapshot.to_data();
+    let tensor_data = snapshot.to_data().unwrap();
     assert_eq!(tensor_data.bytes.len(), size);
     assert!(tensor_data.bytes.iter().all(|&b| b == 42));
 }

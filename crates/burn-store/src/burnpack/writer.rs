@@ -92,7 +92,9 @@ impl BurnpackWriter {
 
         // Write tensor data
         for snapshot in &self.snapshots {
-            let data = snapshot.to_data();
+            let data = snapshot.to_data().map_err(|e| {
+                BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
+            })?;
             buffer.extend_from_slice(&data.bytes);
         }
 
@@ -151,7 +153,9 @@ impl BurnpackWriter {
 
         // Stream tensor data directly to file
         for snapshot in &self.snapshots {
-            let data = snapshot.to_data();
+            let data = snapshot.to_data().map_err(|e| {
+                BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
+            })?;
             file.write_all(&data.bytes)
                 .map_err(|e| BurnpackError::IoError(e.to_string()))?;
         }

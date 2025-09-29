@@ -32,20 +32,20 @@ pub(crate) enum StorageBackend {
 impl StorageBackend {
     /// Get data slice from the storage
     /// For FileBuffered backend, start and end should be absolute file positions
-    pub(crate) fn get_slice(&self, start: usize, end: usize) -> Vec<u8> {
+    pub(crate) fn get_slice(&self, start: usize, end: usize) -> Result<Vec<u8>, BurnpackError> {
         match self {
             StorageBackend::Memory(data) => {
                 let bytes = data.as_ref();
                 let safe_end = end.min(bytes.len());
                 let safe_start = start.min(safe_end);
-                bytes[safe_start..safe_end].to_vec()
+                Ok(bytes[safe_start..safe_end].to_vec())
             }
             #[cfg(all(feature = "std", feature = "memmap"))]
             StorageBackend::Mmap(mmap) => {
                 let bytes = mmap.as_ref();
                 let safe_end = end.min(bytes.len());
                 let safe_start = start.min(safe_end);
-                bytes[safe_start..safe_end].to_vec()
+                Ok(bytes[safe_start..safe_end].to_vec())
             }
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { file } => {
@@ -53,29 +53,31 @@ impl StorageBackend {
 
                 let mut file = file.borrow_mut();
                 // For FileBuffered, start and end are absolute file positions
-                file.seek(SeekFrom::Start(start as u64))
-                    .expect("Failed to seek in file");
+                file.seek(SeekFrom::Start(start as u64)).map_err(|e| {
+                    BurnpackError::IoError(format!("Failed to seek in file: {}", e))
+                })?;
 
                 let len = end - start;
                 let mut buffer = vec![0u8; len];
-                file.read_exact(&mut buffer)
-                    .expect("Failed to read from file");
-                buffer
+                file.read_exact(&mut buffer).map_err(|e| {
+                    BurnpackError::IoError(format!("Failed to read from file: {}", e))
+                })?;
+                Ok(buffer)
             }
         }
     }
 
     /// Get full data reference for raw access
     #[allow(dead_code)]
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_bytes(&self) -> Result<&[u8], BurnpackError> {
         match self {
-            StorageBackend::Memory(data) => data.as_ref(),
+            StorageBackend::Memory(data) => Ok(data.as_ref()),
             #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(mmap) => mmap.as_ref(),
+            StorageBackend::Mmap(mmap) => Ok(mmap.as_ref()),
             #[cfg(feature = "std")]
-            StorageBackend::FileBuffered { .. } => {
-                panic!("Cannot get full bytes reference for FileBuffered backend")
-            }
+            StorageBackend::FileBuffered { .. } => Err(BurnpackError::IoError(
+                "Cannot get full bytes reference for FileBuffered backend".into(),
+            )),
         }
     }
 }
@@ -255,8 +257,17 @@ impl BurnpackReader {
             let snapshot = TensorSnapshot::from_closure(
                 Rc::new(move || {
                     // This closure is only called when data is actually needed
-                    let data_bytes = storage.get_slice(start, end);
-                    TensorData::from_bytes_vec(data_bytes, shape_for_closure.clone(), dtype)
+                    let data_bytes = storage.get_slice(start, end).map_err(|e| {
+                        crate::TensorSnapshotError::IoError(format!(
+                            "Failed to read tensor data: {}",
+                            e
+                        ))
+                    })?;
+                    Ok(TensorData::from_bytes_vec(
+                        data_bytes,
+                        shape_for_closure.clone(),
+                        dtype,
+                    ))
                 }),
                 dtype,
                 shape,
@@ -311,6 +322,6 @@ impl BurnpackReader {
         // Always use absolute positions for all backends
         let start = self.data_offset + descriptor.data_offsets.0 as usize;
         let end = self.data_offset + descriptor.data_offsets.1 as usize;
-        Ok(self.storage.get_slice(start, end))
+        self.storage.get_slice(start, end)
     }
 }
