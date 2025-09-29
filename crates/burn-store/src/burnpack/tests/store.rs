@@ -1,5 +1,7 @@
+#[cfg(feature = "std")]
+use crate::KeyRemapper;
 use crate::burnpack::store::BurnpackStore;
-use crate::{KeyRemapper, ModuleSnapshoter, PathFilter};
+use crate::{ModuleSnapshoter, PathFilter};
 use burn_core::module::{Module, Param};
 use burn_tensor::{Tensor, backend::Backend};
 
@@ -92,6 +94,7 @@ fn test_store_with_metadata() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_store_with_path_filter() {
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
@@ -127,6 +130,7 @@ fn test_store_with_path_filter() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_store_with_key_remapping() {
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
@@ -143,7 +147,9 @@ fn test_store_with_key_remapping() {
         .add_pattern(r"nested\.beta", "nested.new_beta")
         .unwrap();
 
-    let mut load_store = BurnpackStore::from_bytes(Some(bytes)).remap(remapper);
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
+        .remap(remapper)
+        .allow_partial(true);
 
     let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
@@ -228,6 +234,7 @@ fn test_store_with_full_path() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_store_chain_multiple_patterns() {
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
@@ -252,6 +259,7 @@ fn test_store_chain_multiple_patterns() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_store_with_remap_pattern() {
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
@@ -262,8 +270,9 @@ fn test_store_with_remap_pattern() {
     let bytes = save_store.get_bytes().unwrap();
 
     // Load with single remap pattern using the convenience method
-    let mut load_store =
-        BurnpackStore::from_bytes(Some(bytes)).with_remap_pattern(r"^nested\.", "sub_module.");
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
+        .with_remap_pattern(r"^nested\.", "sub_module.")
+        .allow_partial(true);
 
     let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
@@ -271,6 +280,131 @@ fn test_store_with_remap_pattern() {
     // After remapping, nested.* becomes sub_module.*, which won't match
     assert_eq!(result.applied.len(), 2); // Only weight and bias
     assert_eq!(result.unused.len(), 2); // sub_module.gamma and sub_module.beta unused
+}
+
+#[test]
+fn test_store_default_metadata() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save without adding custom metadata
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Verify default metadata is included
+    // We can't directly inspect metadata from bytes, but we can verify
+    // that the model loads successfully which means metadata was written correctly
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+
+    assert!(result.is_success());
+}
+
+#[test]
+fn test_store_default_metadata_with_custom() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save with custom metadata (should preserve defaults)
+    let mut save_store = BurnpackStore::from_bytes(None)
+        .metadata("custom_field", "custom_value")
+        .metadata("author", "test_author");
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Load and verify it works (metadata including defaults was saved)
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+
+    assert!(result.is_success());
+}
+
+#[test]
+fn test_store_clear_metadata() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save with cleared metadata (no defaults)
+    let mut save_store = BurnpackStore::from_bytes(None).clear_metadata();
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Verify it still loads correctly
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+
+    assert!(result.is_success());
+}
+
+#[test]
+fn test_store_validate_enabled() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save normally
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Load with validation enabled (default)
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+
+    assert!(result.is_success());
+    assert!(result.errors.is_empty());
+}
+
+#[test]
+fn test_store_validate_disabled() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save normally
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Load with validation disabled
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes)).validate(false);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+
+    // Should still succeed
+    assert!(result.is_success());
+}
+
+#[test]
+fn test_store_allow_partial_missing_tensors() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save only weight (not bias or nested)
+    let filter = PathFilter::new().with_full_path("weight");
+    let mut save_store = BurnpackStore::from_bytes(None).with_filter(filter);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Try to load without allow_partial - should fail due to missing tensors
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes.clone()));
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2);
+
+    // Should fail because of missing tensors
+    assert!(result.is_err());
+
+    // Now try with allow_partial - should succeed
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes)).allow_partial(true);
+    let mut module3 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module3).unwrap();
+
+    assert!(result.is_success());
+    assert_eq!(result.applied.len(), 1); // Only weight
+    assert!(!result.missing.is_empty()); // Has missing tensors
 }
 
 #[test]

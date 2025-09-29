@@ -8,6 +8,7 @@ use crate::KeyRemapper;
 use crate::burnpack::base::BurnpackError;
 use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
 use alloc::collections::BTreeMap;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::prelude::Backend;
@@ -29,6 +30,8 @@ pub struct BurnpackStore {
     metadata: BTreeMap<String, String>,
     /// Allow partial loading (ignore missing tensors)
     allow_partial: bool,
+    /// Validate tensors during loading (check shapes and dtypes)
+    validate: bool,
     /// Key remapper for tensor name transformations
     #[cfg(feature = "std")]
     remapper: KeyRemapper,
@@ -39,14 +42,30 @@ pub struct BurnpackStore {
 }
 
 impl BurnpackStore {
+    /// Get the default metadata that includes Burn framework information.
+    ///
+    /// This includes:
+    /// - `format`: "burnpack"
+    /// - `producer`: "burn"
+    /// - `version`: The version of burn-store crate (from CARGO_PKG_VERSION)
+    ///
+    /// These metadata fields are automatically added to all saved models.
+    pub fn default_metadata() -> BTreeMap<String, String> {
+        let mut metadata = BTreeMap::new();
+        metadata.insert("format".into(), "burnpack".into());
+        metadata.insert("producer".into(), "burn".into());
+        metadata.insert("version".into(), env!("CARGO_PKG_VERSION").into());
+        metadata
+    }
     /// Create a new store from a file path
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Self {
         Self {
             mode: StoreMode::File(path.as_ref().to_path_buf()),
             filter: None,
-            metadata: BTreeMap::new(),
+            metadata: Self::default_metadata(),
             allow_partial: false,
+            validate: true,
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -59,8 +78,9 @@ impl BurnpackStore {
         Self {
             mode: StoreMode::Bytes(bytes),
             filter: None,
-            metadata: BTreeMap::new(),
+            metadata: Self::default_metadata(),
             allow_partial: false,
+            validate: true,
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -74,9 +94,35 @@ impl BurnpackStore {
         self
     }
 
+    /// Clear all metadata (including defaults)
+    ///
+    /// This removes all metadata including the default format, producer, and version fields.
+    /// Use with caution as some tools may expect these fields to be present.
+    pub fn clear_metadata(mut self) -> Self {
+        self.metadata.clear();
+        self
+    }
+
     /// Allow partial loading (ignore missing tensors)
+    ///
+    /// When set to `true`, the store will not fail if some tensors are missing
+    /// during loading. This is useful when loading a subset of a model's parameters.
+    ///
+    /// Default: `false`
     pub fn allow_partial(mut self, allow: bool) -> Self {
         self.allow_partial = allow;
+        self
+    }
+
+    /// Enable or disable validation during loading
+    ///
+    /// When validation is enabled, the store will check that loaded tensors
+    /// match the expected shapes and data types. Disabling validation can
+    /// improve performance but may lead to runtime errors if data is corrupted.
+    ///
+    /// Default: `true`
+    pub fn validate(mut self, validate: bool) -> Self {
+        self.validate = validate;
         self
     }
 
@@ -222,6 +268,22 @@ impl ModuleSnapshoter for BurnpackStore {
 
         // Apply all snapshots at once to the module
         let result = module.apply(snapshots, self.filter.clone(), None);
+
+        // Validate if needed
+        if self.validate && !result.errors.is_empty() {
+            return Err(BurnpackError::ValidationError(format!(
+                "Import errors: {:?}",
+                result.errors
+            )));
+        }
+
+        // Check for missing tensors if partial loading is not allowed
+        if !self.allow_partial && !result.missing.is_empty() {
+            return Err(BurnpackError::ValidationError(format!(
+                "Missing tensors: {:?}",
+                result.missing
+            )));
+        }
 
         Ok(result)
     }

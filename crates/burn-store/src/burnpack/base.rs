@@ -171,6 +171,7 @@ pub enum BurnpackError {
     IoError(String),
     TensorNotFound(String),
     TensorBytesSizeMismatch(String),
+    ValidationError(String),
 }
 
 impl core::fmt::Display for BurnpackError {
@@ -190,6 +191,7 @@ impl core::fmt::Display for BurnpackError {
             BurnpackError::TensorBytesSizeMismatch(e) => {
                 write!(f, "Tensor bytes size mismatch: {}", e)
             }
+            BurnpackError::ValidationError(e) => write!(f, "Validation error: {}", e),
         }
     }
 }
