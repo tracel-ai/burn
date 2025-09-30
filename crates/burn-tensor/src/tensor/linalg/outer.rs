@@ -1,7 +1,7 @@
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{Numeric, Shape};
-// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensors.
+/// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensor.
 //
 // Supported ranks:
 // - D = 1, R = 2: vectors (m,) × (n,) → (m, n)
