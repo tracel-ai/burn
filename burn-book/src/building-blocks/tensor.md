@@ -188,7 +188,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
-| --------------------------------------------------------------- | ---------------------------------------------- |
+|-----------------------------------------------------------------|------------------------------------------------|
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
@@ -222,12 +222,15 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.max_abs()`                                              | `tensor.abs().max()`                           |
 | `tensor.max_abs_dim(dim)`                                       | `tensor.abs().max(dim, keepdim=True)`          |
 | `tensor.max_dim(dim)`                                           | `tensor.max(dim, keepdim=True)`                |
+| `tensor.max_dims(dims)`                                         | `tensor.max(dims, keepdim=True)`               |
 | `tensor.max_dim_with_indices(dim)`                              | N/A                                            |
 | `tensor.max_pair(other)`                                        | `torch.Tensor.max(a,b)`                        |
 | `tensor.mean()`                                                 | `tensor.mean()`                                |
 | `tensor.mean_dim(dim)`                                          | `tensor.mean(dim, keepdim=True)`               |
+| `tensor.mean_dims(dims)`                                        | `tensor.mean(dims, keepdim=True)`              |
 | `tensor.min()`                                                  | `tensor.min()`                                 |
 | `tensor.min_dim(dim)`                                           | `tensor.min(dim, keepdim=True)`                |
+| `tensor.min_dims(dims)`                                         | `tensor.min(dims, keepdim=True)`               |
 | `tensor.min_dim_with_indices(dim)`                              | N/A                                            |
 | `tensor.min_pair(other)`                                        | `torch.Tensor.min(a,b)`                        |
 | `tensor.mul(other)` or `tensor * other`                         | `tensor * other`                               |
@@ -242,6 +245,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
 | `tensor.prod()`                                                 | `tensor.prod()`                                |
 | `tensor.prod_dim(dim)`                                          | `tensor.prod(dim, keepdim=True)`               |
+| `tensor.prod_dims(dims)`                                        | `tensor.prod(dims, keepdim=True)`              |
 | `tensor.rem(other)` or `tensor % other`                         | `tensor % other`                               |
 | `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
 | `tensor.sign()`                                                 | `tensor.sign()`                                |
@@ -253,6 +257,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
+| `tensor.sum_dims(dims)`                                         | `tensor.sum(dims, keepdim=True)`               |
 | `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
