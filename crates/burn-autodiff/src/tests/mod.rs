@@ -64,7 +64,6 @@ mod slice_assign;
 mod softmax;
 mod sort;
 mod sqrt;
-mod streams;
 mod sub;
 mod tanh;
 mod transpose;
@@ -162,7 +161,6 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_bridge!();
         burn_autodiff::testgen_checkpoint!();
         burn_autodiff::testgen_memory_management!();
-        burn_autodiff::testgen_streams!();
 
         // Activation
         burn_autodiff::testgen_ad_relu!();

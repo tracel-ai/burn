@@ -12,7 +12,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::Backend;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use spin::MutexGuard;
 
 /// A client for managing multiple graphs using mutex-based synchronization.
@@ -36,8 +36,10 @@ pub struct GraphMutexClient;
 /// # Notes
 ///
 /// Multiple node ids can point to the same graph, where the autodiff graph is stored.
+#[derive(Default)]
 pub struct GraphLocator {
     graphs: HashMap<NodeId, Arc<Graph>>,
+    keys: HashMap<NodeId, HashSet<NodeId>>,
 }
 
 /// Represents a single computation graph with a mutex-protected server.
@@ -45,8 +47,21 @@ pub struct GraphLocator {
 /// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
 /// first created.
 pub(crate) struct Graph {
-    server: Mutex<AutodiffServer>,
-    id: NodeId,
+    origin: NodeId,
+    state: Mutex<GraphState>,
+}
+
+#[derive(Default)]
+struct GraphState {
+    server: AutodiffServer,
+}
+
+impl core::fmt::Debug for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Graph")
+            .field("origin", &self.origin)
+            .finish()
+    }
 }
 
 static STATE: spin::Mutex<Option<GraphLocator>> = spin::Mutex::new(None);
@@ -66,9 +81,7 @@ impl GraphMutexClient {
         match state.as_mut() {
             Some(locator) => locator.select(node, parents),
             None => {
-                let mut locator = GraphLocator {
-                    graphs: HashMap::new(),
-                };
+                let mut locator = GraphLocator::default();
                 let stream = locator.select(node, parents);
                 *state = Some(locator);
                 stream
@@ -78,10 +91,12 @@ impl GraphMutexClient {
 }
 
 impl AutodiffClient for GraphMutexClient {
-    fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
-        let graph = GraphMutexClient::graph(*node_id, step.parents());
-        let mut server = graph.server.lock().unwrap();
-        server.register(node_id, step, actions);
+    fn register(&self, node_id_ref: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
+        let node_id = *node_id_ref;
+        let graph = GraphMutexClient::graph(node_id, step.parents());
+        let mut state = graph.state.lock().unwrap();
+
+        state.server.register(node_id_ref, step, actions);
     }
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
@@ -89,9 +104,9 @@ impl AutodiffClient for GraphMutexClient {
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 
         let grads = Gradients::new::<B>(root.node, root.primitive);
-        let mut server = graph.server.lock().unwrap();
+        let mut state = graph.state.lock().unwrap();
 
-        server.backward::<GraphCleaner>(grads, node_id)
+        state.server.backward::<GraphCleaner>(grads, node_id)
     }
 }
 
@@ -107,7 +122,20 @@ impl<'a> NodeCleaner for GraphCleaner<'a> {
 
     fn clean(&mut self, node: &NodeId) {
         if let Some(state) = self.guard.as_mut() {
-            state.graphs.remove(node);
+            if let Some(graph) = state.graphs.remove(node) {
+                let mut remove = false;
+
+                if let Some(entry) = state.keys.get_mut(&graph.origin) {
+                    entry.remove(node);
+                    if entry.is_empty() {
+                        remove = true;
+                    }
+                }
+
+                if remove {
+                    state.keys.remove(&graph.origin);
+                }
+            }
         }
     }
 }
@@ -129,8 +157,9 @@ impl GraphLocator {
 
         if graphs.len() == 1 {
             let graph = graphs.pop().unwrap();
-            if graph.id != node {
+            if graph.origin != node {
                 self.graphs.insert(node, graph.clone());
+                self.register_key(graph.origin, node);
             }
 
             return graph;
@@ -146,12 +175,12 @@ impl GraphLocator {
             if parents.is_empty() {
                 return vec![val.clone()];
             }
-            graphs.insert(val.id, val.clone());
+            graphs.insert(val.origin, val.clone());
         }
 
         for parent in parents {
             match self.graphs.get(&parent.id) {
-                Some(graph) => graphs.insert(graph.id, graph.clone()),
+                Some(graph) => graphs.insert(graph.origin, graph.clone()),
                 None => continue,
             };
         }
@@ -160,13 +189,8 @@ impl GraphLocator {
             return match self.graphs.get(&node) {
                 Some(old) => vec![old.clone()],
                 None => {
-                    let server = Arc::new(Graph {
-                        server: Mutex::new(AutodiffServer::default()),
-                        id: node,
-                    });
-
-                    self.graphs.insert(node, server.clone());
-                    vec![server]
+                    let graph = self.new_graph(node);
+                    vec![graph]
                 }
             };
         }
@@ -175,26 +199,61 @@ impl GraphLocator {
     }
 
     fn merge(&mut self, node: NodeId, mut graphs: Vec<Arc<Graph>>) -> Arc<Graph> {
-        let mut graph_ids = Vec::with_capacity(graphs.len());
         let main = graphs.pop().unwrap();
+        self.register_key(main.origin, node);
 
-        let mut server = main.server.lock().unwrap();
+        let mut state = main.state.lock().unwrap();
 
         for graph in graphs.drain(..) {
-            let mut locked = graph.server.lock().unwrap();
-            let mut ser = AutodiffServer::default();
-            core::mem::swap(&mut ser, &mut locked);
-            server.extend(ser);
-            graph_ids.push(graph.id);
+            self.merge_two(&mut state, &main, graph);
         }
 
-        for gid in graph_ids {
-            self.graphs.insert(gid, main.clone());
-        }
+        self.graphs.insert(main.origin, main.clone());
         self.graphs.insert(node, main.clone());
 
-        core::mem::drop(server);
+        core::mem::drop(state);
 
         main
+    }
+
+    fn register_key(&mut self, origin: NodeId, key: NodeId) {
+        if !self.keys.contains_key(&origin) {
+            self.keys.insert(origin, HashSet::new());
+        }
+
+        if origin != key {
+            self.keys.get_mut(&origin).unwrap().insert(key);
+        }
+    }
+
+    fn merge_two(&mut self, main_state: &mut GraphState, main: &Arc<Graph>, merged: Arc<Graph>) {
+        let mut locked = merged.state.lock().unwrap();
+        let mut state_old = GraphState::default();
+        core::mem::swap(&mut state_old, &mut locked);
+        main_state.server.extend(state_old.server);
+
+        self.graphs.insert(merged.origin, main.clone());
+
+        if let Some(locator_keys) = self.keys.remove(&merged.origin) {
+            for k in locator_keys.iter() {
+                self.graphs.insert(k.clone(), main.clone());
+            }
+
+            let locator_keys_main = self
+                .keys
+                .get_mut(&main.origin)
+                .expect("Should be init before the merge.");
+            locator_keys_main.extend(locator_keys);
+        }
+    }
+
+    fn new_graph(&mut self, origin: NodeId) -> Arc<Graph> {
+        let graph = Arc::new(Graph {
+            origin,
+            state: Mutex::new(GraphState::default()),
+        });
+        self.graphs.insert(origin, graph.clone());
+        self.keys.insert(origin, HashSet::new());
+        graph
     }
 }
