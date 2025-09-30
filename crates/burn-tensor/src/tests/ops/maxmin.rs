@@ -246,6 +246,30 @@ mod tests {
     }
 
     #[test]
+    fn test_max_abs_dims_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
+
+        tensor
+            .clone()
+            .max_abs_dims(&[0])
+            .into_data()
+            .assert_eq(&TensorData::from([[5., 6., 2.]]), false);
+
+        tensor
+            .clone()
+            .max_abs_dims(&[-2])
+            .into_data()
+            .assert_eq(&TensorData::from([[5., 6., 2.]]), false);
+
+        tensor
+            .clone()
+            .max_abs_dims(&[0, 1])
+            .into_data()
+            .assert_eq(&TensorData::from([[6.]]), false);
+    }
+
+    #[test]
     fn test_max_abs_dim_2d_dim_1() {
         let tensor =
             TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());

@@ -221,6 +221,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.max()`                                                  | `tensor.max()`                                 |
 | `tensor.max_abs()`                                              | `tensor.abs().max()`                           |
 | `tensor.max_abs_dim(dim)`                                       | `tensor.abs().max(dim, keepdim=True)`          |
+| `tensor.max_abs_dims(dims)`                                     | `tensor.abs().max(dims, keepdim=True)`         |
 | `tensor.max_dim(dim)`                                           | `tensor.max(dim, keepdim=True)`                |
 | `tensor.max_dims(dims)`                                         | `tensor.max(dims, keepdim=True)`               |
 | `tensor.max_dim_with_indices(dim)`                              | N/A                                            |
