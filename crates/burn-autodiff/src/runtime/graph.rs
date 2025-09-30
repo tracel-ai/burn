@@ -39,8 +39,8 @@ pub struct GraphMutexClient;
 #[derive(Default)]
 pub struct GraphLocator {
     graphs: HashMap<NodeId, Arc<Graph>>,
-    /// We keep a mapping of each original node id => all nodes that points to that graph.
-    /// This is to ensure that when merging graphs, we correctly move all previous node graphs to
+    /// We keep a mapping of each original node id (graph id) => all nodes that point to that graph.
+    /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
     keys: HashMap<NodeId, HashSet<NodeId>>,
 }
@@ -124,20 +124,20 @@ impl<'a> NodeCleaner for GraphCleaner<'a> {
     }
 
     fn clean(&mut self, node: &NodeId) {
-        if let Some(state) = self.guard.as_mut() {
-            if let Some(graph) = state.graphs.remove(node) {
-                let mut remove = false;
+        if let Some(state) = self.guard.as_mut()
+            && let Some(graph) = state.graphs.remove(node)
+        {
+            let mut remove = false;
 
-                if let Some(entry) = state.keys.get_mut(&graph.origin) {
-                    entry.remove(node);
-                    if entry.is_empty() {
-                        remove = true;
-                    }
+            if let Some(entry) = state.keys.get_mut(&graph.origin) {
+                entry.remove(node);
+                if entry.is_empty() {
+                    remove = true;
                 }
+            }
 
-                if remove {
-                    state.keys.remove(&graph.origin);
-                }
+            if remove {
+                state.keys.remove(&graph.origin);
             }
         }
     }
@@ -239,7 +239,7 @@ impl GraphLocator {
 
         if let Some(locator_keys) = self.keys.remove(&merged.origin) {
             for k in locator_keys.iter() {
-                self.graphs.insert(k.clone(), main.clone());
+                self.graphs.insert(*k, main.clone());
             }
 
             let locator_keys_main = self
