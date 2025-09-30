@@ -4,7 +4,6 @@ mod tests {
     use burn_tensor::{Int, Tensor, TensorData, cast::ToElement};
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2089"]
     fn is_nan() {
         let no_nan = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let no_nan_expected =
@@ -20,7 +19,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2089"]
     fn contains_nan() {
         let no_nan = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         assert!(!no_nan.contains_nan().into_scalar().to_bool());

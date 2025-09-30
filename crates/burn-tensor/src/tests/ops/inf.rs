@@ -14,8 +14,14 @@ mod tests {
         let with_inf_expected =
             TestTensorBool::<2>::from([[false, true, false], [true, false, false]]);
 
-        assert_eq!(no_inf_expected.into_data(), no_inf.is_inf().into_data());
+        no_inf
+            .is_inf()
+            .into_data()
+            .assert_eq(&no_inf_expected.into_data(), false);
 
-        assert_eq!(with_inf_expected.into_data(), with_inf.is_inf().into_data());
+        with_inf
+            .is_inf()
+            .into_data()
+            .assert_eq(&with_inf_expected.into_data(), false);
     }
 }

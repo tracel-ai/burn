@@ -546,9 +546,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_nan(self) -> Tensor<B, D, Bool> {
-        // Check if the input tensor is NaN by comparing it to itself
-        // NaN is the only value that is not equal to itself
-        self.clone().not_equal(self)
+        Tensor::new(B::float_is_nan(self.primitive.tensor()))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -605,7 +603,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_inf(self) -> Tensor<B, D, Bool> {
-        self.abs().equal_elem(f64::INFINITY)
+        Tensor::new(B::float_is_inf(self.primitive.tensor()))
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is finite

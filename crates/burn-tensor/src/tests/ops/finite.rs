@@ -16,14 +16,13 @@ mod tests {
         let with_inf_nan_expected =
             TestTensorBool::<2>::from([[true, false, false], [false, false, true]]);
 
-        assert_eq!(
-            all_finite_expected.into_data(),
-            all_finite.is_finite().into_data()
-        );
+        all_finite_expected
+            .into_data()
+            .assert_eq(&all_finite.is_finite().into_data(), false);
 
-        assert_eq!(
-            with_inf_nan_expected.into_data(),
-            with_inf_nan.is_finite().into_data()
-        );
+        with_inf_nan
+            .is_finite()
+            .into_data()
+            .assert_eq(&with_inf_nan_expected.into_data(), false);
     }
 }

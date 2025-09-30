@@ -22,7 +22,7 @@ use burn_ir::TensorIr;
 use cubecl::features::TypeUsage;
 use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
-use cubecl::matmul::components::tile::reader::Filled;
+use cubecl::matmul::components::tile::io::Filled;
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
