@@ -282,12 +282,17 @@ if !result.errors.is_empty() {
 
 ## Benchmarks
 
+### Loading Benchmarks
+
+Compares 6 loading methods: BurnpackStore, NamedMpkFileRecorder, SafetensorsStore,
+SafetensorsFileRecorder, PytorchStore, and PyTorchFileRecorder.
+
 ```bash
 # Generate model files first (one-time setup)
 cd crates/burn-store
 uv run benches/generate_unified_models.py
 
-# Run unified benchmark with default backend (NdArray CPU)
+# Run unified loading benchmark with default backend (NdArray CPU)
 cargo bench --bench unified_loading
 
 # Run with specific backend
@@ -298,7 +303,26 @@ cargo bench --bench unified_loading --features candle   # Candle backend
 cargo bench --bench unified_loading --features tch      # LibTorch
 
 # Run with multiple backends
-cargo bench --bench unified_loading --features "wgpu metal"
+cargo bench --bench unified_loading --features wgpu,tch
+```
+
+### Saving Benchmarks
+
+Compares 3 saving methods: BurnpackStore, NamedMpkFileRecorder, and SafetensorsStore.
+
+```bash
+# Run unified saving benchmark with default backend (NdArray CPU)
+cargo bench --bench unified_saving
+
+# Run with specific backend
+cargo bench --bench unified_saving --features metal    # Apple GPU
+cargo bench --bench unified_saving --features wgpu     # WebGPU
+cargo bench --bench unified_saving --features cuda     # NVIDIA GPU
+cargo bench --bench unified_saving --features candle   # Candle backend
+cargo bench --bench unified_saving --features tch      # LibTorch
+
+# Run with multiple backends
+cargo bench --bench unified_saving --features wgpu,tch
 ```
 
 ## API Overview

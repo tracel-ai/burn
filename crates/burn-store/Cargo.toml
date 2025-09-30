@@ -67,3 +67,7 @@ harness = false
 [[bench]]
 name = "unified_loading"
 harness = false
+
+[[bench]]
+name = "unified_saving"
+harness = false
