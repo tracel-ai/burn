@@ -410,24 +410,24 @@ fn test_store_allow_partial_missing_tensors() {
 #[test]
 #[cfg(feature = "std")]
 fn test_store_file_round_trip() {
-    use tempfile::NamedTempFile;
+    use tempfile::tempdir;
 
     let device = Default::default();
     let module = TestModule::<TestBackend>::new(&device);
 
-    // Create temp file
-    let temp_file = NamedTempFile::new().unwrap();
-    let path = temp_file.path();
+    // Create temp directory and file path
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("test_file_round_trip.burnpack");
 
     // Save to file
-    let mut save_store = BurnpackStore::from_file(path).metadata("test", "value");
+    let mut save_store = BurnpackStore::from_file(&path).metadata("test", "value");
     save_store.collect_from(&module).unwrap();
 
     // Verify file exists
     assert!(path.exists());
 
     // Load from file
-    let mut load_store = BurnpackStore::from_file(path);
+    let mut load_store = BurnpackStore::from_file(&path);
     let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
@@ -438,4 +438,74 @@ fn test_store_file_round_trip() {
     let weight1 = module.weight.val().to_data().to_vec::<f32>().unwrap();
     let weight2 = module2.weight.val().to_data().to_vec::<f32>().unwrap();
     assert_eq!(weight1, weight2);
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_overwrite_protection() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory and file path (file doesn't exist yet)
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("test_model.burnpack");
+
+    // First save - should succeed
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+    assert!(path.exists());
+
+    // Second save without overwrite flag - should fail
+    let mut save_store2 = BurnpackStore::from_file(&path);
+    let result = save_store2.collect_from(&module);
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("File already exists")
+    );
+
+    // Third save with overwrite flag - should succeed
+    let mut save_store3 = BurnpackStore::from_file(&path).overwrite(true);
+    save_store3.collect_from(&module).unwrap();
+
+    // Verify file still exists and is valid
+    let mut load_store = BurnpackStore::from_file(&path);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_overwrite_with_metadata() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory and file path
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("test_model_metadata.burnpack");
+
+    // First save with v1 metadata
+    let mut save_store = BurnpackStore::from_file(&path)
+        .metadata("version", "1.0")
+        .overwrite(true);
+    save_store.collect_from(&module).unwrap();
+
+    // Second save with v2 metadata and overwrite enabled
+    let mut save_store2 = BurnpackStore::from_file(&path)
+        .metadata("version", "2.0")
+        .overwrite(true);
+    save_store2.collect_from(&module).unwrap();
+
+    // Verify file loads correctly
+    let mut load_store = BurnpackStore::from_file(&path);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
 }

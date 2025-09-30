@@ -32,6 +32,8 @@ pub struct BurnpackStore {
     allow_partial: bool,
     /// Validate tensors during loading (check shapes and dtypes)
     validate: bool,
+    /// Allow overwriting existing files (default: false)
+    overwrite: bool,
     /// Key remapper for tensor name transformations
     #[cfg(feature = "std")]
     remapper: KeyRemapper,
@@ -66,6 +68,7 @@ impl BurnpackStore {
             metadata: Self::default_metadata(),
             allow_partial: false,
             validate: true,
+            overwrite: false,
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -81,6 +84,7 @@ impl BurnpackStore {
             metadata: Self::default_metadata(),
             allow_partial: false,
             validate: true,
+            overwrite: false,
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -123,6 +127,17 @@ impl BurnpackStore {
     /// Default: `true`
     pub fn validate(mut self, validate: bool) -> Self {
         self.validate = validate;
+        self
+    }
+
+    /// Allow overwriting existing files when saving
+    ///
+    /// When set to `false`, attempting to save to an existing file will result in an error.
+    /// When set to `true`, existing files will be overwritten without warning.
+    ///
+    /// Default: `false`
+    pub fn overwrite(mut self, overwrite: bool) -> Self {
+        self.overwrite = overwrite;
         self
     }
 
@@ -219,6 +234,13 @@ impl ModuleSnapshoter for BurnpackStore {
             match &mut self.mode {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
+                    // Check if file exists and overwrite is disabled
+                    if path.exists() && !self.overwrite {
+                        return Err(BurnpackError::IoError(format!(
+                            "File already exists: {}. Use .overwrite(true) to overwrite.",
+                            path.display()
+                        )));
+                    }
                     writer.write_to_file(path)?;
                 }
                 StoreMode::Bytes(bytes) => {

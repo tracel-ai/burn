@@ -129,7 +129,7 @@ macro_rules! bench_backend {
                     let device: TestDevice = Default::default();
                     let model = LargeModel::<TestBackend>::new(&device);
                     let output_path = get_output_dir().join("test_burnpack.burnpack");
-                    let mut store = BurnpackStore::from_file(output_path.clone());
+                    let mut store = BurnpackStore::from_file(output_path.clone()).overwrite(true);
                     model
                         .collect_to(&mut store)
                         .expect("Failed to save with BurnpackStore");
