@@ -39,6 +39,27 @@ mod tests {
     }
 
     #[test]
+    fn test_max_dims_2d() {
+        let f =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        f.clone()
+            .max_dims(&[0])
+            .into_data()
+            .assert_eq(&TensorData::from([[3., 4., 5.]]), false);
+
+        f.clone()
+            .max_dims(&[-2])
+            .into_data()
+            .assert_eq(&TensorData::from([[3., 4., 5.]]), false);
+
+        f.clone()
+            .max_dims(&[0, 1])
+            .into_data()
+            .assert_eq(&TensorData::from([[5.]]), false);
+    }
+
+    #[test]
     fn test_max_dim_with_indices_2d_with_dim_0th() {
         let tensor =
             TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
@@ -122,6 +143,27 @@ mod tests {
             .min_dim(1)
             .into_data()
             .assert_eq(&TensorData::from([[0], [3]]).into(), false);
+    }
+
+    #[test]
+    fn test_min_dims_2d() {
+        let f =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        f.clone()
+            .min_dims(&[0])
+            .into_data()
+            .assert_eq(&TensorData::from([[0., 1., 2.]]), false);
+
+        f.clone()
+            .min_dims(&[-2])
+            .into_data()
+            .assert_eq(&TensorData::from([[0., 1., 2.]]), false);
+
+        f.clone()
+            .min_dims(&[0, 1])
+            .into_data()
+            .assert_eq(&TensorData::from([[0.]]), false);
     }
 
     #[test]
