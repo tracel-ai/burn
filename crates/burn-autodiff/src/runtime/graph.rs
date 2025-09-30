@@ -39,6 +39,9 @@ pub struct GraphMutexClient;
 #[derive(Default)]
 pub struct GraphLocator {
     graphs: HashMap<NodeId, Arc<Graph>>,
+    /// We keep a mapping of each original node id => all nodes that points to that graph.
+    /// This is to ensure that when merging graphs, we correctly move all previous node graphs to
+    /// the new merged one.
     keys: HashMap<NodeId, HashSet<NodeId>>,
 }
 
