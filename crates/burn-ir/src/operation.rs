@@ -121,6 +121,10 @@ pub enum FloatOperationIr {
     Random(RandomOpIr),
     /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
     Recip(UnaryOpIr),
+    /// Operation corresponding to [is_nan](burn_tensor::ops::FloatTensorOps::float_is_nan).
+    IsNan(UnaryOpIr),
+    /// Operation corresponding to [is_nan](burn_tensor::ops::FloatTensorOps::float_is_inf).
+    IsInf(UnaryOpIr),
     /// Operation corresponding to [quantize](burn_tensor::ops::QTensorOps::quantize).
     Quantize(QuantizeOpIr),
     /// Operation corresponding to [dequantize](burn_tensor::ops::QTensorOps::dequantize).
@@ -1899,6 +1903,8 @@ impl FloatOperationIr {
             FloatOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Quantize(repr) => vec![&repr.tensor, &repr.qparams.scales, &repr.out],
             FloatOperationIr::Dequantize(repr) => vec![&repr.input, &repr.out],
+            FloatOperationIr::IsNan(repr) => vec![&repr.input, &repr.out],
+            FloatOperationIr::IsInf(repr) => vec![&repr.input, &repr.out],
         }
     }
 
@@ -1962,6 +1968,12 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::IntoInt(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::IsNan(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::IsInf(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
         };

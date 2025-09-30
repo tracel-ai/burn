@@ -921,6 +921,18 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 FloatOperationIr::Quantize(_) => todo!(),
                 FloatOperationIr::Dequantize(_) => todo!(),
+                FloatOperationIr::IsNan(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_is_nan(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                FloatOperationIr::IsInf(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_is_inf(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Module(op) => match op {
                 ModuleOperationIr::Embedding(desc) => {

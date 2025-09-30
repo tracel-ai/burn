@@ -1456,6 +1456,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_lower_equal_elem(lhs.primitive, rhs)
     }
 
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        B::float_is_nan(tensor.primitive)
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        B::float_is_inf(tensor.primitive)
+    }
+
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
         // `require_grad` setting.
