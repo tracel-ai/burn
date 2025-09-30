@@ -1,21 +1,20 @@
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{Numeric, Shape};
-
-/// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensors.
-///
-/// Supported ranks:
-/// - D = 1, R = 2: vectors (m,) × (n,) → (m, n)
-/// - D = 2, R = 3: batched (b, m) × (b, n) → (b, m, n)
-///
-/// Panics:
-/// - if D > 2
-/// - if (D, R) is not (1,2) or (2,3)
-/// - if D = 2 and batch dimensions differ
-///
-/// Notes:
-/// - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
-///   than broadcasted elemwise multiply; benchmarking needed to confirm.
+// Computes the outer product (and batched outer product) for rank-1 or rank-2 tensors.
+//
+// Supported ranks:
+// - D = 1, R = 2: vectors (m,) × (n,) → (m, n)
+// - D = 2, R = 3: batched (b, m) × (b, n) → (b, m, n)
+//
+// Panics:
+// - if D > 2
+// - if (D, R) is not (1,2) or (2,3)
+// - if D = 2 and batch dimensions differ
+//
+// Notes:
+// - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
+//   than broadcasted elemwise multiply; benchmarking needed to confirm.
 pub fn outer<B: Backend, const D: usize, const R: usize, K>(
     x: Tensor<B, D, K>,
     y: Tensor<B, D, K>,
