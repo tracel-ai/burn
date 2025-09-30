@@ -129,15 +129,19 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id =
-            server_current.change_server_float::<B>(&tensor, &client.device, &mut server_other);
+        let mut server_other = client.server.lock();
+        let id = server_current.change_server_float::<B>(
+            &tensor,
+            stream,
+            &client.device,
+            &mut server_other,
+        );
 
-        core::mem::drop(server_other);
         core::mem::drop(server_current);
+        core::mem::drop(server_other);
 
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
@@ -151,11 +155,16 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_int::<B>(&tensor, &client.device, &mut server_other);
+        let mut server_other = client.server.lock();
+        let id = server_current.change_server_int::<B>(
+            &tensor,
+            stream,
+            &client.device,
+            &mut server_other,
+        );
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -172,11 +181,16 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id = server_current.change_server_bool::<B>(&tensor, &client.device, &mut server_other);
+        let mut server_other = client.server.lock();
+        let id = server_current.change_server_bool::<B>(
+            &tensor,
+            stream,
+            &client.device,
+            &mut server_other,
+        );
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -193,10 +207,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
+        let mut server_other = client.server.lock();
         let id =
             server_current.change_server_quantized::<B>(&tensor, &client.device, &mut server_other);
 
