@@ -25,7 +25,9 @@ use burn_core::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_nn as nn;
-use burn_store::{BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore};
+use burn_store::{
+    BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
+};
 use divan::{AllocProfiler, Bencher};
 use std::fs;
 use std::path::PathBuf;
@@ -81,22 +83,28 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
 
     // Load the model from SafeTensors
     let mut model = LargeModel::<TestBackend>::new(&device);
-    let mut store = SafetensorsStore::from_file(st_path.clone())
-        .with_from_adapter(PyTorchToBurnAdapter);
-    model.apply_from(&mut store).expect("Failed to load from SafeTensors");
+    let mut store =
+        SafetensorsStore::from_file(st_path.clone()).with_from_adapter(PyTorchToBurnAdapter);
+    model
+        .apply_from(&mut store)
+        .expect("Failed to load from SafeTensors");
 
     // Save as Burnpack
     if !bp_path.exists() {
         println!("  Creating Burnpack file...");
         let mut burnpack_store = BurnpackStore::from_file(bp_path.clone());
-        model.collect_to(&mut burnpack_store).expect("Failed to save as Burnpack");
+        model
+            .collect_to(&mut burnpack_store)
+            .expect("Failed to save as Burnpack");
     }
 
     // Save as NamedMpk
     if !mpk_path.exists() {
         println!("  Creating NamedMpk file...");
         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
-        model.save_file(mpk_path.clone(), &recorder).expect("Failed to save as NamedMpk");
+        model
+            .save_file(mpk_path.clone(), &recorder)
+            .expect("Failed to save as NamedMpk");
     }
 }
 
@@ -148,8 +156,12 @@ fn main() {
                 generate_burn_formats(&st_path, &bp_path, &mpk_path);
             }
 
-            let bp_size = fs::metadata(&bp_path).ok().map(|m| m.len() as f64 / 1_048_576.0);
-            let mpk_size = fs::metadata(&mpk_path).ok().map(|m| m.len() as f64 / 1_048_576.0);
+            let bp_size = fs::metadata(&bp_path)
+                .ok()
+                .map(|m| m.len() as f64 / 1_048_576.0);
+            let mpk_size = fs::metadata(&mpk_path)
+                .ok()
+                .map(|m| m.len() as f64 / 1_048_576.0);
             let st_size = fs::metadata(&st_path).unwrap().len() as f64 / 1_048_576.0;
             let pt_size = fs::metadata(&pt_path).unwrap().len() as f64 / 1_048_576.0;
 
