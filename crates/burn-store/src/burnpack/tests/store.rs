@@ -509,3 +509,115 @@ fn test_store_overwrite_with_metadata() {
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_auto_extension_default() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("model");
+
+    // Save without extension - should auto-append .burnpack
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Verify that model.burnpack was created
+    let expected_path = temp_dir.path().join("model.burnpack");
+    assert!(expected_path.exists());
+    assert!(!path.exists()); // Original path without extension should not exist
+
+    // Load using the path without extension - should work
+    let mut load_store = BurnpackStore::from_file(&path);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_auto_extension_with_existing_extension() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("model.burnpack");
+
+    // Save with .burnpack extension - should not double append
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Verify that only model.burnpack was created
+    assert!(path.exists());
+    let double_ext_path = temp_dir.path().join("model.burnpack.burnpack");
+    assert!(!double_ext_path.exists());
+
+    // Load and verify
+    let mut load_store = BurnpackStore::from_file(&path);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_auto_extension_with_custom_extension() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("model.mpk");
+
+    // Save with .mpk extension - should preserve it
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Verify that model.mpk was created (not model.mpk.burnpack)
+    assert!(path.exists());
+    let burnpack_path = temp_dir.path().join("model.mpk.burnpack");
+    assert!(!burnpack_path.exists());
+
+    // Load and verify
+    let mut load_store = BurnpackStore::from_file(&path);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_auto_extension_disabled() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Create temp directory
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("model");
+
+    // Save with auto_extension disabled - should use exact path
+    let mut save_store = BurnpackStore::from_file(&path).auto_extension(false);
+    save_store.collect_from(&module).unwrap();
+
+    // Verify that "model" (without extension) was created
+    assert!(path.exists());
+    let burnpack_path = temp_dir.path().join("model.burnpack");
+    assert!(!burnpack_path.exists());
+
+    // Load with auto_extension disabled
+    let mut load_store = BurnpackStore::from_file(&path).auto_extension(false);
+    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let result = load_store.apply_to(&mut module2).unwrap();
+    assert!(result.is_success());
+}

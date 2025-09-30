@@ -34,6 +34,9 @@ pub struct BurnpackStore {
     validate: bool,
     /// Allow overwriting existing files (default: false)
     overwrite: bool,
+    /// Automatically append .burnpack extension if not present (default: true)
+    #[cfg(feature = "std")]
+    auto_extension: bool,
     /// Key remapper for tensor name transformations
     #[cfg(feature = "std")]
     remapper: KeyRemapper,
@@ -60,6 +63,24 @@ impl BurnpackStore {
         metadata
     }
     /// Create a new store from a file path
+    ///
+    /// By default, automatically appends `.burnpack` extension if the path doesn't have one.
+    /// Use `.auto_extension(false)` to disable this behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use burn_store::BurnpackStore;
+    /// // Automatically appends .burnpack
+    /// let store = BurnpackStore::from_file("model");  // creates "model.burnpack"
+    ///
+    /// // Already has extension, no append
+    /// let store = BurnpackStore::from_file("model.burnpack");  // uses "model.burnpack"
+    /// let store = BurnpackStore::from_file("model.myext");  // uses "model.myext"
+    ///
+    /// // Disable auto-extension
+    /// let store = BurnpackStore::from_file("model").auto_extension(false);  // uses "model"
+    /// ```
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Self {
         Self {
@@ -69,6 +90,8 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
+            #[cfg(feature = "std")]
+            auto_extension: true,
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -85,6 +108,8 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
+            #[cfg(feature = "std")]
+            auto_extension: false, // Not used for bytes mode
             #[cfg(feature = "std")]
             remapper: KeyRemapper::new(),
             writer: None,
@@ -138,6 +163,32 @@ impl BurnpackStore {
     /// Default: `false`
     pub fn overwrite(mut self, overwrite: bool) -> Self {
         self.overwrite = overwrite;
+        self
+    }
+
+    /// Enable or disable automatic .burnpack extension appending
+    ///
+    /// When enabled (default), automatically appends `.burnpack` to the file path
+    /// if no extension is detected. If an extension is already present, it is preserved.
+    ///
+    /// When disabled, uses the exact path provided without modification.
+    ///
+    /// Default: `true`
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use burn_store::BurnpackStore;
+    /// // With auto_extension enabled (default)
+    /// let store = BurnpackStore::from_file("model");  // -> "model.burnpack"
+    ///
+    /// // With auto_extension disabled
+    /// let store = BurnpackStore::from_file("model")
+    ///     .auto_extension(false);  // -> "model"
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn auto_extension(mut self, enable: bool) -> Self {
+        self.auto_extension = enable;
         self
     }
 
@@ -206,6 +257,25 @@ impl BurnpackStore {
             _ => Err(BurnpackError::IoError("No bytes available".into())),
         }
     }
+
+    /// Process the file path with auto-extension logic
+    #[cfg(feature = "std")]
+    fn process_path(&self, path: &std::path::Path) -> PathBuf {
+        if !self.auto_extension {
+            return path.to_path_buf();
+        }
+
+        // Check if path already has an extension
+        if path.extension().is_some() {
+            // Has extension, use as-is
+            return path.to_path_buf();
+        }
+
+        // No extension, append .burnpack
+        let mut new_path = path.to_path_buf();
+        new_path.set_extension("burnpack");
+        new_path
+    }
 }
 
 impl ModuleSnapshoter for BurnpackStore {
@@ -231,21 +301,28 @@ impl ModuleSnapshoter for BurnpackStore {
 
         // Write to storage based on mode
         if let Some(writer) = &self.writer {
-            match &mut self.mode {
+            match &self.mode {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
+                    // Process path with auto-extension logic
+                    let final_path = self.process_path(path);
+
                     // Check if file exists and overwrite is disabled
-                    if path.exists() && !self.overwrite {
+                    if final_path.exists() && !self.overwrite {
                         return Err(BurnpackError::IoError(format!(
                             "File already exists: {}. Use .overwrite(true) to overwrite.",
-                            path.display()
+                            final_path.display()
                         )));
                     }
-                    writer.write_to_file(path)?;
+                    writer.write_to_file(&final_path)?;
                 }
-                StoreMode::Bytes(bytes) => {
-                    // Generate and store the bytes
-                    *bytes = Some(writer.to_bytes()?);
+                StoreMode::Bytes(_) => {
+                    // Generate and store the bytes - need to handle this separately due to mutability
+                    let bytes_data = writer.to_bytes()?;
+                    // Now update the mode with the bytes
+                    if let StoreMode::Bytes(bytes_ref) = &mut self.mode {
+                        *bytes_ref = Some(bytes_data);
+                    }
                 }
             }
         }
@@ -261,7 +338,11 @@ impl ModuleSnapshoter for BurnpackStore {
         if self.reader.is_none() {
             let reader = match &self.mode {
                 #[cfg(feature = "std")]
-                StoreMode::File(path) => BurnpackReader::from_file(path)?,
+                StoreMode::File(path) => {
+                    // Process path with auto-extension logic
+                    let final_path = self.process_path(path);
+                    BurnpackReader::from_file(&final_path)?
+                }
                 StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
                 StoreMode::Bytes(None) => {
                     return Err(BurnpackError::IoError("No bytes to read from".into()));
