@@ -141,6 +141,16 @@ def generate_test_data(model_path, output_dir):
     # - Inputs: input_ids, attention_mask, token_type_ids
     # - Outputs: last_hidden_state (3D)
 
+    # Compute mean pooled embeddings (what sentence-transformers uses)
+    last_hidden_state = outputs[0]
+    attention_mask_np = test_inputs.get("attention_mask")
+
+    # Mean pooling - take attention mask into account for correct averaging
+    input_mask_expanded = np.expand_dims(attention_mask_np, axis=-1).astype(np.float32)
+    sum_embeddings = np.sum(last_hidden_state * input_mask_expanded, axis=1)
+    sum_mask = np.clip(np.sum(input_mask_expanded, axis=1), a_min=1e-9, a_max=None)
+    pooled_embeddings = sum_embeddings / sum_mask
+
     # Create a more structured format for Rust
     test_data = {
         "input_ids": torch.from_numpy(
@@ -161,6 +171,7 @@ def generate_test_data(model_path, output_dir):
             )
         ),
         "last_hidden_state": torch.from_numpy(outputs[0]),
+        "pooled_embeddings": torch.from_numpy(pooled_embeddings),
     }
 
     test_data_path = Path(output_dir) / "test_data.pt"
@@ -173,6 +184,7 @@ def generate_test_data(model_path, output_dir):
     print(f"      token_type_ids: {test_data['token_type_ids'].shape}")
     print(f"    Output shapes:")
     print(f"      last_hidden_state: {test_data['last_hidden_state'].shape}")
+    print(f"      pooled_embeddings: {test_data['pooled_embeddings'].shape}")
 
 
 def save_model_info(model_path, output_dir):
