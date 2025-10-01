@@ -5,12 +5,15 @@ use burn::{
     tensor::backend::AutodiffBackend,
     train::{
         LearnerBuilder, LearningStrategy,
-        renderer::{MetricState, MetricsRenderer, TrainingProgress},
+        renderer::{
+            EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
+            MetricsRendererEvaluation, MetricsRendererTraining, TrainingProgress,
+        },
     },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -28,7 +31,7 @@ pub struct MnistTrainingConfig {
 
 struct CustomRenderer {}
 
-impl MetricsRenderer for CustomRenderer {
+impl MetricsRendererTraining for CustomRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
@@ -42,13 +45,27 @@ impl MetricsRenderer for CustomRenderer {
     }
 }
 
+impl MetricsRenderer for CustomRenderer {
+    fn manual_close(&mut self) {
+        // Nothing to do.
+    }
+}
+
+impl MetricsRendererEvaluation for CustomRenderer {
+    fn update_test(&mut self, _name: EvaluationName, _state: MetricState) {}
+
+    fn render_test(&mut self, item: EvaluationProgress) {
+        dbg!(item);
+    }
+}
+
 pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Create the model and optimizer.
     let model = config.model.init::<B>(&device);

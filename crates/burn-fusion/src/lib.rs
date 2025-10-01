@@ -27,4 +27,5 @@ pub(crate) use server::*;
 
 pub use backend::*;
 pub use fusion::*;
+pub use ops::NoOp;
 pub use tensor::*;

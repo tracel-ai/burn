@@ -1,4 +1,4 @@
-use super::{expand, numeric, permute};
+use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
@@ -68,8 +68,9 @@ where
         super::to_device(tensor, device)
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::empty::<R, F>(shape, device)
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, super::empty::<R, E>(shape, device))
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -88,20 +89,28 @@ where
         )
     }
 
-    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::zeros::<R, F>(shape, device)
+    fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, numeric::zeros::<R, E>(shape, device))
     }
 
     fn float_full(
         shape: Shape,
         fill_value: FloatElem<Self>,
         device: &R::Device,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        numeric::full::<R, F>(shape, device, fill_value)
+        let dtype = dtype.into();
+        execute_with_dtype!(
+            float(dtype),
+            E,
+            numeric::full::<R, E>(shape, device, fill_value.elem())
+        )
     }
 
-    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::ones::<R, F>(shape, device)
+    fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = dtype.into();
+        execute_with_dtype!(float(dtype), E, numeric::ones::<R, E>(shape, device))
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -176,6 +185,18 @@ where
         )
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(lhs.dtype, rhs.dtype),
+            E,
+            kernel::cross::<R, E>(lhs, rhs, dim)
+        )
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::swap_dims(tensor, dim1, dim2)
     }
@@ -190,9 +211,13 @@ where
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::gather::<R, E, I>(dim, tensor, indices)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::gather::<R, E, I>(dim, tensor, indices)
+            )
         )
     }
 
@@ -203,9 +228,13 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::scatter::<R, E, I>(dim, tensor, indices, value)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype, value.dtype),
+                E,
+                kernel::scatter::<R, E, I>(dim, tensor, indices, value)
+            )
         )
     }
 
@@ -215,9 +244,13 @@ where
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::select::<R, E, I>(tensor, dim, indices)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::select::<R, E, I>(tensor, dim, indices)
+            )
         )
     }
 
@@ -228,23 +261,46 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
-            float(tensor.dtype, value.dtype),
-            E,
-            kernel::select_assign::<R, E, I>(tensor, dim, indices, value)
+            int(indices.dtype),
+            I,
+            execute_with_dtype!(
+                float(tensor.dtype, value.dtype),
+                E,
+                kernel::select_assign::<R, E, I>(tensor, dim, indices, value, false)
+            )
         )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            E,
-            kernel::slice::<R, E>(tensor, ranges)
-        )
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
+        // Check if all steps are 1
+        let all_steps_one = slices.iter().all(|info| info.step == 1);
+
+        if all_steps_one {
+            // Use optimized slice for step=1
+            let simple_ranges: Vec<Range<usize>> = slices
+                .iter()
+                .enumerate()
+                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .collect();
+
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice::<R, E>(tensor, &simple_ranges)
+            )
+        } else {
+            // Use slice with steps kernel
+            execute_with_dtype!(
+                float(tensor.dtype),
+                E,
+                kernel::slice_with_steps::<R, E>(tensor, slices)
+            )
+        }
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        ranges: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_dtype!(
@@ -626,25 +682,45 @@ where
         )
     }
 
-    fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+    fn float_cast(mut tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         match (tensor.dtype, dtype) {
             (DType::F64, FloatDType::F64)
             | (DType::F32, FloatDType::F32)
+            | (DType::Flex32, FloatDType::Flex32)
             | (DType::BF16, FloatDType::BF16)
             | (DType::F16, FloatDType::F16) => tensor,
+            (DType::F32, FloatDType::Flex32) | (DType::Flex32, FloatDType::F32) => {
+                tensor.dtype = dtype.into();
+                tensor
+            }
             (DType::F64, FloatDType::F32) => kernel::cast::<R, f64, f32>(tensor),
+            (DType::F64, FloatDType::Flex32) => kernel::cast::<R, f64, flex32>(tensor),
             (DType::F64, FloatDType::F16) => kernel::cast::<R, f64, f16>(tensor),
             (DType::F64, FloatDType::BF16) => kernel::cast::<R, f64, bf16>(tensor),
             (DType::F32, FloatDType::F64) => kernel::cast::<R, f32, f64>(tensor),
             (DType::F32, FloatDType::F16) => kernel::cast::<R, f32, f16>(tensor),
             (DType::F32, FloatDType::BF16) => kernel::cast::<R, f32, bf16>(tensor),
+            (DType::Flex32, FloatDType::F64) => kernel::cast::<R, flex32, f64>(tensor),
+            (DType::Flex32, FloatDType::F16) => kernel::cast::<R, flex32, f16>(tensor),
+            (DType::Flex32, FloatDType::BF16) => kernel::cast::<R, flex32, bf16>(tensor),
             (DType::F16, FloatDType::F64) => kernel::cast::<R, f16, f64>(tensor),
             (DType::F16, FloatDType::F32) => kernel::cast::<R, f16, f32>(tensor),
+            (DType::F16, FloatDType::Flex32) => kernel::cast::<R, f16, flex32>(tensor),
             (DType::F16, FloatDType::BF16) => kernel::cast::<R, f16, bf16>(tensor),
             (DType::BF16, FloatDType::F64) => kernel::cast::<R, bf16, f64>(tensor),
             (DType::BF16, FloatDType::F32) => kernel::cast::<R, bf16, f32>(tensor),
+            (DType::BF16, FloatDType::Flex32) => kernel::cast::<R, bf16, flex32>(tensor),
             (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
             _ => unimplemented!("Unsupported floating point type cast"),
         }
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
     }
 }

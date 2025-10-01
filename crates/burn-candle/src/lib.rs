@@ -34,6 +34,7 @@ mod tests {
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
     pub type FloatType = f32;
+    pub type IntType = i64;
 
     // test activation
     burn_tensor::testgen_gelu!();
@@ -110,6 +111,7 @@ mod tests {
     burn_tensor::testgen_select!();
     burn_tensor::testgen_sin!();
     burn_tensor::testgen_slice!();
+    burn_tensor::testgen_slice_assign!();
     burn_tensor::testgen_sqrt!();
     burn_tensor::testgen_abs!();
     burn_tensor::testgen_squeeze!();
@@ -178,4 +180,5 @@ mod tests {
     burn_autodiff::testgen_ad_round!();
     burn_autodiff::testgen_ad_floor!();
     burn_autodiff::testgen_ad_ceil!();
+    burn_autodiff::testgen_ad_slice_assign!();
 }

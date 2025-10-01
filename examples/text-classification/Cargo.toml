@@ -25,6 +25,7 @@ remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
+ddp = ["burn/collective"]
 
 [dependencies]
 # Burn
@@ -40,7 +41,7 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.21.2", default-features = false, features = [
+tokenizers = { version = "0.22.1", default-features = false, features = [
     "onig",
     "http",
 ] }

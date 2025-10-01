@@ -162,8 +162,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
             body.extend(quote! {
                 let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                #[allow(clippy::identity_op)] // q_num_heads could be 1
                 let head_size = q_hidden_size / #q_num_heads;
                 let kv_sequence_length = k.dims()[1];
+                #[allow(clippy::identity_op)] // kv_num_heads could be 1
                 let v_head_size = v.dims()[2] / #kv_num_heads;
                 let q = q.reshape([batch_size, q_sequence_length, #q_num_heads, head_size])
                         .permute([0, 2, 1, 3]);
@@ -339,14 +341,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("burn::tensor::activation::softmax");
-
-        if let Some(mask) = self.inputs.attn_mask.as_ref() {
-            match mask.kind {
-                TensorKind::Bool => imports.register("burn::tensor::Bool"),
-                TensorKind::Int => imports.register("burn::tensor::Int"),
-                _ => (),
-            }
-        }
     }
 
     fn into_node(self) -> Node<PS> {
@@ -436,8 +430,10 @@ mod tests {
                         let k = k;
                         let v = v;
                         let [batch_size, q_sequence_length, q_hidden_size] = q.dims();
+                        #[allow(clippy::identity_op)]
                         let head_size = q_hidden_size / 1usize;
                         let kv_sequence_length = k.dims()[1];
+                        #[allow(clippy::identity_op)]
                         let v_head_size = v.dims()[2] / 1usize;
                         let q = q
                             .reshape([batch_size, q_sequence_length, 1usize, head_size])

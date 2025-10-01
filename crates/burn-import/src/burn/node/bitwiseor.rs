@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{BurnImports, Scope, TensorKind, Type};
+use crate::burn::{Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -71,16 +71,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseOrNode {
         }
         Node::BitwiseOr(self)
     }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // Register ElementConversion for scalar operations
-        for input in &self.inputs {
-            if matches!(input, Type::Scalar(_)) {
-                imports.register("burn::tensor::ElementConversion");
-                break;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -111,11 +101,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

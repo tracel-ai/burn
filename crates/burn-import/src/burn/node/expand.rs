@@ -41,7 +41,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
                     }
                 }
                 Type::Shape(shape) => {
-                    // Shape implements BroadcastArgs, allowing it to be passed directly to the expand method.
+                    // Shape arrays are [i64; N] and expand now accepts them directly via Element trait
                     let shape_name = &shape.name;
                     quote! { #shape_name }
                 }
@@ -84,10 +84,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -135,10 +132,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -158,7 +152,7 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 4>,
-                    shape1: [usize; 4],
+                    shape1: [i64; 4],
                 ) -> Tensor<B, 4> {
                     let tensor2 = tensor1.expand(shape1);
 
@@ -195,11 +189,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

@@ -6,7 +6,7 @@ use burn::{
 
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {
-    norm1: BatchNorm<B, 2>,
+    norm1: BatchNorm<B>,
 }
 
 impl<B: Backend> Net<B> {
@@ -24,7 +24,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::{
         record::{FullPrecisionSettings, Recorder},
@@ -41,13 +41,13 @@ mod tests {
             .load("tests/batch_norm/batch_norm2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new(&device).load_record(record);
+        let model = Net::<TestBackend>::new(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::ones([1, 5, 2, 2], &device) - 0.3;
+        let input = Tensor::<TestBackend, 4>::ones([1, 5, 2, 2], &device) - 0.3;
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
                 [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],

@@ -34,6 +34,7 @@ pub enum ProcessorTask {
     },
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
+    Seed(u64),
     Close,
 }
 
@@ -68,7 +69,6 @@ where
                     ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
-                    // TODO see the params of these two foloowing tasks, aren't tjey a bit stu[id? uea] yeaaah
                     ProcessorTask::RegisterTensorRemote(remote_tensor, new_id) => {
                         log::info!(
                             "Registering remote tensor...(id: {:?})",
@@ -106,6 +106,7 @@ where
                         B::sync(&device);
                         break;
                     }
+                    ProcessorTask::Seed(seed) => runner.seed(seed),
                 }
             }
         });

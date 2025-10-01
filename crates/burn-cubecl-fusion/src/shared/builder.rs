@@ -1,15 +1,17 @@
+use crate::shared::ir::QuantSchemeFuse;
+
 use super::{
     ir::{Arg, BinaryFuseArgs, FuseOp, FusePrecision, UnaryFuseArgs},
     settings::FuseSettings,
-    trace::{FuseTrace, FuseTraceBuilder},
+    trace::{FuseTrace, FuseTraceBuilder, block::QuantInput},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_tensor::{DType, Element};
-use cubecl::ir::Elem;
+use burn_tensor::DType;
+use cubecl::ir::ElemType;
 
 /// The base optimization builder that can be used to fuse all elemwise operations.
 ///
@@ -27,6 +29,18 @@ pub(crate) struct FuseOptimizationBuilder {
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
     max_bindings: u32,
+}
+
+impl FuseOptimizationBuilder {
+    pub(crate) fn can_register(&self, op: &OperationIr) -> bool {
+        let len_previous = self.len();
+        let mut builder_cloned = self.clone();
+
+        builder_cloned.register(op);
+        let len_after = builder_cloned.len();
+
+        len_after > len_previous
+    }
 }
 
 impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
@@ -63,13 +77,13 @@ impl OptimizationBuilder<FuseTrace> for FuseOptimizationBuilder {
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
-                if !self.register_numeric::<f32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
-                if !self.register_numeric::<i32>(ops) {
+                if !self.register_numeric(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -224,10 +238,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.input) {
-                    return false;
-                }
-
                 if self.builder.register(|build| {
                     build.input_swap_dims(
                         &desc.input,
@@ -256,10 +266,6 @@ impl FuseOptimizationBuilder {
                 }
 
                 if !self.output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                if self.input_is_quantized(&desc.input) {
                     return false;
                 }
 
@@ -305,11 +311,43 @@ impl FuseOptimizationBuilder {
             FloatOperationIr::Recip(desc) => self.register_unary_ops(desc, |input, out| {
                 FuseOp::Recip(UnaryFuseArgs { input, out })
             }),
+            FloatOperationIr::Dequantize(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let qinput = build.input_quantized(&desc.input)?;
+                    let out = build.output(&desc.out)?;
+
+                    match qinput {
+                        QuantInput::AlreadyDequantized { local } => {
+                            build.register_operation(FuseOp::Assign(UnaryFuseArgs {
+                                input: local,
+                                out,
+                            }));
+                        }
+                        QuantInput::Quantized { values, params } => {
+                            build.register_operation(FuseOp::Dequantize {
+                                values,
+                                params,
+                                output: out,
+                                scheme: match desc.input.dtype {
+                                    DType::QFloat(scheme) => QuantSchemeFuse { scheme },
+                                    _ => unreachable!("Should be a quant tensor."),
+                                },
+                            });
+                        }
+                    }
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
 
-    fn register_numeric<E: Element>(&mut self, op: &NumericOperationIr<E>) -> bool {
+    fn register_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
             NumericOperationIr::Add(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
@@ -382,8 +420,8 @@ impl FuseOptimizationBuilder {
 
                 self.builder.register(|build| {
                     let cond = build.input(&desc.mask)?;
-                    let lhs = build.input(&desc.value)?;
                     let rhs = build.input(&desc.tensor)?;
+                    let lhs = build.input(&desc.value)?;
                     let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::ConditionalAssign {
@@ -422,7 +460,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(1, precision);
 
@@ -439,7 +477,7 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                let elem: Elem = desc.dtype.into();
+                let elem: ElemType = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(0, precision);
 
@@ -470,10 +508,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.tensor) {
-                    return false;
-                }
-
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
@@ -494,10 +528,6 @@ impl FuseOptimizationBuilder {
                     return false;
                 }
 
-                if self.input_is_quantized(&desc.tensor) {
-                    return false;
-                }
-
                 self.builder.register(|build| {
                     let input = build.input_indexed(&desc.tensor)?;
                     let indices = build.input_indexed(&desc.indices)?;
@@ -513,6 +543,37 @@ impl FuseOptimizationBuilder {
                     Some(())
                 })
             }
+            NumericOperationIr::Rem(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::RemScalar(desc) => self
+                .register_scalar_ops(desc, |lhs, rhs, out| {
+                    FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
+                }),
+            NumericOperationIr::Powf(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            NumericOperationIr::Clamp(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let input = build.input(&desc.tensor)?;
+                    let min = build.scalar(&desc.min, desc.out.dtype);
+                    let max = build.scalar(&desc.max, desc.out.dtype);
+                    let out = build.output(&desc.out)?;
+
+                    build.register_operation(FuseOp::Clamp {
+                        input,
+                        min,
+                        max,
+                        out,
+                    });
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
@@ -522,10 +583,6 @@ impl FuseOptimizationBuilder {
         Func: Fn(Arg, Arg, Arg) -> FuseOp,
     {
         if !self.output_is_compatible(&desc.out) {
-            return false;
-        }
-
-        if self.input_is_quantized(&desc.lhs) {
             return false;
         }
 
@@ -548,10 +605,6 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        if self.input_is_quantized(&desc.input) {
-            return false;
-        }
-
         self.builder.register(|build| {
             let input = build.input(&desc.input)?;
             let out = build.output(&desc.out)?;
@@ -560,15 +613,11 @@ impl FuseOptimizationBuilder {
         })
     }
 
-    fn register_scalar_ops<Func, E: Element>(&mut self, desc: &ScalarOpIr<E>, func: Func) -> bool
+    fn register_scalar_ops<Func>(&mut self, desc: &ScalarOpIr, func: Func) -> bool
     where
         Func: Fn(Arg, Arg, Arg) -> FuseOp,
     {
         if !self.output_is_compatible(&desc.out) {
-            return false;
-        }
-
-        if self.input_is_quantized(&desc.lhs) {
             return false;
         }
 
@@ -582,10 +631,6 @@ impl FuseOptimizationBuilder {
 
             Some(())
         })
-    }
-
-    fn input_is_quantized(&self, input: &TensorIr) -> bool {
-        matches!(input.dtype, DType::QFloat(_scheme))
     }
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
@@ -602,6 +647,7 @@ impl FuseOptimizationBuilder {
         }
 
         let mut updated = self.current_output_shape.clone();
+        let mut should_update = false;
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
@@ -624,6 +670,7 @@ impl FuseOptimizationBuilder {
 
             // Broadcasted on curr dim - update reference output shape.
             if curr == 0 && self.settings.output_shape_updates {
+                should_update = true;
                 updated[i] = new;
                 continue;
             }
@@ -631,11 +678,14 @@ impl FuseOptimizationBuilder {
             return false;
         }
 
-        if updated != out.shape {
-            return false;
-        }
+        if should_update {
+            // For now forced to have exact shape.
+            if updated != out.shape {
+                return false;
+            }
 
-        self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape);
+        }
 
         true
     }

@@ -109,13 +109,15 @@ macro_rules! str2writer {
         $file.set_extension(<Self as FileRecorder<B>>::file_extension());
         let path = $file.as_path();
 
+        log::debug!("Writing to file: {:?}", path);
+
         // Add parent directories if they don't exist
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
 
         if path.exists() {
-            log::info!("File exists, replacing");
+            log::warn!("File exists, replacing");
             std::fs::remove_file(path).map_err(|err| RecorderError::Unknown(err.to_string()))?;
         }
 
@@ -317,21 +319,17 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
 
 #[cfg(test)]
 mod tests {
-
-    use burn_tensor::backend::Backend;
-
     use super::*;
+    use crate as burn;
+    use crate::config::Config;
+    use crate::module::Ignored;
+    use crate::test_utils::SimpleLinear;
     use crate::{
         TestBackend,
         module::Module,
-        nn::{
-            Linear, LinearConfig,
-            conv::{Conv2d, Conv2dConfig},
-        },
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
-
-    use crate as burn;
+    use burn_tensor::backend::Backend;
 
     #[inline(always)]
     fn file_path() -> PathBuf {
@@ -392,22 +390,32 @@ mod tests {
         assert_eq!(model_bytes_after, model_bytes_before);
     }
 
+    #[derive(Config, Debug)]
+    pub enum PaddingConfig2d {
+        Same,
+        Valid,
+        Explicit(usize, usize),
+    }
+
+    // Dummy model with different record types
     #[derive(Module, Debug)]
     pub struct Model<B: Backend> {
-        conv2d1: Conv2d<B>,
-        linear1: Linear<B>,
-        phantom: core::marker::PhantomData<B>,
+        linear1: SimpleLinear<B>,
+        phantom: PhantomData<B>,
+        arr: [usize; 2],
+        int: usize,
+        ignore: Ignored<PaddingConfig2d>,
     }
 
     pub fn create_model(device: &<TestBackend as Backend>::Device) -> Model<TestBackend> {
-        let conv2d1 = Conv2dConfig::new([1, 8], [3, 3]).init(device);
-
-        let linear1 = LinearConfig::new(32, 32).with_bias(true).init(device);
+        let linear1 = SimpleLinear::new(32, 32, device);
 
         Model {
-            conv2d1,
             linear1,
-            phantom: core::marker::PhantomData,
+            phantom: PhantomData,
+            arr: [2, 2],
+            int: 0,
+            ignore: Ignored(PaddingConfig2d::Same),
         }
     }
 }

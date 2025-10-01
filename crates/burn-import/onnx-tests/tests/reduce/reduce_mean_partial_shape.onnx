@@ -1,0 +1,17 @@
+pytorch2.8.0:Ÿ
+F
+inputoutput/ReduceMean"
+ReduceMean*
+axes@ *
+keepdims 
+main_graphZ#
+input
+
+batch
+seq
+b$
+output
+
+batch
+seq
+B

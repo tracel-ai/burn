@@ -10,7 +10,7 @@ use burn::{
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
 use std::path::Path;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: RmsPropConfig,
@@ -70,7 +70,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
             let image: Tensor<B, 3> = images
                 .clone()
                 .slice((row * nrow + col) as usize..(row * nrow + col + 1) as usize)
-                .squeeze(0);
+                .squeeze_dim(0);
             // The Rgb32 should be in range 0.0-1.0
             let image = image.into_data().iter::<f32>().collect::<Vec<f32>>();
             // Supports both 1 and 3 channels image
@@ -102,7 +102,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Create the model and optimizer
     let (mut generator, mut discriminator) = config.model.init::<B>(&device);

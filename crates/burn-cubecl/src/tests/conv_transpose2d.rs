@@ -7,7 +7,8 @@ mod tests {
 
     #[test]
     fn conv_transpose2d_should_match_reference_backend() {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
 
         let height = 8;
         let width = 8;

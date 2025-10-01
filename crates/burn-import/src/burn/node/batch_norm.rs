@@ -37,14 +37,12 @@ impl BatchNormNode {
         running_var: TensorData,
         config: BatchNormConfig,
     ) -> Self {
-        let dim_tokens = dim.to_tokens();
-
         Self {
             dim,
             field: OtherType::new(
                 name,
                 quote! {
-                    BatchNorm<B, #dim_tokens>
+                    BatchNorm<B>
                 },
             ),
             input,
@@ -60,18 +58,7 @@ impl BatchNormNode {
 
 macro_rules! batch_norm_serialize {
     ($self:expr, $serializer:expr) => {{
-        match $self.dim {
-            0 => batch_norm_serialize!($self, $serializer, 0),
-            1 => batch_norm_serialize!($self, $serializer, 1),
-            2 => batch_norm_serialize!($self, $serializer, 2),
-            3 => batch_norm_serialize!($self, $serializer, 3),
-            4 => batch_norm_serialize!($self, $serializer, 4),
-            _ => panic!("Unsupported dim {}", $self.dim),
-        }
-    }};
-
-    ($self:expr, $serializer:expr, $dim:expr) => {{
-        let record: BatchNormRecord<SerializationBackend, $dim> =
+        let record: BatchNormRecord<SerializationBackend> =
             batch_norm_serialize!(record $self);
         let item = Record::into_item::<PS>(record);
 
@@ -178,16 +165,13 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
             use burn::nn::BatchNorm;
             use burn::nn::BatchNormConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
-                norm: BatchNorm<B, 2>,
+                norm: BatchNorm<B>,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }

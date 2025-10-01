@@ -1,0 +1,26 @@
+[package]
+name = "burn-import-model-checks-clip-vit-b-32-vision"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[features]
+default = ["tch"]
+ndarray = []
+tch = []
+wgpu = []
+metal = []
+
+[dependencies]
+burn = { path = "../../../../crates/burn", features = [
+    "ndarray",
+    "tch",
+    "wgpu",
+    "metal",
+] }
+burn-import = { path = "../../../burn-import", features = ["pytorch"] }
+
+[build-dependencies]
+burn-import = { path = "../../../burn-import" }

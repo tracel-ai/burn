@@ -9,7 +9,7 @@ license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.87"
+rust-version = "1.88"
 version.workspace = true
 
 [lints]
@@ -17,12 +17,13 @@ workspace = true
 
 [features]
 default = [
+    "std",
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",
-    "std",
     # Backends
     "burn-candle?/default",
+    "burn-cpu?/default",
     "burn-ndarray?/default",
     "burn-tch?/default",
     "burn-wgpu?/default",
@@ -31,6 +32,8 @@ default = [
     "burn-cuda?/default",
     "burn-autodiff?/default",
     "burn-rocm?/default",
+    "burn-nn/default",
+    "burn-optim/default",
 ]
 doc = [
     "default",
@@ -38,8 +41,10 @@ doc = [
     "burn-core/doc",
     "burn-train/doc",
     "burn-collective/doc",
+    "burn-store?/std",
     # Backends
     "burn-candle/doc",
+    "burn-cpu?/doc",
     "burn-ndarray/doc",
     "burn-tch/doc",
     "burn-wgpu/doc",
@@ -47,7 +52,8 @@ doc = [
     "burn-cuda/doc",
     "burn-autodiff?/std",
     "burn-rocm/doc",
-
+    "burn-nn/doc",
+    "burn-optim/doc",
 ]
 std = [
     "burn-core/std",
@@ -59,6 +65,9 @@ std = [
     "burn-cuda?/std",
     "burn-autodiff?/std",
     "burn-rocm?/std",
+    "burn-store?/std",
+    "burn-nn/std",
+    "burn-optim/std",
 ]
 
 network = ["burn-core/network"]
@@ -83,6 +92,11 @@ record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 # Serialization formats
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
+# Model storage and serialization (SafeTensors, PyTorch interop)
+store = ["burn-store"]
+
+# CubeCL re-export
+cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
@@ -90,7 +104,7 @@ vision = ["burn-core/vision"]
 # Backend
 ir = ["burn-ir"]
 autodiff = ["burn-autodiff"]
-fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion", "burn-rocm?/fusion"]
+fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion", "burn-rocm?/fusion", "burn-cpu?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
@@ -108,7 +122,7 @@ router = ["burn-router", "ir"]
 server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
-collective = ["burn-collective"]
+collective = ["burn-collective", "burn-optim/collective", "burn-train?/ddp"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
@@ -121,11 +135,8 @@ vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
+cpu = ["burn-cpu"]
 
-compilation-cache = [
-    "burn-cuda?/compilation-cache",
-    "burn-rocm?/compilation-cache",
-]
 
 [dependencies]
 
@@ -134,15 +145,21 @@ compilation-cache = [
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
 burn-train = { path = "../burn-train", version = "0.19.0", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "0.19.0", optional = true, default-features = false }
+burn-store = { path = "../burn-store", version = "0.19.0", optional = true, default-features = false }
+burn-nn = { path = "../burn-nn", version = "0.19.0", default-features = false }
+burn-optim = { path = "../burn-optim", version = "0.19.0", default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", optional = true, default-features = false }
 burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true, default-features = false }
+burn-cpu = { path = "../burn-cpu", version = "0.19.0", optional = true, default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "0.19.0", optional = true, default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true, default-features = false }
 burn-remote = { path = "../burn-remote", version = "0.19.0", default-features = false, optional = true }
 burn-router = { path = "../burn-router", version = "0.19.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
+burn-tch = { path = "../burn-tch", version = "0.19.0", default-features = false, optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true, default-features = false }
 burn-ir = { path = "../burn-ir", version = "0.19.0", optional = true, default-features = false }
+
+cubecl = { workspace = true, default-features = false, optional = true }

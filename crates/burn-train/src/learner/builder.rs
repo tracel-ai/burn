@@ -10,21 +10,23 @@ use crate::checkpoint::{
 };
 use crate::components::{LearnerComponentsMarker, LearningDataMarker};
 use crate::learner::EarlyStoppingStrategy;
-use crate::learner::base::TrainingInterrupter;
+use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{AsyncProcessor, FullEventProcessor, ItemLazy, Metrics};
+use crate::metric::processor::{
+    AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
+};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
+    LearnerCheckpointer, LearnerSummaryConfig, LearningStrategy, TrainStep, ValidStep,
 };
-use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
-use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::Optimizer;
+use burn_optim::lr_scheduler::LrScheduler;
 
 /// Struct to configure and create a [learner](Learner).
 ///
@@ -57,13 +59,13 @@ where
     grad_accumulation: Option<usize>,
     learning_strategy: LearningStrategy<B>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<TO, VO>,
+    metrics: MetricsTraining<TO, VO>,
     event_store: LogEventStore,
-    interrupter: TrainingInterrupter,
+    interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
@@ -97,10 +99,10 @@ where
             directory,
             grad_accumulation: None,
             learning_strategy: LearningStrategy::default(),
-            metrics: Metrics::default(),
+            metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
-            interrupter: TrainingInterrupter::new(),
+            interrupter: Interrupter::new(),
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 experiment_log_file,
             ))),
@@ -162,6 +164,19 @@ where
         self
     }
 
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn metrics<Me: MetricRegistration<B, M, O, S, TI, VI, TO, VO>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn metrics_text<Me: TextMetricRegistration<B, M, O, S, TI, VI, TO, VO>>(
+        self,
+        metrics: Me,
+    ) -> Self {
+        metrics.register(self)
+    }
+
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
@@ -201,7 +216,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.summary_metrics.insert(metric.name());
+        self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
         self
     }
@@ -214,7 +229,7 @@ where
     where
         <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.summary_metrics.insert(metric.name());
+        self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
         self
     }
@@ -238,15 +253,21 @@ where
     }
 
     /// Provides a handle that can be used to interrupt training.
-    pub fn interrupter(&self) -> TrainingInterrupter {
+    pub fn interrupter(&self) -> Interrupter {
         self.interrupter.clone()
+    }
+
+    /// Override the handle for stopping training with an externally provided handle
+    pub fn with_interrupter(mut self, interrupter: Interrupter) -> Self {
+        self.interrupter = interrupter;
+        self
     }
 
     /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
-        Strategy: EarlyStoppingStrategy + 'static,
+        Strategy: EarlyStoppingStrategy + Clone + Send + Sync + 'static,
     {
         self.early_stopping = Some(Box::new(strategy));
         self
@@ -299,7 +320,7 @@ where
 
     /// Create the [learner](Learner) from a [model](AutodiffModule) and an [optimizer](Optimizer).
     /// The [learning rate scheduler](LrScheduler) can also be a simple
-    /// [learning rate](burn_core::LearningRate).
+    /// [learning rate](burn_optim::LearningRate).
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
     // creates a clean learner.
     pub fn build(
@@ -316,7 +337,7 @@ where
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
             AsyncCheckpointer<S::Record<B>, B>,
-            AsyncProcessor<FullEventProcessor<TO, VO>>,
+            AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
             Box<dyn CheckpointingStrategy>,
             LearningDataMarker<TI, VI, TO, VO>,
         >,
@@ -326,10 +347,10 @@ where
         O::Record: 'static,
         S::Record<B>: 'static,
     {
-        if self.tracing_logger.is_some() {
-            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
-                log::warn!("Failed to install the experiment logger: {e}");
-            }
+        if self.tracing_logger.is_some()
+            && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
+        {
+            log::warn!("Failed to install the experiment logger: {e}");
         }
         let renderer = self
             .renderer
@@ -337,13 +358,13 @@ where
 
         if self.num_loggers == 0 {
             self.event_store
-                .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
+                .register_logger_train(FileMetricLogger::new_train(self.directory.join("train")));
             self.event_store
-                .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
+                .register_logger_valid(FileMetricLogger::new_train(self.directory.join("valid")));
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = AsyncProcessor::new(FullEventProcessor::new(
+        let event_processor = AsyncProcessorTraining::new(FullEventProcessorTraining::new(
             self.metrics,
             renderer,
             event_store.clone(),
@@ -382,12 +403,117 @@ where
     }
 
     fn prepare_learning_strategy(learning_strategy: LearningStrategy<B>) -> LearningStrategy<B> {
-        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy {
-            if devices.len() == 1 {
-                return LearningStrategy::SingleDevice(devices[0].clone());
-            }
+        if let LearningStrategy::MultiDeviceNaive(devices) = &learning_strategy
+            && devices.len() == 1
+        {
+            return LearningStrategy::SingleDevice(devices[0].clone());
         }
 
         learning_strategy
     }
 }
+
+/// Trait to fake variadic generics.
+pub trait MetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
+    O: Optimizer<M, B>,
+    S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
+{
+    /// Register the metrics.
+    fn register(
+        self,
+        builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+    ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>;
+}
+
+/// Trait to fake variadic generics.
+pub trait TextMetricRegistration<B, M, O, S, TI, VI, TO, VO>: Sized
+where
+    B: AutodiffBackend,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+    M::InnerModule: ValidStep<VI, VO>,
+    O: Optimizer<M, B>,
+    S: LrScheduler,
+    TI: Send + 'static,
+    VI: Send + 'static,
+    TO: ItemLazy + 'static,
+    VO: ItemLazy + 'static,
+{
+    /// Register the metrics.
+    fn register(
+        self,
+        builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+    ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO>;
+}
+
+macro_rules! gen_tuple {
+    ($($M:ident),*) => {
+        impl<$($M,)* B, M, O, S, TI, VI, TO, VO> TextMetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
+        where
+            B: AutodiffBackend,
+            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+            M::InnerModule: ValidStep<VI, VO>,
+            O: Optimizer<M, B>,
+            S: LrScheduler,
+            TI: Send + 'static,
+            VI: Send + 'static,
+            TO: ItemLazy + 'static,
+            VO: ItemLazy + 'static,
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(VO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+            ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric_train($M.clone());)*
+                $(let builder = builder.metric_valid($M);)*
+                builder
+            }
+        }
+
+        impl<$($M,)* B, M, O, S, TI, VI, TO, VO> MetricRegistration<B, M, O, S, TI, VI, TO, VO> for ($($M,)*)
+        where
+            B: AutodiffBackend,
+            M: AutodiffModule<B> + TrainStep<TI, TO> + core::fmt::Display + 'static,
+            M::InnerModule: ValidStep<VI, VO>,
+            O: Optimizer<M, B>,
+            S: LrScheduler,
+            TI: Send + 'static,
+            VI: Send + 'static,
+            TO: ItemLazy + 'static,
+            VO: ItemLazy + 'static,
+            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(VO::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + $crate::metric::Numeric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: LearnerBuilder<B, M, O, S, TI, VI, TO, VO>,
+            ) -> LearnerBuilder<B, M, O, S, TI, VI, TO, VO> {
+                let ($($M,)*) = self;
+                $(let builder = builder.metric_train_numeric($M.clone());)*
+                $(let builder = builder.metric_valid_numeric($M);)*
+                builder
+            }
+        }
+    };
+}
+
+gen_tuple!(M1);
+gen_tuple!(M1, M2);
+gen_tuple!(M1, M2, M3);
+gen_tuple!(M1, M2, M3, M4);
+gen_tuple!(M1, M2, M3, M4, M5);
+gen_tuple!(M1, M2, M3, M4, M5, M6);

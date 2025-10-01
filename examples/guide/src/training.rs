@@ -44,7 +44,7 @@ impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> 
     }
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: AdamConfig,
@@ -72,7 +72,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     let batcher = MnistBatcher::default();
 
@@ -106,6 +106,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     model_trained
+        .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }

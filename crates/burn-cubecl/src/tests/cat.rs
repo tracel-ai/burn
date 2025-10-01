@@ -21,7 +21,9 @@ mod tests {
     }
 
     fn test_same_as_reference(shape: [usize; 2], num_tensors: usize, dim: usize) {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let tensors = (0..num_tensors)
             .map(|_| {
                 Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &Default::default())

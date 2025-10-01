@@ -8,17 +8,17 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn globalavrpool_1d_2d() {
         // The model contains 1d and 2d global average pooling nodes
-        let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
+        let model: global_avr_pool::Model<TestBackend> = global_avr_pool::Model::default();
 
         let device = Default::default();
         // Run the model with ones as input for easier testing
-        let input_1d = Tensor::<Backend, 3>::ones([2, 4, 10], &device);
-        let input_2d = Tensor::<Backend, 4>::ones([3, 10, 3, 15], &device);
+        let input_1d = Tensor::<TestBackend, 3>::ones([2, 4, 10], &device);
+        let input_2d = Tensor::<TestBackend, 4>::ones([3, 10, 3, 15], &device);
 
         let (output_1d, output_2d) = model.forward(input_1d, input_2d);
 

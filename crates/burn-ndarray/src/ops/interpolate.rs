@@ -1,17 +1,17 @@
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{ElementConversion, TensorMetadata};
-use ndarray::Array4;
+use burn_tensor::ElementConversion;
+use ndarray::{Array4, ArrayBase, DataOwned};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, ShapeOps, SharedArray, UnsafeSharedRef};
 
 pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+) -> SharedArray<E> {
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -48,14 +48,14 @@ pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    grad: NdArrayTensor<E>,
+    x: SharedArray<E>,
+    grad: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [batch_size, channels, input_height, input_width] = x.shape().dims();
     let [output_height, output_width] = output_size;
 
@@ -75,24 +75,29 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
                     let ih = start_index(oh, output_height, input_height);
                     let iw = start_index(ow, output_width, input_width);
 
-                    output_grad[[b, c, ih, iw]] += grad.array[[b, c, oh, ow]]
+                    output_grad[[b, c, ih, iw]] += grad[[b, c, oh, ow]]
                 }
             }
         })
     });
 
-    NdArrayTensor::new(output_grad.into_dyn().into_shared())
+    output_grad.into_dyn().into_shared()
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
     ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
 
+// clamp ceil(frac) to stay within bounds in case of floating-point imprecision
+pub(crate) fn ceil_clamp(frac: f64, max: usize) -> f64 {
+    frac.ceil().min(max as f64)
+}
+
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+) -> SharedArray<E> {
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -121,36 +126,24 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
 
             // We convert everything to `f64` for calculations and then back to `E` at the end.
             let y_frac = y_ratio * h as f64;
-            let y0 = y_frac.floor();
-            let y1 = y_frac.ceil();
-            let yw = y_frac - y0;
-
             let x_frac = x_ratio * w as f64;
-            let x0 = x_frac.floor();
-            let x1 = x_frac.ceil();
-            let xw = x_frac - x0;
-
-            let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
-
-            let p_a = x[(b, c, y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
-            let p_b = x[(b, c, y0, x1)].elem::<f64>() * xw * (1.0 - yw);
-            let p_c = x[(b, c, y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
-            let p_d = x[(b, c, y1, x1)].elem::<f64>() * xw * yw;
+            let val =
+                bilinear_interpolate_single(&x, b, c, x_frac, y_frac, in_width - 1, in_height - 1);
 
             unsafe {
                 let output = unsafe_shared_out.get();
-                output[(b, c, h, w)] = (p_a + p_b + p_c + p_d).elem();
+                output[(b, c, h, w)] = val.elem();
             }
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     fn cubic_interp1d(x0: f64, x1: f64, x2: f64, x3: f64, t: f64) -> f64 {
         fn cubic_convolution1(x: f64, a: f64) -> f64 {
             ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0
@@ -170,7 +163,7 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
         x0 * coeffs[0] + x1 * coeffs[1] + x2 * coeffs[2] + x3 * coeffs[3]
     }
 
-    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
@@ -249,5 +242,49 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
+}
+
+/// Sample an element of the source array with bilinear interpolation
+///
+/// * `source` - The tensor to read from. Has shape (batch_size, channels, height, width)
+/// * `b` - The batch to read from
+/// * `c` - The channel to read from
+/// * `x` - The x position to read in the array
+/// * `y` - The y position to read in the array
+/// * `x_max` - The max x position (inclusive)
+/// * `y_max` - The max y position (inclusive)
+///
+/// # Returns
+///
+/// The interpolated value read from the array
+pub(crate) fn bilinear_interpolate_single<E, S>(
+    source: &ArrayBase<S, ndarray::Dim<[usize; 4]>>,
+    b: usize,
+    c: usize,
+    x: f64,
+    y: f64,
+    x_max: usize,
+    y_max: usize,
+) -> f64
+where
+    E: FloatNdArrayElement,
+    S: DataOwned<Elem = E>,
+{
+    let y0 = y.floor();
+    let y1 = ceil_clamp(y, y_max);
+    let yw = y - y0;
+
+    let x0 = x.floor();
+    let x1 = ceil_clamp(x, x_max);
+    let xw = x - x0;
+
+    let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+
+    let p_a = source[(b, c, y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
+    let p_b = source[(b, c, y0, x1)].elem::<f64>() * xw * (1.0 - yw);
+    let p_c = source[(b, c, y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
+    let p_d = source[(b, c, y1, x1)].elem::<f64>() * xw * yw;
+
+    p_a + p_b + p_c + p_d
 }

@@ -77,16 +77,16 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
         axis += data_tensor.rank as i64;
     }
 
-    if let Some(largest) = node.attrs.get("largest") {
-        if largest.clone().into_i64() != 1 {
-            unimplemented!("TopK: only largest elements is supported")
-        }
+    if let Some(largest) = node.attrs.get("largest")
+        && largest.clone().into_i64() != 1
+    {
+        unimplemented!("TopK: only largest elements is supported")
     };
 
-    if let Some(sorted) = node.attrs.get("sorted") {
-        if sorted.clone().into_i64() != 1 {
-            unimplemented!("TopK: only sorted elements is supported")
-        }
+    if let Some(sorted) = node.attrs.get("sorted")
+        && sorted.clone().into_i64() != 1
+    {
+        unimplemented!("TopK: only sorted elements is supported")
     };
 
     TopKConfig::new(axis as usize, k as usize)

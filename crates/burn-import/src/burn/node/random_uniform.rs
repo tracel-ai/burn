@@ -58,7 +58,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
         imports.register("burn::tensor::Distribution");
-        imports.register("burn::prelude::Shape");
     }
 }
 
@@ -87,12 +86,8 @@ mod tests {
         graph.register_input_output(vec![], vec!["tensor1".to_string()]);
 
         let expected = quote! {
-            use burn::prelude::Shape;
+            use burn::prelude::*;
             use burn::tensor::Distribution;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

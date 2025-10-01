@@ -1,9 +1,30 @@
 use super::ParamId;
-use alloc::boxed::Box;
-use alloc::format;
+use alloc::{boxed::Box, format};
 use burn_common::stub::RwLock;
 use core::cell::OnceCell;
 use core::ops::Deref;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
+#[cfg(target_has_atomic = "ptr")]
+type Mapper<T> = Arc<dyn Fn(T) -> T + Send + Sync>;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+type Mapper<T> = Arc<Box<dyn Fn(T) -> T + Send + Sync>>;
+
+#[cfg(target_has_atomic = "ptr")]
+fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
+    Arc::new(func)
+}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
+    Arc::new(Box::new(func))
+}
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
 /// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
@@ -13,7 +34,7 @@ use core::ops::Deref;
 /// # Laziness
 ///
 /// The initialization of parameters can be lazy when created using
-/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::nn::Initializer).
+/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::module::Initializer).
 ///
 /// This reduces the amount of allocations done when loading a model for inference without having
 /// to create a custom initialization function only for inference.
@@ -41,6 +62,50 @@ pub struct Param<T: Parameter> {
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
     initialization: Option<RwLock<Option<Uninitialized<T>>>>,
+    pub(crate) record_mapper: RecordMapper<T>,
+}
+
+#[derive(Clone)]
+/// Applies functions when loading and saving parameters.
+pub struct RecordMapper<T: Parameter> {
+    load: Option<Mapper<T>>,
+    save: Option<Mapper<T>>,
+}
+
+impl<T: Parameter> core::fmt::Debug for RecordMapper<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!(
+            "RecordMapper {{ load: {}, save: {} }}",
+            self.load.is_some(),
+            self.save.is_some()
+        ))
+    }
+}
+
+impl<T: Parameter> RecordMapper<T> {
+    /// Applies the transformation when loading the given parameter.
+    pub fn on_load(&self, param: T) -> T {
+        match &self.load {
+            Some(mapper) => mapper(param),
+            None => param,
+        }
+    }
+    /// Applies the transformation when saving the given parameter.
+    pub fn on_save(&self, param: T) -> T {
+        match &self.save {
+            Some(mapper) => mapper(param),
+            None => param,
+        }
+    }
+}
+
+impl<T: Parameter> Default for RecordMapper<T> {
+    fn default() -> Self {
+        Self {
+            load: None,
+            save: None,
+        }
+    }
 }
 
 impl<T: Parameter> core::fmt::Display for Param<T> {
@@ -51,7 +116,7 @@ impl<T: Parameter> core::fmt::Display for Param<T> {
 
 impl<T: Parameter> core::fmt::Debug for Param<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("Param: {}", self.id).as_str())
+        f.write_str(format!("Param: {} - {:?}", self.id, self.record_mapper).as_str())
     }
 }
 
@@ -91,6 +156,7 @@ impl<T: Parameter> Param<T> {
             id,
             state: OnceCell::from(value),
             initialization: None,
+            record_mapper: Default::default(),
         }
     }
 
@@ -107,6 +173,7 @@ impl<T: Parameter> Param<T> {
                 device,
                 is_require_grad,
             }))),
+            record_mapper: Default::default(),
         }
     }
 
@@ -132,23 +199,71 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Gets the parameter id and value while consuming the parameter.
-    pub fn consume(self) -> (ParamId, T) {
+    pub fn consume(self) -> (ParamId, T, RecordMapper<T>) {
         let tensor = self.val();
 
         core::mem::drop(self.state);
 
-        (self.id, tensor)
+        (self.id, tensor, self.record_mapper)
     }
 
     /// Execute the given function on the inner value.
     pub fn map<F: FnOnce(T) -> T>(self, func: F) -> Self {
-        let (id, tensor) = self.consume();
+        let (id, tensor, record_mapper) = self.consume();
         let tensor = func(tensor);
 
         Self {
             id,
             state: OnceCell::from(tensor),
             initialization: None,
+            record_mapper,
+        }
+    }
+
+    /// Runs a transformation on the parameter when loading a saved record.
+    pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
+        self.record_mapper.load = Some(new_mapper(func));
+
+        self
+    }
+
+    /// Runs a transformation on the parameter when saving the record.
+    pub fn save_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
+        self.record_mapper.save = Some(new_mapper(func));
+
+        self
+    }
+
+    /// Execute the given function on the inner value.
+    pub fn init_mapper<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
+    where
+        T: 'static,
+    {
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.map(func),
+        };
+
+        let mut init = initialization.write().unwrap();
+
+        match init.as_mut() {
+            Some(value) => {
+                #[allow(clippy::type_complexity)]
+                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
+                    Box::new(|_, _| panic!("Fake func to not have null ref."));
+                core::mem::swap(&mut prev, &mut value.init);
+
+                value.init = Box::new(|a, b| {
+                    let tensor = prev(a, b);
+                    func(tensor)
+                });
+                core::mem::drop(init);
+                self
+            }
+            None => {
+                core::mem::drop(init);
+                self.map(func)
+            }
         }
     }
 
@@ -231,7 +346,9 @@ impl<T: Parameter> Param<T> {
 
 impl<T: Parameter> Clone for Param<T> {
     fn clone(&self) -> Self {
-        Param::initialized(self.id, self.val())
+        let mut param = Param::initialized(self.id, self.val());
+        param.record_mapper = self.record_mapper.clone();
+        param
     }
 }
 

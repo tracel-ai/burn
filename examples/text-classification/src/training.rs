@@ -9,6 +9,10 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
+#[cfg(feature = "ddp")]
+use burn::collective::{AllReduceStrategy, CollectiveConfig};
+#[cfg(not(feature = "ddp"))]
+use burn::train::LearningStrategy;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -18,7 +22,7 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder, LearningStrategy,
+        LearnerBuilder,
         metric::{
             AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
         },
@@ -27,7 +31,7 @@ use burn::{
 use std::sync::Arc;
 
 // Define configuration struct for the experiment
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
@@ -83,6 +87,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .unwrap();
 
     // Initialize learner
+    #[cfg(not(feature = "ddp"))]
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
@@ -98,6 +103,25 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .summary()
         .build(model, optim, lr_scheduler);
 
+    #[cfg(feature = "ddp")]
+    let collective_config =
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+    #[cfg(feature = "ddp")]
+    let learner = LearnerBuilder::new(artifact_dir)
+        .metric_train(CudaMetric::new())
+        .metric_valid(CudaMetric::new())
+        .metric_train(IterationSpeedMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
+        .metric_train_numeric(LearningRateMetric::new())
+        .with_file_checkpointer(CompactRecorder::new())
+        .learning_strategy(burn::train::ddp(devices, collective_config))
+        .num_epochs(config.num_epochs)
+        .summary()
+        .build(model, optim, lr_scheduler);
+
     // Train the model
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
@@ -105,7 +129,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     config.save(format!("{artifact_dir}/config.json")).unwrap();
     CompactRecorder::new()
         .record(
-            model_trained.into_record(),
+            model_trained.model.into_record(),
             format!("{artifact_dir}/model").into(),
         )
         .unwrap();

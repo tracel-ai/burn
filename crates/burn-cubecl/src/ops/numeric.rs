@@ -1,13 +1,16 @@
-use crate::kernel::{
-    AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
-    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
-};
-use crate::{CubeRuntime, FloatElement, IntElement};
+use crate::{CubeRuntime, FloatElement, IntElement, kernel::utils::linear_view};
 use crate::{element::CubeElement, tensor::CubeTensor};
+use crate::{
+    kernel::{
+        AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+        launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
+    },
+    ops::max_line_size,
+};
 use burn_tensor::{ElementConversion, Shape};
-use cubecl::client::ComputeClient;
-use cubecl::tensor_vectorization_factor;
+use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{client::ComputeClient, server::Allocation};
 
 /// Create a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -27,12 +30,11 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     value: E,
 ) -> CubeTensor<R> {
-    let ndims = shape.num_dims();
     let empty = empty_device::<R, E>(client, device, shape);
 
     #[cube(launch)]
-    pub fn full_kernel<C: Numeric>(tensor: &mut Tensor<C>, value: C) {
-        if ABSOLUTE_POS >= tensor.len() {
+    pub fn full_kernel<C: Numeric>(tensor: &mut LinearView<C, ReadWrite>, value: C) {
+        if !tensor.is_in_bounds(ABSOLUTE_POS) {
             terminate!();
         }
 
@@ -40,18 +42,16 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
     }
 
     let num_elems = empty.shape.num_elements();
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, ndims - 1);
+    let line_size = max_line_size(&empty);
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
     full_kernel::launch::<E, R>(
         &empty.client,
         cube_count,
         cube_dim,
-        empty.as_tensor_arg::<E>(vectorization_factor),
+        linear_view(&empty, &line_size),
         ScalarArg::new(value),
     );
 
@@ -107,7 +107,7 @@ pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let (handle, strides) = client.empty_tensor(&shape.dims, size_of::<E>());
+    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, size_of::<E>());
 
     CubeTensor::new(client, handle, shape, device, strides, E::dtype())
 }

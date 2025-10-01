@@ -1,4 +1,4 @@
-use crate::{BasicOps, TensorKind, TensorMetadata, backend::Backend};
+use crate::{BasicOps, Slice, TensorKind, TensorMetadata, backend::Backend};
 use alloc::vec::Vec;
 
 pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
@@ -8,11 +8,12 @@ pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     let first_tensor = tensors.first().expect("Tensors should not be empty");
     let mut shape = first_tensor.shape();
     let device = K::device(first_tensor);
+    let dtype = first_tensor.dtype();
 
     let output_dim_length: usize = tensors.iter().map(|tensor| tensor.shape().dims[dim]).sum();
     shape.dims[dim] = output_dim_length;
 
-    let mut tensor_output = K::empty(shape.clone(), &device);
+    let mut tensor_output = K::empty(shape.clone(), &device, dtype);
 
     let indices_select_all = shape.dims.iter().map(|d| 0..*d).collect::<Vec<_>>();
 
@@ -23,7 +24,12 @@ pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
         indices[dim] = output_index..output_index + tensor_dim_length;
         output_index += tensor_dim_length;
 
-        tensor_output = K::slice_assign(tensor_output, &indices, tensor);
+        // Convert ranges to Slice
+        let slices: Vec<Slice> = indices
+            .iter()
+            .map(|r| Slice::new(r.start as isize, Some(r.end as isize), 1))
+            .collect();
+        tensor_output = K::slice_assign(tensor_output, &slices, tensor);
     }
 
     tensor_output

@@ -1,7 +1,9 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{Distribution, ElementConversion, Int, TensorData, backend::Backend, tensor::Shape};
+use crate::{
+    Distribution, ElementConversion, Int, IntDType, TensorData, backend::Backend, tensor::Shape,
+};
 use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 use alloc::vec::Vec;
 use core::ops::Range;
@@ -15,11 +17,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The integer tensor with the given shape.
-    fn int_empty(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_empty(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B>;
 
     /// Converts the tensor to a data structure.
     ///
@@ -75,26 +78,26 @@ pub trait IntTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indices` - The indices.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The elements at the given indices.
-    fn int_slice(tensor: IntTensor<B>, indices: &[Range<usize>]) -> IntTensor<B>;
+    fn int_slice(tensor: IntTensor<B>, slices: &[crate::Slice]) -> IntTensor<B>;
 
-    /// Sets the element at the given indices.
+    /// Sets the values in the tensor for the given ranges.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `indices` - The indices.
+    /// * `ranges` - The ranges to set the values for.
     ///
     /// # Returns
     ///
-    /// The tensor with the element at the given indices set.
+    /// The tensor with the values set for the given ranges.
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        indices: &[Range<usize>],
+        slices: &[crate::Slice],
         value: IntTensor<B>,
     ) -> IntTensor<B>;
 
@@ -601,6 +604,18 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of applying the modulus of the scalar to the tensor.
     fn int_remainder_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 
+    /// Multiplies two tensors together using matrix multiplication.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together using matrix multiplication.
+    fn int_matmul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
     /// Element-wise negation.
     ///
     /// # Arguments
@@ -620,11 +635,14 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor of zeros.
-    fn int_zeros(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_zeros(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B> {
+        Self::int_from_data(TensorData::full_dtype(shape, 0, dtype.into()), device)
+    }
 
     /// Creates a tensor of ones.
     ///
@@ -632,11 +650,14 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor of ones.
-    fn int_ones(shape: Shape, device: &Device<B>) -> IntTensor<B>;
+    fn int_ones(shape: Shape, device: &Device<B>, dtype: IntDType) -> IntTensor<B> {
+        Self::int_from_data(TensorData::full_dtype(shape, 1, dtype.into()), device)
+    }
 
     /// Creates a tensor filled with given value.
     ///
@@ -645,12 +666,21 @@ pub trait IntTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor filled with given value
-    fn int_full(shape: Shape, fill_value: IntElem<B>, device: &Device<B>) -> IntTensor<B> {
-        Self::int_add_scalar(Self::int_zeros(shape, device), fill_value)
+    fn int_full(
+        shape: Shape,
+        fill_value: IntElem<B>,
+        device: &Device<B>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        Self::int_from_data(
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
+            device,
+        )
     }
 
     /// Sums all elements in the tensor.
@@ -1067,7 +1097,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
-        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor));
+        let dtype = tensor.dtype();
+        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor), dtype.into());
         let less_than_zero = B::int_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::int_greater_elem(tensor, 0.0f32.elem());
 
@@ -1167,4 +1198,35 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Bitwise right shift operation for Int Tensors with a scalar
     fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Converts a tensor to another integer data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target integer data type.
+    fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
 }

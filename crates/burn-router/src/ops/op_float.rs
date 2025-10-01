@@ -1,21 +1,22 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
-use core::ops::Range;
 
+use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr,
-    GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
-    PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr,
-    ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CrossOpIr, ExpandOpIr, FlipOpIr,
+    FloatOperationIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr,
+    OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr,
+    ScalarIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
+    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{
     BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
 };
 use burn_tensor::{
-    Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
+    calculate_slice_output_shape,
 };
-
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -51,10 +52,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
@@ -65,10 +66,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
@@ -83,15 +84,16 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         shape: Shape,
         fill_value: FloatElem<Self>,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
         client.register(OperationIr::NumericFloat(
             dtype,
-            NumericOperationIr::Full((out.to_ir_out(), fill_value.elem())),
+            NumericOperationIr::Full((out.to_ir_out(), ScalarIr::with_dtype(fill_value, &dtype))),
         ));
 
         out
@@ -131,10 +133,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), FloatElem::<Self>::dtype());
+        let out = client.register_empty_tensor(shape.into(), dtype.into());
 
         client.register(OperationIr::BaseFloat(BaseOperationIr::Empty(
             out.to_ir_out(),
@@ -169,7 +171,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -192,8 +194,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ClampOpIr {
             tensor: tensor.into_ir(),
-            min: min.elem(),
-            max: max.elem(),
+            min: ScalarIr::with_dtype(min, &dtype),
+            max: ScalarIr::with_dtype(max, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -231,7 +233,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -269,7 +271,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -307,7 +309,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -345,7 +347,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -375,6 +377,28 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::Float(dtype, FloatOperationIr::Matmul(desc)));
+
+        out
+    }
+
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = CrossOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+        };
+
+        client.register(OperationIr::Float(dtype, FloatOperationIr::Cross(desc)));
 
         out
     }
@@ -514,22 +538,17 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             out: out.to_ir_out(),
         };
 
@@ -540,7 +559,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
@@ -549,7 +568,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = SliceAssignOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.to_vec(),
+            ranges: slices.to_vec(),
             value: value.into_ir(),
             out: out.to_ir_out(),
         };
@@ -596,7 +615,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = MaskFillOpIr {
             tensor: tensor.into_ir(),
             mask: mask.into_ir(),
-            value: value.elem(),
+            value: ScalarIr::with_dtype(value, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -633,7 +652,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -674,7 +693,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -715,7 +734,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -756,7 +775,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -797,7 +816,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs: rhs.elem(),
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -978,7 +997,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
-            rhs,
+            rhs: ScalarIr::with_dtype(rhs, &dtype),
             out: out.to_ir_out(),
         };
 
@@ -1433,6 +1452,30 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseFloat(BaseOperationIr::Cast(desc)));
+
+        out
+    }
+
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+
+        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
+        let out = client.register_empty_tensor(shape, tensor.dtype);
+
+        let desc = UnfoldOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            dim,
+            size,
+            step,
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::Unfold(desc)));
 
         out
     }

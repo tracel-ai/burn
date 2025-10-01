@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
@@ -34,7 +34,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Install cargo-careful
       env:
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
@@ -62,7 +62,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Run AddressSanitizer
       env:
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
@@ -85,7 +85,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Run ThreadSanitizer
       env:
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
@@ -108,7 +108,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Run MemorySanitizer
       env:
@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
@@ -131,7 +131,7 @@ jobs:
         components: rustfmt, rust-src
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Run SafeStack
       env:

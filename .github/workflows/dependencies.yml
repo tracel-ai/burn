@@ -34,7 +34,7 @@ jobs:
     steps:
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Audit Rust dependencies
         # If a vulnerability is found, a new issue will automatically be opened

@@ -1,10 +1,10 @@
 use super::init_matmul_output;
-use crate::{CubeRuntime, FloatElement, tensor::CubeTensor};
-use burn_tensor::{
-    DType,
-    quantization::{QTensorPrimitive, QuantAccPrecision},
+use crate::{CubeRuntime, element::MatmulElement, tensor::CubeTensor};
+use burn_tensor::{DType, quantization::QuantAcc};
+use cubecl::matmul::{
+    MatmulInputHandleRef,
+    components::{AccG, MatmulSetupError},
 };
-use cubecl::matmul::components::{MatmulSetupError, Quantized};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -30,7 +30,7 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: CubeRuntime, E: FloatElement>(
+pub fn matmul<R: CubeRuntime, E: MatmulElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
@@ -38,17 +38,15 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
+            let out = out.unwrap_or_else(|| init_matmul_output::<R, AccG<E>>(&lhs, &rhs));
 
             let client = &lhs.client;
 
             cubecl::matmul::launch_ref::<R, E>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &None,
-                &rhs.as_handle_ref(),
-                &None,
+                &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
+                &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
                 &out.as_handle_ref(),
             )?;
 
@@ -70,37 +68,44 @@ pub fn q_matmul<R: CubeRuntime>(
 
     let client = &lhs.client;
 
-    let scheme = *lhs.scheme();
-
     lhs.dtype = DType::I8;
     rhs.dtype = DType::I8;
 
     let lhs_scales = lhs.scales().unwrap();
     let rhs_scales = rhs.scales().unwrap();
 
-    match scheme.acc_precision {
-        QuantAccPrecision::Full => {
-            cubecl::matmul::launch_ref::<R, (i8, half::f16, f32, half::f16, Quantized)>(
+    match QuantAcc::default() {
+        QuantAcc::F32 => {
+            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, f32, half::f16)>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &Some(lhs_scales.as_handle_ref()),
-                &rhs.as_handle_ref(),
-                &Some(rhs_scales.as_handle_ref()),
+                &MatmulInputHandleRef::Quantized {
+                    data: lhs.as_handle_ref(),
+                    scale: lhs_scales.as_handle_ref(),
+                },
+                &MatmulInputHandleRef::Quantized {
+                    data: rhs.as_handle_ref(),
+                    scale: rhs_scales.as_handle_ref(),
+                },
                 &out.as_handle_ref(),
             )?;
         }
-        QuantAccPrecision::Half => {
-            cubecl::matmul::launch_ref::<R, (i8, half::f16, half::f16, half::f16, Quantized)>(
+        QuantAcc::F16 => {
+            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, half::f16, half::f16)>(
                 &Default::default(),
                 client,
-                &lhs.as_handle_ref(),
-                &Some(lhs_scales.as_handle_ref()),
-                &rhs.as_handle_ref(),
-                &Some(rhs_scales.as_handle_ref()),
+                &MatmulInputHandleRef::Quantized {
+                    data: lhs.as_handle_ref(),
+                    scale: lhs_scales.as_handle_ref(),
+                },
+                &MatmulInputHandleRef::Quantized {
+                    data: rhs.as_handle_ref(),
+                    scale: rhs_scales.as_handle_ref(),
+                },
                 &out.as_handle_ref(),
             )?;
         }
+        QuantAcc::BF16 => unimplemented!(),
     }
 
     Ok(out)

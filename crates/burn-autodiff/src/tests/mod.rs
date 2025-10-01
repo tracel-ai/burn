@@ -21,6 +21,7 @@ mod conv_transpose1d;
 mod conv_transpose2d;
 mod conv_transpose3d;
 mod cos;
+mod cross;
 mod cross_entropy;
 mod deform_conv2d;
 mod div;
@@ -59,6 +60,7 @@ mod sigmoid;
 mod sign;
 mod sin;
 mod slice;
+mod slice_assign;
 mod softmax;
 mod sort;
 mod sqrt;
@@ -168,8 +170,8 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
         burn_autodiff::testgen_ad_conv3d!();
-        #[cfg(not(target_os = "macos"))] // Wgpu on MacOS currently doesn't support atomic compare exchange
-        burn_autodiff::testgen_ad_deform_conv2d!();
+        // #[cfg(not(target_os = "macos"))] // Wgpu on MacOS currently doesn't support atomic compare exchange
+        // burn_autodiff::testgen_ad_deform_conv2d!(); // This kernel in cubecl isn't implemented without atomics
         burn_autodiff::testgen_ad_conv_transpose1d!();
         burn_autodiff::testgen_ad_conv_transpose2d!();
         burn_autodiff::testgen_ad_conv_transpose3d!();
@@ -190,12 +192,14 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_maxmin!();
         burn_autodiff::testgen_ad_cat!();
         burn_autodiff::testgen_ad_cos!();
+        burn_autodiff::testgen_ad_cross!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
         burn_autodiff::testgen_ad_div!();
         burn_autodiff::testgen_ad_remainder!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_slice!();
+        burn_autodiff::testgen_ad_slice_assign!();
         burn_autodiff::testgen_ad_gather_scatter!();
         burn_autodiff::testgen_ad_select!();
         burn_autodiff::testgen_ad_log!();

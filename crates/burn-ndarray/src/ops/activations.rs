@@ -1,18 +1,21 @@
 use crate::{
-    NdArray,
+    NdArray, NdArrayTensor, SharedArray,
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
-    execute_with_float_dtype,
+    execute_with_numeric_dtype,
     ops::NdArrayMathOps,
 };
 use burn_tensor::{
-    ElementConversion,
+    ElementConversion, TensorMetadata,
     ops::{ActivationOps, FloatTensor},
 };
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ActivationOps<Self>
     for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
 {
     fn relu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(tensor, 0.elem()))
+        execute_with_numeric_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(tensor, 0.elem()))
     }
 }

@@ -3,13 +3,14 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also referred to as [ROC AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)) for binary classification.
-#[derive(Default)]
+#[derive(Clone)]
 pub struct AurocMetric<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     _b: PhantomData<B>,
 }
@@ -21,10 +22,20 @@ pub struct AurocInput<B: Backend> {
     targets: Tensor<B, 1, Int>,
 }
 
+impl<B: Backend> Default for AurocMetric<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> AurocMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: MetricName::new("AUROC".to_string()),
+            state: Default::default(),
+            _b: PhantomData,
+        }
     }
 
     fn binary_auroc(&self, probabilities: &Tensor<B, 1>, targets: &Tensor<B, 1, Int>) -> f64 {
@@ -82,7 +93,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
             let sum = exponents.clone().sum_dim(1);
             (exponents / sum)
                 .select(1, Tensor::arange(1..2, &input.outputs.device()))
-                .squeeze(1)
+                .squeeze_dim(1)
         };
 
         let area_under_curve = self.binary_auroc(&probabilities, &input.targets);
@@ -98,13 +109,13 @@ impl<B: Backend> Metric for AurocMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        "AUROC".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl<B: Backend> Numeric for AurocMetric<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -133,7 +144,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 100.0);
+        assert_eq!(metric.value().current(), 100.0);
     }
 
     #[test]
@@ -147,7 +158,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 100.0); // Perfect AUC
+        assert_eq!(metric.value().current(), 100.0); // Perfect AUC
     }
 
     #[test]
@@ -169,7 +180,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 50.0);
+        assert_eq!(metric.value().current(), 50.0);
     }
 
     #[test]
@@ -191,7 +202,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 0.0);
+        assert_eq!(metric.value().current(), 0.0);
     }
 
     #[test]

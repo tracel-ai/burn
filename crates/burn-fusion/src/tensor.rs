@@ -65,6 +65,10 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     fn shape(&self) -> Shape {
         Shape::from(self.shape.clone())
     }
+
+    fn rank(&self) -> usize {
+        self.shape.len()
+    }
 }
 
 impl<R: FusionRuntime> FusionTensor<R> {
@@ -186,6 +190,11 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Relaxed);
+
+        // Workaround to prevent segfaults when an operation panics
+        if std::thread::panicking() {
+            return;
+        }
 
         match self.status(count) {
             TensorStatus::ReadWrite => {

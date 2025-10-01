@@ -1,7 +1,7 @@
 use burn::{
     backend::NdArray,
     prelude::Backend,
-    tensor::{Tensor, Tolerance},
+    tensor::{Tensor, TensorPrimitive, Tolerance},
 };
 use burn_collective::{
     CollectiveConfig, PeerId, ReduceOperation, all_reduce, finish_collective, register,
@@ -144,7 +144,9 @@ pub fn run_peer<B: Backend>(
     let start = Instant::now();
 
     // All-reduce
-    let tensor = all_reduce(id, input, all_reduce_op).unwrap();
+    let input = input.into_primitive().tensor();
+    let tensor = all_reduce::<B>(id, input, all_reduce_op).unwrap();
+    let tensor = Tensor::<B, TENSOR_RANK>::from_primitive(TensorPrimitive::Float(tensor));
 
     let duration = start.elapsed();
 

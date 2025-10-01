@@ -1,0 +1,56 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Storage and serialization infrastructure for Burn"
+documentation = "https://docs.rs/burn-store"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "storage", "serialization"]
+license.workspace = true
+name = "burn-store"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-store"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex"]
+wgpu = ["burn-wgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+cuda = ["burn-cuda"]
+candle = ["burn-candle"]
+tch = ["burn-tch"]
+
+[dependencies]
+burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false }
+
+# External dependencies
+hashbrown = { workspace = true, features = ["serde"] }
+memmap2 = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+
+# Note: safetensors requires either std or alloc feature
+# We always require std for file I/O functionality
+# change after https://github.com/huggingface/safetensors/issues/650 is released to support no_std
+# safetensors = { workspace = true }
+safetensors = { git = "https://github.com/huggingface/safetensors", rev = "0816a1a", default-features = false }
+
+# Optional backend dependencies for benchmarks
+burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
+burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
+
+[dev-dependencies]
+burn = { path = "../burn", version = "0.19.0" }
+burn-import = { path = "../burn-import", version = "0.19.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
+divan = "0.1"
+tempfile = { workspace = true }
+
+[[bench]]
+name = "safetensor_loading"
+harness = false

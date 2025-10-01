@@ -2,9 +2,8 @@ use burn_common::id::StreamId;
 use burn_ir::{TensorId, TensorIr};
 use hashbrown::HashMap;
 
-use crate::FusionRuntime;
-
 use super::{OperationStreams, Stream};
+use crate::FusionRuntime;
 
 #[derive(Default)]
 /// Manages tensors that are shared between multiple streams.
@@ -41,7 +40,7 @@ pub enum SharedTensorAnalysis {
     /// The tensor is not shared.
     NotShared,
     /// The tensor is shared, but its original stream is the current one.
-    SharedFromCurrentStrean,
+    SharedFromCurrentStream,
     /// The tensor is shared, and its original stream is an existing stream.
     SharedFromExistingStream {
         /// The stream id of the existing stream.
@@ -145,7 +144,7 @@ impl SharedTensors {
             Some(val) => val,
             None => {
                 return match self.shared_tensors.contains_key(&node.id) {
-                    true => SharedTensorAnalysis::SharedFromCurrentStrean,
+                    true => SharedTensorAnalysis::SharedFromCurrentStream,
                     false => SharedTensorAnalysis::NotShared,
                 };
             }
@@ -153,7 +152,7 @@ impl SharedTensors {
 
         if stream_id == &id {
             return match self.shared_tensors.contains_key(&node.id) {
-                true => SharedTensorAnalysis::SharedFromCurrentStrean,
+                true => SharedTensorAnalysis::SharedFromCurrentStream,
                 false => SharedTensorAnalysis::NotShared,
             };
         }

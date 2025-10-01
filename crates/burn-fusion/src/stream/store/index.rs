@@ -120,7 +120,9 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{BinaryOpIr, NumericOperationIr, ScalarOpIr, TensorId, TensorIr, TensorStatus};
+    use burn_ir::{
+        BinaryOpIr, NumericOperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr, TensorStatus,
+    };
     use burn_tensor::DType;
 
     use super::*;
@@ -252,7 +254,7 @@ mod tests {
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                rhs: 5.0,
+                rhs: ScalarIr::F32(5.0),
                 out: TensorIr {
                     id: TensorId::new(2),
                     shape: vec![32, 32],

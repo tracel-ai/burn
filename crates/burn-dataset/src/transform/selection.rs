@@ -1,5 +1,5 @@
 use crate::Dataset;
-use rand::SeedableRng;
+use crate::transform::RngSource;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use std::marker::PhantomData;
@@ -143,34 +143,13 @@ where
     /// # Returns
     ///
     /// A new `SelectionDataset` with shuffled indices.
-    pub fn new_shuffled<S>(dataset: S, rng: &mut StdRng) -> Self
+    pub fn new_shuffled<S, R>(dataset: S, rng_source: R) -> Self
     where
         S: Into<Arc<D>>,
+        R: Into<RngSource>,
     {
         let mut this = Self::new_select_all(dataset);
-        this.shuffle(rng);
-        this
-    }
-
-    /// Creates a new selection dataset with shuffled indices using a fixed seed.
-    ///
-    /// Selects every index of the dataset and shuffles them
-    /// with randomness seeded from the provided seed.
-    ///
-    /// # Arguments
-    ///
-    /// * `dataset` - The original dataset to select from.
-    /// * `seed` - A fixed seed for the random number generator.
-    ///
-    /// # Returns
-    ///
-    /// A new `SelectionDataset` with shuffled indices.
-    pub fn new_shuffled_with_seed<S>(dataset: S, seed: u64) -> Self
-    where
-        S: Into<Arc<D>>,
-    {
-        let mut this = Self::new_select_all(dataset);
-        this.shuffle_with_seed(seed);
+        this.shuffle(rng_source);
         this
     }
 
@@ -181,25 +160,17 @@ where
     /// # Arguments
     ///
     /// * `rng` - A mutable reference to a random number generator.
-    pub fn shuffle(&mut self, rng: &mut StdRng) {
-        self.indices.shuffle(rng)
-    }
-
-    /// Shuffles the indices of the dataset using a fixed seed.
-    ///
-    /// This method modifies the dataset in place, shuffling the indices.
-    ///
-    /// # Arguments
-    ///
-    /// * `seed` - A fixed seed for the random number generator.
-    pub fn shuffle_with_seed(&mut self, seed: u64) {
-        let mut rng = StdRng::seed_from_u64(seed);
-        self.shuffle(&mut rng);
+    pub fn shuffle<R>(&mut self, rng_source: R)
+    where
+        R: Into<RngSource>,
+    {
+        let mut rng: StdRng = rng_source.into().into();
+        self.indices.shuffle(&mut rng)
     }
 
     /// Creates a new dataset that is a slice of the current selection dataset.
     ///
-    /// Slices the *selection indices* from `[start..end]`.
+    /// Slices the *selection indices* from ``[start..end]``.
     ///
     /// Independent of future shuffles on the parent, but shares the same wrapped dataset.
     ///
@@ -208,7 +179,7 @@ where
     ///
     /// * `start` - The start of the range.
     /// * `end` - The end of the range (exclusive).
-    // TODO: RangeArg in burn-tensor should be lifted to burn-common; this should use RangeArg.
+    // TODO: SliceArg in burn-tensor should be lifted to burn-common; this should use SliceArg.
     pub fn slice(&self, start: usize, end: usize) -> Self {
         Self::from_indices_unchecked(self.wrapped.clone(), self.indices[start..end].to_vec())
     }
@@ -270,6 +241,7 @@ where
 mod tests {
     use super::*;
     use crate::FakeDataset;
+    use rand::SeedableRng;
 
     #[test]
     fn test_iota() {
@@ -326,34 +298,9 @@ mod tests {
         let dataset = FakeDataset::<String>::new(27);
         let source_items = dataset.iter().collect::<Vec<_>>();
 
-        let seed = 42;
-        let mut rng = StdRng::seed_from_u64(seed);
+        let selection = SelectionDataset::new_shuffled(dataset, 42);
 
-        let selection = SelectionDataset::new_shuffled(dataset, &mut rng.clone());
-
-        let indices = shuffled_indices(source_items.len(), &mut rng);
-
-        assert_eq!(&selection.indices, &indices);
-        assert_eq!(selection.len(), source_items.len());
-
-        let expected_items: Vec<_> = indices
-            .iter()
-            .map(|&i| source_items[i].to_string())
-            .collect();
-        assert_eq!(&selection.iter().collect::<Vec<_>>(), &expected_items);
-    }
-
-    #[test]
-    fn test_shuffled_with_seed_dataset() {
-        let dataset = FakeDataset::<String>::new(27);
-        let source_items = dataset.iter().collect::<Vec<_>>();
-
-        let seed = 42;
-
-        let selection = SelectionDataset::new_shuffled_with_seed(dataset, seed);
-
-        let mut rng = StdRng::seed_from_u64(seed);
-        let indices = shuffled_indices(source_items.len(), &mut rng);
+        let indices = shuffled_indices(source_items.len(), &mut StdRng::seed_from_u64(42));
 
         assert_eq!(&selection.indices, &indices);
         assert_eq!(selection.len(), source_items.len());
@@ -377,6 +324,8 @@ mod tests {
         let sliced_selection = selection.slice(start, end);
 
         assert_eq!(sliced_selection.len(), end - start);
+
+        #[allow(clippy::needless_range_loop)]
         for i in start..end {
             assert_eq!(
                 sliced_selection.get(i - start),

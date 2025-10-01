@@ -38,22 +38,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         match (input_type, output_type) {
             (TensorKind::Int, TensorKind::Int) | (TensorKind::Float, TensorKind::Float) => {
                 quote! {
-                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis);
+                    let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis);
                 }
             }
             (TensorKind::Int, TensorKind::Float) => {
                 quote! {
-                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).float();
+                    let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis).float();
                 }
             }
             (TensorKind::Float, TensorKind::Int) => {
                 quote! {
-                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).int();
+                    let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis).int();
                 }
             }
             (TensorKind::Int, TensorKind::Bool) | (TensorKind::Float, TensorKind::Bool) => {
                 quote! {
-                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).bool();
+                    let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis).bool();
                 }
             }
             (TensorKind::Bool, _) => panic!("Input should be numeric"),
@@ -92,10 +92,7 @@ mod tests {
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -114,7 +111,7 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
                     let tensor2 = tensor1
-                        .one_hot_fill(3usize, 1f32.into(), 0f32.into(), -1i64);
+                        .one_hot_fill(3usize, 1f32, 0f32, -1i64);
                     tensor2
                 }
             }

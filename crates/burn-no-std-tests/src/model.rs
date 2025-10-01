@@ -12,7 +12,7 @@ use burn::{
     tensor::{Tensor, backend::Backend},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistConfig {
     #[config(default = 42)]
     pub seed: u64,

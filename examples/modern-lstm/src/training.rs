@@ -12,7 +12,7 @@ use burn::{
     tensor::backend::AutodiffBackend,
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: LstmNetworkConfig,
     pub optimizer: AdamConfig,
@@ -41,7 +41,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(RANDOM_SEED);
+    B::seed(&device, RANDOM_SEED);
 
     // Create the model and optimizer
     let mut model = config.model.init::<B>(&device);

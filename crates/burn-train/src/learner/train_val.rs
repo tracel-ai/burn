@@ -1,13 +1,16 @@
 use crate::components::{
     InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
 };
+#[cfg(feature = "ddp")]
+use crate::ddp::DdpLearningStrategy;
 use crate::multi::MultiDeviceLearningStrategy;
+use crate::renderer::MetricsRenderer;
 use crate::single::SingleDeviceLearningStrategy;
-use crate::{Learner, LearningMethod, LearningStrategy};
+use crate::{Learner, LearnerSummary, LearningMethod, LearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
-use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_optim::{GradientsParams, Optimizer};
 use std::sync::Arc;
 
 /// A training output.
@@ -103,7 +106,17 @@ pub trait ValidStep<VI, VO> {
 pub(crate) type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
 pub(crate) type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
 
-impl<LC: LearnerComponentTypes> Learner<LC> {
+/// The result of a training, containing the model along with the [renderer](MetricsRenderer).
+pub struct TrainingResult<M> {
+    /// The model trained.
+    pub model: M,
+    /// The renderer that can be used for follow up training and evaluation.
+    pub renderer: Box<dyn MetricsRenderer>,
+    /// A summary of the training.
+    pub summary: Option<LearnerSummary>,
+}
+
+impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
     /// Fits the model.
     ///
     /// # Arguments
@@ -118,7 +131,7 @@ impl<LC: LearnerComponentTypes> Learner<LC> {
         self,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> LC::Model {
+    ) -> TrainingResult<LC::InnerModel> {
         log::info!("Fitting the model:\n {}", self.model);
 
         match &self.learning_strategy {
@@ -129,6 +142,12 @@ impl<LC: LearnerComponentTypes> Learner<LC> {
             LearningStrategy::MultiDeviceNaive(devices) => {
                 let multi_device = MultiDeviceLearningStrategy::new(devices.clone());
                 multi_device.fit(self, dataloader_train, dataloader_valid)
+            }
+
+            #[cfg(feature = "ddp")]
+            LearningStrategy::DistributedDataParallel { devices, config } => {
+                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
+                ddp.fit(self, dataloader_train, dataloader_valid)
             }
         }
     }

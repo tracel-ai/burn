@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Stale pull requests
-      uses: actions/stale@v9
+      uses: actions/stale@v10
       with:
         # The idle number of days before marking issues stale.
         #

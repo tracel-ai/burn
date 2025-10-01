@@ -1,12 +1,12 @@
-use alloc::vec;
-use core::num::NonZeroUsize;
-
-use super::{conv, pool, unfold::unfold4d_using_conv2d};
+use super::{conv, pool};
+use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::{
     Shape, TensorMetadata,
     backend::Backend,
     ops::{FloatTensor, IntTensor},
 };
+use alloc::vec;
+use core::num::NonZeroUsize;
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -299,11 +299,12 @@ pub trait ModuleOps<B: Backend> {
         let [batch_size, seq_length] = indices.shape().dims();
         let [n_embeddings, d_model] = weights.shape().dims();
         let device = B::float_device(&weights);
+        let dtype = output_grad.dtype();
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
         let output_grad =
             B::float_reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
-        let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device);
+        let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device, dtype.into());
 
         B::float_select_assign(grad, 0, indices, output_grad)
     }
@@ -578,14 +579,36 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// # Shapes
     ///
-    /// x:      `[batch_size, channels_in, height, width]`,
-    /// returns: `[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]`,
+    /// * x:      ``[batch_size, channels_in, height, width]``,
+    /// * returns: ``[batch_size, channels_in * kernel_size_1 * kernel_size_2, number of blocks]``,
     fn unfold4d(
         x: FloatTensor<B>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
     ) -> FloatTensor<B> {
-        unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        if options.padding == [0, 0] && options.dilation == [1, 1] {
+            let blocks = B::float_unfold(x, 2, kernel_size[0], options.stride[0]);
+            let blocks = B::float_unfold(blocks, 3, kernel_size[1], options.stride[1]);
+
+            // batch, channels, h_blocks, w_blocks, h_kern, w_kern
+
+            let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
+            let shape = &blocks.shape().dims;
+
+            // batch, channels, h_kern, w_kern, h_blocks, w_blocks
+
+            B::float_reshape(
+                blocks,
+                [
+                    shape[0],
+                    shape[1] * shape[2] * shape[3],
+                    shape[4] * shape[5],
+                ]
+                .into(),
+            )
+        } else {
+            unfold4d_using_conv2d::<B>(x, kernel_size, options)
+        }
     }
 
     /// One dimensional avg pooling.
@@ -798,6 +821,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> FloatTensor<B> {
         let ndims_in = input.shape().num_dims();
         let [d_input, d_output] = weight.shape().dims();
+
         if ndims_in == 1 {
             // Insert and remove an extra batch dimension for the batch matmul to work.
             let input = B::float_reshape(input, Shape::from([1, d_input]));
@@ -805,10 +829,15 @@ pub trait ModuleOps<B: Backend> {
             return B::float_reshape(output, Shape::from([d_output]));
         }
 
+        // Perform broadcasting
+        //
+        // Important to be done before doing operations to easily fuse.
         let weight = unsqueeze::<B>(weight, ndims_in);
+        let bias = bias.map(|bias| unsqueeze::<B>(bias, ndims_in));
+
         let output = B::float_matmul(input, weight);
         match bias {
-            Some(bias) => B::float_add(output, unsqueeze::<B>(bias, ndims_in)),
+            Some(bias) => B::float_add(output, bias),
             None => output,
         }
     }

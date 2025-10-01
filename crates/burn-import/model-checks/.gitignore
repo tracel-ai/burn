@@ -1,0 +1,25 @@
+Cargo.lock
+
+# Ignore model artifacts and temporary resources in all subdirectories
+*/artifacts/
+
+# Ignore downloaded model files
+**/*.onnx
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+**/*.pb
+**/*.h5
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+
+# UV/pip
+**/.venv/
+**/venv/
+**/*.egg-info/

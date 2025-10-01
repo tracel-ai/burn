@@ -6,11 +6,11 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     NodeId,
     global::shared::GlobalCollectiveError,
+    local::{get_ring_reduce_slice_ranges, get_slice_dim},
     node::sync::SyncService,
-    ring::{get_ring_reduce_slice_ranges, get_slice_dim},
 };
 use burn_communication::{Address, Protocol, data_service::TensorDataService};
-use burn_tensor::{TensorMetadata, backend::Backend};
+use burn_tensor::{Slice, TensorMetadata, backend::Backend};
 
 // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
@@ -189,21 +189,18 @@ fn slice_tensor<B: Backend>(
     slice_ranges: Vec<Range<usize>>,
 ) -> Vec<B::FloatTensorPrimitive> {
     let shape = tensor.shape();
-    // full range across all dims
+    // full range across all dims as Slice
     let full_range = shape
         .dims
         .iter()
-        .map(|dim| Range {
-            start: 0,
-            end: *dim,
-        })
-        .collect::<Vec<Range<usize>>>();
+        .map(|dim| Slice::from(0..*dim))
+        .collect::<Vec<Slice>>();
 
     // Slice tensors
     let mut slices = vec![];
     for range in &slice_ranges {
         let mut all_ranges = full_range.clone();
-        all_ranges[slice_dim] = range.clone();
+        all_ranges[slice_dim] = Slice::from(range.clone());
         let slice = B::float_slice(tensor.clone(), &all_ranges);
         slices.push(slice);
     }

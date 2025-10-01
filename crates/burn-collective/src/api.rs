@@ -1,8 +1,8 @@
-use burn_tensor::{Tensor, backend::Backend};
+use burn_tensor::backend::Backend;
 
 use crate::{
     CollectiveConfig, PeerId, ReduceOperation, global::shared::GlobalCollectiveError,
-    local_server::get_collective_client,
+    local::server::get_collective_client,
 };
 
 /// Errors from collective operations
@@ -18,15 +18,22 @@ pub enum CollectiveError {
     MultipleRegister,
     /// Trying to register a different way than is currently being done
     RegisterParamsMismatch,
+    /// Trying to all-reduce tensors of different shapes: shape must match
+    AllReduceShapeMismatch,
     /// Trying to all-reduce a different way than is currently being done: op must match
-    AllReduceParamsMismatch,
-    /// Trying to reduce a different way than is currently being done:
-    /// root peer and reduce operation must match
-    ReduceParamsMismatch,
-    /// Trying to broadcast but multiple peers sent tensors: only one may be the root
-    BroadcastMultipleTensors,
+    AllReduceOperationMismatch,
+    /// Trying to reduce tensors of different shapes: shape must match
+    ReduceShapeMismatch,
+    /// Trying to reduce a different way than is currently being done: op must match
+    ReduceOperationMismatch,
+    /// Trying to reduce with different roots
+    ReduceRootMismatch,
+    /// Trying to broadcast with different roots
+    BroadcastRootMismatch,
     /// Trying to broadcast but no peer sent a tensor
     BroadcastNoTensor,
+    /// Trying to broadcast but multiple peers sent a tensor
+    BroadcastMultipleTensors,
     /// Local collective server couldn't respond
     LocalServerMissing,
     /// Another operation was called before Register
@@ -49,6 +56,7 @@ pub fn register<B: Backend>(
     device: B::Device,
     config: CollectiveConfig,
 ) -> Result<(), CollectiveError> {
+    log::info!("Registering peer {id} with config: {config}");
     let mut client = get_collective_client::<B>();
     client.register(id, device, config)
 }
@@ -59,11 +67,11 @@ pub fn register<B: Backend>(
 /// * `id` - The peer id of the caller
 /// * `tensor` - The input tensor to reduce with the peers' tensors
 /// * `config` - Config of the collective operation, must be coherent with the other calls
-pub fn all_reduce<B: Backend, const D: usize>(
+pub fn all_reduce<B: Backend>(
     id: PeerId,
-    tensor: Tensor<B, D>,
+    tensor: B::FloatTensorPrimitive,
     op: ReduceOperation,
-) -> Result<Tensor<B, D>, CollectiveError> {
+) -> Result<B::FloatTensorPrimitive, CollectiveError> {
     let client = get_collective_client::<B>();
     client.all_reduce(id, tensor, op)
 }
@@ -75,10 +83,10 @@ pub fn all_reduce<B: Backend, const D: usize>(
 ///   the broadcasted tensor.
 ///
 /// Returns the broadcasted tensor.
-pub fn broadcast<B: Backend, const D: usize>(
+pub fn broadcast<B: Backend>(
     id: PeerId,
-    tensor: Option<Tensor<B, D>>,
-) -> Result<Tensor<B, D>, CollectiveError> {
+    tensor: Option<B::FloatTensorPrimitive>,
+) -> Result<B::FloatTensorPrimitive, CollectiveError> {
     let client = get_collective_client::<B>();
     client.broadcast(id, tensor)
 }
@@ -90,12 +98,12 @@ pub fn broadcast<B: Backend, const D: usize>(
 /// * `root` - The ID of the peer that will receive the result.
 ///
 /// Returns Ok(None) if the root tensor is not the caller. Otherwise, returns the reduced tensor.
-pub fn reduce<B: Backend, const D: usize>(
+pub fn reduce<B: Backend>(
     id: PeerId,
-    tensor: Tensor<B, D>,
+    tensor: B::FloatTensorPrimitive,
     op: ReduceOperation,
     root: PeerId,
-) -> Result<Option<Tensor<B, D>>, CollectiveError> {
+) -> Result<Option<B::FloatTensorPrimitive>, CollectiveError> {
     let client = get_collective_client::<B>();
     client.reduce(id, tensor, op, root)
 }

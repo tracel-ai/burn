@@ -191,12 +191,6 @@ async fn launch_nodes(
                 "--features",
                 #[cfg(feature = "ndarray")]
                 "ndarray",
-                #[cfg(feature = "ndarray-blas-accelerate")]
-                "ndarray-blas-accelerate",
-                #[cfg(feature = "ndarray-blas-netlib")]
-                "ndarray-blas-netlib",
-                #[cfg(feature = "ndarray-blas-openblas")]
-                "ndarray-blas-openblas",
                 "--bin",
                 "node",
                 "--",

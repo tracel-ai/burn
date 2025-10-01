@@ -1,7 +1,7 @@
 use cubecl::reduce::args::ReduceArgs;
 use cubecl::{prelude::*, reduce::args::ReduceDType};
 
-use crate::shared::io::{ref_buffer_len, ref_len, ref_shape, ref_stride};
+use crate::shared::io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride};
 use crate::shared::ir::{
     Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand,
 };
@@ -162,6 +162,14 @@ impl ReduceArgs for FusedReduceArgs {
 
     fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
         ref_stride(unsafe { &(*state.locals_on_write) }, dim)
+    }
+
+    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(u32) {
+        ref_line_size(unsafe { &(*state.locals_on_read) })
+    }
+
+    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(u32) {
+        ref_line_size(unsafe { &(*state.locals_on_write) })
     }
 }
 

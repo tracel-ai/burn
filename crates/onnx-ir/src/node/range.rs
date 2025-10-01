@@ -1,4 +1,57 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, Argument, Data, ElementType, Node, TensorData, TensorType};
+
+/// Configuration for the Range operation.
+#[derive(Debug, Clone)]
+pub struct RangeConfig {
+    pub start: RangeInput,
+    pub limit: RangeInput,
+    pub delta: RangeInput,
+}
+
+/// Represents either a static value or a runtime argument for range parameters.
+#[derive(Debug, Clone)]
+pub enum RangeInput {
+    /// Static value known at compile time.
+    Static(i64),
+    /// Runtime argument determined during execution.
+    Runtime(Argument),
+}
+
+/// Extract range configuration from the node.
+pub fn range_config(node: &Node) -> RangeConfig {
+    fn get_range_input(node: &Node, index: usize, param_name: &str) -> RangeInput {
+        let input = node
+            .inputs
+            .get(index)
+            .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
+
+        match &input.value {
+            None => RangeInput::Runtime(input.clone()),
+            Some(TensorData {
+                data: Data::Int64s(values),
+                ..
+            }) if values.len() == 1 => RangeInput::Static(values[0]),
+            Some(TensorData {
+                data: Data::Int32s(values),
+                ..
+            }) if values.len() == 1 => RangeInput::Static(values[0] as i64),
+            Some(v) => panic!(
+                "Range {} must be a scalar int value, got {:?}",
+                param_name, v
+            ),
+        }
+    }
+
+    let start = get_range_input(node, 0, "start");
+    let limit = get_range_input(node, 1, "limit");
+    let delta = get_range_input(node, 2, "delta");
+
+    RangeConfig {
+        start,
+        limit,
+        delta,
+    }
+}
 
 /// Update output rank for Range (always rank 1).
 pub fn range_update_outputs(node: &mut Node) {

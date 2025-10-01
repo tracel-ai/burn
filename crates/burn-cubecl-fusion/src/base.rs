@@ -6,11 +6,10 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
-use burn_tensor::quantization::QParamTensor;
-use cubecl::client::ComputeClient;
-use cubecl::ir::Elem;
+use burn_tensor::quantization::{QParamTensor, QuantParam, QuantScheme};
 use cubecl::prelude::{TensorArg, TensorHandleRef};
 use cubecl::{CubeElement, Runtime};
+use cubecl::{client::ComputeClient, ir::ElemType};
 use serde::{Deserialize, Serialize};
 
 /// Fusion optimization type for cubecl.
@@ -82,27 +81,27 @@ pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 }
 
 pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
-    match E::cube_elem() {
-        Elem::Float(kind) => match kind {
+    match E::cube_type().elem_type() {
+        ElemType::Float(kind) => match kind {
+            cubecl::ir::FloatKind::F64 => DType::F64,
             cubecl::ir::FloatKind::F16 => DType::F16,
             cubecl::ir::FloatKind::BF16 => DType::BF16,
             cubecl::ir::FloatKind::F32 => DType::F32,
             _ => todo!(),
         },
-        Elem::Int(kind) => match kind {
+        ElemType::Int(kind) => match kind {
             cubecl::ir::IntKind::I64 => DType::I64,
             cubecl::ir::IntKind::I32 => DType::I32,
             cubecl::ir::IntKind::I16 => DType::I16,
             cubecl::ir::IntKind::I8 => DType::I8,
         },
-        Elem::UInt(kind) => match kind {
+        ElemType::UInt(kind) => match kind {
             cubecl::ir::UIntKind::U64 => DType::U64,
             cubecl::ir::UIntKind::U32 => DType::U32,
             cubecl::ir::UIntKind::U16 => DType::U16,
             cubecl::ir::UIntKind::U8 => DType::U8,
         },
-        Elem::Bool => DType::Bool,
-        _ => todo!(),
+        ElemType::Bool => DType::Bool,
     }
 }
 
@@ -176,5 +175,25 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 self.dtype.size(),
             )
         }
+    }
+    /// Construct a separate tensor for the quantization scales, if present
+    pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
+        let qparams = self.qparams.as_ref()?;
+        let mut handle = self.handle.clone();
+        handle.offset_start = Some(qparams.scales.offset_start as u64);
+        handle.offset_end = Some(qparams.scales.offset_end as u64);
+
+        Some(Self {
+            client: self.client.clone(),
+            handle,
+            device: self.device.clone(),
+            dtype: match scheme.param {
+                QuantParam::F32 => DType::F32,
+                QuantParam::F16 => DType::F16,
+                QuantParam::BF16 => DType::BF16,
+            },
+            strides: vec![1],
+            qparams: None,
+        })
     }
 }

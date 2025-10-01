@@ -1,5 +1,5 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::convolution::ConvLaunchError;
+use cubecl::convolution::components::ConvSetupError;
 
 use crate::{
     CubeRuntime, FloatElement,
@@ -51,7 +51,7 @@ pub fn conv<R: CubeRuntime, E: FloatElement, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
     strategy: ConvStrategy,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let input = permute_nchw_to_nhwc(input);
     let weight = permute_nchw_to_nhwc(weight);
 

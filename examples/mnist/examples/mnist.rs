@@ -35,7 +35,7 @@ mod tch_gpu {
     }
 }
 
-#[cfg(any(feature = "wgpu", feature = "metal",))]
+#[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
 mod wgpu {
     use burn::backend::{
         Autodiff,
@@ -46,6 +46,28 @@ mod wgpu {
     pub fn run() {
         let device = WgpuDevice::default();
         training::run::<Autodiff<Wgpu>>(device);
+    }
+}
+
+#[cfg(feature = "cuda")]
+mod cuda {
+    use burn::backend::{Autodiff, Cuda};
+    use mnist::training;
+
+    pub fn run() {
+        let device = Default::default();
+        training::run::<Autodiff<Cuda>>(device);
+    }
+}
+
+#[cfg(feature = "rocm")]
+mod rocm {
+    use burn::backend::{Autodiff, Rocm};
+    use mnist::training;
+
+    pub fn run() {
+        let device = Default::default();
+        training::run::<Autodiff<Rocm>>(device);
     }
 }
 
@@ -85,8 +107,12 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
-    #[cfg(any(feature = "wgpu", feature = "metal"))]
+    #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
     wgpu::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
+    #[cfg(feature = "rocm")]
+    rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
 }

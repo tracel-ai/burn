@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use cubecl::{
-    ir::{Elem, ExpandElement, FloatKind, IntKind, Item, UIntKind},
+    ir::{ElemType, ExpandElement, FloatKind, IntKind, StorageType, Type, UIntKind},
     prelude::*,
     unexpanded,
 };
@@ -14,7 +14,7 @@ use super::DYN_ELEM_ID;
 pub struct GlobalTensor {
     pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
     #[cube(comptime)]
-    pub elem: Elem,
+    pub elem: ElemType,
     #[cube(comptime)]
     pub broadcasted: bool,
 }
@@ -22,19 +22,20 @@ pub struct GlobalTensor {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {
     tensor: TensorCompilationArg,
-    elem: Elem,
+    elem: ElemType,
     broadcasted: bool,
 }
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<'a, R: Runtime> {
     pub tensor: <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::RuntimeArg<'a, R>,
-    pub elem: Elem,
+    pub elem: ElemType,
     pub broadcasted: bool,
 }
 
 #[derive(CubeType)]
 pub enum GlobalScalar {
+    F64(f64),
     F32(f32),
     F16(f16),
     BF16(bf16),
@@ -69,11 +70,11 @@ impl GlobalScalarExpand {
         &self,
         scope: &mut Scope,
     ) -> ExpandElementTyped<C> {
-        let dtype = C::as_elem(scope);
+        let dtype = C::as_type(scope).elem_type();
 
         match self {
             GlobalScalarExpand::U64(val) => {
-                if dtype == Elem::UInt(cubecl::ir::UIntKind::U64) {
+                if dtype == ElemType::UInt(cubecl::ir::UIntKind::U64) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -81,7 +82,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::U32(val) => {
-                if dtype == Elem::UInt(cubecl::ir::UIntKind::U32) {
+                if dtype == ElemType::UInt(cubecl::ir::UIntKind::U32) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -89,7 +90,15 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::U16(val) => {
-                if dtype == Elem::UInt(cubecl::ir::UIntKind::U16) {
+                if dtype == ElemType::UInt(cubecl::ir::UIntKind::U16) {
+                    let expand: ExpandElement = val.clone().into();
+                    ExpandElementTyped::from(expand.clone())
+                } else {
+                    C::__expand_cast_from(scope, val.clone())
+                }
+            }
+            GlobalScalarExpand::F64(val) => {
+                if dtype == ElemType::Float(cubecl::ir::FloatKind::F64) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -97,7 +106,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::F32(val) => {
-                if dtype == Elem::Float(cubecl::ir::FloatKind::F32) {
+                if dtype == ElemType::Float(cubecl::ir::FloatKind::F32) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -105,7 +114,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::F16(val) => {
-                if dtype == Elem::Float(cubecl::ir::FloatKind::F16) {
+                if dtype == ElemType::Float(cubecl::ir::FloatKind::F16) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -113,7 +122,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::BF16(val) => {
-                if dtype == Elem::Float(cubecl::ir::FloatKind::BF16) {
+                if dtype == ElemType::Float(cubecl::ir::FloatKind::BF16) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -121,7 +130,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::U8(val) => {
-                if dtype == Elem::UInt(cubecl::ir::UIntKind::U8) {
+                if dtype == ElemType::UInt(cubecl::ir::UIntKind::U8) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -130,7 +139,7 @@ impl GlobalScalarExpand {
             }
 
             GlobalScalarExpand::I64(val) => {
-                if dtype == Elem::Int(cubecl::ir::IntKind::I64) {
+                if dtype == ElemType::Int(cubecl::ir::IntKind::I64) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -138,7 +147,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::I32(val) => {
-                if dtype == Elem::Int(cubecl::ir::IntKind::I32) {
+                if dtype == ElemType::Int(cubecl::ir::IntKind::I32) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -146,7 +155,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::I16(val) => {
-                if dtype == Elem::Int(cubecl::ir::IntKind::I16) {
+                if dtype == ElemType::Int(cubecl::ir::IntKind::I16) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -154,7 +163,7 @@ impl GlobalScalarExpand {
                 }
             }
             GlobalScalarExpand::I8(val) => {
-                if dtype == Elem::Int(cubecl::ir::IntKind::I8) {
+                if dtype == ElemType::Int(cubecl::ir::IntKind::I8) {
                     let expand: ExpandElement = val.clone().into();
                     ExpandElementTyped::from(expand.clone())
                 } else {
@@ -170,24 +179,49 @@ impl LaunchArg for GlobalScalar {
 
     fn compilation_arg<R: Runtime>(arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
         match arg {
-            GlobalScalar::F32(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::F32)),
-            GlobalScalar::F16(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::F16)),
-            GlobalScalar::BF16(_) => GlobalScalarCompilationArg::new(Elem::Float(FloatKind::BF16)),
-            GlobalScalar::I64(_) => GlobalScalarCompilationArg::new(Elem::Int(IntKind::I64)),
-            GlobalScalar::I32(_) => GlobalScalarCompilationArg::new(Elem::Int(IntKind::I32)),
-            GlobalScalar::I16(_) => GlobalScalarCompilationArg::new(Elem::Int(IntKind::I16)),
-            GlobalScalar::I8(_) => GlobalScalarCompilationArg::new(Elem::Int(IntKind::I8)),
-            GlobalScalar::U64(_) => GlobalScalarCompilationArg::new(Elem::UInt(UIntKind::U64)),
-            GlobalScalar::U32(_) => GlobalScalarCompilationArg::new(Elem::UInt(UIntKind::U32)),
-            GlobalScalar::U16(_) => GlobalScalarCompilationArg::new(Elem::UInt(UIntKind::U16)),
-            GlobalScalar::U8(_) => GlobalScalarCompilationArg::new(Elem::UInt(UIntKind::U8)),
+            GlobalScalar::F64(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Float(FloatKind::F64).into())
+            }
+            GlobalScalar::F32(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Float(FloatKind::F32).into())
+            }
+            GlobalScalar::F16(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Float(FloatKind::F16).into())
+            }
+            GlobalScalar::BF16(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Float(FloatKind::BF16).into())
+            }
+            GlobalScalar::I64(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Int(IntKind::I64).into())
+            }
+            GlobalScalar::I32(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Int(IntKind::I32).into())
+            }
+            GlobalScalar::I16(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Int(IntKind::I16).into())
+            }
+            GlobalScalar::I8(_) => {
+                GlobalScalarCompilationArg::new(ElemType::Int(IntKind::I8).into())
+            }
+            GlobalScalar::U64(_) => {
+                GlobalScalarCompilationArg::new(ElemType::UInt(UIntKind::U64).into())
+            }
+            GlobalScalar::U32(_) => {
+                GlobalScalarCompilationArg::new(ElemType::UInt(UIntKind::U32).into())
+            }
+            GlobalScalar::U16(_) => {
+                GlobalScalarCompilationArg::new(ElemType::UInt(UIntKind::U16).into())
+            }
+            GlobalScalar::U8(_) => {
+                GlobalScalarCompilationArg::new(ElemType::UInt(UIntKind::U8).into())
+            }
         }
     }
 }
 
 #[derive(new, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalScalarCompilationArg {
-    elem: Elem,
+    ty: StorageType,
 }
 
 impl CompilationArg for GlobalScalarCompilationArg {}
@@ -199,9 +233,9 @@ impl LaunchArgExpand for GlobalScalar {
         arg: &Self::CompilationArg,
         builder: &mut KernelBuilder,
     ) -> <Self as CubeType>::ExpandType {
-        let expand = builder.scalar(arg.elem);
-        match arg.elem {
-            Elem::Float(float_kind) | Elem::AtomicFloat(float_kind) => match float_kind {
+        let expand = builder.scalar(arg.ty);
+        match arg.ty.elem_type() {
+            ElemType::Float(float_kind) => match float_kind {
                 FloatKind::F16 => GlobalScalarExpand::F16(expand.into()),
                 FloatKind::BF16 => GlobalScalarExpand::BF16(expand.into()),
                 FloatKind::Flex32 => GlobalScalarExpand::F32(expand.into()),
@@ -215,19 +249,19 @@ impl LaunchArgExpand for GlobalScalar {
                 | FloatKind::E5M2
                 | FloatKind::UE8M0 => unimplemented!("FP8 can't be passed as scalar"),
             },
-            Elem::Int(int_kind) | Elem::AtomicInt(int_kind) => match int_kind {
+            ElemType::Int(int_kind) => match int_kind {
                 IntKind::I8 => GlobalScalarExpand::I8(expand.into()),
                 IntKind::I16 => GlobalScalarExpand::I16(expand.into()),
                 IntKind::I32 => GlobalScalarExpand::I32(expand.into()),
                 IntKind::I64 => GlobalScalarExpand::I64(expand.into()),
             },
-            Elem::UInt(uint_kind) | Elem::AtomicUInt(uint_kind) => match uint_kind {
+            ElemType::UInt(uint_kind) => match uint_kind {
                 UIntKind::U8 => GlobalScalarExpand::U8(expand.into()),
                 UIntKind::U16 => GlobalScalarExpand::U16(expand.into()),
                 UIntKind::U32 => GlobalScalarExpand::U32(expand.into()),
                 UIntKind::U64 => GlobalScalarExpand::U64(expand.into()),
             },
-            Elem::Bool => panic!("Bool should be converted first."),
+            ElemType::Bool => panic!("Bool should be converted first."),
         }
     }
 }
@@ -235,6 +269,7 @@ impl LaunchArgExpand for GlobalScalar {
 impl<R: Runtime> ArgSettings<R> for GlobalScalar {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
         match self {
+            GlobalScalar::F64(val) => launcher.register_f64(*val),
             GlobalScalar::F32(val) => launcher.register_f32(*val),
             GlobalScalar::F16(val) => launcher.register_f16(*val),
             GlobalScalar::BF16(val) => launcher.register_bf16(*val),
@@ -277,7 +312,7 @@ impl LaunchArgExpand for GlobalTensor {
     type CompilationArg = GlobalTensorCompilationArg;
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
-        let tensor = builder.input_tensor(Item::vectorized(arg.elem, arg.tensor.vectorisation));
+        let tensor = builder.input_tensor(Type::scalar(arg.elem).line(arg.tensor.line_size));
 
         GlobalTensorExpand {
             tensor: tensor.into(),
@@ -291,7 +326,7 @@ impl LaunchArgExpand for GlobalTensor {
     ) -> GlobalTensorExpand {
         let tensor = match arg.tensor.inplace {
             Some(id) => builder.inplace_output(id),
-            None => builder.output_tensor(Item::vectorized(arg.elem, arg.tensor.vectorisation)),
+            None => builder.output_tensor(Type::scalar(arg.elem).line(arg.tensor.line_size)),
         };
         GlobalTensorExpand {
             tensor: tensor.into(),

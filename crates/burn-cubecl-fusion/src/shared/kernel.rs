@@ -1,8 +1,15 @@
-use crate::shared::DYN_ELEM_ID;
-
 use super::io::*;
 use super::ir::*;
+use crate::shared::DYN_ELEM_ID;
+use crate::shared::Q_PARAM_DYN_ELEM_ID;
+use crate::shared::Q_STORE_DYN_ELEM_ID;
+use burn_tensor::quantization::QuantScheme;
+use burn_tensor::quantization::QuantStore;
+use burn_tensor::quantization::QuantValue;
+use cubecl::ir::{ElemType, FloatKind, StorageType, UIntKind};
 use cubecl::prelude::*;
+use cubecl_quant::dequantize::dequantize_symmetric_packed_value_at;
+use cubecl_quant::scheme::QuantMode;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -205,7 +212,7 @@ fn fuse(
     #[unroll]
     for index in 0..config.ops.len() {
         let op = comptime! { config.ops.index(index).clone() };
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_elem()]);
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_type()]);
 
         match op {
             FuseOp::Add(op) => {
@@ -294,6 +301,33 @@ fn fuse(
                 dim,
             } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
+            ),
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme,
+            } => dequantize::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                locals,
+                pos,
+                values,
+                params,
+                output,
+                scheme.scheme,
+                config,
+            ),
+            FuseOp::Rem(op) => {
+                rem::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => clamp::<NumericExpand<DYN_ELEM_ID>>(
+                inputs, outputs, locals, pos, input, min, max, out, config,
             ),
         }
     }
@@ -697,6 +731,110 @@ fn conditional_assign<C: CubePrimitive>(
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
 }
 
+#[cube]
+fn clamp<C: Numeric>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] min: Arg,
+    #[comptime] max: Arg,
+    #[comptime] out: Arg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
+    let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
+    let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
+    let result = Line::<C>::clamp(input, min, max);
+
+    write::<C>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
+#[cube]
+#[allow(clippy::explicit_counter_loop)]
+fn dequantize<C: Float>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] input: Arg,
+    #[comptime] scales: Arg,
+    #[comptime] output: Arg,
+    #[comptime] scheme: QuantScheme,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    comptime!(assert_eq!(
+        scheme.mode,
+        QuantMode::Symmetric,
+        "Only symmetric quantization mode is supported."
+    ));
+
+    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
+        QuantStore::Native => match scheme.value {
+            QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
+                unreachable!("Can't store native sub-byte values"),
+        },
+        QuantStore::U32 => ElemType::UInt(UIntKind::U32).into(),
+    }]);
+    set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
+        cubecl_quant::scheme::QuantParam::F32 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::F32)),
+        cubecl_quant::scheme::QuantParam::F16 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::F16)),
+        cubecl_quant::scheme::QuantParam::BF16 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
+    }]);
+
+    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
+        inputs, locals, write_pos, input, config, scheme,
+    );
+    let pos = comptime!(match scales {
+        Arg::Input(pos, ..) => pos,
+        _ => unreachable!(""),
+    });
+    // Assume scales have plain layout for now
+    let scales = input_as_linear_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
+    let result = dequantize_symmetric_packed_value_at::<
+        C,
+        ElemExpand<Q_PARAM_DYN_ELEM_ID>,
+        ElemExpand<Q_STORE_DYN_ELEM_ID>,
+    >(write_pos, input, &scales, scheme);
+
+    let line_size = input.line_size();
+    let num_quants = comptime!(scheme.num_quants() as u32);
+    let line_size_result = comptime!(num_quants * line_size);
+
+    let line = if comptime!(line_size == 1) {
+        result[0]
+    } else {
+        let mut line = Line::empty(line_size_result);
+
+        // We have to do all index work as comptime because higher line sizes removes the
+        // possibility to index dynamically on lines.
+        let mut i = comptime!(0);
+
+        #[unroll]
+        for _ in 0..line_size {
+            let mut j = comptime!(0);
+            let value = result[i];
+
+            #[unroll]
+            for _ in 0..num_quants {
+                let index = comptime!(i * num_quants + j);
+                line[index] = value[j];
+                comptime!(j += 1);
+            }
+            comptime!(i += 1);
+        }
+
+        line
+    };
+
+    write::<C>(inputs, outputs, locals, write_pos, line, output, config);
+}
+
 binary_op!(add, +);
 binary_op!(mul, *);
 binary_op!(div, /);
@@ -709,6 +847,7 @@ comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Line::<C>::powf, Float);
+binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
 unary_func!(log, Line::<C>::log, Float);

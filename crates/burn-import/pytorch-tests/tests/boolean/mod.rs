@@ -33,7 +33,7 @@ mod tests {
 
     use super::*;
 
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     #[test]
     #[ignore = "It appears loading boolean tensors are not supported yet"]
@@ -44,14 +44,16 @@ mod tests {
             .load("tests/boolean/boolean.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<TestBackend>::new_with(record);
 
-        let input = Tensor::<Backend, 2>::ones([3, 3], &device);
+        let input = Tensor::<TestBackend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
-        let expected =
-            Tensor::<Backend, 1, Bool>::from_bool(TensorData::from([true, false, true]), &device);
+        let expected = Tensor::<TestBackend, 1, Bool>::from_bool(
+            TensorData::from([true, false, true]),
+            &device,
+        );
 
         assert_eq!(output.to_data(), expected.to_data());
     }

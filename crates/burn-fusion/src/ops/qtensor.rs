@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Range};
+use std::marker::PhantomData;
 
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, ExpandOpIr, FlipOpIr, FloatOperationIr, GatherOpIr,
@@ -6,7 +6,7 @@ use burn_ir::{
     QuantizationParametersIr, QuantizeOpIr, SelectOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::{
-    DType, Device, Element, Shape, TensorData, TensorMetadata,
+    DType, Device, Element, Shape, Slice, TensorData, TensorMetadata,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantScheme, QuantizationParametersPrimitive},
 };
@@ -148,6 +148,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
+        if tensor.shape == shape.dims {
+            return tensor;
+        }
+
         #[derive(new, Debug)]
         struct ReshapeDimsOps<B: FusionBackend> {
             desc: UnaryOpIr,
@@ -393,7 +397,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
         #[derive(new, Debug)]
         struct SliceOps<B: FusionBackend> {
             desc: SliceOpIr,
@@ -412,18 +416,13 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
-        let ndims = tensor.shape().num_dims();
-        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
-
-        for i in shape.len()..ndims {
-            shape.push(tensor.shape[i]);
-        }
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
 
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
-            ranges: ranges.into(),
+            ranges: slices.into(),
             out: out.to_ir_out(),
         };
         out.client.register(

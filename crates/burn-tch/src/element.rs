@@ -17,8 +17,3 @@ impl TchElement for i8 {}
 impl TchElement for u8 {}
 
 impl TchElement for bool {}
-
-/// A quantized element for the tch backend.
-pub trait QuantElement: TchElement {}
-
-impl QuantElement for i8 {}

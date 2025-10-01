@@ -143,7 +143,12 @@ macro_rules! impl_to_element_int_to_int {
             if size_of::<$SrcT>() <= size_of::<$DstT>() || (min <= *self && *self <= max) {
                 *self as $DstT
             } else {
-                panic!("Element cannot be represented in the target type")
+                panic!(
+                    "Element cannot be represented in the target type: {:?}({:?}) => {:?}",
+                    core::any::type_name::<$SrcT>(),
+                    self,
+                    core::any::type_name::<$DstT>(),
+                )
             }
         }
     )*}
@@ -158,7 +163,12 @@ macro_rules! impl_to_element_int_to_uint {
             if 0 <= *self && (size_of::<$SrcT>() <= size_of::<$DstT>() || *self <= max) {
                 *self as $DstT
             } else {
-                panic!("Element cannot be represented in the target type")
+                panic!(
+                    "Element cannot be represented in the target type: {:?}({:?}) => {:?}",
+                    core::any::type_name::<$SrcT>(),
+                    self,
+                    core::any::type_name::<$DstT>(),
+                )
             }
         }
     )*}
@@ -217,7 +227,12 @@ macro_rules! impl_to_element_uint_to_int {
             if size_of::<$SrcT>() < size_of::<$DstT>() || *self <= max {
                 *self as $DstT
             } else {
-                panic!("Element cannot be represented in the target type")
+                panic!(
+                    "Element cannot be represented in the target type: {:?}({:?}) => {:?}",
+                    core::any::type_name::<$SrcT>(),
+                    self,
+                    core::any::type_name::<$DstT>(),
+                )
             }
         }
     )*}
@@ -232,7 +247,12 @@ macro_rules! impl_to_element_uint_to_uint {
             if size_of::<$SrcT>() <= size_of::<$DstT>() || *self <= max {
                 *self as $DstT
             } else {
-                panic!("Element cannot be represented in the target type")
+                panic!(
+                    "Element cannot be represented in the target type: {:?}({:?}) => {:?}",
+                    core::any::type_name::<$SrcT>(),
+                    self,
+                    core::any::type_name::<$DstT>(),
+                )
             }
         }
     )*}

@@ -7,15 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn neg() {
         let device = Default::default();
-        let model: neg::Model<Backend> = neg::Model::new(&device);
+        let model: neg::Model<TestBackend> = neg::Model::new(&device);
 
-        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let input1 = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
         let input2 = 99f64;
 
         let (output1, output2) = model.forward(input1, input2);

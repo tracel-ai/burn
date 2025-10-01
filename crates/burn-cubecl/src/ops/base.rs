@@ -1,9 +1,11 @@
 use crate::{CubeRuntime, element::CubeElement, kernel, tensor::CubeTensor};
+use burn_common::tensor::{ReshapeAction, reshape_action};
+use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Shape, TensorData,
     quantization::{QTensorPrimitive, QuantLevel},
 };
-use cubecl::{server::BindingWithMeta, tensor_vectorization_factor};
+use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
@@ -17,11 +19,10 @@ pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = size_of::<E>();
-    let shape = tensor.shape.dims.clone();
-    let actual_len = tensor.shape.num_elements() * elem_size;
-    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let shape = &tensor.shape.dims;
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor_async(binding).await;
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
 /// Read data from a `CubeTensor` synchronously
@@ -30,11 +31,10 @@ pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> 
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = size_of::<E>();
-    let shape = tensor.shape.dims.clone();
-    let actual_len = tensor.shape.num_elements() * elem_size;
-    let binding = BindingWithMeta::new(tensor.handle.binding(), shape, tensor.strides, elem_size);
+    let shape = &tensor.shape.dims;
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor.client.read_one_tensor(binding);
-    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
+    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
@@ -164,8 +164,19 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    // TODO: Not force standard layout all the time (improve performance).
+pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+    let analysis = reshape_action(&tensor.shape.dims, &tensor.strides, &shape.dims);
+
+    match analysis {
+        ReshapeAction::UpdateStrides { strides } => {
+            tensor.shape = shape;
+            tensor.strides = strides;
+            return tensor;
+        }
+        ReshapeAction::NoChange => return tensor,
+        ReshapeAction::Recompute => (),
+    }
+
     let tensor = kernel::into_contiguous(tensor);
 
     let mut out = CubeTensor::new_contiguous(
@@ -202,4 +213,45 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim
         .min();
 
     vec.unwrap_or(0)
+}
+
+/// Unfold windows along a dimension.
+///
+/// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+/// where windows are advanced by `step` at each index.
+///
+/// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+///
+/// The new view will have the unfolded dimension replaced by two dimensions;
+/// one in the position of the original dimension, with size equal to the number of windows,
+/// and one appended to the right-most position, with size equal to `size`.
+///
+/// # Arguments
+///
+/// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+/// * `dim` - the dimension to unfold.
+/// * `size` - the size of each unfolded window.
+/// * `step` - the step between each window.
+///
+/// # Returns
+///
+/// A tensor view with the shape ``[pre=..., windows, post=..., size]``.
+pub fn unfold<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    dim: usize,
+    size: usize,
+    step: usize,
+) -> CubeTensor<R> {
+    let shape = calculate_unfold_shape(tensor.shape, dim, size, step);
+
+    let d_stride = tensor.strides[dim];
+    let mut strides = tensor.strides.clone();
+    strides[dim] = step * d_stride;
+    strides.push(d_stride);
+
+    CubeTensor {
+        shape: shape.into(),
+        strides,
+        ..tensor
+    }
 }

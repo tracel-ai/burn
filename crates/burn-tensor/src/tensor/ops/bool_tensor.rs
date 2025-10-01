@@ -7,7 +7,7 @@ use crate::{
     tensor::Shape,
 };
 use alloc::vec::Vec;
-use core::{future::Future, ops::Range};
+use core::future::Future;
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -23,6 +23,30 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The boolean tensor with the given shape.
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
+
+    /// Creates a new bool tensor filled false.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor filled with false.
+    fn bool_zeros(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
+
+    /// Creates a new bool tensor filled true.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor filled with true.
+    fn bool_ones(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
 
     /// Converts the tensor to a data structure.
     ///
@@ -100,12 +124,12 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `ranges` - The ranges to get the values from.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
-    /// The tensor with the values for the given ranges.
-    fn bool_slice(tensor: BoolTensor<B>, ranges: &[Range<usize>]) -> BoolTensor<B>;
+    /// The tensor with the values for the given slices.
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[crate::Slice]) -> BoolTensor<B>;
 
     /// Sets the values in the tensor for the given ranges.
     ///
@@ -120,9 +144,54 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the values set for the given ranges.
     fn bool_slice_assign(
         tensor: BoolTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: BoolTensor<B>,
     ) -> BoolTensor<B>;
+
+    /// Select tensor elements along the given dimension corresponding to the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices of the elements to select.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements.
+    fn bool_select(tensor: BoolTensor<B>, dim: usize, indices: IntTensor<B>) -> BoolTensor<B> {
+        // Default implementation: convert to int, select, then convert back to bool
+        let int_tensor = B::bool_into_int(tensor);
+        let selected = B::int_select(int_tensor, dim, indices);
+        B::int_equal_elem(selected, 1_i32.elem())
+    }
+
+    /// Assign the selected elements along the given dimension corresponding to the given indices
+    /// to the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to assign the values to.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices of the elements to assign.
+    /// * `value` - The values to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the assigned values.
+    fn bool_select_assign(
+        tensor: BoolTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: BoolTensor<B>,
+    ) -> BoolTensor<B> {
+        // Default implementation: convert to int, select_assign, then convert back to bool
+        let int_tensor = B::bool_into_int(tensor);
+        let int_values = B::bool_into_int(value);
+        let assigned = B::int_select_assign(int_tensor, dim, indices, int_values);
+        // After select_assign with sum reduction, any non-zero value should be true
+        B::int_greater_elem(assigned, 0_i32.elem())
+    }
 
     /// Repeats one dimension of the tensor a given number of times along that dimension.
     ///
@@ -214,6 +283,20 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the result of the logical or.
     fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Element-wise exclusive or.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the comparison.
+    fn bool_xor(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        Self::bool_not_equal(lhs, rhs)
+    }
 
     /// Transposes a bool tensor.
     ///
@@ -350,4 +433,23 @@ pub trait BoolTensorOps<B: Backend> {
 
     /// Broadcasts the bool `tensor` to the given `shape`.
     fn bool_expand(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B>;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn bool_unfold(tensor: BoolTensor<B>, dim: usize, size: usize, step: usize) -> BoolTensor<B>;
 }

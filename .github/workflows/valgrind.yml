@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v3
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v4
 
     - name: Install valgrind
       run: |

@@ -9,15 +9,15 @@ mod tests {
     use core::f64::consts;
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn conv1d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv1d::Model<Backend> = conv1d::Model::default();
+        let model: conv1d::Model<TestBackend> = conv1d::Model::default();
 
         // Run the model with pi as input for easier testing
-        let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI, &Default::default());
+        let input = Tensor::<TestBackend, 3>::full([6, 4, 10], consts::PI, &Default::default());
 
         let output = model.forward(input);
 
@@ -35,10 +35,10 @@ mod tests {
     #[test]
     fn conv2d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv2d::Model<Backend> = conv2d::Model::default();
+        let model: conv2d::Model<TestBackend> = conv2d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &Default::default());
 
         let output = model.forward(input);
 
@@ -57,10 +57,10 @@ mod tests {
     #[test]
     fn conv3d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv3d::Model<Backend> = conv3d::Model::default();
+        let model: conv3d::Model<TestBackend> = conv3d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+        let input = Tensor::<TestBackend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
 
         let output = model.forward(input);
 

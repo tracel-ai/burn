@@ -1,9 +1,10 @@
 use crate::metric::{
-    Metric,
+    Metric, MetricName,
     store::{Aggregate, Direction, EventStoreClient, Split},
 };
 
 /// The condition that [early stopping strategies](EarlyStoppingStrategy) should follow.
+#[derive(Clone)]
 pub enum StoppingCondition {
     /// When no improvement has happened since the given number of epochs.
     NoImprovementSince {
@@ -13,16 +14,41 @@ pub enum StoppingCondition {
 }
 
 /// A strategy that checks if the training should be stopped.
-pub trait EarlyStoppingStrategy {
+pub trait EarlyStoppingStrategy: Send {
     /// Update its current state and returns if the training should be stopped.
     fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool;
 }
 
+/// A helper trait to provide type-erased cloning.
+pub trait CloneEarlyStoppingStrategy: EarlyStoppingStrategy + Send {
+    /// Clone into a boxed trait object.
+    fn clone_box(&self) -> Box<dyn CloneEarlyStoppingStrategy>;
+}
+
+/// Blanket-implement `CloneEarlyStoppingStrategy` for any `T` that
+/// already implements your strategy + `Clone` + `Send` + `'static`.
+impl<T> CloneEarlyStoppingStrategy for T
+where
+    T: EarlyStoppingStrategy + Clone + Send + 'static,
+{
+    fn clone_box(&self) -> Box<dyn CloneEarlyStoppingStrategy> {
+        Box::new(self.clone())
+    }
+}
+
+/// Now you can `impl Clone` for the boxed trait object.
+impl Clone for Box<dyn CloneEarlyStoppingStrategy> {
+    fn clone(&self) -> Box<dyn CloneEarlyStoppingStrategy> {
+        self.clone_box()
+    }
+}
+
 /// An [early stopping strategy](EarlyStoppingStrategy) based on a metrics collected
 /// during training or validation.
+#[derive(Clone)]
 pub struct MetricEarlyStoppingStrategy {
     condition: StoppingCondition,
-    metric_name: String,
+    metric_name: MetricName,
     aggregate: Aggregate,
     direction: Direction,
     split: Split,
@@ -122,7 +148,7 @@ mod tests {
         metric::{
             LossMetric,
             processor::{
-                Metrics, MinimalEventProcessor,
+                MetricsTraining, MinimalEventProcessor,
                 test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
@@ -195,7 +221,7 @@ mod tests {
             StoppingCondition::NoImprovementSince { n_epochs },
         );
         let mut store = LogEventStore::default();
-        let mut metrics = Metrics::<f64, f64>::default();
+        let mut metrics = MetricsTraining::<f64, f64>::default();
 
         store.register_logger_train(InMemoryMetricLogger::default());
         metrics.register_train_metric_numeric(loss);

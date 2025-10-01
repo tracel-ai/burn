@@ -1,0 +1,28 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "multi-gpus"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+f16 = []
+flex32 = []
+tch-gpu = ["burn/tch"]
+cuda = ["burn/cuda"]
+rocm = ["burn/rocm"]
+
+[dependencies]
+# Burn
+burn = { path = "../../crates/burn", features = [
+    "autotune",
+    "fusion",
+    "collective",
+    "train",
+    "std",
+], default-features = false }

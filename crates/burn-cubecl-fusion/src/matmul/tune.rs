@@ -1,7 +1,8 @@
 use crate::{
     CubeFusionHandle,
     matmul::optimization::{
-        DoubleBuffering, DoubleUnit, Ordered, Simple, SimpleMultiRows, SimpleUnit, Specialized,
+        DoubleBuffering, DoubleUnit, DoubleVecMat, Ordered, Simple, SimpleMultiRows, SimpleUnit,
+        SimpleVecMat, Specialized,
     },
     shared::trace::TuneOutput,
     tune::{TuneContext, TuneInput},
@@ -83,6 +84,8 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         TunableSet::new(create_key::<R>, input_gen::<R>)
             .with(Tunable::new(tune_fallback::<R, BT>)) // First one should always work.
             .with(Tunable::new(tune_fused::<R, BT, SimpleUnit>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, SimpleVecMat>).group(&unit, |_| PRIORITY_MAX))
+            .with(Tunable::new(tune_fused::<R, BT, DoubleVecMat>).group(&unit, |_| PRIORITY_MAX))
             .with(
                 Tunable::new(tune_fused::<R, BT, DoubleUnit>).group(&unit, |key| {
                     double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH)
@@ -174,7 +177,12 @@ fn tune_fused<R: Runtime, BT: CubeElement, S: MatmulVariantSelection>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_fused::<BT, S>(context),
+        TuneContext::Original(context) => match optimization.execute_fused::<BT, S>(context) {
+            Ok(out) => Ok(out),
+            Err(_) => {
+                return tune_fallback::<R, BT>(input);
+            }
+        },
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fused::<BT, S>(&mut context_owned.as_context())
         }

@@ -1,9 +1,9 @@
 #[burn_tensor_testgen::testgen(module_bilinear_interpolate)]
 mod tests {
     use super::*;
-    use burn_tensor::Shape;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+    use burn_tensor::{DType, Shape};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -133,6 +133,84 @@ mod tests {
         ]]]])
         .to_data()
         .assert_approx_eq::<FT>(&output.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_interpolate_coord_float_precision_boundary() {
+        let test = InterpolateTestCase {
+            batch_size: 1,
+            channels: 1,
+            height: 28,
+            width: 4,
+            height_out: 24,
+            width_out: 2,
+        };
+
+        test.assert_output(TestTensor::from([[[
+            [0.0, 3.0],
+            [4.6956, 7.6956],
+            [9.3913, 12.3913],
+            [14.0869, 17.0869],
+            [18.7826, 21.7826],
+            [23.4782, 26.4782],
+            [28.1739, 31.1739],
+            [32.8695, 35.8695],
+            [37.5652, 40.5652],
+            [42.2608, 45.2608],
+            [46.9565, 49.9565],
+            [51.6521, 54.6521],
+            [56.3478, 59.3478],
+            [61.0434, 64.0434],
+            [65.7391, 68.7391],
+            [70.4347, 73.4347],
+            [75.1304, 78.1304],
+            [79.8260, 82.8260],
+            [84.5217, 87.5217],
+            [89.2173, 92.2173],
+            [93.9130, 96.9130],
+            [98.6086, 101.6086],
+            [103.3043, 106.3043],
+            [108.0, 111.0],
+        ]]]));
+    }
+
+    #[test]
+    fn should_interpolate_cast() {
+        let device = Default::default();
+        let shape_x = Shape::new([1, 1, 4, 4]);
+        let x = TestTensor::from(
+            TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
+                .reshape::<4, _>(shape_x)
+                .into_data(),
+        )
+        .cast(DType::F32); // ok for f32 backends, casts dtype for f16 tests
+        let output = interpolate(
+            x,
+            [8, 8],
+            InterpolateOptions::new(InterpolateMode::Bilinear),
+        );
+
+        let expected = TestTensor::<4>::from([[[
+            [0.0, 0.42857, 0.8571, 1.2857, 1.7142, 2.1428, 2.5714, 3.0],
+            [1.7142, 2.1428, 2.5714, 3.0, 3.4285, 3.8571, 4.2857, 4.7142],
+            [3.4285, 3.8571, 4.2857, 4.7142, 5.1428, 5.5714, 6.0, 6.4285],
+            [5.1428, 5.5714, 6.0, 6.4285, 6.8571, 7.2857, 7.7142, 8.1428],
+            [6.8571, 7.2857, 7.7142, 8.1428, 8.5714, 9.0, 9.4285, 9.8571],
+            [
+                8.5714, 9.0, 9.4285, 9.8571, 10.2857, 10.7142, 11.1428, 11.5714,
+            ],
+            [
+                10.2857, 10.7142, 11.1428, 11.5714, 12.0, 12.4285, 12.8571, 13.2857,
+            ],
+            [
+                12.0, 12.4285, 12.8571, 13.2857, 13.7142, 14.1428, 14.5714, 15.0,
+            ],
+        ]]]);
+
+        let tolerance = Tolerance::permissive();
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), tolerance);
     }
 
     struct InterpolateTestCase {

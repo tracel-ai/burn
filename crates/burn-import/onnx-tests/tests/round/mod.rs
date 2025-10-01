@@ -6,17 +6,17 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn round_test() {
         // Test for round
         let device = Default::default();
-        let model = round::Model::<Backend>::new(&device);
+        let model = round::Model::<TestBackend>::new(&device);
 
-        let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
-        let expected = Tensor::<Backend, 1>::from_floats([0., 2., 2.], &device);
+        let input = Tensor::<TestBackend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
+        let expected = Tensor::<TestBackend, 1>::from_floats([0., 2., 2.], &device);
 
         let output = model.forward(input);
 

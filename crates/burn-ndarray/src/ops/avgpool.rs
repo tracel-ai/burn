@@ -1,25 +1,23 @@
-use crate::{element::FloatNdArrayElement, sharing::UnsafeSharedRef, tensor::NdArrayTensor};
+use crate::{SharedArray, element::FloatNdArrayElement, sharing::UnsafeSharedRef};
 use burn_common::{iter_range_par, run_par};
 
-use burn_tensor::{ElementConversion, TensorMetadata};
+use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
 pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
-    let [batch_size, channels, x_height, x_width] = x.shape().dims();
+    let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
 
     let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
     let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
-
-    let x = x.array;
 
     let mut output = Array4::from_elem((batch_size, channels, out_height, out_width), 0.elem());
     let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
@@ -67,24 +65,22 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
         })
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
 pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    grad: NdArrayTensor<E>,
+    x: SharedArray<E>,
+    grad: SharedArray<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [stride_height, stride_width] = stride;
     let [padding_height, padding_width] = padding;
-    let [batch_size, channels, x_height, x_width] = x.shape().dims();
-    let [_batch_size, _channels, out_height, out_width] = grad.shape().dims();
-
-    let grad = grad.array;
+    let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
+    let [_batch_size, _channels, out_height, out_width] = grad.shape().try_into().unwrap();
 
     let mut output_grad = Array4::from_elem((batch_size, channels, x_height, x_width), 0.elem());
     let unsafe_shared_grad = UnsafeSharedRef::new(&mut output_grad);
@@ -129,5 +125,5 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
         })
     });
 
-    NdArrayTensor::new(output_grad.into_dyn().into_shared())
+    output_grad.into_dyn().into_shared()
 }

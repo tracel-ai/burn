@@ -136,10 +136,7 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
             use burn::nn::Linear;
             use burn::nn::LinearConfig;
 

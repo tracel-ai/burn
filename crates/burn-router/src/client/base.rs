@@ -1,26 +1,19 @@
+use crate::{RouterTensor, RunnerChannel};
 use alloc::{boxed::Box, vec::Vec};
 use burn_common::future::DynFut;
-use core::{
-    ops::DerefMut,
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
-};
-use hashbrown::HashMap;
-
-use spin::Mutex;
-
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{
     DType, FloatDType, TensorData,
     backend::{DeviceId, DeviceOps},
 };
-
-use crate::{RouterTensor, RunnerChannel};
+use core::ops::DerefMut;
+use hashbrown::HashMap;
+use spin::Mutex;
 
 /// Type alias for `<R as RunnerChannel>::Client`.
 pub type Client<R> = <R as RunnerChannel>::Client;
 pub(crate) static CLIENTS: RunnerClientLocator = RunnerClientLocator::new();
-static SEED_SET: AtomicBool = AtomicBool::new(false);
-static SEED: AtomicU64 = AtomicU64::new(0);
+
 type Key = (core::any::TypeId, DeviceId);
 
 /// Define how to interact with the runner.
@@ -55,28 +48,11 @@ pub fn get_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
 }
 
-pub(crate) fn set_seed(seed: u64) {
-    SEED_SET.store(true, Ordering::Relaxed);
-    SEED.store(seed, Ordering::Relaxed);
-}
-
-fn get_seed() -> Option<u64> {
-    if SEED_SET.load(Ordering::Relaxed) {
-        Some(SEED.load(Ordering::Relaxed))
-    } else {
-        None
-    }
-}
-
 /// Initialize a new client for the given device.
 ///
 /// If a (global) seed was previously set, the client seed is set.
 fn new_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
-    let client = R::init_client(device);
-    if let Some(seed) = get_seed() {
-        client.seed(seed)
-    }
-    client
+    R::init_client(device)
 }
 
 impl RunnerClientLocator {

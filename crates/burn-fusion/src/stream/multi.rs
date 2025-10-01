@@ -78,13 +78,13 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
 
-        if num_executed > 0 {
-            if let Some(stream) = self.streams.get_mut(&id) {
-                let cleared = self.shared_tensors.on_executed_ops(id, stream);
-                self.clear_shared_tensors(&cleared, id);
-                let to_drop = self.shared_tensors.clear_tensors(cleared);
-                self.drop_shared_tensors(to_drop, handles, id);
-            }
+        if num_executed > 0
+            && let Some(stream) = self.streams.get_mut(&id)
+        {
+            let cleared = self.shared_tensors.on_executed_ops(id, stream);
+            self.clear_shared_tensors(&cleared, id);
+            let to_drop = self.shared_tensors.clear_tensors(cleared);
+            self.drop_shared_tensors(to_drop, handles, id);
         }
 
         let stream = match self.streams.get(&id) {
@@ -195,6 +195,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(stream) = self.streams.get_mut(&id) {
+            let old = unsafe { StreamId::swap(id) };
             let num_executed = stream.queue.global.len();
             stream.processor.process(
                 Segment::new(&mut stream.queue, handles),
@@ -208,6 +209,9 @@ impl<R: FusionRuntime> MultiStream<R> {
             let to_drop = self.shared_tensors.clear_tensors(cleared);
 
             self.drop_shared_tensors(to_drop, handles, id);
+            unsafe {
+                StreamId::swap(old);
+            };
         }
     }
 
@@ -262,7 +266,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 .shared_tensors
                 .analyse(current, node, streams, &self.streams);
             match analysis {
-                SharedTensorAnalysis::SharedFromCurrentStrean => {
+                SharedTensorAnalysis::SharedFromCurrentStream => {
                     shared_analysis.current.push(node.id);
                 }
                 SharedTensorAnalysis::NotShared => {}
@@ -311,6 +315,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         for id in streams_to_sync.drain() {
+            log::info!("Drain stream {id} for use in current {current}");
             self.resolve_stream(handles, id, nodes);
         }
     }
@@ -344,10 +349,10 @@ impl<R: FusionRuntime> MultiStream<R> {
     ) {
         for (stream_id, s) in self.streams.iter_mut() {
             for tensor in tensors.iter() {
-                if let Some((original, _status)) = s.queue.variables.get(&tensor.id) {
-                    if original != stream_id {
-                        s.queue.variables.remove(&tensor.id);
-                    }
+                if let Some((original, _status)) = s.queue.variables.get(&tensor.id)
+                    && original != stream_id
+                {
+                    s.queue.variables.remove(&tensor.id);
                 }
             }
         }

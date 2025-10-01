@@ -23,6 +23,7 @@ pub struct UnaryNode {
 pub enum UnaryNodeKind {
     // Input and output tensor types (required for codegen imports)
     Cast(Option<TensorKind>, Option<TensorKind>),
+    Abs,
     Cos,
     Cosh,
     Erf,
@@ -37,11 +38,6 @@ pub enum UnaryNodeKind {
     LogSoftmax,
     Neg,
     Not,
-    ReduceMax,
-    ReduceMin,
-    ReduceMean,
-    ReduceProd,
-    ReduceSum,
     Reciprocal,
     Relu,
     Shape,
@@ -61,6 +57,7 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast(..) => "cast",
+            Self::Abs => "abs",
             Self::Cos => "cos",
             Self::Cosh => "cosh",
             Self::Erf => "erf",
@@ -75,11 +72,6 @@ impl UnaryNodeKind {
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
             Self::Not => "not",
-            Self::ReduceMax => "reduce_max",
-            Self::ReduceMin => "reduce_min",
-            Self::ReduceMean => "reduce_mean",
-            Self::ReduceProd => "reduce_prod",
-            Self::ReduceSum => "reduce_sum",
             Self::Reciprocal => "reciprocal",
             Self::Relu => "relu",
             Self::Shape => "shape",
@@ -128,7 +120,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
                 let name = scalar.name.clone();
                 quote! { #name }
             }
-            _ => panic!("lhs must be a tensor or scalar"),
+            Type::Shape(shape) => {
+                let name = &shape.name;
+                quote! { #name }
+            }
+            _ => panic!("Input must be a tensor, scalar, or shape"),
         };
 
         let output = &self.output.name();
@@ -137,8 +133,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
         match &self.output {
             Type::Shape(shape_type) => {
                 let dim = shape_type.rank.to_tokens();
+
+                // Shape operations now return i64 directly from the shape function
                 quote! {
-                    let #output: [usize;#dim] = #function.try_into().unwrap();
+                    let #output: [i64;#dim] = #function;
                 }
             }
             _ => {
@@ -159,21 +157,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
             UnaryNodeKind::Neg => {
                 imports.register("core::ops::Neg");
             }
-            UnaryNodeKind::Not => {
-                imports.register("burn::tensor::Bool");
-            }
-            UnaryNodeKind::Cast(Some(input_kind), Some(output_kind)) => {
-                if input_kind == TensorKind::Bool || output_kind == TensorKind::Bool {
-                    imports.register("burn::tensor::Bool");
-                }
-                if input_kind == TensorKind::Int || output_kind == TensorKind::Int {
-                    imports.register("burn::tensor::Int");
-                }
-            }
-            UnaryNodeKind::IsNaN | UnaryNodeKind::IsInf => {
-                if matches!(self.output, Type::Tensor(_)) {
-                    imports.register("burn::tensor::Bool");
-                }
+            UnaryNodeKind::Shape => {
+                imports.register("alloc::vec::Vec");
             }
             _ => {}
         }
@@ -245,6 +230,11 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
     }
 
+    pub(crate) fn abs(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.abs()};
+        Self::new(input, output, UnaryNodeKind::Abs, Rc::new(function))
+    }
+
     pub(crate) fn tan(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.tan()};
         Self::new(input, output, UnaryNodeKind::Tan, Rc::new(function))
@@ -312,213 +302,33 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Not, Rc::new(function))
     }
 
-    /// Casts the input to the output type.
-    pub(crate) fn cast(input: Type, output: Type) -> Self {
-        match (input.clone(), output.clone()) {
-            (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
-                if input_scalar.kind == output_scalar.kind {
-                    // If the input and output types are the same, we don't need to cast.
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(None, None),
-                        Rc::new(|input| input),
-                    )
-                } else {
-                    // If the input and output types are different, we need to cast.
-                    let ty = output_scalar.ty();
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(None, None),
-                        Rc::new(move |input| quote! { #input as #ty }),
-                    )
-                }
-            }
-            (Type::Tensor(input_tensor), Type::Tensor(output_tensor)) => {
-                if input_tensor.kind == output_tensor.kind {
-                    // If the input and output types are the same, we don't need to cast.
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
-                        Rc::new(|input| input),
-                    )
-                } else {
-                    // If the input and output types are different, we need to cast.
-                    let function = match output_tensor.kind {
-                        TensorKind::Bool => move |input| quote! { #input.bool()},
-                        TensorKind::Int => move |input| quote! { #input.int()},
-                        TensorKind::Float => move |input| quote! { #input.float()},
-                    };
-
-                    Self::new(
-                        input,
-                        output,
-                        UnaryNodeKind::Cast(Some(input_tensor.kind), Some(output_tensor.kind)),
-                        Rc::new(function),
-                    )
-                }
-            }
-            _ => panic!("output must be a tensor or scalar"),
-        }
-    }
-
-    pub(crate) fn reduce_max(input: Type, output: Type, dim: Option<usize>) -> Self {
-        if let Type::Tensor(ref tensor) = output {
-            if let Some(dim) = dim {
-                if tensor.kind == TensorKind::Bool {
-                    // Max is only implemented on numeric tensors
-                    panic!("ReduceMax is not supported for boolean");
-                }
-
-                // ReduceMax, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMax,
-                    Rc::new(move |input| quote! { #input.max_dim(#dim) }),
-                )
-            } else {
-                // ReduceMax, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMax,
-                    Rc::new(move |input| quote! { #input.max() }),
-                )
-            }
-        } else {
-            panic!("ReduceMax only supports tensor output");
-        }
-    }
-
-    pub(crate) fn reduce_min(input: Type, output: Type, dim: Option<usize>) -> Self {
-        if let Type::Tensor(ref tensor) = output {
-            if let Some(dim) = dim {
-                if tensor.kind == TensorKind::Bool {
-                    // Min is only implemented on numeric tensors
-                    panic!("ReduceMin is not supported for boolean");
-                }
-                // ReduceMin, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMin,
-                    Rc::new(move |input| quote! { #input.min_dim(#dim) }),
-                )
-            } else {
-                // ReduceMin, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMin,
-                    Rc::new(move |input| quote! { #input.min() }),
-                )
-            }
-        } else {
-            panic!("ReduceMin only supports tensor output");
-        }
-    }
-
-    pub(crate) fn reduce_mean(input: Type, output: Type, dim: Option<usize>) -> Self {
-        // ReduceMean is constrained to numeric tensors, so no need to check for bool.
-        if let Type::Tensor(_) = output {
-            if let Some(dim) = dim {
-                // ReduceMean, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMean,
-                    Rc::new(move |input| quote! { #input.mean_dim(#dim) }),
-                )
-            } else {
-                // ReduceMean, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceMean,
-                    Rc::new(move |input| quote! { #input.mean() }),
-                )
-            }
-        } else {
-            panic!("ReduceMean only supports tensor output");
-        }
-    }
-
-    pub(crate) fn reduce_prod(input: Type, output: Type, dim: Option<usize>) -> Self {
-        if let Type::Tensor(ref tensor) = output {
-            if let Some(dim) = dim {
-                if tensor.kind == TensorKind::Bool {
-                    // Prod is only implemented on numeric tensors
-                    panic!("ReduceProd is not supported for boolean");
-                }
-
-                // ReduceProd, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceProd,
-                    Rc::new(move |input| quote! { #input.prod_dim(#dim) }),
-                )
-            } else {
-                // ReduceProd, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceProd,
-                    Rc::new(move |input| quote! { #input.prod() }),
-                )
-            }
-        } else {
-            panic!("ReduceProd only supports tensor output");
-        }
-    }
-
-    pub(crate) fn reduce_sum(input: Type, output: Type, dim: Option<usize>) -> Self {
-        if let Type::Tensor(ref tensor) = output {
-            if let Some(dim) = dim {
-                if tensor.kind == TensorKind::Bool {
-                    // Sum is only implemented on numeric tensors
-                    panic!("ReduceSum is not supported for boolean");
-                }
-
-                // ReduceSum, keepdims=1, axes=[dim]
-                let dim = dim.to_tokens();
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceSum,
-                    Rc::new(move |input| quote! { #input.sum_dim(#dim) }),
-                )
-            } else {
-                // ReduceSum, keepdims=0, axes=None
-                Self::new(
-                    input,
-                    output,
-                    UnaryNodeKind::ReduceSum,
-                    Rc::new(move |input| quote! { #input.sum() }),
-                )
-            }
-        } else {
-            panic!("ReduceSum only supports tensor output");
-        }
-    }
-
     pub(crate) fn shape(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
-        let start_dim = start_dim.to_tokens();
-        let end_dim = end_dim.to_tokens();
+        let start_dim_tok = start_dim.to_tokens();
+        let end_dim_tok = end_dim.to_tokens();
 
-        let function = move |input| {
-            quote! {
-                #input.dims()[#start_dim..#end_dim]
+        let function: Rc<dyn Fn(TokenStream) -> TokenStream> = match &input {
+            Type::Tensor(_) => Rc::new(move |input| {
+                quote! {
+                    #input.dims()[#start_dim_tok..#end_dim_tok]
+                        .iter()
+                        .map(|&x| x as i64)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                }
+            }),
+            Type::Shape(shape_type) => {
+                // If input is already a shape array [i64; N], the Shape operation
+                // returns the dimensionality of the shape (which is N) as a Shape(1) array
+                // This matches the ONNX semantics where Shape of a shape gives you the rank
+                let rank_value = shape_type.rank as i64;
+                Rc::new(move |_input| {
+                    quote! { [#rank_value] }
+                })
             }
+            _ => panic!("Shape operation only supports Tensor or Shape inputs"),
         };
-        Self::new(input, output, UnaryNodeKind::Shape, Rc::new(function))
+        Self::new(input, output, UnaryNodeKind::Shape, function)
     }
 
     pub(crate) fn sign(input: Type, output: Type) -> Self {
@@ -790,191 +600,6 @@ mod tests {
     }
 
     #[test]
-    fn test_unary_codegen_reduce_max() {
-        one_node_graph(
-            UnaryNode::reduce_max(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.max_dim(1);
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        one_node_graph(
-            UnaryNode::reduce_max(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 1)),
-                None,
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.max();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_reduce_min() {
-        one_node_graph(
-            UnaryNode::reduce_min(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.min_dim(1);
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        one_node_graph(
-            UnaryNode::reduce_min(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 1)),
-                None,
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.min();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_reduce_mean() {
-        one_node_graph(
-            UnaryNode::reduce_mean(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.mean_dim(1);
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        one_node_graph(
-            UnaryNode::reduce_mean(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 1)),
-                None,
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.mean();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_reduce_prod() {
-        one_node_graph(
-            UnaryNode::reduce_prod(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.prod_dim(1);
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        one_node_graph(
-            UnaryNode::reduce_prod(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 1)),
-                None,
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.prod();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_reduce_sum() {
-        one_node_graph(
-            UnaryNode::reduce_sum(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-                Some(1),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.sum_dim(1);
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        one_node_graph(
-            UnaryNode::reduce_sum(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 1)),
-                None,
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 1> {
-                    let tensor2 = tensor1.sum();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
     fn test_unary_codegen_reciprocal() {
         one_node_graph(
             UnaryNode::reciprocal(
@@ -984,85 +609,6 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.recip();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-    }
-
-    #[test]
-    fn test_unary_codegen_cast() {
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
-                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float32)),
-            ),
-            quote! {
-                pub fn forward(&self, scalar1: f64) -> f32 {
-                    let scalar2 = scalar1 as f32;
-
-                    scalar2
-                }
-            },
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float32)),
-                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
-            ),
-            quote! {
-                pub fn forward(&self, scalar1: f32) -> f64 {
-                    let scalar2 = scalar1 as f64;
-
-                    scalar2
-                }
-            },
-            vec!["scalar1".to_string()],
-            vec!["scalar2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_int("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Int> {
-                    let tensor2 = tensor1.int();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_int("tensor1", 4)),
-                Type::Tensor(TensorType::new_float("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4, Int>) -> Tensor<B, 4> {
-                    let tensor2 = tensor1.float();
-
-                    tensor2
-                }
-            },
-            vec!["tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-        one_node_graph(
-            UnaryNode::cast(
-                Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Tensor(TensorType::new_bool("tensor2", 4)),
-            ),
-            quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
-                    let tensor2 = tensor1.bool();
 
                     tensor2
                 }
@@ -1229,13 +775,18 @@ mod tests {
         one_node_graph(
             UnaryNode::shape(
                 Type::Tensor(TensorType::new_float("tensor1", 4)),
-                Type::Shape(ShapeType::new("shape1", 4)),
+                Type::Shape(ShapeType::new("shape1", 2)),
                 1,
                 3,
             ),
             quote! {
-                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [usize; 4] {
-                    let shape1: [usize; 4] = tensor1.dims()[1..3].try_into().unwrap();
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> [i64; 2] {
+                    let shape1: [i64; 2] = tensor1.dims()[1..3]
+                        .iter()
+                        .map(|&x| x as i64)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
 
                     shape1
                 }
@@ -1444,6 +995,25 @@ mod tests {
             },
             vec!["scalar1".to_string()],
             vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_abs() {
+        one_node_graph(
+            UnaryNode::abs(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.abs();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 }

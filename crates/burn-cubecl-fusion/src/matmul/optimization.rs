@@ -10,6 +10,7 @@ use crate::shared::ir::RefLayout;
 use crate::shared::trace::TraceError;
 use crate::shared::trace::TuneOutput;
 use crate::shared::trace::Vectorization;
+use crate::shared::trace::VectorizationHandle;
 use crate::shared::trace::vectorization::LineSizeOverrides;
 use crate::shared::trace::vectorization::Vect;
 use crate::shared::trace::vectorization::vectorization_default;
@@ -18,16 +19,10 @@ use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use burn_ir::TensorId;
 use burn_ir::TensorIr;
-use cubecl::ir::Elem;
-use cubecl::matmul::components;
-use cubecl::matmul::components::AvailableLineSizes;
-use cubecl::matmul::components::MatmulLineSizes;
-use cubecl::matmul::components::MatmulPrecision;
-use cubecl::matmul::components::MatmulProblem;
-use cubecl::matmul::components::MatmulSetupError;
-use cubecl::matmul::components::tile::TileMatmulFamily;
-use cubecl::matmul::components::tile::accelerated::AcceleratedMatmul;
-use cubecl::matmul::kernels::layered::Algorithm;
+use cubecl::features::TypeUsage;
+use cubecl::matmul::components::AccG;
+use cubecl::matmul::components::AccS;
+use cubecl::matmul::components::tile::io::Filled;
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -38,8 +33,21 @@ use cubecl::matmul::kernels::layered::ordered_double_buffering::OrderedSelection
 use cubecl::matmul::kernels::layered::simple::SimpleAlgorithm;
 use cubecl::matmul::kernels::layered::simple::SimpleArgs;
 use cubecl::matmul::kernels::layered::simple_unit::SimpleUnitAlgorithm;
+use cubecl::matmul::kernels::layered::vecmat::DoubleVecMatAlgorithm;
+use cubecl::matmul::kernels::layered::vecmat::SimpleVecMatAlgorithm;
+use cubecl::matmul::{
+    components::{LhsS, MatmulLineSizes, MatmulPrecision},
+    kernels::layered::Algorithm,
+};
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
+use cubecl::{
+    matmul::components::{
+        self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+        tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+    },
+    std::CubeOption,
+};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +82,8 @@ pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MatmulVariants {
     pub(crate) simple_unit: FusedMatmul,
+    pub(crate) simple_vec_mat: FusedMatmul,
+    pub(crate) double_vec_mat: FusedMatmul,
     pub(crate) double_unit: FusedMatmul,
     pub(crate) simple: FusedMatmul,
     pub(crate) simple_multi_rows: FusedMatmul,
@@ -102,6 +112,8 @@ impl MatmulVariants {
 
         Self {
             simple_unit: selector(FusedMatmulSelector::SimpleUnit(line_sizes.clone())),
+            simple_vec_mat: selector(FusedMatmulSelector::SimpleVecMat(line_sizes.clone())),
+            double_vec_mat: selector(FusedMatmulSelector::DoubleVecMat(line_sizes.clone())),
             double_unit: selector(FusedMatmulSelector::DoubleUnit(line_sizes)),
             simple: selector(FusedMatmulSelector::Simple),
             simple_multi_rows: selector(FusedMatmulSelector::SimpleMultiRows),
@@ -267,6 +279,8 @@ pub enum FusedMatmulSelector {
     DoubleBuffering,
     Specialized,
     OrderedDoubleBuffering,
+    SimpleVecMat(LineSizeOverrides),
+    DoubleVecMat(LineSizeOverrides),
     SimpleUnit(LineSizeOverrides),
     DoubleUnit(LineSizeOverrides),
 }
@@ -299,36 +313,33 @@ impl<R: Runtime> Vectorization<R> for FusedMatmul {
         &self,
         context: &Context<'_, CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
-        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorIr>,
+        inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-        ref_elem: &Elem,
+        line_sizes: &[u8],
         max: u8,
         axis: Option<usize>,
     ) {
         match &self.selector {
             FusedMatmulSelector::SimpleUnit(line_size_overrides) => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,
                 swapped,
-                ref_elem,
+                line_sizes,
                 &line_size_overrides.mapping(context),
                 max,
                 axis,
             ),
             _ => vectorization_default(
                 vectorizations,
-                handles_inputs,
                 inputs,
                 outputs,
                 reshaped,
                 swapped,
-                ref_elem,
+                line_sizes,
                 &Default::default(),
                 max,
                 axis,
@@ -434,9 +445,16 @@ impl FusedMatmul {
             FusedMatmulSelector::Simple | FusedMatmulSelector::SimpleMultiRows => {
                 let multi_rows = matches!(self.selector, FusedMatmulSelector::SimpleMultiRows);
 
-                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul>>(
+                match launch_inner_fix_dtype::<R, EG, SimpleAlgorithm<AcceleratedMatmul<Filled>>>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -452,10 +470,17 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    CyclicDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -474,10 +499,17 @@ impl FusedMatmul {
                 match launch_inner_fix_dtype::<
                     R,
                     EG,
-                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul>,
+                    OrderedDoubleBufferingAlgorithm<AcceleratedMatmul<Filled>>,
                 >(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -494,7 +526,14 @@ impl FusedMatmul {
             FusedMatmulSelector::SimpleUnit(..) => {
                 match launch_inner_fix_dtype::<R, EG, SimpleUnitAlgorithm>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -507,7 +546,54 @@ impl FusedMatmul {
             FusedMatmulSelector::DoubleUnit(..) => {
                 match launch_inner_fix_dtype::<R, EG, DoubleUnitAlgorithm>(
                     client,
-                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::SimpleVecMat(..) => {
+                match launch_inner_fix_dtype::<R, EG, SimpleVecMatAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
+                    outputs,
+                    problem,
+                    line_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::DoubleVecMat(..) => {
+                match launch_inner_fix_dtype::<R, EG, DoubleVecMatAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config,
+                        &self.lhs,
+                        &self.rhs,
+                        &CubeOption::None,
+                        &self.out,
+                    ),
                     outputs,
                     problem,
                     line_sizes,
@@ -521,7 +607,7 @@ impl FusedMatmul {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
+fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
@@ -541,14 +627,39 @@ fn launch_inner_fix_dtype<'a, R: Runtime, EG: MatmulPrecision, A: Algorithm>(
     let plane_size = fix_plane_dim(A::select_plane_dim::<R>(client));
 
     if <A::TileMatmul as TileMatmulFamily>::requires_accelerator()
-        && TypeId::of::<EG::ES>() == TypeId::of::<f32>()
-        && tf32::is_supported(client)
+        && tf32::supported_uses(client).contains(TypeUsage::Conversion)
     {
-        launch_kernel_virtual::<FusedMatmulSpec<(f32, tf32, f32, f32)>, R, A>(
-            client, input, output, problem, line_sizes, plane_size, selection,
-        )
+        match (
+            TypeId::of::<LhsG<MP>>() == TypeId::of::<f32>(),
+            TypeId::of::<RhsG<MP>>() == TypeId::of::<f32>(),
+        ) {
+            (true, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, f32, AccG<MP>, tf32, tf32, AccS<MP>)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (true, false) => launch_kernel_virtual::<
+                FusedMatmulSpec<(f32, RhsG<MP>, AccG<MP>, tf32, RhsS<MP>, AccS<MP>)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, true) => launch_kernel_virtual::<
+                FusedMatmulSpec<(LhsG<MP>, f32, AccG<MP>, LhsS<MP>, tf32, AccS<MP>)>,
+                R,
+                A,
+            >(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+            (false, false) => launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
+                client, input, output, problem, line_sizes, plane_size, selection,
+            ),
+        }
     } else {
-        launch_kernel_virtual::<FusedMatmulSpec<EG>, R, A>(
+        launch_kernel_virtual::<FusedMatmulSpec<MP>, R, A>(
             client, input, output, problem, line_sizes, plane_size, selection,
         )
     }
@@ -558,9 +669,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     matmul: &FusedMatmul,
     trace: &FuseTrace,
 ) -> LineSizeOverrides {
-    let elem_lhs = matmul.lhs.precision().into_elem();
-    let elem_rhs = matmul.rhs.precision().into_elem();
-    let elem_out = matmul.out.precision().into_elem();
+    let elem_lhs = matmul.lhs.precision().into_type();
+    let elem_rhs = matmul.rhs.precision().into_type();
+    let elem_out = matmul.out.precision().into_type();
 
     let lhs_id = match &matmul.lhs {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
@@ -572,9 +683,9 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     };
 
     let available_line_sizes = AvailableLineSizes {
-        lhs: R::line_size_elem(&elem_lhs).collect(),
-        rhs: R::line_size_elem(&elem_rhs).collect(),
-        out: R::line_size_elem(&elem_out).collect(),
+        lhs: R::io_optimized_line_sizes_unchecked(&elem_lhs).collect(),
+        rhs: R::io_optimized_line_sizes_unchecked(&elem_rhs).collect(),
+        out: R::io_optimized_line_sizes_unchecked(&elem_out).collect(),
     };
     let available_line_sizes_filtered = A::filter_line_sizes(available_line_sizes);
 
@@ -592,6 +703,8 @@ pub(crate) trait MatmulVariantSelection {
 
 pub(crate) struct Simple;
 pub(crate) struct SimpleUnit;
+pub(crate) struct SimpleVecMat;
+pub(crate) struct DoubleVecMat;
 pub(crate) struct DoubleUnit;
 pub(crate) struct SimpleMultiRows;
 pub(crate) struct DoubleBuffering;
@@ -607,6 +720,18 @@ impl MatmulVariantSelection for Simple {
 impl MatmulVariantSelection for SimpleUnit {
     fn select(variants: &MatmulVariants) -> &FusedMatmul {
         &variants.simple_unit
+    }
+}
+
+impl MatmulVariantSelection for SimpleVecMat {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.simple_vec_mat
+    }
+}
+
+impl MatmulVariantSelection for DoubleVecMat {
+    fn select(variants: &MatmulVariants) -> &FusedMatmul {
+        &variants.double_vec_mat
     }
 }
 

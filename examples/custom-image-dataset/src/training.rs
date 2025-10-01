@@ -50,7 +50,7 @@ impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for 
     }
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub optimizer: SgdConfig,
     #[config(default = 30)]
@@ -78,7 +78,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .save(format!("{ARTIFACT_DIR}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Dataloaders
     let batcher_train = ClassificationBatcher::<B>::new(device.clone());
@@ -119,6 +119,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
 
     model_trained
+        .model
         .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }

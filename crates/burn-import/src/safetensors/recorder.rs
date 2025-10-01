@@ -60,7 +60,7 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for SafetensorsFileRecorder<
 /// # Example
 ///
 /// ```rust,ignore
-/// use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder}};
+/// use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder};
 /// use burn::record::{FullPrecisionSettings, Recorder};
 /// use std::path::PathBuf;
 ///

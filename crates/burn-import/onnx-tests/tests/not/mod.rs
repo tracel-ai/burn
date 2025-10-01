@@ -7,14 +7,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Bool, Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn not() {
         let device = Default::default();
-        let model: not::Model<Backend> = not::Model::new(&device);
+        let model: not::Model<TestBackend> = not::Model::new(&device);
 
-        let input = Tensor::<Backend, 4, Bool>::from_bool(
+        let input = Tensor::<TestBackend, 4, Bool>::from_bool(
             TensorData::from([[[[true, false, true, false]]]]),
             &device,
         );

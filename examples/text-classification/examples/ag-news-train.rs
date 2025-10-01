@@ -129,20 +129,29 @@ mod remote {
 #[cfg(feature = "cuda")]
 mod cuda {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing};
+    use burn::backend::{
+        Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
+    };
 
     pub fn run() {
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
+        let type_id = 0;
+        let num_devices = 1;
+
+        let devices = (0..num_devices)
+            .map(|i| CudaDevice::new(i as usize))
+            .collect();
+
+        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(devices);
     }
 }
 
 #[cfg(feature = "rocm")]
 mod rocm {
     use crate::{ElemType, launch};
-    use burn::backend::{Autodiff, Rocm};
+    use burn::backend::{Autodiff, Rocm, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Rocm<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
     }
 }
 

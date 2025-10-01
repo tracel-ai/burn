@@ -73,11 +73,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

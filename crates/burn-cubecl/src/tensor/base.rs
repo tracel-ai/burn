@@ -152,6 +152,10 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     fn shape(&self) -> Shape {
         self.shape.clone()
     }
+
+    fn rank(&self) -> usize {
+        self.shape.num_dims()
+    }
 }
 
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
@@ -210,6 +214,43 @@ macro_rules! execute_with_dtype {
             );
         }
         execute_with_dtype!(float($lhs_dtype), $element, $op)
+    }};
+    (int($dtype:expr), $element:ident, $op:expr) => {{
+        match $dtype {
+            burn_tensor::DType::U64 => {
+                type $element = u64;
+                $op
+            }
+            burn_tensor::DType::U32 => {
+                type $element = u32;
+                $op
+            }
+            burn_tensor::DType::U16 => {
+                type $element = u16;
+                $op
+            }
+            burn_tensor::DType::U8 => {
+                type $element = u8;
+                $op
+            }
+            burn_tensor::DType::I64 => {
+                type $element = i64;
+                $op
+            }
+            burn_tensor::DType::I32 => {
+                type $element = i32;
+                $op
+            }
+            burn_tensor::DType::I16 => {
+                type $element = i16;
+                $op
+            }
+            burn_tensor::DType::I8 => {
+                type $element = i8;
+                $op
+            }
+            _ => unimplemented!("Unsupported dtype {:?}", $dtype),
+        }
     }};
     ($dtype:expr, $element:ident, $op:expr) => {{
         match $dtype {
@@ -342,21 +383,19 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = self.client.read_one(self.handle.clone().binding());
-        let handle = client.create(&bytes);
-
-        if self.qparams.is_some() {
-            unimplemented!("Needs more work to correctly transfer, waiting for QXxN packed types");
-        }
+        let desc = self
+            .handle
+            .copy_descriptor(&self.shape.dims, &self.strides, self.elem_size());
+        let alloc = self.client.to_client_tensor(desc, &client);
 
         Self {
             client,
-            handle,
+            handle: alloc.handle,
             shape: self.shape.clone(),
-            strides: self.strides.clone(),
             device,
+            strides: alloc.strides,
             dtype: self.dtype,
-            qparams: None,
+            qparams: self.qparams.clone(),
         }
     }
 
@@ -371,7 +410,8 @@ where
         }
     }
 
-    fn elem_size(&self) -> usize {
+    /// Returns the element size of this tensor
+    pub fn elem_size(&self) -> usize {
         if let DType::QFloat(_) = self.dtype {
             // Encoded as u32
             core::mem::size_of::<u32>()

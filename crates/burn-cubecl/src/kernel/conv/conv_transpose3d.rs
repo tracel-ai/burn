@@ -93,7 +93,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
             let numerator_tmp = in_z * args.conv_stride_0;
             let numerator_d = numerator_d_base - numerator_tmp;
 
-            if numerator_d_base >= numerator_tmp && numerator_d % args.dilation_0 == 0 {
+            if numerator_d_base >= numerator_tmp && numerator_d.is_multiple_of(args.dilation_0) {
                 let kernel_z = numerator_d / args.dilation_0;
                 let index_input_z = in_z * input.stride(2);
                 let index_weight_kz = kernel_z * weight.stride(2);
@@ -102,7 +102,9 @@ fn conv_transpose3d_kernel<E: Numeric>(
                     let numerator_tmp = in_y * args.conv_stride_1;
                     let numerator_h = numerator_h_base - numerator_tmp;
 
-                    if numerator_h_base >= numerator_tmp && numerator_h % args.dilation_1 == 0 {
+                    if numerator_h_base >= numerator_tmp
+                        && numerator_h.is_multiple_of(args.dilation_1)
+                    {
                         let kernel_y = numerator_h / args.dilation_1;
                         let index_input_y = in_y * input.stride(3);
                         let index_weight_ky = kernel_y * weight.stride(3);
@@ -112,7 +114,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
                             let numerator_w = numerator_w_base - numerator_tmp;
 
                             if numerator_w_base >= numerator_tmp
-                                && numerator_w % args.dilation_2 == 0
+                                && numerator_w.is_multiple_of(args.dilation_2)
                             {
                                 let kernel_x = numerator_w / args.dilation_2;
                                 let index_input_x = in_x * input.stride(4);

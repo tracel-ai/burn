@@ -1,12 +1,12 @@
 use super::{Backward, Ops, unary};
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use burn_tensor::{Shape, backend::Backend};
+use burn_tensor::{Shape, TensorMetadata, backend::Backend};
 
 #[derive(Debug)]
 pub(crate) struct MaxMinDim;
 
 impl<B: Backend> Backward<B, 1> for MaxMinDim {
-    type State = (B::IntTensorPrimitive, Shape);
+    type State = (B::IntTensorPrimitive, Shape, usize);
 
     fn backward(
         self,
@@ -15,12 +15,12 @@ impl<B: Backend> Backward<B, 1> for MaxMinDim {
         _checkpointer: &mut Checkpointer,
     ) {
         unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-            let (indices, shape) = ops.state;
-            let ndims = shape.num_dims();
+            let (indices, shape, dim) = ops.state;
             let device = B::float_device(&grad);
-            let zeros = B::float_zeros(shape, &device);
+            let dtype = grad.dtype();
+            let zeros = B::float_zeros(shape, &device, dtype.into());
 
-            B::float_scatter(ndims - 1, zeros, indices, grad)
+            B::float_scatter(dim, zeros, indices, grad)
         });
     }
 }

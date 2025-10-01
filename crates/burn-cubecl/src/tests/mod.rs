@@ -9,6 +9,7 @@ mod conv2d;
 mod conv3d;
 mod conv_transpose2d;
 mod conv_transpose3d;
+mod cross;
 mod gather;
 mod mask_fill;
 mod mask_where;
@@ -81,6 +82,8 @@ macro_rules! testgen_all {
                 burn_cubecl::testgen_unary!();
 
                 burn_cubecl::testgen_reduce!();
+
+                burn_cubecl::testgen_cross!();
 
                 burn_cubecl::testgen_quantization!();
             }
@@ -162,11 +165,8 @@ macro_rules! testgen_jit_fusion {
         burn_tensor::testgen_all!([$($float),*], [$($int),*], [$($bool),*]);
         burn_autodiff::testgen_all!([$($float),*]);
 
-        // Not all ops are implemented for quantization yet, notably missing:
-        // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
-        // burn_tensor::testgen_quantization!();
-        // test quantization
-        burn_tensor::testgen_calibration!();
+        use burn_tensor::tests::qtensor::*;
+
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
     };

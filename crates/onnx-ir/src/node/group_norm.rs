@@ -46,7 +46,7 @@ pub fn group_norm_config(node: &Node) -> (GroupNormConfig, bool) {
     }
 
     let num_groups = num_groups.expect("GroupNorm: num_groups attribute must be present");
-    if num_groups > 0 && num_features % num_groups != 0 {
+    if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
         panic!("GroupNorm: number of features must be divisible by the number of groups");
     }
 

@@ -6,12 +6,12 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn random_uniform_like() {
         let device = Default::default();
-        let model = random_uniform_like::Model::<Backend>::new(&device);
+        let model = random_uniform_like::Model::<TestBackend>::new(&device);
         let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
         let expected_shape = Shape::from([2, 4, 4]);
 

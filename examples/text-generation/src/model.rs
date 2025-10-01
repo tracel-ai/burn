@@ -11,7 +11,7 @@ use burn::{
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TextGenerationModelConfig {
     transformer: TransformerEncoderConfig,
     vocab_size: usize,

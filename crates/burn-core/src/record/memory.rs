@@ -102,8 +102,9 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::SimpleLinear;
     use crate::{
-        TestBackend, module::Module, nn, record::FullPrecisionSettings, tensor::backend::Backend,
+        TestBackend, module::Module, record::FullPrecisionSettings, tensor::backend::Backend,
     };
 
     #[test]
@@ -134,7 +135,7 @@ mod tests {
         assert_eq!(bytes1, bytes2_after);
     }
 
-    pub fn create_model<B: Backend>(device: &B::Device) -> nn::Linear<B> {
-        nn::LinearConfig::new(32, 32).with_bias(true).init(device)
+    pub fn create_model<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
+        SimpleLinear::new(32, 32, device)
     }
 }

@@ -1,6 +1,4 @@
 use burn_ir::*;
-use burn_tensor::{DType, Element, ElementConversion};
-use half::{bf16, f16};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -17,7 +15,7 @@ pub struct Context<'a, H> {
     /// Handle container to retrieve tensors based on their representation.
     pub handles: &'a mut HandleContainer<H>,
     /// Scalars found in the graph in the order they appeared.
-    pub scalars: &'a mut HashMap<ScalarId, ScalarValue>,
+    pub scalars: &'a mut HashMap<ScalarId, ScalarIr>,
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -27,29 +25,11 @@ pub struct ScalarId {
     pub value: u64,
 }
 
-/// All scalar values possible.
-#[derive(Clone, Debug)]
-#[allow(missing_docs)]
-pub enum ScalarValue {
-    F64(f64),
-    F32(f32),
-    F16(f16),
-    BF16(bf16),
-    I64(i64),
-    I32(i32),
-    I16(i16),
-    I8(i8),
-    U64(u64),
-    U32(u32),
-    U16(u16),
-    U8(u8),
-}
-
 pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorIr>,
     tensors_global2relative: HashMap<TensorId, TensorIr>,
     shapes_global2relative: HashMap<usize, usize>,
-    scalars: HashMap<ScalarId, ScalarValue>,
+    scalars: HashMap<ScalarId, ScalarIr>,
 }
 
 impl Default for OperationConverter {
@@ -72,7 +52,7 @@ impl Default for OperationConverter {
 pub struct ContextOwned<H> {
     tensors: HashMap<TensorId, TensorIr>,
     handles: HandleContainer<H>,
-    scalars: HashMap<ScalarId, ScalarValue>,
+    scalars: HashMap<ScalarId, ScalarIr>,
 }
 
 impl<H: Clone> ContextOwned<H> {
@@ -118,12 +98,6 @@ pub(crate) trait RelativeOps {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self;
 }
 
-trait RelativeOpsScalar<E: Element> {
-    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
-    where
-        F: Fn(&mut OperationConverter, &E) -> E;
-}
-
 impl OperationConverter {
     pub(crate) fn context<'a, H>(
         &'a mut self,
@@ -146,41 +120,6 @@ impl OperationConverter {
 
         self.scalars.clear();
     }
-
-    pub(crate) fn relative_float<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
-        let id = ScalarId {
-            value: self.scalars.len() as u64,
-        };
-
-        match dtype {
-            burn_tensor::DType::F32 => self.scalars.insert(id, ScalarValue::F32(elem.elem())),
-            burn_tensor::DType::F16 => self.scalars.insert(id, ScalarValue::F16(elem.elem())),
-            burn_tensor::DType::BF16 => self.scalars.insert(id, ScalarValue::BF16(elem.elem())),
-            burn_tensor::DType::Flex32 => self.scalars.insert(id, ScalarValue::F32(elem.elem())),
-            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
-        };
-
-        id.value.elem()
-    }
-
-    pub(crate) fn relative_int<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
-        let id = ScalarId {
-            value: self.scalars.len() as u64,
-        };
-        match dtype {
-            burn_tensor::DType::I64 => self.scalars.insert(id, ScalarValue::I64(elem.elem())),
-            burn_tensor::DType::I32 => self.scalars.insert(id, ScalarValue::I32(elem.elem())),
-            burn_tensor::DType::I16 => self.scalars.insert(id, ScalarValue::I16(elem.elem())),
-            burn_tensor::DType::I8 => self.scalars.insert(id, ScalarValue::I8(elem.elem())),
-            burn_tensor::DType::U64 => self.scalars.insert(id, ScalarValue::U64(elem.elem())),
-            burn_tensor::DType::U32 => self.scalars.insert(id, ScalarValue::U32(elem.elem())),
-            burn_tensor::DType::U16 => self.scalars.insert(id, ScalarValue::U16(elem.elem())),
-            burn_tensor::DType::U8 => self.scalars.insert(id, ScalarValue::U8(elem.elem())),
-            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
-        };
-
-        id.value.elem()
-    }
 }
 
 impl RelativeOps for OperationIr {
@@ -189,22 +128,17 @@ impl RelativeOps for OperationIr {
             OperationIr::BaseFloat(ops) => OperationIr::BaseFloat(ops.to_relative(converter)),
             OperationIr::BaseInt(ops) => OperationIr::BaseInt(ops.to_relative(converter)),
             OperationIr::BaseBool(ops) => OperationIr::BaseBool(ops.to_relative(converter)),
-            OperationIr::NumericFloat(dtype, ops) => OperationIr::NumericFloat(
-                *dtype,
-                ops.to_relative(converter, |converter, e| converter.relative_float(e, dtype)),
-            ),
-            OperationIr::NumericInt(dtype, ops) => OperationIr::NumericInt(
-                *dtype,
-                ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
-            ),
+            OperationIr::NumericFloat(dtype, ops) => {
+                OperationIr::NumericFloat(*dtype, ops.to_relative(converter))
+            }
+            OperationIr::NumericInt(dtype, ops) => {
+                OperationIr::NumericInt(*dtype, ops.to_relative(converter))
+            }
             OperationIr::Bool(ops) => OperationIr::Bool(ops.to_relative(converter)),
             OperationIr::Int(ops) => OperationIr::Int(ops.to_relative(converter)),
-            OperationIr::Float(dtype, ops) => OperationIr::Float(
-                *dtype,
-                RelativeOpsScalar::<f32>::to_relative(ops, converter, |converter, e| {
-                    converter.relative_float(e, dtype)
-                }),
-            ),
+            OperationIr::Float(dtype, ops) => {
+                OperationIr::Float(*dtype, ops.to_relative(converter))
+            }
             OperationIr::Module(ops) => OperationIr::Module(ops.to_relative(converter)),
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
@@ -453,11 +387,8 @@ impl RelativeOps for ModuleOperationIr {
     }
 }
 
-impl RelativeOpsScalar<f32> for FloatOperationIr {
-    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
-    where
-        F: Fn(&mut OperationConverter, &f32) -> f32,
-    {
+impl RelativeOps for FloatOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             FloatOperationIr::Exp(desc) => FloatOperationIr::Exp(UnaryOpIr {
                 input: desc.input.to_relative(converter),
@@ -477,7 +408,7 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
             }),
             FloatOperationIr::PowfScalar(desc) => FloatOperationIr::PowfScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs.elem()),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             FloatOperationIr::Sqrt(desc) => FloatOperationIr::Sqrt(UnaryOpIr {
@@ -504,6 +435,12 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Cross(desc) => FloatOperationIr::Cross(CrossOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim: desc.dim,
             }),
             FloatOperationIr::Random(desc) => FloatOperationIr::Random(RandomOpIr {
                 out: desc.out.to_relative(converter),
@@ -544,6 +481,8 @@ impl RelativeOpsScalar<f32> for FloatOperationIr {
 impl RelativeOps for BoolOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
+            BoolOperationIr::Ones(desc) => BoolOperationIr::Ones(desc.to_relative(converter)),
+            BoolOperationIr::Zeros(desc) => BoolOperationIr::Zeros(desc.to_relative(converter)),
             BoolOperationIr::IntoFloat(desc) => BoolOperationIr::IntoFloat(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -575,6 +514,11 @@ impl RelativeOps for IntOperationIr {
         match self {
             IntOperationIr::IntoFloat(desc) => IntOperationIr::IntoFloat(UnaryOpIr {
                 input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::Matmul(desc) => IntOperationIr::Matmul(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             IntOperationIr::BitwiseAnd(desc) => IntOperationIr::BitwiseAnd(BinaryOpIr {
@@ -667,11 +611,8 @@ impl RelativeOps for CustomOpIr {
     }
 }
 
-impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
-    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
-    where
-        F: Fn(&mut OperationConverter, &E) -> E,
-    {
+impl RelativeOps for NumericOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             NumericOperationIr::Add(desc) => NumericOperationIr::Add(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
@@ -680,7 +621,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::AddScalar(desc) => NumericOperationIr::AddScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Sub(desc) => NumericOperationIr::Sub(BinaryOpIr {
@@ -690,7 +631,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::SubScalar(desc) => NumericOperationIr::SubScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Div(desc) => NumericOperationIr::Div(BinaryOpIr {
@@ -700,7 +641,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::DivScalar(desc) => NumericOperationIr::DivScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Rem(desc) => NumericOperationIr::Rem(BinaryOpIr {
@@ -710,7 +651,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::RemScalar(desc) => NumericOperationIr::RemScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Mul(desc) => NumericOperationIr::Mul(BinaryOpIr {
@@ -720,7 +661,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::MulScalar(desc) => NumericOperationIr::MulScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Abs(desc) => NumericOperationIr::Abs(UnaryOpIr {
@@ -733,7 +674,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }
             NumericOperationIr::Full(desc) => NumericOperationIr::Full((
                 desc.0.to_relative(converter),
-                local_elem(converter, &desc.1),
+                desc.1.to_relative(converter),
             )),
             NumericOperationIr::Gather(desc) => NumericOperationIr::Gather(GatherOpIr {
                 tensor: desc.tensor.to_relative(converter),
@@ -772,7 +713,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             NumericOperationIr::MaskFill(desc) => NumericOperationIr::MaskFill(MaskFillOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 mask: desc.mask.to_relative(converter),
-                value: local_elem(converter, &desc.value),
+                value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
@@ -806,7 +747,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
@@ -816,7 +757,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::GreaterElem(desc) => NumericOperationIr::GreaterElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::GreaterEqual(desc) => {
@@ -829,7 +770,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             NumericOperationIr::GreaterEqualElem(desc) => {
                 NumericOperationIr::GreaterEqualElem(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -840,7 +781,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::LowerElem(desc) => NumericOperationIr::LowerElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
-                rhs: local_elem(converter, &desc.rhs),
+                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::LowerEqual(desc) => NumericOperationIr::LowerEqual(BinaryOpIr {
@@ -851,7 +792,7 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             NumericOperationIr::LowerEqualElem(desc) => {
                 NumericOperationIr::LowerEqualElem(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -910,8 +851,8 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
             }),
             NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                min: local_elem(converter, &desc.min),
-                max: local_elem(converter, &desc.max),
+                min: desc.min.to_relative(converter),
+                max: desc.max.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::IntRandom(desc) => NumericOperationIr::IntRandom(RandomOpIr {
@@ -953,6 +894,13 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
                 shape: desc.shape.clone(),
             }),
+            BaseOperationIr::Unfold(desc) => BaseOperationIr::Unfold(UnfoldOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim: desc.dim,
+                size: desc.size,
+                step: desc.step,
+            }),
             BaseOperationIr::Flip(desc) => BaseOperationIr::Flip(FlipOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -960,12 +908,20 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|_info| burn_tensor::Slice::from(0..1))
+                    .collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|_range| burn_tensor::Slice::from(0..1))
+                    .collect(),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -1058,6 +1014,21 @@ impl RelativeOps for TensorId {
     }
 }
 
+impl RelativeOps for ScalarIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        if matches!(self, ScalarIr::Bool(_)) {
+            todo!("Unsupported dtype ({self:?}) for scalar")
+        }
+
+        let id = ScalarId {
+            value: converter.scalars.len() as u64,
+        };
+
+        converter.scalars.insert(id, *self);
+        ScalarIr::U64(id.value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1100,5 +1071,17 @@ mod tests {
                 dtype: DType::F32
             }
         );
+    }
+
+    #[test]
+    fn scalar_ir_to_relative() {
+        let scalar1 = ScalarIr::F32(1.0);
+        let scalar2 = ScalarIr::U8(1);
+        let mut converter = OperationConverter::default();
+        let scalar1_local = scalar1.to_relative(&mut converter);
+        let scalar2_local = scalar2.to_relative(&mut converter);
+
+        assert_eq!(scalar1_local, ScalarIr::U64(0));
+        assert_eq!(scalar2_local, ScalarIr::U64(1));
     }
 }

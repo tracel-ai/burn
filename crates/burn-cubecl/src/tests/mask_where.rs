@@ -70,8 +70,9 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
-        TestBackend::seed(0);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default, &device);
         let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default, &device);
         let mask =

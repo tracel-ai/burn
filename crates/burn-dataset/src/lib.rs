@@ -14,7 +14,6 @@ extern crate dirs;
 /// Sources for datasets.
 pub mod source;
 
-/// Transformations to be used with datasets.
 pub mod transform;
 
 /// Audio datasets.
@@ -24,6 +23,10 @@ pub mod audio;
 /// Vision datasets.
 #[cfg(feature = "vision")]
 pub mod vision;
+
+/// Natural language processing datasets.
+#[cfg(feature = "nlp")]
+pub mod nlp;
 
 mod dataset;
 pub use dataset::*;

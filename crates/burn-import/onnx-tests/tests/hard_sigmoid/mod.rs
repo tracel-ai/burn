@@ -6,17 +6,17 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn hard_sigmoid() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: hard_sigmoid::Model<Backend> = hard_sigmoid::Model::new(&device);
+        let model: hard_sigmoid::Model<TestBackend> = hard_sigmoid::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats(
+        let input = Tensor::<TestBackend, 2>::from_floats(
             [
                 [0.33669037, 0.12880941, 0.23446237],
                 [0.23033303, -1.12285638, -0.18632829],

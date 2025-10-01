@@ -1,8 +1,13 @@
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
+use burn_tensor::quantization::QuantScheme;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
+    std::tensor::{
+        View,
+        layout::{linear::LinearLayout, plain::PlainLayout},
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +42,7 @@ pub fn read<C: CubePrimitive>(
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
         Arg::Local(pos, precision) => match comptime![precision] {
+            FusePrecision::F64 => Line::cast_from(locals.l_f64.find(pos)),
             FusePrecision::F32 | FusePrecision::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
             FusePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
             FusePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
@@ -129,6 +135,57 @@ pub fn read<C: CubePrimitive>(
 }
 
 #[cube]
+fn index_offset_with_quant_layout(
+    tensor: &GlobalTensor,
+    locals: &LocalArgs,
+    index: u32,
+    #[comptime] rank: u32,
+    #[comptime] scheme: QuantScheme,
+) -> u32 {
+    let (start, end) = comptime![(0u32, rank - 1)];
+    let num_quants = comptime!(scheme.num_quants() as u32);
+
+    let offset_ref = index * locals.ref_line_size;
+    let mut offset = 0u32;
+
+    #[unroll]
+    for i in start..end {
+        let ogwl = offset_ref / locals.ref_strides[i];
+        offset += ogwl % tensor.tensor.shape(i) * tensor.tensor.stride(i);
+    }
+
+    // Handle packed representation in last dim
+    let ogwl = offset_ref / locals.ref_strides[end];
+    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let stride_last = tensor.tensor.stride(end);
+    offset += (ogwl / num_quants) % shape_last * stride_last;
+
+    offset / tensor.tensor.line_size()
+}
+
+#[cube]
+pub fn read_quantized<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    ref_pos: u32,
+    #[comptime] arg: Arg,
+    #[comptime] config: &FuseBlockConfig,
+    #[comptime] scheme: QuantScheme,
+) -> Line<C> {
+    match arg {
+        Arg::Input(pos, _precision, _layout) => {
+            let global = inputs.tensors.index(pos);
+
+            let offset =
+                index_offset_with_quant_layout(global, locals, ref_pos, config.rank, scheme);
+            let val = global.tensor[offset];
+            Line::cast_from(val)
+        }
+        _ => panic!("Not supported"),
+    }
+}
+
+#[cube]
 pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) -> C {
     match arg {
         Arg::Scalar(pos, _precision) => {
@@ -176,6 +233,23 @@ pub fn read_input_window<C: CubePrimitive>(
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
     slice.try_cast_unchecked()
+}
+
+#[cube]
+pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u32) -> Slice<C> {
+    let tensor = inputs.tensors.index(pos);
+    let slice = tensor.tensor.to_slice();
+    slice.try_cast_unchecked()
+}
+
+#[cube]
+pub fn input_as_linear_view<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    #[comptime] pos: u32,
+) -> View<Line<C>, u32> {
+    let slice = input_as_slice::<Line<C>>(inputs, pos);
+    let layout = LinearLayout::new_Plain(PlainLayout::new(slice.len()));
+    View::new::<Slice<Line<C>>, u32>(&slice, layout)
 }
 
 #[cube]
@@ -303,11 +377,12 @@ pub fn write<C: CubePrimitive>(
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
-            set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_elem()]);
+            set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_type()]);
 
             tensor.tensor[offset] = Line::cast_from(value);
         }
         Arg::Local(pos, precision) => match comptime![precision] {
+            FusePrecision::F64 => locals.l_f64.insert(pos, Line::cast_from(value)),
             FusePrecision::F32 | FusePrecision::Flex32 => {
                 locals.l_f32.insert(pos, Line::cast_from(value))
             }
@@ -372,9 +447,9 @@ fn get_offset(
 }
 
 #[cube]
-pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> comptime_type!(u32) {
     let tensor = global.tensors.index(pos);
-    u32::cast_from(tensor.tensor.line_size())
+    tensor.tensor.line_size()
 }
 
 #[cube]
@@ -454,6 +529,11 @@ pub fn ref_shape(locals: &LocalArgs, dim: u32) -> u32 {
 #[cube]
 pub fn ref_stride(locals: &LocalArgs, dim: u32) -> u32 {
     locals.ref_strides[dim]
+}
+
+#[cube]
+pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(u32) {
+    comptime![locals.ref_line_size]
 }
 
 #[cube]
@@ -609,7 +689,7 @@ pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(
 fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
     intrinsic!(|scope| {
         let constant: ExpandElement = value.into();
-        let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
+        let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
         ExpandElement::Plain(Variable::constant(constant_c)).into()
     })
 }

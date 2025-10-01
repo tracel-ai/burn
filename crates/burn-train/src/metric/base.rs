@@ -1,4 +1,7 @@
-use burn_core::{LearningRate, data::dataloader::Progress};
+use std::sync::Arc;
+
+use burn_core::data::dataloader::Progress;
+use burn_optim::LearningRate;
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
@@ -42,7 +45,7 @@ impl MetricMetadata {
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
-pub trait Metric: Send + Sync {
+pub trait Metric: Send + Sync + Clone {
     /// The input type of the metric.
     type Input;
 
@@ -52,13 +55,16 @@ pub trait Metric: Send + Sync {
     ///
     /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
     /// values of k), the name should be unique for each instance.
-    fn name(&self) -> String;
+    fn name(&self) -> MetricName;
 
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
 }
+
+/// Type used to store metric names efficiently.
+pub type MetricName = Arc<String>;
 
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
@@ -78,33 +84,65 @@ impl<T> Adaptor<()> for T {
 /// This is useful to plot the values of a metric during training.
 pub trait Numeric {
     /// Returns the numeric value of the metric.
-    fn value(&self) -> f64;
+    fn value(&self) -> NumericEntry;
 }
 
 /// Data type that contains the current state of a metric at a given time.
-#[derive(new, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct MetricEntry {
     /// The name of the metric.
-    pub name: String,
+    pub name: Arc<String>,
     /// The string to be displayed.
     pub formatted: String,
     /// The string to be saved.
     pub serialize: String,
+    /// Tags linked to the metric.
+    pub tags: Vec<Arc<String>>,
+}
+
+impl MetricEntry {
+    /// Create a new metric.
+    pub fn new(name: Arc<String>, formatted: String, serialize: String) -> Self {
+        Self {
+            name,
+            formatted,
+            serialize,
+            tags: Vec::new(),
+        }
+    }
 }
 
 /// Numeric metric entry.
+#[derive(Debug, Clone)]
 pub enum NumericEntry {
     /// Single numeric value.
     Value(f64),
     /// Aggregated numeric (value, number of elements).
-    Aggregated(f64, usize),
+    Aggregated {
+        /// The sum of all entries.
+        sum: f64,
+        /// The number of entries present in the sum.
+        count: usize,
+        /// The current aggregated value.
+        current: f64,
+    },
+}
+
+impl NumericEntry {
+    /// Gets the current aggregated value of the metric.
+    pub fn current(&self) -> f64 {
+        match self {
+            NumericEntry::Value(val) => *val,
+            NumericEntry::Aggregated { current, .. } => *current,
+        }
+    }
 }
 
 impl NumericEntry {
     pub(crate) fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
-            Self::Aggregated(v, n) => format!("{v},{n}"),
+            Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
         }
     }
 
@@ -124,7 +162,11 @@ impl NumericEntry {
             let (value, numel) = (values[0], values[1]);
             match value.parse::<f64>() {
                 Ok(value) => match numel.parse::<usize>() {
-                    Ok(numel) => Ok(NumericEntry::Aggregated(value, numel)),
+                    Ok(numel) => Ok(NumericEntry::Aggregated {
+                        sum: value,
+                        count: numel,
+                        current: value,
+                    }),
                     Err(err) => Err(err.to_string()),
                 },
                 Err(err) => Err(err.to_string()),

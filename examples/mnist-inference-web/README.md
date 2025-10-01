@@ -44,16 +44,18 @@ values.
 Layers:
 
 1. Input Image (28,28, 1ch)
-2. `Conv2d`(3x3, 8ch), `BatchNorm2d`, `Gelu`
-3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`
-4. `Conv2d`(3x3, 24ch), `BatchNorm2d`, `Gelu`
-5. `Linear`(11616, 32), `Gelu`
-6. `Linear`(32, 10)
-7. Softmax Output
+2. `Conv2d`(3x3, 64ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
+3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
+4. `Linear`(1600, 128), `Relu`
+4. `Linear`(128, 128), `Relu`
+5. `Linear`(128, 10)
+6. Softmax Output
 
-The total number of parameters is 376,952.
+The total number of parameters is 260,810.
 
-The model is trained with 4 epochs and the final test accuracy is 98.67%.
+The model is trained with 18 epochs and the final test accuracy is 95.83%.
+
+Random transformations are used for data augmentation.
 
 The training and hyper parameter information in can be found in
 [`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).

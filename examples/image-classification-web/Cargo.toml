@@ -35,7 +35,7 @@ wasm-logger = "0.2"
 web-time = "1.1.0"
 js-sys = "0.3"
 # https://github.com/rust-random/getrandom/#webassembly-support
-getrandom = { version = "0.3.2", default-features = false, features = [
+getrandom = { version = "0.3.3", default-features = false, features = [
     "wasm_js",
 ] }
 

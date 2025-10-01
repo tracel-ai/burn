@@ -1,12 +1,14 @@
 use crate::{
     CubeFusionHandle,
-    shared::ir::{Arg, FusePrecision},
+    shared::{
+        ir::{Arg, FusePrecision},
+        trace::HandleInput,
+    },
 };
 
 use super::{
-    HandleInput, HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock,
-    executor::LaunchPlanExecutor, input::InputPlanner, output::OutputPlanner,
-    vectorization::VectorizationPlanner,
+    HandleOutput, LaunchPlan, TraceRunner, block::FuseBlock, executor::LaunchPlanExecutor,
+    input::InputPlanner, output::OutputPlanner, vectorization::VectorizationPlanner,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
@@ -199,9 +201,21 @@ impl FuseTrace {
         handle_outputs: Vec<HandleOutput<R>>,
     ) {
         for input in handle_inputs {
-            context
-                .handles
-                .register_handle(input.global_id, input.handle_rollback());
+            match input {
+                HandleInput::Normal(input) => {
+                    context
+                        .handles
+                        .register_handle(input.global_ir.id, input.handle_rollback());
+                }
+                HandleInput::QuantValues(input) => {
+                    context
+                        .handles
+                        .register_handle(input.global_ir.id, input.handle);
+                }
+                HandleInput::QuantParams(_) => {
+                    // The scales are part of the quant data handle.
+                }
+            };
         }
         for output in handle_outputs {
             if let HandleOutput::Owned {
@@ -216,62 +230,135 @@ impl FuseTrace {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
-    tensors: Vec<(TensorIr, FusePrecision)>,
+    tensors: Vec<RegisterTensor>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum RegisterTensor {
+    Normal(TensorIr, FusePrecision),
+    QuantValues(TensorIr),
+    QuantParams(TensorId),
+}
+
+impl RegisterTensor {
+    pub fn as_normal_tensor(&self) -> Option<(&TensorIr, &FusePrecision)> {
+        match self {
+            RegisterTensor::Normal(tensor_ir, precision) => Some((tensor_ir, precision)),
+            RegisterTensor::QuantValues(_) => None,
+            RegisterTensor::QuantParams(_) => None,
+        }
+    }
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = &(TensorIr, FusePrecision)> {
+    /// Iterate over all the registered tensors.
+    pub fn iter(&self) -> impl Iterator<Item = &RegisterTensor> {
         self.tensors.iter()
     }
-    pub fn into_iter(self) -> impl Iterator<Item = (TensorIr, FusePrecision)> {
+
+    /// Consumes and iterate over all the registered tensors.
+    pub fn into_iter(self) -> impl Iterator<Item = RegisterTensor> {
         self.tensors.into_iter()
     }
 
+    /// Returns the number of tensors registered.
     pub fn len(&self) -> usize {
         self.tensors.len()
     }
 
+    /// Retrieve the [tensor id](TensorId) at the given index.
     pub fn get_id(&self, index: usize) -> Option<TensorId> {
-        self.tensors.get(index).map(|entry| entry.0.id)
+        self.tensors.get(index).map(|entry| match entry {
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id,
+            RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id,
+            RegisterTensor::QuantParams(tensor_id) => *tensor_id,
+        })
     }
 
+    /// Doesn't return quantized tensor.
     pub fn get_index(&self, tensor_id: TensorId) -> Option<u32> {
         self.tensors
             .iter()
             .enumerate()
-            .find(|(_pos, (tensor, _))| tensor.id == tensor_id)
-            .map(|(pos, (_, _))| pos as u32)
+            .find(|(_pos, entry)| match entry {
+                RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
+                RegisterTensor::QuantValues(_) => false,
+                RegisterTensor::QuantParams(_) => false,
+            })
+            .map(|(pos, _)| pos as u32)
     }
 
-    pub fn get(&self, tensor_id: TensorId) -> Option<&(TensorIr, FusePrecision)> {
+    /// Doesn't return quantized tensor.
+    pub fn get(&self, tensor_id: TensorId) -> Option<(&TensorIr, &FusePrecision)> {
         self.tensors
             .iter()
-            .find(|(tensor, _)| tensor.id == tensor_id)
+            .find(|entry| match entry {
+                RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor_id,
+                RegisterTensor::QuantValues(_) => false,
+                RegisterTensor::QuantParams(_) => false,
+            })
+            .and_then(|entry| match entry {
+                RegisterTensor::Normal(tensor_ir, fuse_precision) => {
+                    Some((tensor_ir, fuse_precision))
+                }
+                RegisterTensor::QuantValues(_) => None,
+                RegisterTensor::QuantParams(_) => None,
+            })
     }
 
+    /// Insert a quantized tensor.
+    ///
+    /// It will return the positions for both the value tensor and param tensor.
+    pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
+        if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
+            RegisterTensor::QuantValues(tensor_ir) => tensor_ir == &tensor,
+            _ => false,
+        }) {
+            let values = old.0 as u32;
+            let params = values + 1;
+            return (values, params);
+        }
+
+        let params = RegisterTensor::QuantParams(tensor.id);
+        let values = RegisterTensor::QuantValues(tensor);
+        let pos_values = self.len();
+        self.tensors.push(values);
+
+        let pos_params = self.len();
+        self.tensors.push(params);
+
+        (pos_values as u32, pos_params as u32)
+    }
+
+    /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
     pub fn insert(&mut self, precision: FusePrecision, tensor: TensorIr) -> u32 {
-        let value = (tensor, precision);
-        if let Some(old) = self
-            .tensors
-            .iter()
-            .enumerate()
-            .find(|(_, val)| *val == &value)
-        {
+        if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
+            _ => false,
+        }) {
             return old.0 as u32;
         }
 
+        let value = RegisterTensor::Normal(tensor, precision);
         let pos = self.len();
+
         self.tensors.push(value);
+
         pos as u32
     }
 
+    /// Update the already registered tensor with the given [tensor ir](TensorIr).
+    ///
+    /// # Notes
+    ///
+    /// This function only works with normal tensors, not quantized tensors.
     pub fn update(&mut self, tensor: &TensorIr) {
-        if let Some((tensor_old, _)) = self
-            .tensors
-            .iter_mut()
-            .find(|(tensor_old, _)| tensor_old.id == tensor.id)
+        if let Some(entry) = self.tensors.iter_mut().find(|entry| match entry {
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
+            _ => false,
+        }) && let RegisterTensor::Normal(tensor_ir, _) = entry
         {
-            tensor_old.status = tensor.status;
+            tensor_ir.status = tensor.status
         }
     }
 }

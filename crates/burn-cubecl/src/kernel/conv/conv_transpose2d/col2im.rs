@@ -2,10 +2,11 @@ use burn_tensor::{
     Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, convolution::components::ConvSetupError, prelude::*};
 
 use crate::{
-    CubeElement, CubeRuntime, FloatElement,
+    CubeElement, CubeRuntime,
+    element::MatmulElement,
     kernel::{
         conv::batches_per_run,
         into_contiguous,
@@ -23,12 +24,12 @@ use crate::{
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
+pub fn conv_transpose2d_col2im<R: CubeRuntime, E: MatmulElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let groups = options.groups;
@@ -130,7 +131,7 @@ pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute<R: CubeRuntime, E: FloatElement>(
+fn execute<R: CubeRuntime, E: MatmulElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -138,7 +139,7 @@ fn execute<R: CubeRuntime, E: FloatElement>(
     options: ConvTransposeOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
-) -> Result<(), ConvLaunchError> {
+) -> Result<(), ConvSetupError> {
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
 
@@ -159,7 +160,7 @@ fn execute<R: CubeRuntime, E: FloatElement>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn col2im<R: CubeRuntime, E: FloatElement>(
+fn col2im<R: CubeRuntime, E: MatmulElement>(
     columns: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     out: CubeTensor<R>,
@@ -232,10 +233,10 @@ struct Col2ImArgs {
 }
 
 #[cube(launch_unchecked)]
-fn col2im_kernel<F: Float>(
-    columns: &Tensor<F>,
-    bias: &Tensor<F>,
-    image: &mut Tensor<F>,
+fn col2im_kernel<E: Numeric>(
+    columns: &Tensor<E>,
+    bias: &Tensor<E>,
+    image: &mut Tensor<E>,
     args: &Col2ImArgs,
     #[comptime] has_bias: bool,
 ) {
@@ -251,7 +252,7 @@ fn col2im_kernel<F: Float>(
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
 
-    let mut val = F::new(0.0);
+    let mut val = E::from_int(0);
 
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
@@ -271,7 +272,8 @@ fn col2im_kernel<F: Float>(
         for col_x in x_col_start..x_col_end {
             let kernel_x = im_x - col_x * args.stride_w;
 
-            if kernel_y % args.dilation_h == 0 && kernel_x % args.dilation_w == 0 {
+            if kernel_y.is_multiple_of(args.dilation_h) && kernel_x.is_multiple_of(args.dilation_w)
+            {
                 let kernel_y = kernel_y / args.dilation_h;
                 let kernel_x = kernel_x / args.dilation_w;
 

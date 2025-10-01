@@ -1,28 +1,24 @@
 use alloc::vec::Vec;
-use core::marker::PhantomData;
-use num_traits::{Float, PrimInt, Signed};
+use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    QuantAccPrecision, QuantInputType, QuantLevel, QuantMode, QuantPropagation, QuantScheme,
-    QuantStoreType,
-};
+use super::QuantValue;
 
 /// Quantization strategy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationStrategy {
-    /// Per-tensor `int8` symmetric quantization.
-    PerTensorSymmetricInt8(SymmetricQuantization<f32, i8>),
-    /// Per-block `int8` symmetric quantization.
-    PerBlockSymmetricInt8(Vec<SymmetricQuantization<f32, i8>>, usize),
+    /// Per-tensor symmetric quantization.
+    PerTensorSymmetric(SymmetricQuantization<f32>),
+    /// Per-block symmetric quantization.
+    PerBlockSymmetric(Vec<SymmetricQuantization<f32>>, usize),
 }
 
 impl QuantizationStrategy {
     /// Quantize the values to a lower precision data type.
     pub fn quantize(&self, values: &[f32]) -> Vec<i8> {
         match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.quantize(values),
-            QuantizationStrategy::PerBlockSymmetricInt8(strategy, block_size) => {
+            QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.quantize(values),
+            QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
                 let num_blocks = strategy.len();
                 let numel = values.len();
                 assert_eq!(
@@ -42,8 +38,8 @@ impl QuantizationStrategy {
     /// Dequantize the values to a higher precision data type.
     pub fn dequantize(&self, values: &[i8]) -> Vec<f32> {
         match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.dequantize(values),
-            QuantizationStrategy::PerBlockSymmetricInt8(strategy, block_size) => {
+            QuantizationStrategy::PerTensorSymmetric(strategy) => strategy.dequantize(values),
+            QuantizationStrategy::PerBlockSymmetric(strategy, block_size) => {
                 let num_blocks = strategy.len();
                 let numel = values.len();
                 assert_eq!(
@@ -61,45 +57,19 @@ impl QuantizationStrategy {
     }
 }
 
-impl QuantizationStrategy {
-    /// Returns the corresponding quantization scheme.
-    pub fn scheme(&self) -> QuantScheme {
-        match self {
-            QuantizationStrategy::PerTensorSymmetricInt8(_) => QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                acc_precision: QuantAccPrecision::Full,
-                propagation: QuantPropagation::Inhibit,
-                q_store_type: QuantStoreType::Native,
-            },
-            QuantizationStrategy::PerBlockSymmetricInt8(_blocks, block_size) => QuantScheme {
-                level: QuantLevel::Block(*block_size),
-                mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                acc_precision: QuantAccPrecision::Full,
-                propagation: QuantPropagation::Inhibit,
-                q_store_type: QuantStoreType::Native,
-            },
-        }
-    }
-}
-
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
 /// data type `Q` and vice-versa.
-pub trait Quantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync> {
+pub trait Quantization<E: Float + Send + Sync> {
     /// Returns the quantization range `[a, b]`.
-    fn range() -> (Q, Q);
-    /// Create a new quantization scheme for an input range `[alpha, beta]`.
-    fn new(alpha: E, beta: E) -> Self;
+    fn range(&self) -> (E, E);
     /// Convert the values to a lower precision data type.
-    fn quantize(&self, values: &[E]) -> Vec<Q>;
+    fn quantize<Q: PrimInt>(&self, values: &[E]) -> Vec<Q>;
     /// Convert a single value to a lower precision data type.
-    fn quantize_one(&self, value: E) -> Q;
+    fn quantize_one<Q: PrimInt>(&self, value: E) -> Q;
     /// Convert the values back to a higher precision data type.
-    fn dequantize(&self, values: &[Q]) -> Vec<E>;
+    fn dequantize<Q: PrimInt>(&self, values: &[Q]) -> Vec<E>;
     /// Convert a single value back to a higher precision data type.
-    fn dequantize_one(&self, value: Q) -> E;
+    fn dequantize_one<Q: PrimInt>(&self, value: Q) -> E;
 }
 
 fn valid_scale<E: Float>(mut scale: E) -> E {
@@ -113,78 +83,72 @@ fn valid_scale<E: Float>(mut scale: E) -> E {
 
 /// Symmetric quantization scheme.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct SymmetricQuantization<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> {
+pub struct SymmetricQuantization<E: Float + Send + Sync> {
     /// The scaling factor.
     pub scale: E,
-    /// The quantized type.
-    _q: PhantomData<Q>,
+    // The quantization value data type.
+    value: QuantValue,
 }
 
-impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync> SymmetricQuantization<E> {
     /// Initialize a symmetric quantization scheme with the given parameters.
-    pub fn init(scale: E) -> Self {
+    pub fn init(scale: E, value: QuantValue) -> Self {
         Self {
             scale: valid_scale(scale),
-            _q: PhantomData,
+            value,
         }
     }
-}
 
-impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> Quantization<E, Q>
-    for SymmetricQuantization<E, Q>
-{
-    fn new(alpha: E, beta: E) -> Self {
-        let (a, b) = Self::range();
+    #[allow(dead_code)]
+    /// Create a new quantization scheme for an input range `[alpha, beta]`.
+    fn new(alpha: E, beta: E, value: QuantValue) -> Self {
+        let (a, b) = value.range();
         let a = E::from(a).unwrap();
         let b = E::from(b).unwrap();
 
         // Compute scale to convert a floating point value in range `[-alpha, alpha]` to the quantized range
         let alpha = alpha.abs().max(beta.abs());
         let scale = valid_scale((alpha + alpha) / (b - a));
-        Self {
-            scale,
-            _q: PhantomData,
-        }
+        Self { scale, value }
     }
+}
 
-    fn quantize(&self, values: &[E]) -> Vec<Q> {
+impl<E: Float + Send + Sync> Quantization<E> for SymmetricQuantization<E> {
+    fn quantize<Q: PrimInt>(&self, values: &[E]) -> Vec<Q> {
         values.iter().map(|x| self.quantize_one(*x)).collect()
     }
 
-    fn dequantize(&self, values: &[Q]) -> Vec<E> {
+    fn dequantize<Q: PrimInt>(&self, values: &[Q]) -> Vec<E> {
         values.iter().map(|x_q| self.dequantize_one(*x_q)).collect()
     }
 
-    fn quantize_one(&self, value: E) -> Q {
-        let (a, b) = Self::range();
-        let a = E::from(a).unwrap();
-        let b = E::from(b).unwrap();
+    fn quantize_one<Q: PrimInt>(&self, value: E) -> Q {
+        let (a, b) = self.range();
 
         // x_q = clamp(round(x / scale), a, b)
         Q::from(value.div(self.scale).round().clamp(a, b)).unwrap()
     }
 
-    fn dequantize_one(&self, value: Q) -> E {
+    fn dequantize_one<Q: PrimInt>(&self, value: Q) -> E {
         // x = scale * x_q
         self.scale * E::from(value).unwrap()
     }
 
-    fn range() -> (Q, Q) {
-        // Only implemented for symmetric *signed* at this time
-        let b = Q::max_value();
-        (b.neg(), b)
+    fn range(&self) -> (E, E) {
+        let (a, b) = self.value.range();
+        let a = E::from(a).unwrap();
+        let b = E::from(b).unwrap();
+        (a, b)
     }
 }
 
-impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> PartialEq
-    for SymmetricQuantization<E, Q>
-{
+impl<E: Float + Send + Sync> PartialEq for SymmetricQuantization<E> {
     fn eq(&self, other: &Self) -> bool {
         self.scale == other.scale
     }
 }
 
-impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> Eq for SymmetricQuantization<E, Q> {}
+impl<E: Float + Send + Sync> Eq for SymmetricQuantization<E> {}
 
 #[cfg(test)]
 mod tests {
@@ -197,7 +161,7 @@ mod tests {
         let expected_q = vec![-127, -71, 0, 35];
         let expected_d = vec![-1.8, -1.0062993, 0.0, 0.496063];
 
-        let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
+        let symmetric = SymmetricQuantization::<f32>::new(-1.8, 0.5, QuantValue::Q8S);
 
         let q: Vec<i8> = symmetric.quantize(&x);
         assert_eq!(q, expected_q);
@@ -215,9 +179,8 @@ mod tests {
             -1.8, -1.0062993, 0.0, 0.496063, -1.8, -1.0062993, 0.0, 0.496063,
         ];
 
-        let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
-        let strategy =
-            QuantizationStrategy::PerBlockSymmetricInt8(vec![symmetric.clone(), symmetric], 4);
+        let symmetric = SymmetricQuantization::<f32>::new(-1.8, 0.5, QuantValue::Q8S);
+        let strategy = QuantizationStrategy::PerBlockSymmetric(vec![symmetric, symmetric], 4);
 
         let q: Vec<i8> = strategy.quantize(&x);
         assert_eq!(q, expected_q);

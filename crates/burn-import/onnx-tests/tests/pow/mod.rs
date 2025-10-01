@@ -6,14 +6,14 @@ mod tests {
     use super::*;
     use burn::tensor::{Int, Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn pow_int_with_tensor_and_scalar() {
         let device = Default::default();
-        let model: pow_int::Model<Backend> = pow_int::Model::new(&device);
+        let model: pow_int::Model<TestBackend> = pow_int::Model::new(&device);
 
-        let input1 = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
+        let input1 = Tensor::<TestBackend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
         let input2 = 2;
 
         let output = model.forward(input1, input2);
@@ -25,7 +25,7 @@ mod tests {
     #[test]
     fn pow_with_tensor_and_scalar() {
         let device = Default::default();
-        let model: pow::Model<Backend> = pow::Model::new(&device);
+        let model: pow::Model<TestBackend> = pow::Model::new(&device);
 
         let input1 = Tensor::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let input2 = 2f64;

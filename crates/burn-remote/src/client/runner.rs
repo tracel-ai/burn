@@ -3,7 +3,7 @@ use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_tensor::{
-    DType, TensorData,
+    TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use std::{
@@ -65,9 +65,9 @@ impl RunnerClient for RemoteClient {
     fn register_float_tensor(
         &self,
         shape: Vec<usize>,
-        _dtype: burn_tensor::FloatDType,
+        dtype: burn_tensor::FloatDType,
     ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, DType::F32)
+        self.register_empty_tensor(shape, dtype.into())
     }
 
     fn device(&self) -> Self::Device {
@@ -86,8 +86,8 @@ impl RunnerClient for RemoteClient {
         };
     }
 
-    fn seed(&self, _seed: u64) {
-        // TODO
+    fn seed(&self, seed: u64) {
+        self.sender.send(ComputeTask::Seed(seed));
     }
 }
 
@@ -124,14 +124,24 @@ impl Default for RemoteDevice {
     }
 }
 
-impl DeviceOps for RemoteDevice {
-    fn id(&self) -> DeviceId {
+impl burn_common::device::Device for RemoteDevice {
+    fn from_id(_device_id: DeviceId) -> Self {
+        todo!("Should keep the address as ints, host should be type, port should be index.")
+    }
+
+    fn to_id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
             index_id: self.id,
         }
     }
+
+    fn device_count(_type_id: u16) -> usize {
+        1
+    }
 }
+
+impl DeviceOps for RemoteDevice {}
 
 pub struct RemoteBridge<C: ProtocolClient> {
     _p: PhantomData<C>,

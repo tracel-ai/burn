@@ -1,8 +1,5 @@
 use burn_common::{iter_par, run_par};
-use burn_tensor::{
-    TensorMetadata,
-    ops::{DeformConvOptions, conv::calculate_conv_output_size},
-};
+use burn_tensor::ops::{DeformConvOptions, conv::calculate_conv_output_size};
 use core::ops::AddAssign;
 use ndarray::{
     Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim, Ix4,
@@ -13,7 +10,7 @@ use ndarray::{
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{FloatNdArrayElement, NdArrayTensor};
+use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray};
 
 use super::matmul::matmul;
 
@@ -111,18 +108,21 @@ fn bilinear_interpolate<F: FloatNdArrayElement>(
 }
 
 pub(crate) fn deform_conv2d<F: FloatNdArrayElement>(
-    input: NdArrayTensor<F>,
-    offset: NdArrayTensor<F>,
-    weight: NdArrayTensor<F>,
-    mask: Option<NdArrayTensor<F>>,
-    bias: Option<NdArrayTensor<F>>,
+    input: SharedArray<F>,
+    offset: SharedArray<F>,
+    weight: SharedArray<F>,
+    mask: Option<SharedArray<F>>,
+    bias: Option<SharedArray<F>>,
     args: DeformConvOptions<2>,
-) -> NdArrayTensor<F> {
+) -> SharedArray<F>
+where
+    NdArrayTensor: From<SharedArray<F>>,
+{
     let [batch_size, _, in_height, in_width] = input.shape().dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape().dims();
     let groups = args.weight_groups;
 
-    let weight = weight.array.as_standard_layout();
+    let weight = weight.as_standard_layout();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -140,19 +140,18 @@ pub(crate) fn deform_conv2d<F: FloatNdArrayElement>(
     );
     let out_dims = (out_h, out_w);
 
-    let input = input.array.into_dimensionality::<Ix4>().unwrap();
-    let offset = offset.array.into_dimensionality::<Ix4>().unwrap();
+    let input = input.into_dimensionality::<Ix4>().unwrap();
+    let offset = offset.into_dimensionality::<Ix4>().unwrap();
     let mask = mask.as_ref().map(|it| {
-        it.array
-            .to_shape((
-                batch_size,
-                args.offset_groups,
-                kernel_h,
-                kernel_w,
-                out_h,
-                out_w,
-            ))
-            .unwrap()
+        it.to_shape((
+            batch_size,
+            args.offset_groups,
+            kernel_h,
+            kernel_w,
+            out_h,
+            out_w,
+        ))
+        .unwrap()
     });
 
     let columns = deform_im2col(
@@ -173,22 +172,21 @@ pub(crate) fn deform_conv2d<F: FloatNdArrayElement>(
         .unwrap();
     let columns = columns.to_shape((groups, col_size_0, col_size_1)).unwrap();
     let out = matmul(
-        NdArrayTensor::new(weight.to_owned().into_dyn().into_shared()),
-        NdArrayTensor::new(columns.to_owned().into_dyn().into_shared()),
+        weight.to_owned().into_dyn().into_shared(),
+        columns.to_owned().into_dyn().into_shared(),
     );
 
     let mut out = out
-        .array
         .into_shape_with_order((out_channels, batch_size, out_h, out_w))
         .unwrap();
     out.swap_axes(0, 1);
 
     if let Some(bias) = bias {
-        let bias = bias.array.to_shape((1, out_channels, 1, 1)).unwrap();
+        let bias = bias.to_shape((1, out_channels, 1, 1)).unwrap();
         out.add_assign(&bias);
     }
 
-    NdArrayTensor::new(out.into_dyn().into_shared())
+    out.into_dyn().into_shared()
 }
 
 pub(crate) fn deform_im2col<F: FloatNdArrayElement>(
@@ -263,21 +261,21 @@ pub mod backward {
     use super::*;
 
     pub(crate) type DeformConv2dBackward<F> = (
-        NdArrayTensor<F>,
-        NdArrayTensor<F>,
-        NdArrayTensor<F>,
-        Option<NdArrayTensor<F>>,
-        Option<NdArrayTensor<F>>,
+        SharedArray<F>,
+        SharedArray<F>,
+        SharedArray<F>,
+        Option<SharedArray<F>>,
+        Option<SharedArray<F>>,
     );
 
     /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
     pub(crate) fn deform_conv2d_backward<F: FloatNdArrayElement>(
-        input: NdArrayTensor<F>,
-        offset: NdArrayTensor<F>,
-        weight: NdArrayTensor<F>,
-        mask: Option<NdArrayTensor<F>>,
-        bias: Option<NdArrayTensor<F>>,
-        out_grad: NdArrayTensor<F>,
+        input: SharedArray<F>,
+        offset: SharedArray<F>,
+        weight: SharedArray<F>,
+        mask: Option<SharedArray<F>>,
+        bias: Option<SharedArray<F>>,
+        out_grad: SharedArray<F>,
         args: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<F> {
         let [batch_size, out_channels, out_h, out_w] = out_grad.shape().dims();
@@ -285,7 +283,7 @@ pub mod backward {
         let groups = args.weight_groups;
         let out_c_per_group = out_channels / groups;
         let col_shape_1 = batch_size * out_h * out_w;
-        let mut out_grad = out_grad.array.into_dimensionality::<Ix4>().unwrap();
+        let mut out_grad = out_grad.into_dimensionality::<Ix4>().unwrap();
 
         let gradient_bias = bias.map(|_| {
             let out_grad = out_grad
@@ -294,7 +292,7 @@ pub mod backward {
                 .sum_axis(Axis(1))
                 .sum_axis(Axis(1));
 
-            NdArrayTensor::new(out_grad.into_dyn().into_shared())
+            out_grad.into_dyn().into_shared()
         });
 
         out_grad.swap_axes(0, 1);
@@ -302,19 +300,18 @@ pub mod backward {
             .to_shape((groups, out_c_per_group, col_shape_1))
             .unwrap();
 
-        let input = input.array.into_dimensionality::<Ix4>().unwrap();
-        let offset = offset.array.into_dimensionality::<Ix4>().unwrap();
+        let input = input.into_dimensionality::<Ix4>().unwrap();
+        let offset = offset.into_dimensionality::<Ix4>().unwrap();
         let mask = mask.map(|it| {
-            it.array
-                .into_shape_with_order((
-                    batch_size,
-                    args.offset_groups,
-                    kernel_h,
-                    kernel_w,
-                    out_h,
-                    out_w,
-                ))
-                .unwrap()
+            it.into_shape_with_order((
+                batch_size,
+                args.offset_groups,
+                kernel_h,
+                kernel_w,
+                out_h,
+                out_w,
+            ))
+            .unwrap()
         });
 
         let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs(
@@ -354,7 +351,7 @@ pub mod backward {
         options: DeformConvOptions<2>,
         kernel_dims: (usize, usize),
         out_dims: (usize, usize),
-    ) -> NdArrayTensor<F> {
+    ) -> SharedArray<F> {
         let in_channels = input.dim().1;
         let (groups, out_c_per_group, _) = out_grad.dim();
         let (kernel_h, kernel_w) = kernel_dims;
@@ -369,22 +366,21 @@ pub mod backward {
         columns.swap_axes(1, 2);
 
         let grad_weight = matmul(
-            NdArrayTensor::new(out_grad.to_owned().into_dyn().into_shared()),
-            NdArrayTensor::new(columns.to_owned().into_dyn().into_shared()),
+            out_grad.to_owned().into_dyn().into_shared(),
+            columns.to_owned().into_dyn().into_shared(),
         );
 
         let grad_weight = grad_weight
-            .array
             .into_shape_with_order((out_c_per_group * groups, in_c_per_group, kernel_h, kernel_w))
             .unwrap();
-        NdArrayTensor::new(grad_weight.into_dyn().into_shared())
+        grad_weight.into_dyn().into_shared()
     }
 
-    type InputGradients<F> = (NdArrayTensor<F>, NdArrayTensor<F>, Option<NdArrayTensor<F>>);
+    type InputGradients<F> = (SharedArray<F>, SharedArray<F>, Option<SharedArray<F>>);
 
     fn backward_gradient_inputs<F: FloatNdArrayElement>(
         image: ArrayView4<F>,
-        weight: NdArrayTensor<F>,
+        weight: SharedArray<F>,
         offset: ArrayView4<F>,
         mask: Option<ArrayView6<F>>,
         out_grad: ArrayView3<F>,
@@ -402,17 +398,15 @@ pub mod backward {
         let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
 
         let mut weight = weight
-            .array
             .to_shape((groups, out_c_per_group, col_shape_0))
             .unwrap();
         weight.swap_axes(1, 2);
         let columns = matmul(
-            NdArrayTensor::new(weight.to_owned().into_dyn().into_shared()),
-            NdArrayTensor::new(out_grad.to_owned().into_dyn().into_shared()),
+            weight.to_owned().into_dyn().into_shared(),
+            out_grad.to_owned().into_dyn().into_shared(),
         );
 
         let columns = columns
-            .array
             .to_shape((in_channels, kernel_h, kernel_w, batch_size, out_h, out_w))
             .unwrap();
 
@@ -438,7 +432,7 @@ pub mod backward {
         mask: Option<ArrayView6<F>>,
         args: &DeformConvOptions<2>,
         kernel_dims: (usize, usize),
-    ) -> (NdArrayTensor<F>, Option<NdArrayTensor<F>>) {
+    ) -> (SharedArray<F>, Option<SharedArray<F>>) {
         let (kernel_h, kernel_w) = kernel_dims;
         let (_, in_channels, height, width) = image.dim();
         let (batch_size, offset_channels, out_h, out_w) = offset.dim();
@@ -511,13 +505,13 @@ pub mod backward {
                 .into_shape_with_order((offset_channels / 2, batch_size, out_h, out_w))
                 .unwrap();
             grad_mask.swap_axes(0, 1);
-            NdArrayTensor::new(grad_mask.into_dyn().into_shared())
+            grad_mask.into_dyn().into_shared()
         });
         let mut grad_offset = grad_offset
             .into_shape_with_order((offset_channels, batch_size, out_h, out_w))
             .unwrap();
         grad_offset.swap_axes(0, 1);
-        let offset_gradient = NdArrayTensor::new(grad_offset.into_dyn().into_shared());
+        let offset_gradient = grad_offset.into_dyn().into_shared();
         (offset_gradient, mask_gradient)
     }
 
@@ -579,7 +573,7 @@ pub mod backward {
         args: &DeformConvOptions<2>,
         kernel_dims: (usize, usize),
         input_shape: (usize, usize, usize, usize),
-    ) -> NdArrayTensor<F> {
+    ) -> SharedArray<F> {
         let (batch_size, in_channels, height, width) = input_shape;
         let (kernel_h, kernel_w) = kernel_dims;
         let offs_groups = args.offset_groups;
@@ -612,13 +606,13 @@ pub mod backward {
         };
 
         // `for_each` expects a 2-tuple argument with `.into_par_iter()`, but 2 separate arguments otherwise
-        #[cfg(feature = "std")]
+        #[cfg(feature = "multi-threads")]
         run_par!(|| {
             iter_par!(Zip::indexed(columns))
                 .for_each(|(args0, args1)| compute_for_each(args0, args1))
         });
 
-        #[cfg(not(feature = "std"))]
+        #[cfg(not(feature = "multi-threads"))]
         run_par!(|| { iter_par!(Zip::indexed(columns)).for_each(&compute_for_each) });
 
         let grad_in: Array1<F> = grad_in
@@ -628,7 +622,7 @@ pub mod backward {
         let grad_in = grad_in
             .into_shape_with_order((batch_size, in_channels, height, width))
             .unwrap();
-        NdArrayTensor::new(grad_in.into_dyn().into_shared())
+        grad_in.into_dyn().into_shared()
     }
 
     fn deform_col2img_kernel(

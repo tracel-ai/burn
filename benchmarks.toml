@@ -2,7 +2,7 @@
 gcp_gpu_attached = true
 gcp_image_family = "tracel-ci-ubuntu-2404-amd64-nvidia"
 # https://cloud.google.com/compute/docs/accelerator-optimized-machines
-# put the faster machine on first place for faster 'Benchmarks Started' feedback in PRs
+# put the faster machine on first place for possibly faster 'Benchmarks Started' feedback in PRs
 gcp_machine_types = [
   "a2-highgpu-1g", # 1 A100 40GB
   "g2-standard-4", # 1 L4 24GB

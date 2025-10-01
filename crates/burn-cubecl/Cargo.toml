@@ -45,7 +45,12 @@ export_tests = [
 ]
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
-std = ["cubecl/std", "burn-tensor/std", "burn-fusion?/std", "burn-cubecl-fusion?/std"]
+std = [
+    "cubecl/std",
+    "burn-tensor/std",
+    "burn-fusion?/std",
+    "burn-cubecl-fusion?/std",
+]
 
 template = []
 
@@ -64,6 +69,7 @@ cubecl = { workspace = true, features = [
     "random",
     "stdlib",
 ] }
+cubecl-quant = { workspace = true, features = ["kernels"] }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
@@ -85,7 +91,9 @@ hashbrown = { workspace = true }
 
 # When exporting tests
 burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", default-features = false, optional = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
+burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", features = [
+    "export_tests", # for "native" sub-byte quantization tests reference
+], optional = true }
 paste = { workspace = true, optional = true }
 serial_test = { workspace = true, optional = true }
 

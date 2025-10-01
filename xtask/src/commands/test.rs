@@ -50,7 +50,7 @@ fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
             .unwrap_or(false);
 
         if should_ignore {
-            // Ignore intermittent sucessful failures
+            // Ignore intermittent successful failures
             // https://github.com/gfx-rs/wgpu/issues/2949
             // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/4391
             eprintln!("⚠️ Ignored SIGSEGV in wgpu test");
@@ -90,6 +90,7 @@ pub(crate) fn handle_command(
                 CiTestType::GithubRunner => {
                     // Exclude crates that are not supported on CI
                     args.exclude.extend(vec![
+                        "burn-cpu".to_string(),
                         "burn-cuda".to_string(),
                         "burn-rocm".to_string(),
                         // "burn-router" uses "burn-wgpu" for the tests.

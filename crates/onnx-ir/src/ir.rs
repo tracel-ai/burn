@@ -34,34 +34,149 @@ impl Argument {
 
     pub fn from_initializer(initializer: &TensorProto) -> Argument {
         let name = initializer.name.clone();
-        let tensor_data = TensorData::try_from(initializer.clone())
-            .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
 
-        if tensor_data.shape.is_empty() {
-            // Convert zero dim tensor to scalar
-            Self {
-                name,
-                ty: ArgType::Scalar(tensor_data.elem_type()),
-                value: Some(tensor_data),
-                passed: false,
+        // 1) Canonical path first.
+        match TensorData::try_from(initializer.clone()) {
+            Ok(td) => {
+                if td.shape.is_empty() {
+                    // rank-0 (scalar)
+                    return Self {
+                        name,
+                        ty: ArgType::Scalar(td.elem_type()),
+                        value: Some(td),
+                        passed: false,
+                    };
+                }
+                Self {
+                    name,
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: td.elem_type(),
+                        rank: td.shape.len(),
+                        static_shape: Some(td.shape.clone()),
+                    }),
+                    value: Some(td),
+                    passed: false,
+                }
             }
-        } else {
-            Self {
-                name,
-                ty: ArgType::Tensor(TensorType {
-                    elem_type: tensor_data.elem_type(),
-                    rank: tensor_data.shape.len(),
-                    static_shape: Some(tensor_data.shape.clone()),
-                }),
-                value: Some(tensor_data),
-                passed: false,
+            Err(orig_err) => {
+                // 2) Fallback handling for scalars & empty tensors, with precise diagnostics.
+                let dims: Vec<i64> = initializer.dims.clone();
+                if dims.iter().any(|&d| d < 0) {
+                    panic!(
+                        "invalid tensor shape (negative dims) for initializer '{}': {:?}",
+                        name, dims
+                    );
+                }
+
+                // Element count implied by dims (treat [] as scalar => 1).
+                let dim_elems: usize = if dims.is_empty() {
+                    1
+                } else {
+                    dims.iter().map(|&d| d as usize).product()
+                };
+
+                // Payload len across typed fields (best-effort).
+                let payload_len = {
+                    let i32n = initializer.int32_data.len();
+                    let i64n = initializer.int64_data.len();
+                    let f32n = initializer.float_data.len();
+                    let f64n = initializer.double_data.len();
+                    let sn = initializer.string_data.len();
+                    let typed = *[i32n, i64n, f32n, f64n, sn].iter().max().unwrap_or(&0);
+                    if typed > 0 {
+                        typed
+                    } else {
+                        // raw_data fallback: many exporters put single scalars here
+                        if !initializer.raw_data.is_empty() && dim_elems == 1 {
+                            1
+                        } else {
+                            0
+                        }
+                    }
+                };
+
+                // 2.a) Accept scalar encodings: [] or [1] with one element.
+                let looks_scalar = dims.is_empty() || (dims.len() == 1 && dims[0] == 1);
+                if looks_scalar && payload_len == 1 {
+                    let td = TensorData::try_from(initializer.clone()).unwrap_or_else(|_| {
+                        panic!(
+                            "failed to decode scalar initializer '{}': dims={:?}",
+                            name, dims
+                        )
+                    });
+                    return Self {
+                        name,
+                        ty: ArgType::Scalar(td.elem_type()),
+                        value: Some(td),
+                        passed: false,
+                    };
+                }
+
+                // 2.b) Accept EMPTY tensors: dim_elems == 0 with payload_len == 0.
+                if dim_elems == 0 && payload_len == 0 && !dims.is_empty() {
+                    // Map ONNX data_type -> ElementType.
+                    // (Covers common types used in initializers; extend as needed.)
+                    let elem = match initializer.data_type {
+                        1 => ElementType::Float32,  // FLOAT
+                        2 => ElementType::Uint8,    // UINT8
+                        3 => ElementType::Int8,     // INT8
+                        4 => ElementType::Uint16,   // UINT16
+                        6 => ElementType::Int32,    // INT32
+                        7 => ElementType::Int64,    // INT64
+                        9 => ElementType::Bool,     // BOOL
+                        10 => ElementType::Float16, // FLOAT16
+                        11 => ElementType::Float64, // DOUBLE
+                        8 => ElementType::String,   // STRING (rare as tensor; empty ok)
+                        // If you need more (e.g., UINT32/UINT64), add them here.
+                        other => panic!(
+                            "unsupported empty-tensor data_type={} for '{}'",
+                            other, name
+                        ),
+                    };
+
+                    // Build empty Data variant corresponding to elem type.
+                    let data = match elem {
+                        ElementType::Float32 => Data::Float32s(Vec::new()),
+                        ElementType::Float64 => Data::Float64s(Vec::new()),
+                        ElementType::Float16 => Data::Float16s(Vec::new()),
+                        ElementType::Int32 => Data::Int32s(Vec::new()),
+                        ElementType::Int64 => Data::Int64s(Vec::new()),
+                        ElementType::Uint16 => Data::Uint16s(Vec::new()),
+                        ElementType::Uint8 => Data::Uint8s(Vec::new()),
+                        ElementType::Int8 => Data::Int8s(Vec::new()),
+                        ElementType::Bool => Data::Bools(Vec::new()),
+                        ElementType::String => Data::Strings(Vec::new()),
+                    };
+
+                    let shape_usize: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
+
+                    return Self {
+                        name,
+                        ty: ArgType::Tensor(TensorType {
+                            elem_type: elem,
+                            rank: shape_usize.len(),
+                            static_shape: Some(shape_usize.clone()),
+                        }),
+                        value: Some(TensorData {
+                            data,
+                            shape: shape_usize,
+                        }),
+                        passed: false,
+                    };
+                }
+
+                // Not scalar, not empty-tensor; fail with context.
+                panic!(
+                    "invalid tensor '{}' (dims {:?} => {} elems) with payload {} elems; original error: {:?}",
+                    name, dims, dim_elems, payload_len, orig_err
+                );
             }
         }
     }
 }
 
 /// The type of an argument.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArgType {
     Scalar(ElementType),
     Shape(Rank),
@@ -93,10 +208,13 @@ pub enum ElementType {
     String,
     Float16,
     Bool,
+    Uint16,
+    Uint8,
+    Int8,
 }
 
 /// Represents the type of a tensor.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TensorType {
     /// The element type of the tensor values (e.g. Float32, Int64, etc.)
     pub elem_type: ElementType,
@@ -145,6 +263,14 @@ impl ArgType {
             ArgType::Tensor(t) => &t.elem_type,
         }
     }
+
+    /// returns the static shape if available
+    pub fn static_shape(&self) -> Option<&Vec<usize>> {
+        match self {
+            ArgType::Tensor(t) => t.static_shape.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 impl Argument {
@@ -180,6 +306,9 @@ impl TensorData {
             Data::Float16(_) | Data::Float16s(_) => ElementType::Float16,
             Data::Float32(_) | Data::Float32s(_) => ElementType::Float32,
             Data::Float64(_) | Data::Float64s(_) => ElementType::Float64,
+            Data::Uint16(_) | Data::Uint16s(_) => ElementType::Uint16,
+            Data::Uint8(_) | Data::Uint8s(_) => ElementType::Uint8,
+            Data::Int8(_) | Data::Int8s(_) => ElementType::Int8,
             Data::Int32(_) | Data::Int32s(_) => ElementType::Int32,
             Data::Int64(_) | Data::Int64s(_) => ElementType::Int64,
             Data::String(_) | Data::Strings(_) => ElementType::String,
@@ -198,6 +327,12 @@ pub enum Data {
     Float32s(Vec<f32>),
     Float64(f64),
     Float64s(Vec<f64>),
+    Uint16(u16),
+    Uint16s(Vec<u16>),
+    Uint8(u8),
+    Uint8s(Vec<u8>),
+    Int8(i8),
+    Int8s(Vec<i8>),
     Int32(i32),
     Int32s(Vec<i32>),
     Int64(i64),
@@ -515,6 +650,12 @@ impl fmt::Debug for Data {
             Data::Float16(v) => write!(f, "Float16({v})"),
             Data::Float32(v) => write!(f, "Float32({v})"),
             Data::Float64(v) => write!(f, "Float64({v})"),
+            Data::Uint16(v) => write!(f, "Uint16({v})"),
+            Data::Uint16s(v) => write!(f, "Uint16s({})", trunc(v)),
+            Data::Uint8s(v) => write!(f, "Uint8s({})", trunc(v)),
+            Data::Int8s(v) => write!(f, "Int8s({})", trunc(v)),
+            Data::Uint8(v) => write!(f, "Uint8({v})"),
+            Data::Int8(v) => write!(f, "Int8({v})"),
             Data::Int32(v) => write!(f, "Int32({v})"),
             Data::Int64(v) => write!(f, "Int64({v})"),
             Data::String(v) => write!(f, "String({v})"),
@@ -598,6 +739,8 @@ impl Data {
             Data::Float64(elem) => elem as i32,
             Data::Float32s(elem) if elem.len() == 1 => elem[0] as i32,
             Data::Int32s(elem) if elem.len() == 1 => elem[0],
+            Data::Uint8(v) => v as i32,
+            Data::Int8(v) => v as i32,
             _ => panic!("Cannot convert {self:?} to i32"),
         }
     }
@@ -614,10 +757,10 @@ impl Data {
     }
 
     pub fn into_bool(self) -> bool {
-        if let Data::Bool(elem) = self {
-            elem
-        } else {
-            panic!("Expected Bool, got {self:?}");
+        match self {
+            Data::Bool(elem) => elem,
+            Data::Bools(elem) if elem.len() == 1 => elem[0],
+            _ => panic!("Expected Bool, got {self:?}"),
         }
     }
 
@@ -645,6 +788,8 @@ impl Data {
             Data::Float64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
             Data::Int32s(elem) => elem.into_iter().map(|x| x as f32).collect(),
             Data::Int64s(elem) => elem.into_iter().map(|x| x as f32).collect(),
+            Data::Uint8s(v) => v.into_iter().map(|x| x as f32).collect(),
+            Data::Int8s(v) => v.into_iter().map(|x| x as f32).collect(),
             _ => panic!("Cannot convert {self:?} to Vec<f32>"),
         }
     }
@@ -666,6 +811,8 @@ impl Data {
             Data::Int64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
             Data::Float32s(elem) => elem.into_iter().map(|x| x as i32).collect(),
             Data::Float64s(elem) => elem.into_iter().map(|x| x as i32).collect(),
+            Data::Uint8s(v) => v.into_iter().map(|x| x as i32).collect(),
+            Data::Int8s(v) => v.into_iter().map(|x| x as i32).collect(),
             _ => panic!("Cannot convert {self:?} to Vec<i32>"),
         }
     }

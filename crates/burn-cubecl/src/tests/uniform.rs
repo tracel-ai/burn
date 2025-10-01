@@ -14,9 +14,9 @@ mod tests {
     #[test]
     #[serial]
     fn values_all_within_interval_default() {
-        TestBackend::seed(0);
-        let shape = [24, 24];
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = [24, 24];
 
         let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
         tensor
@@ -27,9 +27,9 @@ mod tests {
     #[test]
     #[serial]
     fn values_all_within_interval_uniform() {
-        TestBackend::seed(0);
-        let shape = [24, 24];
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = [24, 24];
 
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(5., 17.), &device);
@@ -41,9 +41,9 @@ mod tests {
     #[test]
     #[serial]
     fn at_least_one_value_per_bin_uniform() {
-        TestBackend::seed(0);
-        let shape = [64, 64];
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = [64, 64];
 
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device)
@@ -56,9 +56,9 @@ mod tests {
     #[test]
     #[serial]
     fn runs_test() {
-        TestBackend::seed(0);
-        let shape = Shape::new([512, 512]);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = Shape::new([512, 512]);
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device).into_data();
 
@@ -70,9 +70,9 @@ mod tests {
     #[test]
     #[serial]
     fn int_values_all_within_interval_uniform() {
-        TestBackend::seed(0);
-        let shape = Shape::new([20, 20]);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = Shape::new([20, 20]);
         let tensor: Tensor<TestBackend, 2, Int> =
             Tensor::random(shape, Distribution::Default, &device);
 
@@ -84,9 +84,9 @@ mod tests {
     #[test]
     #[serial]
     fn at_least_one_value_per_bin_int_uniform() {
-        TestBackend::seed(0);
-        let shape = Shape::new([64, 64]);
         let device = Default::default();
+        TestBackend::seed(&device, 0);
+        let shape = Shape::new([64, 64]);
 
         let tensor: Tensor<TestBackend, 2, Int> =
             Tensor::random(shape, Distribution::Uniform(-10.0, 10.0), &device);

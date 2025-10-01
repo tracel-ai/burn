@@ -154,4 +154,32 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([[2, 3, 4], [5, 6, 7]]), false);
     }
+
+    #[test]
+    fn scalar_add_not_contiguous() {
+        let tensor = TestTensorInt::<1>::arange(0..32, &Default::default()).float();
+        let tensor = tensor.reshape([1, 4, 4, 2]).permute([0, 3, 1, 2]);
+
+        let tensor = tensor.slice([0..1, 0..2, 0..4, 0..4]);
+        let before = tensor.clone();
+
+        let after = tensor.add_scalar(0.0);
+
+        before
+            .into_data()
+            .assert_approx_eq::<f32>(&after.into_data(), Default::default());
+    }
+
+    #[test]
+    fn scalar_add_not_contiguous_int() {
+        let tensor = TestTensorInt::<1>::arange(0..32, &Default::default());
+        let tensor = tensor.reshape([1, 4, 4, 2]).permute([0, 3, 1, 2]);
+
+        let tensor = tensor.slice([0..1, 0..2, 0..4, 0..4]);
+        let before = tensor.clone();
+
+        let after = tensor.add_scalar(0);
+
+        before.into_data().assert_eq(&after.into_data(), true);
+    }
 }

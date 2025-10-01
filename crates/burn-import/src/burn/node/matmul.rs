@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorKind, TensorType, ToTokens, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -45,37 +45,47 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
         // Support broadcasting for missing dimensions
         match lhs_dim.cmp(&rhs_dim) {
             Ordering::Greater => {
-                // Alternate unsqueeze(0) -> unsqueeze(-1) -> unsqueeze(0) -> ...
-                let axes = (0..lhs_dim - rhs_dim)
-                    .map(|i| if i % 2 == 0 { 0 } else { -1 })
-                    .collect::<Vec<i64>>();
-                let axes = axes.to_tokens();
+                let num_unsqueezes = lhs_dim - rhs_dim;
 
                 if rhs_dim == 1 {
-                    // Matrix-vector product: squeeze(-1)
+                    // Matrix-vector product: expand vector to match matrix rank
                     let squeeze_dim = lhs_dim - 1;
+                    let output_rank = self.output.rank;
+
+                    // Build unsqueeze dimensions: [-1, 0, 0, ...]
+                    let mut unsqueeze_dims = vec![-1isize];
+                    if num_unsqueezes > 1 {
+                        unsqueeze_dims.extend(std::iter::repeat_n(0isize, num_unsqueezes - 1));
+                    }
+
                     quote! {
-                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&#axes)).squeeze(#squeeze_dim);
+                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&[#(#unsqueeze_dims),*])).squeeze_dim::<#output_rank>(#squeeze_dim);
                     }
                 } else {
+                    // General tensor broadcasting: add leading dimensions
+                    let target_rank = lhs_dim;
+
                     quote! {
-                        let #output = #lhs.matmul(#rhs.unsqueeze_dims(&#axes));
+                        let #output = #lhs.matmul(#rhs.unsqueeze::<#target_rank>());
                     }
                 }
             }
             Ordering::Less => {
-                // Always unsqueeze(0)
-                let axes = [0i64].repeat(rhs_dim - lhs_dim).to_tokens();
-
                 if lhs_dim == 1 {
-                    // Vector-matrix product: squeeze(-2)
+                    // Vector-matrix product: expand vector to match matrix rank
                     let squeeze_dim = rhs_dim - 2;
+                    let output_rank = self.output.rank;
+                    let target_rank = rhs_dim;
+
                     quote! {
-                        let #output = #lhs.unsqueeze_dims(&#axes).matmul(#rhs).squeeze(#squeeze_dim);
+                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs).squeeze_dim::<#output_rank>(#squeeze_dim);
                     }
                 } else {
+                    // General tensor broadcasting: add leading dimensions
+                    let target_rank = rhs_dim;
+
                     quote! {
-                        let #output = #lhs.unsqueeze_dims(&#axes).matmul(#rhs);
+                        let #output = #lhs.unsqueeze::<#target_rank>().matmul(#rhs);
                     }
                 }
             }
@@ -118,10 +128,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -170,10 +177,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -196,7 +200,7 @@ mod tests {
                     tensor1: Tensor<B, 4>,
                     tensor2: Tensor<B, 1>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[0, -1, 0])).squeeze(3usize);
+                    let tensor3 = tensor1.matmul(tensor2.unsqueeze_dims(&[-1isize, 0isize, 0isize])).squeeze_dim::<3usize>(3usize);
 
                     tensor3
                 }
@@ -222,10 +226,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -248,7 +249,7 @@ mod tests {
                     tensor1: Tensor<B, 1>,
                     tensor2: Tensor<B, 4>
                 ) -> Tensor<B, 3> {
-                    let tensor3 = tensor1.unsqueeze_dims(&[0, 0, 0]).matmul(tensor2).squeeze(2usize);
+                    let tensor3 = tensor1.unsqueeze::<4usize>().matmul(tensor2).squeeze_dim::<3usize>(2usize);
 
                     tensor3
                 }

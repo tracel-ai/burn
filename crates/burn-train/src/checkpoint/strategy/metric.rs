@@ -2,7 +2,7 @@ use super::CheckpointingStrategy;
 use crate::{
     checkpoint::CheckpointingAction,
     metric::{
-        Metric,
+        Metric, MetricName,
         store::{Aggregate, Direction, EventStoreClient, Split},
     },
 };
@@ -13,7 +13,7 @@ pub struct MetricCheckpointingStrategy {
     aggregate: Aggregate,
     direction: Direction,
     split: Split,
-    name: String,
+    name: MetricName,
 }
 
 impl MetricCheckpointingStrategy {
@@ -46,10 +46,10 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 
         let mut actions = Vec::new();
 
-        if let Some(current) = self.current {
-            if current != best_epoch {
-                actions.push(CheckpointingAction::Delete(current));
-            }
+        if let Some(current) = self.current
+            && current != best_epoch
+        {
+            actions.push(CheckpointingAction::Delete(current));
         }
 
         if best_epoch == epoch {
@@ -70,7 +70,7 @@ mod tests {
         metric::{
             LossMetric,
             processor::{
-                Metrics, MinimalEventProcessor,
+                MetricsTraining, MinimalEventProcessor,
                 test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
@@ -90,7 +90,7 @@ mod tests {
             Direction::Lowest,
             Split::Train,
         );
-        let mut metrics = Metrics::<f64, f64>::default();
+        let mut metrics = MetricsTraining::<f64, f64>::default();
         // Register an in memory logger.
         store.register_logger_train(InMemoryMetricLogger::default());
         // Register the loss metric.

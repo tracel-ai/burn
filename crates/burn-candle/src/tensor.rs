@@ -1,5 +1,5 @@
 use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
+    DType, Element, FloatDType, IntDType, Shape, TensorData, TensorMetadata,
     quantization::{QTensorPrimitive, QuantScheme},
 };
 
@@ -26,6 +26,16 @@ impl TensorMetadata for CandleTensor {
 
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.dims().to_vec())
+    }
+
+    fn rank(&self) -> usize {
+        self.tensor.dims().len()
+    }
+}
+
+impl QTensorPrimitive for CandleTensor {
+    fn scheme(&self) -> &QuantScheme {
+        unimplemented!("Quantization is not supported")
     }
 }
 
@@ -56,28 +66,29 @@ impl CandleTensor {
     }
 }
 
-/// A quantized tensor for the candle backend.
-#[derive(Clone, Debug)]
-pub struct CandleQTensor {
-    /// The quantized tensor.
-    // NOTE: candle  does not implement `WithDType` for i8
-    pub qtensor: CandleTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
+pub(crate) trait IntoDType {
+    fn into_dtype(self) -> candle_core::DType;
 }
 
-impl QTensorPrimitive for CandleQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
+impl IntoDType for IntDType {
+    fn into_dtype(self) -> candle_core::DType {
+        match self {
+            IntDType::I64 => candle_core::DType::I64,
+            IntDType::U32 => candle_core::DType::U32,
+            IntDType::U8 => candle_core::DType::U8,
+            other => panic!("Unsupported dtype {other:?}"),
+        }
     }
 }
 
-impl TensorMetadata for CandleQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
+impl IntoDType for FloatDType {
+    fn into_dtype(self) -> candle_core::DType {
+        match self {
+            FloatDType::F64 => candle_core::DType::F64,
+            FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::Flex32 => candle_core::DType::F32,
+            FloatDType::F16 => candle_core::DType::F16,
+            FloatDType::BF16 => candle_core::DType::BF16,
+        }
     }
 }

@@ -1,10 +1,10 @@
-use crate::kernel::into_contiguous;
+use crate::kernel::{AddOp, BinaryOp, BinaryOpFamily, OrOp, into_contiguous};
 use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 #[cube(launch_unchecked)]
-fn select_assign_kernel<F: Numeric, I: Numeric>(
+fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
     indices: &Tensor<I>,
     value: &Tensor<F>,
@@ -41,7 +41,11 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
         let index_tensor = u32::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
-        tensor[index_tensor] += value[index_value];
+        let value = Op::BinaryOp::<F>::execute(
+            Line::cast_from(tensor[index_tensor]),
+            Line::cast_from(value[index_value]),
+        );
+        tensor[index_tensor] = F::cast_from(value);
     }
 }
 
@@ -50,6 +54,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     dim: usize,
     indices: CubeTensor<R>,
     value: CubeTensor<R>,
+    is_bool: bool,
 ) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let tensor = match tensor.can_mut() {
@@ -77,8 +82,13 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
+    let launch = match is_bool {
+        true => select_assign_kernel::launch_unchecked::<E, I, OrOp, R>,
+        false => select_assign_kernel::launch_unchecked::<E, I, AddOp, R>,
+    };
+
     unsafe {
-        select_assign_kernel::launch_unchecked::<E, I, R>(
+        launch(
             &tensor.client,
             cube_count,
             cube_dim,

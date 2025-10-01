@@ -44,17 +44,17 @@ impl GenericsHelper {
     - Any backend trait is supported.";
 
         for param in self.generics.params.iter() {
-            if let syn::GenericParam::Type(ty) = &param {
-                if ty.ident == "B" {
-                    let bound = ty
-                        .bounds
-                        .first()
-                        .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
+            if let syn::GenericParam::Type(ty) = &param
+                && ty.ident == "B"
+            {
+                let bound = ty
+                    .bounds
+                    .first()
+                    .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
 
-                    return quote! {
-                        #bound
-                    };
-                }
+                return quote! {
+                    #bound
+                };
             }
         }
 

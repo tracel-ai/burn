@@ -4,14 +4,57 @@ use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
+/// Interpolation mode for resize operation
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResizeMode {
+    /// Nearest neighbor interpolation
+    Nearest,
+    /// Linear interpolation (bilinear for 2D, trilinear for 3D)
+    Linear,
+    /// Cubic interpolation
+    Cubic,
+}
+
+impl ResizeMode {
+    /// Convert to InterpolateMode token for code generation
+    pub fn to_interpolate_mode_token(&self) -> TokenStream {
+        match self {
+            ResizeMode::Nearest => quote! { InterpolateMode::Nearest },
+            ResizeMode::Linear => quote! { InterpolateMode::Linear },
+            ResizeMode::Cubic => quote! { InterpolateMode::Cubic },
+        }
+    }
+
+    /// Convert to tensor ops InterpolateMode token for runtime resize
+    pub fn to_tensor_interpolate_mode_token(&self) -> TokenStream {
+        match self {
+            ResizeMode::Nearest => quote! { burn::tensor::ops::InterpolateMode::Nearest },
+            ResizeMode::Linear => quote! { burn::tensor::ops::InterpolateMode::Bilinear },
+            ResizeMode::Cubic => quote! { burn::tensor::ops::InterpolateMode::Bicubic },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ResizeScales {
+    Static(Vec<f32>),
+    Runtime(Type),
+}
+
+#[derive(Debug, Clone)]
+pub enum ResizeSizes {
+    Static(Vec<usize>),
+    Runtime(Type),
+}
+
 #[derive(Debug, Clone)]
 pub struct ResizeNode {
-    pub field: OtherType,
+    pub field: Option<OtherType>,
     pub input: TensorType,
     pub output: TensorType,
-    mode: String,
-    scales: Vec<f32>,
-    sizes: Vec<usize>,
+    pub mode: ResizeMode,
+    pub scales: Option<ResizeScales>,
+    pub sizes: Option<ResizeSizes>,
 }
 
 impl ResizeNode {
@@ -19,29 +62,85 @@ impl ResizeNode {
         name: S,
         input: TensorType,
         output: TensorType,
-        mode: String,
-        scales: Vec<f32>,
-        sizes: Vec<usize>,
+        mode: ResizeMode,
+        scales: Option<ResizeScales>,
+        sizes: Option<ResizeSizes>,
     ) -> Self {
-        let ty = if input.rank == 3 {
-            quote! {
-                Interpolate1d
+        // Only create a field if we have static scales/sizes
+        // Runtime inputs mean we don't need a static interpolation field
+        let field = match (&scales, &sizes) {
+            (Some(ResizeScales::Runtime(_)), _) | (_, Some(ResizeSizes::Runtime(_))) => {
+                None // Runtime inputs, no field needed
             }
-        } else if input.rank == 4 {
-            quote! {
-                Interpolate2d
+            (Some(ResizeScales::Static(_)), _) | (_, Some(ResizeSizes::Static(_))) => {
+                let ty = if input.rank == 3 {
+                    quote! { Interpolate1d }
+                } else if input.rank == 4 {
+                    quote! { Interpolate2d }
+                } else {
+                    panic!("Unsupported input rank for resize node");
+                };
+                Some(OtherType::new(name, ty))
             }
-        } else {
-            panic!("Unsupported input rank for resize node");
+            _ => None, // No scales or sizes provided
         };
 
         Self {
-            field: OtherType::new(name, ty),
+            field,
             input,
             output,
             mode,
             scales,
             sizes,
+        }
+    }
+
+    fn forward_runtime(&self, input: TokenStream, output: &proc_macro2::Ident) -> TokenStream {
+        // Handle runtime resize with Shape inputs
+        match &self.sizes {
+            Some(ResizeSizes::Runtime(Type::Shape(shape))) => {
+                let shape_name = &shape.name;
+                // Extract the last 2 dimensions from the shape (H, W for 2D resize)
+                if self.input.rank == 4 {
+                    let mode_token = self.mode.to_tensor_interpolate_mode_token();
+
+                    quote! {
+                        // Shape contains the full output shape [N, C, H, W]
+                        // We need to extract H and W for the resize operation
+                        let target_height = #shape_name[2] as usize;
+                        let target_width = #shape_name[3] as usize;
+
+                        // Use interpolate function directly
+                        let #output = burn::tensor::module::interpolate(
+                            #input,
+                            [target_height, target_width],
+                            burn::tensor::ops::InterpolateOptions::new(#mode_token)
+                        );
+                    }
+                } else {
+                    panic!(
+                        "Runtime resize with Shape input only supported for 4D tensors currently"
+                    );
+                }
+            }
+            Some(ResizeSizes::Runtime(Type::Tensor(tensor))) => {
+                let sizes_name = &tensor.name;
+                let mode_token = self.mode.to_tensor_interpolate_mode_token();
+                quote! {
+                    // Convert tensor to shape array, forcing conversion to i64
+                    let sizes_data = #sizes_name.to_data().convert::<i64>();
+                    let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                    let target_height = sizes_array[2] as usize;
+                    let target_width = sizes_array[3] as usize;
+
+                    let #output = burn::tensor::module::interpolate(
+                        #input,
+                        [target_height, target_width],
+                        burn::tensor::ops::InterpolateOptions::new(#mode_token)
+                    );
+                }
+            }
+            _ => panic!("Runtime resize requires Shape or Tensor sizes input"),
         }
     }
 }
@@ -52,36 +151,44 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]
+        let mut types = vec![Type::Tensor(self.input.clone())];
+
+        // Add runtime shape inputs if present
+        if let Some(ResizeScales::Runtime(ty)) = &self.scales {
+            types.push(ty.clone());
+        }
+        if let Some(ResizeSizes::Runtime(ty)) = &self.sizes {
+            types.push(ty.clone());
+        }
+
+        types
     }
 
     fn field_type(&self) -> Option<Type> {
-        Some(Type::Other(self.field.clone()))
+        self.field.as_ref().map(|f| Type::Other(f.clone()))
     }
 
     fn field_init(&self) -> Option<TokenStream> {
-        let name = &self.field.name;
+        let field = self.field.as_ref()?;
+        let name = &field.name;
 
-        let mode = match self.mode.as_str() {
-            "nearest" => quote! { InterpolateMode::Nearest },
-            "linear" => quote! { InterpolateMode::Linear },
-            "cubic" => quote! { InterpolateMode::Cubic },
-            _ => panic!("Unsupported mode for resize node"),
-        };
+        let mode = self.mode.to_interpolate_mode_token();
 
         let tokens = if self.input.rank == 3 {
-            let size = if let Some(size) = self.sizes.first() {
-                let size = size.to_tokens();
-                quote! { Some(#size) }
-            } else {
-                quote! { None }
+            let size = match &self.sizes {
+                Some(ResizeSizes::Static(sizes)) if !sizes.is_empty() => {
+                    let size = sizes[0].to_tokens();
+                    quote! { Some(#size) }
+                }
+                _ => quote! { None },
             };
 
-            let scale_factor = if let Some(scale) = self.scales.first() {
-                let scale = scale.to_tokens();
-                quote! { Some(#scale) }
-            } else {
-                quote! { None }
+            let scale_factor = match &self.scales {
+                Some(ResizeScales::Static(scales)) if !scales.is_empty() => {
+                    let scale = scales[0].to_tokens();
+                    quote! { Some(#scale) }
+                }
+                _ => quote! { None },
             };
 
             quote! {
@@ -92,20 +199,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                     .init();
             }
         } else if self.input.rank == 4 {
-            let size = if self.sizes.len() == 2 {
-                let h = self.sizes[0].to_tokens();
-                let w = self.sizes[1].to_tokens();
-                quote! { Some([#h, #w]) }
-            } else {
-                quote! { None }
+            let size = match &self.sizes {
+                Some(ResizeSizes::Static(sizes)) if sizes.len() == 2 => {
+                    let h = sizes[0].to_tokens();
+                    let w = sizes[1].to_tokens();
+                    quote! { Some([#h, #w]) }
+                }
+                _ => quote! { None },
             };
 
-            let scale_factor = if self.scales.len() == 2 {
-                let h = self.scales[0].to_tokens();
-                let w = self.scales[1].to_tokens();
-                quote! { Some([#h, #w]) }
-            } else {
-                quote! { None }
+            let scale_factor = match &self.scales {
+                Some(ResizeScales::Static(scales)) if scales.len() == 2 => {
+                    let h = scales[0].to_tokens();
+                    let w = scales[1].to_tokens();
+                    quote! { Some([#h, #w]) }
+                }
+                _ => quote! { None },
             };
 
             quote! {
@@ -123,15 +232,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     }
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        imports.register("burn::nn::interpolate::InterpolateMode");
-        if self.input.rank == 3 {
-            imports.register("burn::nn::interpolate::Interpolate1dConfig");
-            imports.register("burn::nn::interpolate::Interpolate1d");
-        } else if self.input.rank == 4 {
-            imports.register("burn::nn::interpolate::Interpolate2dConfig");
-            imports.register("burn::nn::interpolate::Interpolate2d");
-        } else {
-            panic!("Unsupported input rank for resize node");
+        if self.field.is_some() {
+            // Static resize - need the interpolate config and types
+            imports.register("burn::nn::interpolate::InterpolateMode");
+            if self.input.rank == 3 {
+                imports.register("burn::nn::interpolate::Interpolate1dConfig");
+                imports.register("burn::nn::interpolate::Interpolate1d");
+            } else if self.input.rank == 4 {
+                imports.register("burn::nn::interpolate::Interpolate2dConfig");
+                imports.register("burn::nn::interpolate::Interpolate2d");
+            } else {
+                panic!("Unsupported input rank for resize node");
+            }
         }
     }
 
@@ -142,10 +254,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
-        let field = &self.field.name;
 
-        quote! {
-            let #output = self.#field.forward(#input);
+        if let Some(field) = &self.field {
+            let field_name = &field.name;
+            quote! {
+                let #output = self.#field_name.forward(#input);
+            }
+        } else {
+            // Handle runtime resize - we need to use tensor operations directly
+            self.forward_runtime(input, output)
         }
     }
 
@@ -173,21 +290,18 @@ mod tests {
             "resize",
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            "nearest".to_string(),
-            vec![0.5, 0.5],
-            vec![],
+            ResizeMode::Nearest,
+            Some(ResizeScales::Static(vec![0.5, 0.5])),
+            None,
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
             use burn::nn::interpolate::Interpolate2d;
             use burn::nn::interpolate::Interpolate2dConfig;
             use burn::nn::interpolate::InterpolateMode;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate2d,
@@ -227,21 +341,18 @@ mod tests {
             "resize",
             TensorType::new_float("tensor1", 3),
             TensorType::new_float("tensor2", 3),
-            "cubic".to_string(),
-            vec![2.0],
-            vec![20],
+            ResizeMode::Cubic,
+            Some(ResizeScales::Static(vec![2.0])),
+            Some(ResizeSizes::Static(vec![20])),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
 
         let expected = quote! {
+            use burn::prelude::*;
             use burn::nn::interpolate::Interpolate1d;
             use burn::nn::interpolate::Interpolate1dConfig;
             use burn::nn::interpolate::InterpolateMode;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 resize: Interpolate1d,

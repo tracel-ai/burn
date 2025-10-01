@@ -147,6 +147,26 @@ mod tests {
     }
 
     #[test]
+    fn should_support_mask_fill_broadcasted() {
+        let device = Default::default();
+        let tensor = TestTensor::zeros([1, 4, 2, 2], &device);
+        let mask = TestTensorBool::<4>::from_bool(
+            TensorData::from([[[[true, false], [false, true]]]]),
+            &device,
+        );
+
+        let output = tensor.mask_fill(mask, 2.0);
+        let expected = TensorData::from([[
+            [[2., 0.], [0., 2.]],
+            [[2., 0.], [0., 2.]],
+            [[2., 0.], [0., 2.]],
+            [[2., 0.], [0., 2.]],
+        ]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_support_int_mask_where_ops() {
         let device = Default::default();
         let tensor = TestTensorInt::<2>::from_data([[1, 7], [2, 3]], &device);

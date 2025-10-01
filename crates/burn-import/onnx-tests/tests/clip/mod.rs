@@ -7,16 +7,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn clip() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: clip::Model<Backend> = clip::Model::new(&device);
+        let model: clip::Model<TestBackend> = clip::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats(
+        let input = Tensor::<TestBackend, 1>::from_floats(
             [
                 0.88226926,
                 0.91500396,

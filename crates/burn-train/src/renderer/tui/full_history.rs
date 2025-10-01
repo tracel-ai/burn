@@ -1,15 +1,21 @@
 use super::PlotAxes;
+use crate::{
+    metric::NumericEntry,
+    renderer::tui::{TuiSplit, TuiTag},
+};
 use ratatui::{
     style::{Color, Style, Stylize},
     symbols,
-    widgets::{Dataset, GraphType},
+    widgets::{Bar, Dataset, GraphType},
 };
+use std::collections::BTreeMap;
 
 /// A plot that shows the full history at a reduced resolution.
 pub(crate) struct FullHistoryPlot {
     pub(crate) axes: PlotAxes,
-    train: FullHistoryPoints,
-    valid: FullHistoryPoints,
+    points: BTreeMap<TuiTag, FullHistoryPoints>,
+    max_samples: usize,
+    max_samples_ratio: BTreeMap<TuiSplit, f64>,
     next_x_state: usize,
 }
 
@@ -18,6 +24,8 @@ struct FullHistoryPoints {
     max_x: f64,
     min_y: f64,
     max_y: f64,
+    avg_sum: f64,
+    avg_counter: f64,
     points: Vec<(f64, f64)>,
     max_samples: usize,
     step_size: usize,
@@ -27,9 +35,10 @@ impl FullHistoryPlot {
     /// Create a new history plot.
     pub(crate) fn new(max_samples: usize) -> Self {
         Self {
+            points: BTreeMap::default(),
             axes: PlotAxes::default(),
-            train: FullHistoryPoints::new(max_samples),
-            valid: FullHistoryPoints::new(max_samples),
+            max_samples,
+            max_samples_ratio: BTreeMap::default(),
             next_x_state: 0,
         }
     }
@@ -38,42 +47,60 @@ impl FullHistoryPlot {
     ///
     /// This is necessary if we want the validation line to have the same point density as the
     /// training line.
-    pub(crate) fn update_max_sample_valid(&mut self, ratio_train: f64) {
-        if self.valid.step_size == 1 {
-            self.valid.max_samples = (ratio_train * self.train.max_samples as f64) as usize;
-        }
+    pub(crate) fn update_max_sample(&mut self, split: TuiSplit, ratio: f64) {
+        self.max_samples_ratio.insert(split, ratio);
+
+        self.points
+            .iter_mut()
+            .filter(|(tag, _)| tag.split == split)
+            .for_each(|(_, points)| {
+                points.max_samples = (self.max_samples as f64 * ratio) as usize;
+            });
     }
 
     /// Register a training data point.
-    pub(crate) fn push_train(&mut self, data: f64) {
+    pub(crate) fn push(&mut self, tag: TuiTag, data: NumericEntry) {
         let x_current = self.next_x();
-        self.train.push((x_current, data));
+        let points = match self.points.get_mut(&tag) {
+            Some(val) => val,
+            None => {
+                let max_samples = self
+                    .max_samples_ratio
+                    .get(&tag.split)
+                    .map(|ratio| (*ratio * self.max_samples as f64) as usize)
+                    .unwrap_or(self.max_samples);
+                self.points
+                    .insert(tag.clone(), FullHistoryPoints::new(max_samples));
+                self.points.get_mut(&tag).unwrap()
+            }
+        };
+
+        points.push((x_current, data));
 
         self.update_bounds();
     }
 
-    /// Register a validation data point.
-    pub(crate) fn push_valid(&mut self, data: f64) {
-        let x_current = self.next_x();
-
-        self.valid.push((x_current, data));
-
-        self.update_bounds();
-    }
-
-    /// Create the training and validation datasets from the data points.
     pub(crate) fn datasets(&self) -> Vec<Dataset<'_>> {
         let mut datasets = Vec::with_capacity(2);
 
-        if !self.train.is_empty() {
-            datasets.push(self.train.dataset("Train", Color::LightRed));
-        }
-
-        if !self.valid.is_empty() {
-            datasets.push(self.valid.dataset("Valid", Color::LightBlue));
+        for (tag, points) in self.points.iter() {
+            datasets.push(points.dataset(format!("{tag}"), tag.split.color()));
         }
 
         datasets
+    }
+
+    pub(crate) fn bars(&self, max: u64, bar_width: &mut usize) -> Vec<Bar<'_>> {
+        let mut bars = Vec::new();
+
+        for (tag, points) in self.points.iter() {
+            if let Some((bar, width)) = points.bar(tag, max) {
+                *bar_width = usize::max(*bar_width, width);
+                bars.push(bar);
+            }
+        }
+
+        bars
     }
 
     fn next_x(&mut self) -> f64 {
@@ -83,12 +110,17 @@ impl FullHistoryPlot {
     }
 
     fn update_bounds(&mut self) {
-        self.axes.update_bounds(
-            (self.train.min_x, self.train.max_x),
-            (self.valid.min_x, self.valid.max_x),
-            (self.train.min_y, self.train.max_y),
-            (self.valid.min_y, self.valid.max_y),
-        );
+        let (mut x_min, mut x_max) = (f64::MAX, f64::MIN);
+        let (mut y_min, mut y_max) = (f64::MAX, f64::MIN);
+
+        for points in self.points.values() {
+            x_min = f64::min(x_min, points.min_x);
+            x_max = f64::max(x_max, points.max_x);
+            y_min = f64::min(y_min, points.min_y);
+            y_max = f64::max(y_max, points.max_y);
+        }
+
+        self.axes.update_bounds((x_min, x_max), (y_min, y_max));
     }
 }
 
@@ -99,16 +131,35 @@ impl FullHistoryPoints {
             max_x: 0.,
             min_y: f64::MAX,
             max_y: f64::MIN,
+            avg_sum: 0.0,
+            avg_counter: 0.0,
             points: Vec::with_capacity(max_samples),
             max_samples,
             step_size: 1,
         }
     }
 
-    fn push(&mut self, (x, y): (f64, f64)) {
-        if x as usize % self.step_size != 0 {
+    fn push(&mut self, (x, y): (f64, NumericEntry)) {
+        if !(x as usize).is_multiple_of(self.step_size) {
             return;
         }
+
+        let y = match y {
+            NumericEntry::Value(val) => {
+                self.avg_sum += val;
+                self.avg_counter += 1.0;
+                val
+            }
+            NumericEntry::Aggregated {
+                sum,
+                count,
+                current,
+            } => {
+                self.avg_sum = sum;
+                self.avg_counter = count as f64;
+                current
+            }
+        };
 
         if x > self.max_x {
             self.max_x = x;
@@ -168,7 +219,7 @@ impl FullHistoryPoints {
         self.max_y = max_y;
     }
 
-    fn dataset<'a>(&'a self, name: &'a str, color: Color) -> Dataset<'a> {
+    fn dataset<'a>(&'a self, name: String, color: Color) -> Dataset<'a> {
         Dataset::default()
             .name(name)
             .marker(symbols::Marker::Braille)
@@ -177,25 +228,46 @@ impl FullHistoryPoints {
             .data(&self.points)
     }
 
-    fn is_empty(&self) -> bool {
-        self.points.is_empty()
+    fn bar<'a>(&'a self, tag: &TuiTag, max: u64) -> Option<(Bar<'a>, usize)> {
+        if self.avg_sum == 0.0 {
+            return None;
+        }
+
+        let label = format!("{tag}");
+        let width = usize::max(label.len(), 7); // 7 min width
+
+        let factor = max as f64;
+
+        let avg = self.avg_sum / self.avg_counter;
+
+        Some((
+            Bar::default()
+                .value((avg * factor) as u64)
+                .style(tag.split.color())
+                .text_value(format!("{:.2}", avg))
+                .label(label.into()),
+            width,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::renderer::tui::{TuiGroup, TuiSplit};
 
     #[test]
     fn test_points() {
         let mut chart = FullHistoryPlot::new(10);
-        chart.update_max_sample_valid(0.6);
+        let tag_train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+        let tag_valid = TuiTag::new(TuiSplit::Valid, TuiGroup::Default);
+        chart.update_max_sample(tag_valid.split, 0.6);
 
         for i in 0..100 {
-            chart.push_train(i as f64);
+            chart.push(tag_train.clone(), NumericEntry::Value(i as f64));
         }
         for i in 0..60 {
-            chart.push_valid(i as f64);
+            chart.push(tag_valid.clone(), NumericEntry::Value(i as f64));
         }
 
         let expected_train = vec![
@@ -210,7 +282,15 @@ mod tests {
 
         let expected_valid = vec![(100.0, 0.0), (116.0, 16.0), (128.0, 28.0), (144.0, 44.0)];
 
-        assert_eq!(chart.train.points, expected_train);
-        assert_eq!(chart.valid.points, expected_valid);
+        assert_eq!(
+            chart.points.get(&tag_train).unwrap().points,
+            expected_train,
+            "Expected train data points"
+        );
+        assert_eq!(
+            chart.points.get(&tag_valid).unwrap().points,
+            expected_valid,
+            "Expected valid data points"
+        );
     }
 }

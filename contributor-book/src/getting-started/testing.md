@@ -26,6 +26,13 @@ Here's an easy way to define tests for a new operation's backward pass:
 3. Compare the actual outputs to the expected output for left-hand side, right-hand side.
 
 For float tensors, it is advised to use
-`actual_output_tensor.into_data().assert_approx_eq::<FLOAT>(&expected_tensor_data, Tolerance::default())`
-where `FLOAT` is the floating point types (`f32`, `f64`, ...) you are using instead of
-`assert_eq!(...` due to occasional hiccups with floating point calculations.
+`actual_output_tensor.into_data().assert_approx_eq::<FloatElem<TestBackend>>(&expected_tensor_data, Tolerance::default())`
+instead of `assert_eq!(...` due to occasional hiccups with floating point calculations. Other
+assertions should also always use `FloatElem<TestBackend>`, and use `.elem()` to convert any
+literals. Backends are tested for multiple precisions, and hardcoding to a fixed type causes tests
+to fail with alternate floating point precisions. For convenience, it might be worth aliasing the
+type like `type FT = FloatElem<TestBackend>;`.
+
+For integers, tests should use `IntElem<TestBackend>`, and exit the test if the test values are
+unrepresentable (above `max_value`, below `min_value`). A minimum range of `[0..127]` (`i8`) can be
+assumed.

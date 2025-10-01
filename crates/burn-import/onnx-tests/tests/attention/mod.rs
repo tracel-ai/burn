@@ -19,19 +19,18 @@ include_models!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
     use burn::tensor::{Bool, Int, Tensor, TensorData, Tolerance, ops::FloatElem};
-    use burn_ndarray::{NdArray, NdArrayDevice};
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn simple_4d() {
         let device = Default::default();
-        let model: attention_4d::Model<Backend> = attention_4d::Model::new(&device);
+        let model: attention_4d::Model<TestBackend> = attention_4d::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
 
         let output = model.forward(q, k, v);
         let expected = TensorData::from([[[[0.283488f32, 0.566976], [0.266511, 0.533023]]]]);
@@ -44,11 +43,11 @@ mod tests {
     #[test]
     fn simple_3d() {
         let device = Default::default();
-        let model: attention_3d::Model<Backend> = attention_3d::Model::new(&device);
+        let model: attention_3d::Model<TestBackend> = attention_3d::Model::new(&device);
 
-        let q = Tensor::<Backend, 3>::from_floats([[[1.0, 0.0], [0.0, 1.0]]], &device);
-        let k = Tensor::<Backend, 3>::from_floats([[[0.0, 1.0], [1.0, 0.0]]], &device);
-        let v = Tensor::<Backend, 3>::from_floats([[[0.25, 0.5], [0.3, 0.6]]], &device);
+        let q = Tensor::<TestBackend, 3>::from_floats([[[1.0, 0.0], [0.0, 1.0]]], &device);
+        let k = Tensor::<TestBackend, 3>::from_floats([[[0.0, 1.0], [1.0, 0.0]]], &device);
+        let v = Tensor::<TestBackend, 3>::from_floats([[[0.25, 0.5], [0.3, 0.6]]], &device);
 
         let output = model.forward(q, k, v);
         let expected = TensorData::from([[[0.283488f32, 0.566976], [0.266511, 0.533023]]]);
@@ -61,13 +60,13 @@ mod tests {
     #[test]
     fn attn_mask_bool() {
         let device = Default::default();
-        let model: attention_attn_mask_bool::Model<Backend> =
+        let model: attention_attn_mask_bool::Model<TestBackend> =
             attention_attn_mask_bool::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
-        let attn_mask = Tensor::<Backend, 2, Bool>::from_bool(
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let attn_mask = Tensor::<TestBackend, 2, Bool>::from_bool(
             TensorData::from([[true, false], [false, true]]),
             &device,
         );
@@ -83,13 +82,13 @@ mod tests {
     #[test]
     fn attn_mask_int() {
         let device = Default::default();
-        let model: attention_attn_mask_int::Model<Backend> =
+        let model: attention_attn_mask_int::Model<TestBackend> =
             attention_attn_mask_int::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
-        let attn_mask = Tensor::<Backend, 2, Int>::from_ints([[2, 0], [0, 3]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let attn_mask = Tensor::<TestBackend, 2, Int>::from_ints([[2, 0], [0, 3]], &device);
 
         let output = model.forward(q, k, v, attn_mask);
         let expected = TensorData::from([[[[0.260768f32, 0.521536], [0.295414, 0.590828]]]]);
@@ -102,13 +101,13 @@ mod tests {
     #[test]
     fn attn_mask_float() {
         let device = Default::default();
-        let model: attention_attn_mask_float::Model<Backend> =
+        let model: attention_attn_mask_float::Model<TestBackend> =
             attention_attn_mask_float::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
-        let attn_mask = Tensor::<Backend, 2>::from_floats([[2.0, 0.0], [0.0, 3.0]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let attn_mask = Tensor::<TestBackend, 2>::from_floats([[2.0, 0.0], [0.0, 3.0]], &device);
 
         let output = model.forward(q, k, v, attn_mask);
         let expected = TensorData::from([[[[0.260768f32, 0.521536], [0.295414, 0.590828]]]]);
@@ -121,11 +120,11 @@ mod tests {
     #[test]
     fn softcap() {
         let device = Default::default();
-        let model: attention_softcap::Model<Backend> = attention_softcap::Model::new(&device);
+        let model: attention_softcap::Model<TestBackend> = attention_softcap::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
 
         let output = model.forward(q, k, v);
         let expected = TensorData::from([[[[0.283176f32, 0.566352], [0.266823, 0.533647]]]]);
@@ -136,25 +135,24 @@ mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn cached_attn_inputs(
-        device: &NdArrayDevice,
-    ) -> (
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 2, Bool>,
-        Tensor<NdArray, 4>,
-        Tensor<NdArray, 4>,
+    fn cached_attn_inputs() -> (
+        Tensor<TestBackend, 4>,
+        Tensor<TestBackend, 4>,
+        Tensor<TestBackend, 4>,
+        Tensor<TestBackend, 2, Bool>,
+        Tensor<TestBackend, 4>,
+        Tensor<TestBackend, 4>,
     ) {
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0]]]], device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.3, 0.6]]]], device);
-        let attn_mask = Tensor::<Backend, 2, Bool>::from_bool(
+        let device = &Default::default();
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0]]]], device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.3, 0.6]]]], device);
+        let attn_mask = Tensor::<TestBackend, 2, Bool>::from_bool(
             TensorData::from([[true, true], [true, true]]),
             device,
         );
-        let past_k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0]]]], device);
-        let past_v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5]]]], device);
+        let past_k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0]]]], device);
+        let past_v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5]]]], device);
 
         (q, k, v, attn_mask, past_k, past_v)
     }
@@ -162,9 +160,9 @@ mod tests {
     #[test]
     fn cache() {
         let device = Default::default();
-        let model: attention_cache::Model<Backend> = attention_cache::Model::new(&device);
+        let model: attention_cache::Model<TestBackend> = attention_cache::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (output, present_k, present_v) = model.forward(q, k, v, attn_mask, past_k, past_v);
         let expected = TensorData::from([[[[0.283488f32, 0.566976], [0.266511, 0.533023]]]]);
@@ -185,12 +183,12 @@ mod tests {
     #[test]
     fn custom_scale() {
         let device = Default::default();
-        let model: attention_custom_scale::Model<Backend> =
+        let model: attention_custom_scale::Model<TestBackend> =
             attention_custom_scale::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
 
         let output = model.forward(q, k, v);
         let expected = TensorData::from([[[[0.294039f32, 0.588079], [0.255960, 0.511920]]]]);
@@ -203,11 +201,12 @@ mod tests {
     #[test]
     fn is_causal() {
         let device = Default::default();
-        let model: attention_is_causal::Model<Backend> = attention_is_causal::Model::new(&device);
+        let model: attention_is_causal::Model<TestBackend> =
+            attention_is_causal::Model::new(&device);
 
-        let q = Tensor::<Backend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
-        let k = Tensor::<Backend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
-        let v = Tensor::<Backend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
+        let q = Tensor::<TestBackend, 4>::from_floats([[[[1.0, 0.0], [0.0, 1.0]]]], &device);
+        let k = Tensor::<TestBackend, 4>::from_floats([[[[0.0, 1.0], [1.0, 0.0]]]], &device);
+        let v = Tensor::<TestBackend, 4>::from_floats([[[[0.25, 0.5], [0.3, 0.6]]]], &device);
 
         let output = model.forward(q, k, v);
         let expected = TensorData::from([[[[0.25f32, 0.5], [0.266511, 0.533023]]]]);
@@ -220,10 +219,10 @@ mod tests {
     #[test]
     fn qk_matmul_output_0() {
         let device = Default::default();
-        let model: attention_qk_output_0::Model<Backend> =
+        let model: attention_qk_output_0::Model<TestBackend> =
             attention_qk_output_0::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -237,10 +236,10 @@ mod tests {
     #[test]
     fn qk_matmul_output_1() {
         let device = Default::default();
-        let model: attention_qk_output_1::Model<Backend> =
+        let model: attention_qk_output_1::Model<TestBackend> =
             attention_qk_output_1::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -254,10 +253,10 @@ mod tests {
     #[test]
     fn qk_matmul_output_2() {
         let device = Default::default();
-        let model: attention_qk_output_2::Model<Backend> =
+        let model: attention_qk_output_2::Model<TestBackend> =
             attention_qk_output_2::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]
@@ -271,10 +270,10 @@ mod tests {
     #[test]
     fn qk_matmul_output_3() {
         let device = Default::default();
-        let model: attention_qk_output_3::Model<Backend> =
+        let model: attention_qk_output_3::Model<TestBackend> =
             attention_qk_output_3::Model::new(&device);
 
-        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs(&device);
+        let (q, k, v, attn_mask, past_k, past_v) = cached_attn_inputs();
 
         let (_, _, _, qk_output) = model.forward(q, k, v, attn_mask, past_k, past_v);
         #[allow(clippy::approx_constant)]

@@ -29,22 +29,22 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
         tensor::{Tolerance, ops::FloatElem},
     };
     use burn_import::pytorch::PyTorchFileRecorder;
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
 
-    fn conv1d(record: NetRecord<Backend>, precision: f32) {
+    fn conv1d(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
 
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 3>::from_data(
+        let input = Tensor::<TestBackend, 3>::from_data(
             [[
                 [
                     0.93708336, 0.65559506, 0.31379688, 0.19801933, 0.41619217, 0.28432965,
@@ -63,7 +63,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 3>::from_data(
+        let expected = Tensor::<TestBackend, 3>::from_data(
             [[
                 [0.02987457, 0.03134188, 0.04234261, -0.02437721],
                 [-0.03788019, -0.02972012, -0.00806090, -0.01981254],

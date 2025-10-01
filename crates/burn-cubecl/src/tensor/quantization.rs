@@ -1,5 +1,6 @@
 use burn_tensor::{DType, Shape, quantization::QParamTensor};
 use cubecl::{client::ComputeClient, server::Handle};
+use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::CubeRuntime;
 
@@ -29,6 +30,48 @@ impl<R: CubeRuntime> CubeTensor<R> {
             dtype,
             qparams: Some(qparams),
         }
+    }
+
+    /// Returns the two tensors: (values, params) for a quantized tensor.
+    pub fn quantized_handles(&self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
+        let params = self.scales()?;
+        let scheme = match self.dtype {
+            DType::QFloat(sc) => sc,
+            _ => return None,
+        };
+        let values = match scheme.store {
+            QuantStore::Native => match scheme.value {
+                QuantValue::Q8F | QuantValue::Q8S => CubeTensor {
+                    client: self.client.clone(),
+                    handle: self.handle.clone(),
+                    shape: self.shape.clone(),
+                    device: self.device.clone(),
+                    strides: self.strides.clone(),
+                    dtype: DType::I8,
+                    qparams: None,
+                },
+                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                    panic!("Can't store native sub-byte values")
+                }
+            },
+            QuantStore::U32 => {
+                let rank = self.shape.num_dims();
+                let mut shape = self.shape.clone();
+                shape.dims[rank - 1] /= scheme.num_quants();
+
+                CubeTensor {
+                    client: self.client.clone(),
+                    handle: self.handle.clone(),
+                    shape,
+                    device: self.device.clone(),
+                    strides: self.strides.clone(),
+                    dtype: DType::U32,
+                    qparams: None,
+                }
+            }
+        };
+
+        Some((values, params))
     }
 
     /// Construct a separate tensor for the quantization scales, if present

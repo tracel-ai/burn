@@ -1,17 +1,34 @@
 use alloc::vec::Vec;
 
-use crate::{TensorMetadata, alloc::borrow::ToOwned};
+use crate::alloc::borrow::ToOwned;
 
-use crate::TensorPrimitive;
-use crate::quantization::QTensorPrimitive;
+use crate::indexing::canonicalize_dim;
 use crate::{
-    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
     TensorKind,
     backend::Backend,
     check,
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
+use crate::{DType, TensorPrimitive};
+
+macro_rules! q_bin_ops {
+    ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
+        match ($lhs, $rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::$op(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::$q_op(lhs, rhs),
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::$op(B::dequantize(lhs), rhs))
+            }
+            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs)))
+            }
+        }
+    };
+}
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -338,7 +355,7 @@ where
     pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
-        Self::new(K::zeros(shape, device))
+        Self::new(K::zeros(shape, device, K::Elem::dtype()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
@@ -379,7 +396,7 @@ where
     pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
-        Self::new(K::ones(shape, device))
+        Self::new(K::ones(shape, device, K::Elem::dtype()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
@@ -400,51 +417,6 @@ where
     /// ```
     pub fn ones_like(&self) -> Self {
         Self::ones(self.shape(), &self.device())
-    }
-
-    /// Create a tensor of the given shape where each element is equal to the provided value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::full(Shape::new([2, 3]), 5.0, &device);
-    ///   println!("{tensor}");
-    ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
-    /// }
-    /// ```
-    pub fn full<S: Into<Shape>, E: ElementConversion>(
-        shape: S,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self {
-        let shape = shape.into();
-        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
-        Self::new(K::full(shape, fill_value, device))
-    }
-
-    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.full_like(5.0);
-    ///    println!("{tensor}");
-    ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
-    /// }
-    /// ```
-    pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
-        Self::full(self.shape(), fill_value, &self.device())
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -492,7 +464,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -511,9 +484,40 @@ where
     ///   // [[0.6666667], [6.6666665]]
     /// }
     /// ```
-    pub fn mean_dim(self, dim: usize) -> Self {
+    pub fn mean_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
         Self::new(K::mean_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the mean operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
+    ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[2.5]]
+    /// }
+    /// ```
+    pub fn mean_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.mean_dim(dim))
     }
 
     /// Aggregate all elements along the given *dimension* or *axis*
@@ -521,7 +525,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -540,9 +545,40 @@ where
     ///    // [[2.0], [20.0]]
     /// }
     /// ```
-    pub fn sum_dim(self, dim: usize) -> Self {
+    pub fn sum_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the sum operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[27]]
+    /// }
+    /// ```
+    pub fn sum_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
     }
 
     /// Aggregate all elements in the tensor with the product operation.
@@ -570,7 +606,13 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to aggregate the elements.
+    /// * `dim` - The dimension or axis along which to aggregate the elements,
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
     ///
     /// # Example
     ///
@@ -589,9 +631,40 @@ where
     ///    // [[-6.0], [270.0]]
     /// }
     /// ```
-    pub fn prod_dim(self, dim: usize) -> Self {
+    pub fn prod_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
         Self::new(K::prod_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the prod operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate, supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[-1620.0]]
+    /// }
+    /// ```
+    pub fn prod_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.prod_dim(dim))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
@@ -956,66 +1029,6 @@ where
         ))
     }
 
-    /// Select the tensor elements along the given dimension corresponding to the given indices.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
-    /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
-    /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape, Int};
-    ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 3>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
-    ///   let tensor = tensor.select(0, indices);
-    ///   println!("{tensor}");
-    ///   //  [[1.0, -2.0, 3.0]]
-    /// }
-    /// ```
-    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
-        check!(TensorCheck::select::<D>(dim));
-        Self::new(K::select(self.primitive, dim, indices))
-    }
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor to the original tensor using sum reduction.
-    ///
-    /// Example using a 3D tensor:
-    ///
-    /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
-    /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
-    /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
-    ///
-    /// # Warning
-    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn select_assign(
-        self,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Tensor<B, D, K>,
-    ) -> Self {
-        check!(TensorCheck::select_assign::<D>(dim));
-
-        Self::new(K::select_assign(
-            self.primitive,
-            dim,
-            indices,
-            values.primitive,
-        ))
-    }
-
     /// Applies the argmax function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -1058,6 +1071,16 @@ where
 
     /// Find the maximum value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1072,10 +1095,40 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn max_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
-
         Tensor::new(K::max_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.max_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[9.0]]
+    /// }
+    /// ```
+    pub fn max_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.max_dim(dim))
     }
 
     /// Find the maximum value along the given dimension.
@@ -1098,7 +1151,8 @@ where
     ///    println!("{index}");
     /// }
     /// ```
-    pub fn max_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
         let (tensor, index) = K::max_dim_with_indices(self.primitive, dim);
@@ -1162,6 +1216,16 @@ where
 
     /// Find the maximum absolute value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements,
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1176,10 +1240,42 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_abs_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum absolute value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axes along which to aggregate the elements,
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.max_abs_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[9.0]]
+    /// }
+    /// ```
+    pub fn max_abs_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter()
+            .fold(self, |tensor, &dim| tensor.max_abs_dim(dim))
     }
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
@@ -1224,6 +1320,16 @@ where
 
     /// Find the minimum value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1238,9 +1344,40 @@ where
     ///    // [[1.0, -2.0, 3.0]]
     /// }
     /// ```
-    pub fn min_dim(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn min_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
         Tensor::new(K::min_dim(self.primitive, dim))
+    }
+
+    /// Find the minimum value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axes along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.min_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[-2.0]]
+    /// }
+    /// ```
+    pub fn min_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.min_dim(dim))
     }
 
     /// Find the minimum value along the given dimension.
@@ -1263,7 +1400,8 @@ where
     ///    // [[1, 0, 0]]
     /// }
     /// ```
-    pub fn min_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
+        let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
         let (tensor, index) = K::min_dim_with_indices(self.primitive, dim);
@@ -1708,7 +1846,7 @@ where
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
-    pub fn sort(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn sort(self, dim: usize) -> Self {
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
     }
@@ -1742,7 +1880,7 @@ where
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
-    pub fn sort_descending(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn sort_descending(self, dim: usize) -> Self {
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
@@ -1776,7 +1914,7 @@ where
     ///   // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn sort_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn sort_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) =
             K::sort_with_indices(self.primitive, dim, /*descending*/ false);
@@ -1808,7 +1946,7 @@ where
     ///    // [[0, 1, 1], [1, 0, 0]]
     /// }
     /// ```
-    pub fn sort_descending_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn sort_descending_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
@@ -1898,7 +2036,7 @@ where
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
-    pub fn topk(self, k: usize, dim: usize) -> Tensor<B, D, K> {
+    pub fn topk(self, k: usize, dim: usize) -> Self {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
         self.sort_descending(dim).select(dim, k_indices)
     }
@@ -1932,7 +2070,7 @@ where
     ///    // [[0], [2]]
     /// }
     /// ```
-    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<B, D, Int>) {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
         let (values, indices) = self.sort_descending_with_indices(dim);
         (
@@ -1975,7 +2113,7 @@ where
         self,
         padding: (usize, usize, usize, usize),
         value: E,
-    ) -> Tensor<B, D, K> {
+    ) -> Self {
         let (left, right, top, bottom) = padding;
 
         let mut padded_dims: [usize; D] = self.dims();
@@ -2110,9 +2248,47 @@ where
     /// ```math
     /// C = AB
     /// ```
-    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
+    pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Tensor::new(K::matmul(self.primitive, other.primitive))
+    }
+}
+
+impl<B, K> Tensor<B, 1, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    /// Calculates the dot product with another tensor.
+    ///
+    /// `y = x2.dot(x1)`
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compute dot product with.
+    ///
+    /// # Notes
+    ///
+    /// Both tensors must have the same number of elements.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor1 = Tensor::<B, 1>::from_data([1.0, 2.0], &device);
+    ///    let tensor2 = Tensor::<B, 1>::from_data([-2.0, 3.0], &device);
+    ///    let tensor = tensor1.dot(tensor2);
+    ///    println!("{tensor}");
+    ///    // [4]
+    /// }
+    /// ```
+    pub fn dot(self, other: Self) -> Self {
+        self.mul(other).sum()
     }
 }
 
@@ -2128,9 +2304,10 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn eye(size: usize, device: &B::Device) -> Self {
+        let dtype = K::Elem::dtype();
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
-        let ones = K::ones([1, size].into(), device);
-        let zeros = K::zeros([size, size].into(), device);
+        let ones = K::ones([1, size].into(), device, dtype);
+        let zeros = K::zeros([size, size].into(), device, dtype);
 
         Self::new(K::scatter(0, zeros, indices.primitive, ones))
     }
@@ -2403,6 +2580,7 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2416,7 +2594,7 @@ where
     ///
     /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
     /// which is more high-level and designed for public use.
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive;
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Creates a tensor filled with ones.
     ///
@@ -2424,6 +2602,7 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -2437,33 +2616,7 @@ where
     ///
     /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
     /// which is more high-level and designed for public use.
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive;
-
-    /// Creates a tensor filled with elements equal to the given value.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `fill_value` - The value with which to fill the tensor
-    /// * `device` - The device on which the tensor will be allocated.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with elements equal to the given value
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with a specific value, users should prefer the [Tensor::full](Tensor::full) function,
-    /// which is more high-level and designed for public use.
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive;
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Sums all the elements of the tensor.
     ///
@@ -2932,61 +3085,6 @@ where
         dim: usize,
         tensor: Self::Primitive,
         indices: B::IntTensorPrimitive,
-        values: Self::Primitive,
-    ) -> Self::Primitive;
-
-    /// Select tensor elements along the given dimension corresponding for the given indices.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to select elements from.
-    /// * `dim` - The axis along which to select elements.
-    /// * `indices` - The indices of the elements to select.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For selecting elements from a tensor along an axis, users should prefer the
-    /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive;
-
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// from the value tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to assign elements to.
-    /// * `dim` - The axis along which to assign elements.
-    /// * `indices` - The indices of the elements to assign.
-    /// * `values` - The values to assign to the tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is taken from the
-    /// corresponding element of the input tensor at the corresponding index along the specified axis,
-    /// except for the elements at the specified indices, which are taken from the corresponding
-    /// element of the values tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For assigning elements to a tensor along an axis, users should prefer the
-    /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
         values: Self::Primitive,
     ) -> Self::Primitive;
 
@@ -3462,18 +3560,11 @@ impl<B: Backend> Numeric<B> for Int {
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_zeros(shape, device)
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_zeros(shape, device, dtype.into())
     }
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::int_ones(shape, device)
-    }
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device)
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_ones(shape, device, dtype.into())
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
@@ -3553,18 +3644,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_mask_fill(tensor, mask, value)
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        B::int_select(tensor, dim, indices.primitive)
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        B::int_select_assign(tensor, dim, indices.primitive, values)
-    }
     fn gather(
         dim: usize,
         tensor: Self::Primitive,
@@ -3699,40 +3778,15 @@ impl<B: Backend> Numeric<B> for Int {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        let mut lhs_shape: Vec<usize> = lhs.shape().dims.clone();
-        lhs_shape.push(1);
-        let lhs_shape: Shape = Shape::from(lhs_shape);
-        let lhs = B::int_reshape(lhs, lhs_shape);
-
-        let mut rhs_shape: Vec<usize> = rhs.shape().dims.clone();
-        rhs_shape.insert(rhs_shape.len() - 2, 1);
-        let rhs_shape: Shape = Shape::from(rhs_shape);
-        let rhs = B::int_reshape(rhs, rhs_shape);
-
-        let p = B::int_mul(lhs, rhs);
-
-        let k = p.shape().num_dims();
-
-        let s = B::int_sum_dim(p, k - 2);
-
-        let mut s_shape = s.shape().dims.clone();
-        s_shape.remove(k - 2);
-        let s_shape = Shape::from(s_shape);
-
-        B::int_reshape(s, s_shape)
+        B::int_matmul(lhs, rhs)
     }
 }
 
 impl<B: Backend> Numeric<B> for Float {
     fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_add(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_add(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_add, q_add)
     }
+
     fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3741,15 +3795,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs.elem()),
         }
     }
+
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_sub(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_sub(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_sub, q_sub)
     }
+
     fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3758,15 +3808,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs.elem()),
         }
     }
+
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_div(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_div(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_div, q_div)
     }
+
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3781,18 +3827,15 @@ impl<B: Backend> Numeric<B> for Float {
     ) -> <Float as TensorKind<B>>::Primitive {
         TensorPrimitive::Float(B::float_remainder(lhs.tensor(), rhs.tensor()))
     }
+
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs.elem()))
     }
+
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_mul(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_mul(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_mul, q_mul)
     }
+
     fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
@@ -3807,19 +3850,11 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
         }
     }
-    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_zeros(shape, device))
+    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_zeros(shape, device, dtype.into()))
     }
-    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_ones(shape, device))
-    }
-
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
+    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
@@ -3920,32 +3955,6 @@ impl<B: Backend> Numeric<B> for Float {
         value: Self::Elem,
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
-    }
-
-    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices.primitive))
-            }
-        }
-    }
-
-    fn select_assign(
-        tensor: Self::Primitive,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-        values: Self::Primitive,
-    ) -> Self::Primitive {
-        // Select assign is ambiguous for QFloat
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
     }
 
     fn gather(
@@ -4086,13 +4095,7 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
     fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
@@ -4105,13 +4108,7 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
-            _ => panic!("Primitive type mismatch for lhs and rhs"),
-        }
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
     fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
@@ -4196,25 +4193,7 @@ impl<B: Backend> Numeric<B> for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_matmul(lhs, rhs),
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(B::dequantize(lhs), rhs))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                // NOTE: in a typical workflow with linear layers (e.g., transformers), the rhs
-                // represents the weights.
-                //
-                // Since `q_matmul(lhs_f16, rhs_quant)` isn't currently supported, in practice it makes
-                // more sense to re-quantize the input back. Better usability.
-                //
-                // This might change in the future (dequantize on read in fusion?).
-                B::q_matmul(B::quantize_dynamic(lhs, rhs.scheme()), rhs)
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
-            }
-        }
+        q_bin_ops!(lhs, rhs, float_matmul, q_matmul)
     }
 }
 
@@ -4225,7 +4204,7 @@ where
 {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<B, D, K>) -> Self::Output {
+    fn add(self, rhs: Self) -> Self::Output {
         Self::add(self, rhs)
     }
 }
@@ -4269,7 +4248,7 @@ where
 {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<B, D, K>) -> Self::Output {
+    fn sub(self, rhs: Self) -> Self::Output {
         Tensor::sub(self, rhs)
     }
 }

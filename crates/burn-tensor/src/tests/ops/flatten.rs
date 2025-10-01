@@ -39,6 +39,15 @@ mod tests {
         assert_eq!(flattened_tensor.shape(), expected_shape);
     }
 
+    /// Test if the function can flatten negative indices.
+    #[test]
+    fn should_flatten_end_negative_indices() {
+        let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
+        let flattened_tensor: Tensor<TestBackend, 2> = tensor.flatten(-3, -1);
+        let expected_shape = Shape::new([2, 60]);
+        assert_eq!(flattened_tensor.shape(), expected_shape);
+    }
+
     /// Test if the function panics when the start dimension is greater than the end dimension.
     #[test]
     #[should_panic]

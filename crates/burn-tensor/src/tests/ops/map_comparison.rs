@@ -414,4 +414,157 @@ mod tests {
         data_expected.assert_eq(&data_actual_cloned.into_data(), false);
         data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
+
+    #[test]
+    fn test_greater_broadcast() {
+        // Test broadcasting with shape [1, 4] vs [4, 4]
+        let device = Default::default();
+        let data_1 = TensorData::from([[1.0, 2.0, 3.0, 4.0]]);
+        let data_2 = TensorData::from([
+            [0.5, 1.5, 2.5, 3.5],
+            [1.5, 2.5, 3.5, 4.5],
+            [2.5, 3.5, 4.5, 5.5],
+            [3.5, 4.5, 5.5, 6.5],
+        ]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.greater(tensor_2);
+
+        let expected = TensorData::from([
+            [true, true, true, true],
+            [false, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_greater_equal_broadcast() {
+        // Test broadcasting with shape [4, 1] vs [1, 4]
+        let device = Default::default();
+        let data_1 = TensorData::from([[1.0], [2.0], [3.0], [4.0]]);
+        let data_2 = TensorData::from([[1.0, 2.0, 3.0, 4.0]]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.greater_equal(tensor_2);
+
+        let expected = TensorData::from([
+            [true, false, false, false],
+            [true, true, false, false],
+            [true, true, true, false],
+            [true, true, true, true],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_lower_broadcast() {
+        // Test broadcasting mimicking CLIP pattern: [1, 5] vs [5, 1]
+        let device = Default::default();
+        let data_1 = TensorData::from([[0.0, 1.0, -1.0, 2.0, -2.0]]);
+        let data_2 = TensorData::from([[0.5], [1.5], [-0.5], [-1.5], [2.5]]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.lower(tensor_2);
+
+        let expected = TensorData::from([
+            [true, false, true, false, true],
+            [true, true, true, false, true],
+            [false, false, true, false, true],
+            [false, false, false, false, true],
+            [true, true, true, true, true],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_lower_equal_broadcast() {
+        // Test broadcasting with shape [1, 1] vs [2, 4]
+        let device = Default::default();
+        let data_1 = TensorData::from([[2.5]]);
+        let data_2 = TensorData::from([[1.0, 2.0, 3.0, 4.0], [2.0, 2.5, 3.0, 3.5]]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.lower_equal(tensor_2);
+
+        let expected = TensorData::from([[false, false, true, true], [false, true, true, true]]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_equal_broadcast() {
+        // Test broadcasting with different ranks
+        let device = Default::default();
+        let data_1 = TensorData::from([[2.0], [3.0], [4.0]]);
+        let data_2 = TensorData::from([[2.0, 3.0, 4.0, 2.0]]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.equal(tensor_2);
+
+        let expected = TensorData::from([
+            [true, false, false, true],
+            [false, true, false, false],
+            [false, false, true, false],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_not_equal_broadcast() {
+        // Test broadcasting with shape [3, 1] vs [1, 3]
+        let device = Default::default();
+        let data_1 = TensorData::from([[1.0], [2.0], [3.0]]);
+        let data_2 = TensorData::from([[1.0, 2.0, 3.0]]);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.not_equal(tensor_2);
+
+        let expected = TensorData::from([
+            [false, true, true],
+            [true, false, true],
+            [true, true, false],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_int_greater_broadcast() {
+        // Test integer broadcasting
+        let device = Default::default();
+        let data_1 = TensorData::from([[1i32, 2, 3]]);
+        let data_2 = TensorData::from([[0i32], [2], [4]]);
+        let tensor_1 = TestTensorInt::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorInt::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.greater(tensor_2);
+
+        let expected = TensorData::from([
+            [true, true, true],
+            [false, false, true],
+            [false, false, false],
+        ]);
+        expected.assert_eq(&result.into_data(), false);
+    }
+
+    #[test]
+    fn test_int_lower_equal_broadcast() {
+        // Test integer broadcasting with shape [2, 1] vs [1, 3]
+        let device = Default::default();
+        let data_1 = TensorData::from([[2i32], [4]]);
+        let data_2 = TensorData::from([[1i32, 2, 3]]);
+        let tensor_1 = TestTensorInt::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorInt::<2>::from_data(data_2, &device);
+
+        let result = tensor_1.lower_equal(tensor_2);
+
+        let expected = TensorData::from([[false, true, true], [false, false, false]]);
+        expected.assert_eq(&result.into_data(), false);
+    }
 }

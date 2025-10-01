@@ -32,20 +32,28 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_reshape(tensor, shape)
     }
 
-    fn bool_slice(tensor: BoolTensor<B>, ranges: &[core::ops::Range<usize>]) -> BoolTensor<B> {
-        B::bool_slice(tensor, ranges)
+    fn bool_slice(tensor: BoolTensor<B>, slices: &[burn_tensor::Slice]) -> BoolTensor<B> {
+        B::bool_slice(tensor, slices)
     }
 
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
         B::bool_empty(shape, device)
     }
 
+    fn bool_zeros(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
+        B::bool_zeros(shape, device)
+    }
+
+    fn bool_ones(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
+        B::bool_ones(shape, device)
+    }
+
     fn bool_slice_assign(
         tensor: BoolTensor<Self>,
-        ranges: &[core::ops::Range<usize>],
+        slices: &[burn_tensor::Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        B::bool_slice_assign(tensor, ranges, value)
+        B::bool_slice_assign(tensor, slices, value)
     }
 
     fn bool_cat(tensors: Vec<BoolTensor<B>>, dim: usize) -> BoolTensor<B> {
@@ -66,6 +74,10 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_or(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
         B::bool_or(lhs, rhs)
+    }
+
+    fn bool_xor(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        B::bool_xor(lhs, rhs)
     }
 
     fn bool_into_float(tensor: BoolTensor<B>) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
@@ -98,5 +110,14 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_repeat_dim(tensor: BoolTensor<B>, dim: usize, times: usize) -> BoolTensor<B> {
         B::bool_repeat_dim(tensor, dim, times)
+    }
+
+    fn bool_unfold(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> BoolTensor<Self> {
+        B::bool_unfold(tensor, dim, size, step)
     }
 }

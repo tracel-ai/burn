@@ -23,7 +23,11 @@ impl BurnImports {
     pub fn codegen(&self) -> TokenStream {
         let mut import_tokens = vec![];
 
-        for import in self.imports.iter() {
+        // Sort imports for deterministic output
+        let mut sorted_imports: Vec<_> = self.imports.iter().collect();
+        sorted_imports.sort();
+
+        for import in sorted_imports {
             let path: syn::Path =
                 syn::parse_str(import).expect("Unable to parse input string as a path");
 
@@ -31,10 +35,7 @@ impl BurnImports {
         }
 
         quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #(use #import_tokens;)*
         }

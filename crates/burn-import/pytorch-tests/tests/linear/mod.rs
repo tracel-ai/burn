@@ -51,20 +51,20 @@ impl<B: Backend> NetWithBias<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
 
     use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_import::pytorch::PyTorchFileRecorder;
-    type FT = FloatElem<Backend>;
+    type FT = FloatElem<TestBackend>;
 
     use super::*;
 
-    fn linear_test(record: NetRecord<Backend>, precision: f32) {
+    fn linear_test(record: NetRecord<TestBackend>, precision: f32) {
         let device = Default::default();
-        let model = Net::<Backend>::init(&device).load_record(record);
+        let model = Net::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.63968194, 0.97427773], [0.830_029_9, 0.04443115]],
                 [[0.024_595_8, 0.25883394], [0.93905586, 0.416_715_5]],
@@ -73,7 +73,7 @@ mod tests {
         );
 
         let output = model.forward(input);
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [0.09778349, -0.13756673, 0.04962806, 0.08856435],
@@ -119,9 +119,9 @@ mod tests {
             .load("tests/linear/linear_with_bias.pt".into(), &device)
             .expect("Should decode state successfully");
 
-        let model = NetWithBias::<Backend>::init(&device).load_record(record);
+        let model = NetWithBias::<TestBackend>::init(&device).load_record(record);
 
-        let input = Tensor::<Backend, 4>::from_data(
+        let input = Tensor::<TestBackend, 4>::from_data(
             [[
                 [[0.63968194, 0.97427773], [0.830_029_9, 0.04443115]],
                 [[0.024_595_8, 0.25883394], [0.93905586, 0.416_715_5]],
@@ -131,7 +131,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data(
+        let expected = Tensor::<TestBackend, 4>::from_data(
             [[
                 [
                     [-0.00432095, -1.107_101_2, 0.870_691_4],

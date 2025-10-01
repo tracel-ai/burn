@@ -1,20 +1,25 @@
+use std::sync::Arc;
+
 use super::MetricMetadata;
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricEntry, MetricName};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
+#[derive(Clone)]
 pub struct CudaMetric {
-    nvml: Option<Nvml>,
+    name: MetricName,
+    nvml: Arc<Option<Nvml>>,
 }
 
 impl CudaMetric {
     /// Creates a new metric for CUDA.
     pub fn new() -> Self {
         Self {
-            nvml: Nvml::init().map(Some).unwrap_or_else(|err| {
+            name: Arc::new("Cuda".to_string()),
+            nvml: Arc::new(Nvml::init().map(Some).unwrap_or_else(|err| {
                 log::warn!("Unable to initialize CUDA Metric: {err}");
                 None
-            }),
+            })),
         }
     }
 }
@@ -88,7 +93,7 @@ impl Metric for CudaMetric {
             MetricEntry::new(self.name(), formatted, raw_running)
         };
 
-        match &self.nvml {
+        match self.nvml.as_ref() {
             Some(nvml) => available(nvml),
             None => not_available(),
         }
@@ -96,7 +101,7 @@ impl Metric for CudaMetric {
 
     fn clear(&mut self) {}
 
-    fn name(&self) -> String {
-        "CUDA Stats".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }

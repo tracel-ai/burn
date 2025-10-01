@@ -1,10 +1,11 @@
 use super::cat::cat_with_slice_assign;
+use super::grid_sample::float_grid_sample_2d_bilinear;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
+use crate::ops::InterpolateMode;
 use crate::{Distribution, ElementConversion, Float, TensorData, backend::Backend, tensor::Shape};
 use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use core::ops::Range;
 
 use crate::{argsort, sort, sort_with_indices};
 
@@ -42,12 +43,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and zeros.
-    fn float_zeros(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::zeros::<FloatElem<B>, _>(shape), device)
+    fn float_zeros(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 0, dtype.into()), device)
     }
 
     /// Creates a new tensor with ones.
@@ -56,12 +58,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and ones.
-    fn float_ones(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::ones::<FloatElem<B>, _>(shape), device)
+    fn float_ones(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 1, dtype.into()), device)
     }
 
     /// Creates a tensor filled with given value.
@@ -71,12 +74,21 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `fill_value` - The value with which to fill the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor filled with given value
-    fn float_full(shape: Shape, fill_value: FloatElem<B>, device: &Device<B>) -> FloatTensor<B> {
-        Self::float_add_scalar(Self::float_zeros(shape, device), fill_value)
+    fn float_full(
+        shape: Shape,
+        fill_value: FloatElem<B>,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B> {
+        Self::float_from_data(
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
+            device,
+        )
     }
 
     /// Converts the tensor to a data structure.
@@ -130,11 +142,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `shape` - The shape of the tensor.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The empty tensor with the given shape.
-    fn float_empty(shape: Shape, device: &Device<B>) -> FloatTensor<B>;
+    fn float_empty(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -321,6 +334,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn float_matmul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
+    /// Computes the cross product of two tensors along a given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    /// * `dim` - The dimension to compute the cross product along.
+    ///
+    /// # Returns
+    ///
+    /// The cross product of the two tensors.
+    fn float_cross(lhs: FloatTensor<B>, rhs: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
     /// Negates a tensor element-wise.
     fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
         Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
@@ -454,19 +480,19 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice(tensor: FloatTensor<B>, ranges: &[Range<usize>]) -> FloatTensor<B>;
+    fn float_slice(tensor: FloatTensor<B>, slices: &[crate::Slice]) -> FloatTensor<B>;
 
-    /// Assign the selected elements corresponding for the given ranges to the given value.
+    /// Assign the selected elements corresponding to the given slices to the given value.
     ///
     /// # Arguments
     ///
@@ -479,7 +505,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The tensor with the selected elements assigned to the given value.
     fn float_slice_assign(
         tensor: FloatTensor<B>,
-        ranges: &[Range<usize>],
+        slices: &[crate::Slice],
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
@@ -1273,7 +1299,11 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let zeros = B::float_zeros(tensor.shape(), &B::float_device(&tensor));
+        let zeros = B::float_zeros(
+            tensor.shape(),
+            &B::float_device(&tensor),
+            tensor.dtype().into(),
+        );
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
 
@@ -1342,4 +1372,49 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_argsort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
         argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending)
     }
+
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// Interpolation is bilinear.
+    /// Padding is border: out of bounds locations will be clamped to the nearest border
+    ///
+    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    /// * `method` - How to interpolate between samples
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, H_out, W_out)
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<B>,
+        grid: FloatTensor<B>,
+        method: InterpolateMode,
+    ) -> FloatTensor<B> {
+        match method {
+            InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(tensor, grid),
+            _ => todo!("Default implementation for grid_sample_2d with {method:?} unimplemented"),
+        }
+    }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
+    -> FloatTensor<B>;
 }

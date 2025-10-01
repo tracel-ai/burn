@@ -1,9 +1,9 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
+use crate::{SharedArray, sharing::UnsafeSharedRef};
 
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{DType, Element, ElementConversion, TensorMetadata};
+use burn_tensor::{DType, Element, ElementConversion};
 use bytemuck::Zeroable;
 use macerator::{Simd, VAdd, VDiv};
 use ndarray::{Array4, s};
@@ -17,14 +17,14 @@ fn is_accelerated<S: Simd, T: VAdd + VDiv>(_x: PhantomData<T>) -> bool {
 }
 
 pub(crate) fn try_avg_pool2d_simd<E: Element>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     ksize: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     with_pad: bool,
-) -> Result<NdArrayTensor<E>, NdArrayTensor<E>> {
+) -> Result<SharedArray<E>, SharedArray<E>> {
     // Strides must be unit, dilation isn't supported, rows must be contiguous
-    if x.array.strides()[1] != 1 || !should_use_simd(x.array.shape()[1]) {
+    if x.strides()[1] != 1 || !should_use_simd(x.shape()[1]) {
         return Err(x);
     }
 
@@ -47,8 +47,8 @@ pub(crate) fn try_avg_pool2d_simd<E: Element>(
     }
 }
 
-fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
-    unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
+fn cast<T, E>(tensor: SharedArray<T>) -> SharedArray<E> {
+    unsafe { transmute::<SharedArray<T>, SharedArray<E>>(tensor) }
 }
 
 mod nhwc {
@@ -66,16 +66,16 @@ mod nhwc {
     const BLOCK_REGISTERS: usize = 8;
 
     pub(crate) fn avg_pool_nhwc<E: Element + VAdd + VDiv>(
-        x: NdArrayTensor<E>,
+        x: SharedArray<E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         with_pad: bool,
-    ) -> NdArrayTensor<E> {
+    ) -> SharedArray<E> {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
-        let [batch_size, channels, x_height, x_width] = x.shape().dims();
+        let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
         let lanes = lanes::<E>();
 
         let ch_block = lanes * BLOCK_REGISTERS;
@@ -87,7 +87,7 @@ mod nhwc {
             Array4::<E>::uninit((batch_size, out_height, out_width, channels)).assume_init()
         };
         let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
-        let x = x.array.view();
+        let x = x.view();
         let x = x.permuted_axes(vec![0, 2, 3, 1]);
 
         // Floor division ensures `blocks * lanes * blocking factor` is always `<= out_channels`.
@@ -141,7 +141,7 @@ mod nhwc {
 
         output = output.permuted_axes([0, 3, 1, 2]);
 
-        NdArrayTensor::new(output.into_dyn().into_shared())
+        output.into_dyn().into_shared()
     }
 
     /// Execute the blocked (unrolled) portion of the pool.

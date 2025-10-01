@@ -6,16 +6,16 @@ mod tests {
     use super::*;
     use burn::tensor::{Shape, Tensor};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn flatten() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: flatten::Model<Backend> = flatten::Model::new(&device);
+        let model: flatten::Model<TestBackend> = flatten::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 3>::ones([1, 5, 15], &device);
+        let input = Tensor::<TestBackend, 3>::ones([1, 5, 15], &device);
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 75]);
@@ -26,10 +26,10 @@ mod tests {
     fn flatten_2d() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
-        let model: flatten_2d::Model<Backend> = flatten_2d::Model::new(&device);
+        let model: flatten_2d::Model<TestBackend> = flatten_2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::ones([2, 3, 4, 5], &device);
+        let input = Tensor::<TestBackend, 4>::ones([2, 3, 4, 5], &device);
         let output = model.forward(input);
 
         // Flatten leading and trailing dimensions (axis = 2) and returns a 2D tensor

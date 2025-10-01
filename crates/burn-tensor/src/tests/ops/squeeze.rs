@@ -5,17 +5,26 @@ mod tests {
 
     /// Test if the function can successfully squeeze the size 1 dimension of a 3D tensor.
     #[test]
-    fn should_squeeze() {
+    fn should_squeeze_dim() {
         let tensor = TestTensor::<3>::ones(Shape::new([2, 1, 4]), &Default::default());
-        let squeezed_tensor: Tensor<TestBackend, 2> = tensor.squeeze(1);
+        let squeezed_tensor: Tensor<TestBackend, 2> = tensor.squeeze_dim(1);
         let expected_shape = Shape::new([2, 4]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }
+
+    #[test]
+    fn should_squeeze() {
+        let tensor = TestTensor::<3>::ones(Shape::new([2, 1, 4]), &Default::default());
+        let squeezed_tensor: Tensor<TestBackend, 2> = tensor.squeeze();
+        let expected_shape = Shape::new([2, 4]);
+        assert_eq!(squeezed_tensor.shape(), expected_shape);
+    }
+
     /// Test if the function can successfully squeeze the first size 1 dimension of a 4D tensor.
     #[test]
     fn should_squeeze_first() {
         let tensor = TestTensor::<4>::ones(Shape::new([1, 3, 4, 5]), &Default::default());
-        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze(0);
+        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze_dim(0);
         let expected_shape = Shape::new([3, 4, 5]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }
@@ -23,7 +32,7 @@ mod tests {
     #[test]
     fn should_squeeze_last() {
         let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 1]), &Default::default());
-        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze(3);
+        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze_dim(3);
         let expected_shape = Shape::new([2, 3, 4]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }
@@ -32,7 +41,7 @@ mod tests {
     #[should_panic]
     fn should_squeeze_panic() {
         let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
-        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze(2);
+        let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze_dim(2);
     }
 
     /// Test if the function works with an empty slice
@@ -40,6 +49,14 @@ mod tests {
     fn should_squeeze_dims_with_empty_slice() {
         let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 3]), &Default::default());
         let squeezed_tensor: Tensor<TestBackend, 1> = tensor.squeeze_dims(&[]);
+        let expected_shape = Shape::new([3]);
+        assert_eq!(squeezed_tensor.shape(), expected_shape);
+    }
+
+    #[test]
+    fn should_squeeze_all_dims() {
+        let tensor = TestTensor::<3>::ones(Shape::new([1, 3, 1]), &Default::default());
+        let squeezed_tensor: Tensor<TestBackend, 1> = tensor.squeeze();
         let expected_shape = Shape::new([3]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
     }
@@ -70,6 +87,13 @@ mod tests {
         let squeezed_tensor: Tensor<TestBackend, 3> = tensor.squeeze_dims(&[1]);
         let expected_shape = Shape::new([2, 3, 4]);
         assert_eq!(squeezed_tensor.shape(), expected_shape);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_squeeze_consumes_all_singleton() {
+        let tensor = TestTensor::<3>::ones(Shape::new([1, 3, 1]), &Default::default());
+        let squeezed_tensor: Tensor<TestBackend, 2> = tensor.squeeze(); // output rank should be 1
     }
 
     /// Test to make sure the function panics if too many dimensions are requested to be squeezed

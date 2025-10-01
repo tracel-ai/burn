@@ -6,7 +6,9 @@ pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::{
     AutotuneKey,
     client::ComputeClient,
-    frontend::{Atomic, CubePrimitive},
+    features::TypeUsage,
+    frontend::Atomic,
+    prelude::CubePrimitive,
     reduce::{
         ReduceError,
         instructions::{ReduceFn, ReduceFnConfig},
@@ -29,13 +31,7 @@ pub struct SumAutotuneKey {
 fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> bool {
-    let atomic_elem = Atomic::<E>::as_elem_native_unchecked();
-    client
-        .properties()
-        .feature_enabled(cubecl::Feature::Type(atomic_elem))
-        && client
-            .properties()
-            .feature_enabled(cubecl::Feature::AtomicFloat(cubecl::AtomicFeature::Add))
+    Atomic::<E>::supported_uses(client).contains(TypeUsage::AtomicAdd)
 }
 
 /// [Sum](sum) with fallback when `client` doesn't support atomic add for the type `E`.

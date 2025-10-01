@@ -1,12 +1,11 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponentTypes;
-use crate::learner::EarlyStoppingStrategy;
 use crate::metric::store::EventStoreClient;
-use crate::{LearnerSummaryConfig, LearningStrategy};
-use burn_core::lr_scheduler::LrScheduler;
+use crate::{CloneEarlyStoppingStrategy, LearnerSummaryConfig, LearningStrategy};
 use burn_core::module::Module;
-use burn_core::optim::Optimizer;
 use burn_core::tensor::Device;
+use burn_optim::Optimizer;
+use burn_optim::lr_scheduler::LrScheduler;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -22,12 +21,15 @@ pub struct Learner<LC: LearnerComponentTypes> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) learning_strategy: LearningStrategy<LC::Backend>,
-    pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) interrupter: Interrupter,
+    pub(crate) early_stopping: Option<EarlyStoppingStrategyRef>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Arc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,
 }
+
+/// Cloneable reference to an early stopping strategy
+pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
 #[derive(new)]
 pub(crate) struct LearnerCheckpointer<LC: LearnerComponentTypes> {
@@ -107,12 +109,12 @@ impl<LC: LearnerComponentTypes> LearnerCheckpointer<LC> {
 }
 
 #[derive(Clone, Default)]
-/// A handle that allows aborting the training process early.
-pub struct TrainingInterrupter {
+/// A handle that allows aborting the training/evaluation process early.
+pub struct Interrupter {
     state: Arc<AtomicBool>,
 }
 
-impl TrainingInterrupter {
+impl Interrupter {
     /// Create a new instance.
     pub fn new() -> Self {
         Self::default()
@@ -121,6 +123,11 @@ impl TrainingInterrupter {
     /// Notify the learner that it should stop.
     pub fn stop(&self) {
         self.state.store(true, Ordering::Relaxed);
+    }
+
+    /// Reset the interrupter.
+    pub fn reset(&self) {
+        self.state.store(false, Ordering::Relaxed);
     }
 
     /// True if .stop() has been called.

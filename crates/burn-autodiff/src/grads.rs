@@ -22,7 +22,11 @@ impl Gradients {
         };
         gradients.register::<B>(
             root_node.id,
-            B::float_ones(root_tensor.shape(), &B::float_device(&root_tensor)),
+            B::float_ones(
+                root_tensor.shape(),
+                &B::float_device(&root_tensor),
+                root_tensor.dtype().into(),
+            ),
         );
         gradients
     }

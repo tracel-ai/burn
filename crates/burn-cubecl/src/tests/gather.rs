@@ -16,7 +16,9 @@ mod tests {
     }
 
     fn test_same_as_ref<const D: usize>(shape: [usize; D], dim: usize) {
-        TestBackend::seed(0);
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
         let max = shape[dim];
         let shape = Shape::new(shape);
         let tensor = Tensor::<TestBackend, D>::random(

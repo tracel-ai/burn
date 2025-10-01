@@ -13,7 +13,7 @@ use guide::{
     model::{Model, ModelConfig},
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -35,7 +35,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     // Create the model and optimizer.
     let mut model = config.model.init::<B>(&device);
@@ -105,7 +105,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
 /// Create out own accuracy metric calculation.
 fn accuracy<B: Backend>(output: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> f32 {
-    let predictions = output.argmax(1).squeeze(1);
+    let predictions = output.argmax(1).squeeze_dim(1);
     let num_predictions: usize = targets.dims().iter().product();
     let num_corrects = predictions.equal(targets).int().sum().into_scalar();
 

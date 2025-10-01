@@ -1,15 +1,38 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarType, Scope, TensorType, Type};
+use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
-use proc_macro2::TokenStream;
+use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
-#[derive(Debug, Clone, new)]
+/// Range parameter that can be either static or runtime
+#[derive(Debug, Clone)]
+pub enum RangeParam {
+    Static(i64),
+    Runtime(Type),
+}
+
+#[derive(Debug, Clone)]
 pub struct RangeNode {
-    pub start: ScalarType,
-    pub end: ScalarType,
-    pub step: ScalarType,
+    pub start: RangeParam,
+    pub limit: RangeParam,
+    pub delta: RangeParam,
     pub output: TensorType,
+}
+
+impl RangeNode {
+    pub fn new(
+        start: RangeParam,
+        limit: RangeParam,
+        delta: RangeParam,
+        output: TensorType,
+    ) -> Self {
+        Self {
+            start,
+            limit,
+            delta,
+            output,
+        }
+    }
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
@@ -18,22 +41,69 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
     }
 
     fn input_types(&self) -> Vec<Type> {
-        vec![
-            Type::Scalar(self.start.clone()),
-            Type::Scalar(self.end.clone()),
-            Type::Scalar(self.step.clone()),
-        ]
+        let mut inputs = Vec::new();
+
+        if let RangeParam::Runtime(ref t) = self.start {
+            inputs.push(t.clone());
+        }
+        if let RangeParam::Runtime(ref t) = self.limit {
+            inputs.push(t.clone());
+        }
+        if let RangeParam::Runtime(ref t) = self.delta {
+            inputs.push(t.clone());
+        }
+
+        inputs
     }
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = &self.output.name;
 
-        let start = &self.start.name;
-        let end = &self.end.name;
-        let step = &self.step.name;
+        // Generate values for start, limit, and delta
+        let start = match &self.start {
+            RangeParam::Static(value) => {
+                let literal = Literal::i64_suffixed(*value);
+                quote! { #literal }
+            }
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
+                }
+                _ => panic!("Range parameter must be a scalar"),
+            },
+        };
+
+        let limit = match &self.limit {
+            RangeParam::Static(value) => {
+                let literal = Literal::i64_suffixed(*value);
+                quote! { #literal }
+            }
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
+                }
+                _ => panic!("Range parameter must be a scalar"),
+            },
+        };
+
+        let delta = match &self.delta {
+            RangeParam::Static(value) => {
+                let literal = Literal::i64_suffixed(*value);
+                quote! { #literal }
+            }
+            RangeParam::Runtime(t) => match t {
+                Type::Scalar(s) => {
+                    let name = &s.name;
+                    quote! { #name }
+                }
+                _ => panic!("Range parameter must be a scalar"),
+            },
+        };
 
         quote! {
-            let #output = Tensor::arange_step(#start..#end, #step as usize, &*self.device);
+            let #output = Tensor::arange_step(#start..#limit, #delta as usize, &*self.device);
         }
     }
     fn into_node(self) -> Node<PS> {
@@ -50,14 +120,58 @@ mod tests {
     use burn::record::FullPrecisionSettings;
 
     #[test]
-    fn codegen_nodes_range() {
+    fn codegen_nodes_range_static() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(
             RangeNode::new(
-                ScalarType::new("start", ScalarKind::Int64),
-                ScalarType::new("end", ScalarKind::Int64),
-                ScalarType::new("step", ScalarKind::Int64),
+                RangeParam::Static(0),
+                RangeParam::Static(10),
+                RangeParam::Static(2),
+                TensorType::new_int("output", 1),
+            )
+            .into_node(),
+        );
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> Tensor<B, 1, Int> {
+                    let output = Tensor::arange_step(0i64..10i64, 2i64 as usize, &*self.device);
+
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn codegen_nodes_range_runtime() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(
+            RangeNode::new(
+                RangeParam::Runtime(Type::Scalar(ScalarType::new("start", ScalarKind::Int64))),
+                RangeParam::Runtime(Type::Scalar(ScalarType::new("end", ScalarKind::Int64))),
+                RangeParam::Runtime(Type::Scalar(ScalarType::new("step", ScalarKind::Int64))),
                 TensorType::new_int("output", 1),
             )
             .into_node(),
@@ -68,11 +182,7 @@ mod tests {
         );
 
         let expected = quote! {
-            use burn::tensor::Int;
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {

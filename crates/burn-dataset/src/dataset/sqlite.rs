@@ -622,11 +622,12 @@ fn pragma_update_with_error_handling(
     value: &str,
 ) -> Result<()> {
     let result = conn.pragma_update(None, setting, value);
-    if let Err(error) = result {
-        if error != rusqlite::Error::ExecuteReturnedResults {
-            return Err(SqliteDatasetError::Sql(error));
-        }
+    if let Err(error) = result
+        && error != rusqlite::Error::ExecuteReturnedResults
+    {
+        return Err(SqliteDatasetError::Sql(error));
     }
+
     Ok(())
 }
 

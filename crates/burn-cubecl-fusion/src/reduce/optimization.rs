@@ -3,9 +3,7 @@ use std::sync::Arc;
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_tensor::DType;
-use cubecl::ir::Elem;
 use cubecl::prelude::*;
-use cubecl::reduce::instructions::{ReduceFn, ReduceFnConfig};
 use cubecl::reduce::{
     BoundChecksInner, ReduceFamily, ReduceParams, ReduceStrategy, init_tensors,
     reduce_kernel_virtual,
@@ -14,6 +12,10 @@ use cubecl::{
     CubeCount, CubeDim, Runtime,
     client::ComputeClient,
     reduce::{LineMode, ReduceConfig, ReduceError},
+};
+use cubecl::{
+    ir::StorageType,
+    reduce::instructions::{ReduceFn, ReduceFnConfig},
 };
 use serde::{Deserialize, Serialize};
 
@@ -482,9 +484,9 @@ pub fn reduce_kernel<R: ReduceFamily>(
     axis_reduce: u32,
     #[comptime] params: ReduceParams,
     #[comptime] config: R::Config,
-    #[comptime] elem_in: Elem,
-    #[comptime] elem_out: Elem,
-    #[comptime] elem_acc: Elem,
+    #[comptime] elem_in: StorageType,
+    #[comptime] elem_out: StorageType,
+    #[comptime] elem_acc: StorageType,
 ) {
     set_polyfill::<NumericExpand<INPUT>>(elem_in);
     set_polyfill::<NumericExpand<OUTPUT>>(elem_out);

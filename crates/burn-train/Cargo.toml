@@ -19,12 +19,18 @@ default = ["sys-metrics", "tui"]
 doc = ["default"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
+# Distributed Data Parallel
+ddp = ["burn-collective", "burn-optim/collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", features = [
     "dataset",
     "std",
 ], default-features = false }
+burn-optim = { path = "../burn-optim", version = "0.19.0", features = [
+    "std",
+], default-features = false }
+burn-collective = { path = "../burn-collective", optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -37,7 +43,10 @@ sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }
 
 # Text UI
-ratatui = { workspace = true, optional = true, features = ["all-widgets", "crossterm"] }
+ratatui = { workspace = true, optional = true, features = [
+    "all-widgets",
+    "crossterm",
+] }
 
 # Utilities
 derive-new = { workspace = true }

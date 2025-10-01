@@ -1,11 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{
-    DType, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
-        SymmetricQuantization,
-    },
-};
+use burn_tensor::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -82,7 +76,6 @@ impl TensorMetadata for TchTensor {
             tch::Kind::Float => DType::F32,
             tch::Kind::Double => DType::F64,
             tch::Kind::Bool => DType::Bool,
-            tch::Kind::QUInt8 => DType::U8,
             tch::Kind::BFloat16 => DType::BF16,
             // Complex and quantization types are not valid/implemented.
             _ => unimplemented!(),
@@ -91,6 +84,45 @@ impl TensorMetadata for TchTensor {
 
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
+    }
+
+    fn rank(&self) -> usize {
+        self.tensor.dim()
+    }
+}
+
+impl burn_tensor::quantization::QTensorPrimitive for TchTensor {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+        unimplemented!("Quantization is not supported")
+    }
+}
+
+pub(crate) trait IntoKind {
+    fn into_kind(self) -> tch::Kind;
+}
+
+impl IntoKind for FloatDType {
+    fn into_kind(self) -> tch::Kind {
+        match self {
+            FloatDType::F64 => tch::Kind::Double,
+            FloatDType::F32 => tch::Kind::Float,
+            FloatDType::Flex32 => tch::Kind::Float,
+            FloatDType::F16 => tch::Kind::Half,
+            FloatDType::BF16 => tch::Kind::BFloat16,
+        }
+    }
+}
+
+impl IntoKind for IntDType {
+    fn into_kind(self) -> tch::Kind {
+        match self {
+            IntDType::I64 => tch::Kind::Int64,
+            IntDType::I32 => tch::Kind::Int,
+            IntDType::I16 => tch::Kind::Int16,
+            IntDType::I8 => tch::Kind::Int8,
+            IntDType::U64 => tch::Kind::Uint8,
+            other => panic!("Unsupported dtype {other:?}"),
+        }
     }
 }
 
@@ -227,17 +259,17 @@ impl TchTensor {
         let num_elements_out = out_shape.num_elements();
 
         // Attempt to mutate lhs tensor
-        if lhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
-                return output;
-            }
+        if lhs_shape.num_elements() == num_elements_out
+            && let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor))
+        {
+            return output;
         }
 
         // Attempt to mutate rhs tensor
-        if rhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
-                return output;
-            }
+        if rhs_shape.num_elements() == num_elements_out
+            && let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs))
+        {
+            return output;
         }
 
         let storage = lhs.storage;
@@ -318,61 +350,11 @@ impl TchTensor {
     }
 }
 
-/// A quantized tensor for the tch backend.
-#[derive(Clone, Debug)]
-pub struct TchQTensor {
-    /// The quantized tensor.
-    pub qtensor: TchTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
-}
-
-impl TchQTensor {
-    /// Returns the quantization strategy, including quantization parameters, for the given tensor.
-    pub fn strategy(&self) -> QuantizationStrategy {
-        match &self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                ..
-            } => {
-                let scale = self.qtensor.tensor.q_scale();
-                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    scale as f32,
-                ))
-            }
-            QuantScheme {
-                level: QuantLevel::Block(_),
-                ..
-            } => unimplemented!("LibTorch backend does not support per-block quantization"),
-        }
-    }
-}
-
-impl TensorMetadata for TchQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
-    }
-}
-
-impl QTensorPrimitive for TchQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::LibTorch;
 
     use super::*;
-    use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::QuantizationParametersPrimitive;
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::SeedableRng;
     use rand::prelude::StdRng;
@@ -430,28 +412,6 @@ mod tests {
         assert_ne!(
             tensor_3.to_data().as_slice::<f32>().unwrap(),
             tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
-
-    #[test]
-    fn should_support_qtensor_strategy() {
-        let tensor =
-            TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantScheme::default();
-        let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
-            scales: TchTensor::from_data::<f32>(
-                TensorData::from([0.009_019_608]),
-                tch::Device::Cpu,
-            ),
-        };
-        let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
-
-        assert_eq!(qtensor.scheme(), &scheme);
-        assert_eq!(
-            qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                0.009_019_608
-            ))
         );
     }
 }

@@ -6,13 +6,13 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData};
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn trilu_upper() {
         let device = Default::default();
-        let model: trilu_upper::Model<Backend> = trilu_upper::Model::new(&device);
-        let input = Tensor::<Backend, 3>::from_floats(
+        let model: trilu_upper::Model<TestBackend> = trilu_upper::Model::new(&device);
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
             &device,
         );
@@ -30,8 +30,8 @@ mod tests {
     #[test]
     fn trilu_lower() {
         let device = Default::default();
-        let model: trilu_lower::Model<Backend> = trilu_lower::Model::new(&device);
-        let input = Tensor::<Backend, 3>::from_floats(
+        let model: trilu_lower::Model<TestBackend> = trilu_lower::Model::new(&device);
+        let input = Tensor::<TestBackend, 3>::from_floats(
             [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
             &device,
         );

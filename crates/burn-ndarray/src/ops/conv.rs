@@ -1,6 +1,6 @@
 use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
-    ElementConversion, TensorMetadata,
+    ElementConversion,
     ops::{
         ConvOptions, ConvTransposeOptions,
         conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
@@ -11,14 +11,14 @@ use ndarray::{
 };
 
 use crate::{
-    element::FloatNdArrayElement,
+    NdArrayElement, SharedArray,
     ops::padding::{apply_padding_4d, apply_padding_5d},
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
 };
 
 #[inline(always)]
-fn conv2d_mad_inner<E: FloatNdArrayElement>(
+fn conv2d_mad_inner<E: NdArrayElement>(
     mut output: ArrayViewMut2<E>,
     x: ArrayView2<E>,
     k: E,
@@ -56,7 +56,7 @@ fn conv2d_mad_inner<E: FloatNdArrayElement>(
 }
 
 #[inline(always)]
-fn conv3d_mad_inner<E: FloatNdArrayElement>(
+fn conv3d_mad_inner<E: NdArrayElement>(
     mut output: ArrayViewMut3<E>,
     x: ArrayView3<E>,
     k: E,
@@ -98,17 +98,21 @@ fn conv3d_mad_inner<E: FloatNdArrayElement>(
     }
 }
 
-pub(crate) fn conv2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    weight: NdArrayTensor<E>,
-    bias: Option<NdArrayTensor<E>>,
+pub(crate) fn conv2d<E: NdArrayElement>(
+    x: SharedArray<E>,
+    weight: SharedArray<E>,
+    bias: Option<SharedArray<E>>,
     options: ConvOptions<2>,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+{
     let [dilation_height, dilation_width] = options.dilation;
     let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
-    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims();
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
+    let [out_channels, in_channels, kernel_height, kernel_width] =
+        weight.shape().try_into().unwrap();
     let channels_per_group = out_channels / options.groups;
 
     let out_height = calculate_conv_output_size(
@@ -126,11 +130,11 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_4d::<E>(x, options.padding, 0i32.elem());
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
-    let weights = weight.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+    let weights = weight.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let mut output = Array3::zeros(Dim([batch_size * out_channels, out_height, out_width]));
 
@@ -190,7 +194,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
                     }
 
                     if let Some(bias) = &bias {
-                        let bias = bias.array[oc];
+                        let bias = bias[oc];
 
                         for oh in 0..out_height {
                             // Get a mutable slice reference to the row we're looping over.
@@ -209,27 +213,26 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
             );
     });
 
-    let output = output
+    output
         .to_shape([batch_size, out_channels, out_height, out_width])
         .unwrap()
         .into_dyn()
-        .into_shared();
-
-    NdArrayTensor::new(output)
+        .into_shared()
 }
 
-pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    weight: NdArrayTensor<E>,
-    bias: Option<NdArrayTensor<E>>,
+pub(crate) fn conv_transpose2d<E: NdArrayElement>(
+    x: SharedArray<E>,
+    weight: SharedArray<E>,
+    bias: Option<SharedArray<E>>,
     options: ConvTransposeOptions<2>,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [dilation_height, dilation_width] = options.dilation;
     let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
     let [out_padding_height, out_padding_width] = options.padding_out;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
-    let [in_channels, out_channels, kernel_height, kernel_width] = weight.shape().dims();
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
+    let [in_channels, out_channels, kernel_height, kernel_width] =
+        weight.shape().try_into().unwrap();
 
     let out_height = calculate_conv_transpose_output_size(
         kernel_height,
@@ -248,7 +251,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = x.array;
+    let x = x;
     let mut output = Array4::zeros(Dim([
         batch_size,
         out_channels * options.groups,
@@ -262,7 +265,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
         iter_range_par!(0, batch_size * out_channels * options.groups).for_each(|k| unsafe {
             let b = k / (out_channels * options.groups);
             let oc = k % out_channels;
-            let g = k % options.groups;
+            let g = (k / out_channels) % options.groups;
 
             let output = unsafe_shared_out.get();
 
@@ -290,7 +293,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
                                 let ow = ow - padding_width;
 
                                 output[[b, oc_out, oh, ow]] +=
-                                    x[[b, ic, ih, iw]] * weight.array[[ic, oc, kh, kw]];
+                                    x[[b, ic, ih, iw]] * weight[[ic, oc, kh, kw]];
                             }
                         }
                     }
@@ -300,33 +303,36 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
             if let Some(bias) = &bias {
                 for oh in 0..out_height {
                     for ow in 0..out_width {
-                        output[[b, oc_out, oh, ow]] += bias.array[oc_out];
+                        output[[b, oc_out, oh, ow]] += bias[oc_out];
                     }
                 }
             }
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }
 
-pub(crate) fn conv3d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    weight: NdArrayTensor<E>,
-    bias: Option<NdArrayTensor<E>>,
+pub(crate) fn conv3d<E: NdArrayElement>(
+    x: SharedArray<E>,
+    weight: SharedArray<E>,
+    bias: Option<SharedArray<E>>,
     options: ConvOptions<3>,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+{
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
-    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
+    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().try_into().unwrap();
     let [
         out_channels,
         in_channels,
         kernel_depth,
         kernel_height,
         kernel_width,
-    ] = weight.shape().dims();
+    ] = weight.shape().try_into().unwrap();
     let out_c_per_group = out_channels / options.groups;
 
     let out_depth = calculate_conv_output_size(
@@ -351,11 +357,11 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_5d::<E>(x, options.padding, 0i32.elem());
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix5>().unwrap();
-    let weights = weight.array.into_dimensionality::<ndarray::Ix5>().unwrap();
+    let weights = weight.into_dimensionality::<ndarray::Ix5>().unwrap();
 
     let mut output = Array4::zeros(Dim([
         batch_size * out_channels,
@@ -424,7 +430,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
                     }
 
                     if let Some(bias) = &bias {
-                        let bias = bias.array[oc];
+                        let bias = bias[oc];
 
                         // Get a mutable iterator to the row we're looping over.
                         let orows = output.rows_mut();
@@ -443,33 +449,31 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
             );
     });
 
-    let output = output
+    output
         .to_shape([batch_size, out_channels, out_depth, out_height, out_width])
         .unwrap()
         .into_dyn()
-        .into_shared();
-
-    NdArrayTensor::new(output)
+        .into_shared()
 }
 
-pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    weight: NdArrayTensor<E>,
-    bias: Option<NdArrayTensor<E>>,
+pub(crate) fn conv_transpose3d<E: NdArrayElement>(
+    x: SharedArray<E>,
+    weight: SharedArray<E>,
+    bias: Option<SharedArray<E>>,
     options: ConvTransposeOptions<3>,
-) -> NdArrayTensor<E> {
+) -> SharedArray<E> {
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [out_padding_depth, out_padding_height, out_padding_width] = options.padding_out;
-    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
+    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().try_into().unwrap();
     let [
         in_channels,
         out_channels,
         kernel_depth,
         kernel_height,
         kernel_width,
-    ] = weight.shape().dims();
+    ] = weight.shape().try_into().unwrap();
 
     let out_depth = calculate_conv_transpose_output_size(
         kernel_depth,
@@ -496,7 +500,7 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = x.array;
+    let x = x;
     let mut output = Array5::zeros(Dim([
         batch_size,
         out_channels * options.groups,
@@ -511,7 +515,7 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
         iter_range_par!(0, batch_size * out_channels * options.groups).for_each(|k| unsafe {
             let b = k / (out_channels * options.groups);
             let oc = k % out_channels;
-            let g = k % options.groups;
+            let g = (k / out_channels) % options.groups;
 
             let output = unsafe_shared_out.get();
 
@@ -544,8 +548,8 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
                                         let oh = oh - padding_height;
                                         let ow = ow - padding_width;
 
-                                        output[[b, oc_out, od, oh, ow]] += x[[b, ic, id, ih, iw]]
-                                            * weight.array[[ic, oc, kd, kh, kw]];
+                                        output[[b, oc_out, od, oh, ow]] +=
+                                            x[[b, ic, id, ih, iw]] * weight[[ic, oc, kd, kh, kw]];
                                     }
                                 }
                             }
@@ -558,7 +562,7 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
                 for od in 0..out_depth {
                     for oh in 0..out_height {
                         for ow in 0..out_width {
-                            output[[b, oc_out, od, oh, ow]] += bias.array[oc_out];
+                            output[[b, oc_out, od, oh, ow]] += bias[oc_out];
                         }
                     }
                 }
@@ -566,5 +570,5 @@ pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
         });
     });
 
-    NdArrayTensor::new(output.into_dyn().into_shared())
+    output.into_dyn().into_shared()
 }

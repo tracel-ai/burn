@@ -7,15 +7,15 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, TensorData, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn space_to_depth() {
         let device = Default::default();
-        let model: space_to_depth::Model<Backend> = space_to_depth::Model::new(&device);
+        let model: space_to_depth::Model<TestBackend> = space_to_depth::Model::new(&device);
 
-        let input = Tensor::<Backend, 4>::from_floats(
+        let input = Tensor::<TestBackend, 4>::from_floats(
             [
                 [[
                     [0.5, -0.14, 0.65, 1.52, -0.23, -0.23],

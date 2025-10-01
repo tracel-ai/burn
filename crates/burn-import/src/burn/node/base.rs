@@ -1,32 +1,79 @@
-use std::marker::PhantomData;
-
-use super::{
-    argmax::ArgMaxNode, argmin::ArgMinNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
-    batch_norm::BatchNormNode, bernoulli::BernoulliNode, binary::BinaryNode,
-    bitshift::BitShiftNode, bitwiseand::BitwiseAndNode, bitwisenot::BitwiseNotNode,
-    bitwiseor::BitwiseOrNode, bitwisexor::BitwiseXorNode, ceil::CeilNode, clip::ClipNode,
-    concat::ConcatNode, constant::ConstantNode, constant_of_shape::ConstantOfShapeNode,
-    conv_transpose_1d::ConvTranspose1dNode, conv_transpose_2d::ConvTranspose2dNode,
-    conv_transpose_3d::ConvTranspose3dNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv3d::Conv3dNode, depth_to_space::DepthToSpaceNode, dropout::DropoutNode, expand::ExpandNode,
-    floor::FloorNode, gather::GatherNode, gather_elements::GatherElementsNode, gemm::GemmNode,
-    global_avg_pool::GlobalAvgPoolNode, group_norm::GroupNormNode, instance_norm::InstanceNormNode,
-    layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
-    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, one_hot::OneHotNode,
-    pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode,
-    random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
-    random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode,
-    resize::ResizeNode, round::RoundNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode,
-    sum::SumNode, tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode,
-    unsqueeze::UnsqueezeNode,
-};
-use crate::burn::{
-    BurnImports, Scope, Type,
-    node::{attention::AttentionNode, space_to_depth::SpaceToDepthNode},
-};
-use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
+use std::marker::PhantomData;
+
+use burn::record::PrecisionSettings;
+
+use crate::burn::{BurnImports, Scope, Type, node::modulo::ModNode};
+
+use super::argmax::ArgMaxNode;
+use super::argmin::ArgMinNode;
+use super::attention::AttentionNode;
+use super::avg_pool1d::AvgPool1dNode;
+use super::avg_pool2d::AvgPool2dNode;
+use super::batch_norm::BatchNormNode;
+use super::bernoulli::BernoulliNode;
+use super::binary::BinaryNode;
+use super::bitshift::BitShiftNode;
+use super::bitwiseand::BitwiseAndNode;
+use super::bitwisenot::BitwiseNotNode;
+use super::bitwiseor::BitwiseOrNode;
+use super::bitwisexor::BitwiseXorNode;
+use super::cast::CastNode;
+use super::ceil::CeilNode;
+use super::clip::ClipNode;
+use super::concat::ConcatNode;
+use super::constant::ConstantNode;
+use super::constant_of_shape::ConstantOfShapeNode;
+use super::conv_transpose_1d::ConvTranspose1dNode;
+use super::conv_transpose_2d::ConvTranspose2dNode;
+use super::conv_transpose_3d::ConvTranspose3dNode;
+use super::conv1d::Conv1dNode;
+use super::conv2d::Conv2dNode;
+use super::conv3d::Conv3dNode;
+use super::depth_to_space::DepthToSpaceNode;
+use super::dropout::DropoutNode;
+use super::expand::ExpandNode;
+use super::eye_like::EyeLikeNode;
+use super::floor::FloorNode;
+use super::gather::GatherNode;
+use super::gather_elements::GatherElementsNode;
+use super::gemm::GemmNode;
+use super::global_avg_pool::GlobalAvgPoolNode;
+use super::group_norm::GroupNormNode;
+use super::identity::IdentityNode;
+use super::instance_norm::InstanceNormNode;
+use super::layer_norm::LayerNormNode;
+use super::linear::LinearNode;
+use super::matmul::MatmulNode;
+use super::matmul_integer::MatMulIntegerNode;
+use super::max_pool1d::MaxPool1dNode;
+use super::max_pool2d::MaxPool2dNode;
+use super::mean::MeanNode;
+use super::nonzero::NonZeroNode;
+use super::one_hot::OneHotNode;
+use super::pad::PadNode;
+use super::prelu::PReluNode;
+use super::random_normal::RandomNormalNode;
+use super::random_normal_like::RandomNormalLikeNode;
+use super::random_uniform::RandomUniformNode;
+use super::random_uniform_like::RandomUniformLikeNode;
+use super::range::RangeNode;
+use super::reduce::ReduceNode;
+use super::reshape::ReshapeNode;
+use super::resize::ResizeNode;
+use super::round::RoundNode;
+use super::slice::SliceNode;
+use super::space_to_depth::SpaceToDepthNode;
+use super::split::SplitNode;
+use super::squeeze::SqueezeNode;
+use super::sum::SumNode;
+use super::tile::TileNode;
+use super::top_k::TopKNode;
+use super::trilu::TriluNode;
+use super::unary::UnaryNode;
+use super::unsqueeze::UnsqueezeNode;
+use super::where_op::WhereNode;
 
 /// Backend used for serialization.
 pub type SerializationBackend = burn_ndarray::NdArray<f32>;
@@ -103,6 +150,7 @@ pub enum Node<PS: PrecisionSettings> {
     BitwiseOr(BitwiseOrNode),
     BitwiseNot(BitwiseNotNode),
     BitwiseXor(BitwiseXorNode),
+    Cast(CastNode),
     Clip(ClipNode),
     Concat(ConcatNode),
     Constant(ConstantNode),
@@ -116,23 +164,29 @@ pub enum Node<PS: PrecisionSettings> {
     PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
+    EyeLike(EyeLikeNode),
     Floor(FloorNode),
     Ceil(CeilNode),
+    Mod(ModNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
     Gemm(GemmNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    Identity(IdentityNode),
     InstanceNorm(InstanceNormNode),
     LayerNorm(LayerNormNode),
     GroupNorm(GroupNormNode),
     Linear(LinearNode),
     Matmul(MatmulNode),
+    MatmulInteger(MatMulIntegerNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
     Mean(MeanNode),
+    NonZero(NonZeroNode),
     OneHot(OneHotNode),
     Pad(PadNode),
     Range(RangeNode),
+    Reduce(ReduceNode),
     Reshape(ReshapeNode),
     Resize(ResizeNode),
     Round(RoundNode),
@@ -174,6 +228,7 @@ macro_rules! match_all {
             Node::BitwiseOr(node) => $func(node),
             Node::BitwiseNot(node) => $func(node),
             Node::BitwiseXor(node) => $func(node),
+            Node::Cast(node) => $func(node),
             Node::Clip(node) => $func(node),
             Node::Concat(node) => $func(node),
             Node::Constant(node) => $func(node),
@@ -187,23 +242,29 @@ macro_rules! match_all {
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Expand(node) => $func(node),
+            Node::EyeLike(node) => $func(node),
             Node::Floor(node) => $func(node),
             Node::Ceil(node) => $func(node),
+            Node::Mod(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
             Node::Gemm(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::Identity(node) => $func(node),
             Node::InstanceNorm(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
             Node::GroupNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
+            Node::MatmulInteger(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Mean(node) => $func(node),
+            Node::NonZero(node) => $func(node),
             Node::OneHot(node) => $func(node),
             Node::Pad(node) => $func(node),
             Node::Range(node) => $func(node),
+            Node::Reduce(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Resize(node) => $func(node),
             Node::Round(node) => $func(node),
@@ -253,6 +314,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::BitwiseOr(_) => "bitwiseor",
             Node::BitwiseNot(_) => "bitwisenot",
             Node::BitwiseXor(_) => "bitwisexor",
+            Node::Cast(_) => "cast",
             Node::Concat(_) => "concat",
             Node::Clip(_) => "clip",
             Node::Constant(_) => "constant",
@@ -266,23 +328,29 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Expand(_) => "expand",
+            Node::EyeLike(_) => "eye_like",
             Node::Floor(_) => "floor",
             Node::Ceil(_) => "ceil",
+            Node::Mod(_) => "mod",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
             Node::Gemm(_) => "gemm",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::Identity(_) => "identity",
             Node::InstanceNorm(_) => "instance_norm",
             Node::LayerNorm(_) => "layer_norm",
             Node::GroupNorm(_) => "group_norm",
             Node::Linear(_) => "linear",
+            Node::MatmulInteger(_) => "matmul_integer",
             Node::Matmul(_) => "matmul",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Mean(_) => "mean",
+            Node::NonZero(_) => "nonzero",
             Node::OneHot(_) => "one_hot",
             Node::Pad(_) => "pad",
             Node::Range(_) => "range",
+            Node::Reduce(_) => "reduce",
             Node::Reshape(_) => "reshape",
             Node::Resize(_) => "resize",
             Node::Round(_) => "round",
@@ -436,13 +504,10 @@ pub(crate) mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
-            use burn::nn::conv::Conv2dConfig;
-            use burn::nn::conv::Conv2d;
+            use burn::prelude::*;
             use burn::nn::PaddingConfig2d;
+            use burn::nn::conv::Conv2d;
+            use burn::nn::conv::Conv2dConfig;
 
             #[derive(Module, Debug)]
             pub struct Model <B: Backend> {
@@ -522,10 +587,7 @@ pub(crate) mod tests {
         );
 
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            use burn::prelude::*;
             use burn::nn::PaddingConfig2d;
             use burn::nn::conv::Conv2d;
             use burn::nn::conv::Conv2dConfig;

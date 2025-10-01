@@ -2,7 +2,7 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_common::rand::get_seeded_rng;
-    use burn_tensor::{Shape, Tensor, TensorData, Tolerance, backend::Backend};
+    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
@@ -40,7 +40,9 @@ mod tests {
 
         let tensor = Tensor::<B, 1>::from_data(input, &device);
 
-        let tensor = reduce(id, tensor, op, root).unwrap();
+        let tensor = tensor.into_primitive().tensor();
+        let tensor = reduce::<B>(id, tensor, op, root).unwrap();
+        let tensor = tensor.map(|t| Tensor::<B, 1>::from_primitive(TensorPrimitive::Float(t)));
 
         output.send(tensor).unwrap();
     }

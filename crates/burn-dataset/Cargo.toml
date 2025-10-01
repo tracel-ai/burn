@@ -2,26 +2,28 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Library with simple dataset APIs for creating ML data pipelines"
+documentation = "https://docs.rs/burn-dataset"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-dataset"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dataset"
-documentation = "https://docs.rs/burn-dataset"
 version.workspace = true
 
 [lints]
 workspace = true
 
 [features]
+audio = ["hound"]
+builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
-audio = ["hound"]
 fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
+nlp = ["dep:zip", "dep:encoding_rs"]
 # internal
 __sqlite-shared = [
     "dep:r2d2",
@@ -30,7 +32,7 @@ __sqlite-shared = [
     "dep:image",
     "dep:gix-tempfile",
 ]
-dataframe = ["dep:polars"]
+dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.19.0", optional = true, features = [
@@ -45,10 +47,13 @@ gix-tempfile = { workspace = true, optional = true }
 globwalk = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
+planus = { workspace = true, optional = true }
+encoding_rs = { workspace = true, optional = true }
 polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std"] }
+zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true, optional = true }
 sanitize-filename = { workspace = true }
@@ -56,13 +61,14 @@ serde = { workspace = true, features = ["std", "derive"] }
 serde_json = { workspace = true, features = ["std"] }
 serde_rusqlite = { workspace = true, optional = true }
 strum = { workspace = true }
+tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+fake = { workspace = true }
 rayon = { workspace = true }
 rstest = { workspace = true }
-fake = { workspace = true }
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["strum", "strum_macros"]

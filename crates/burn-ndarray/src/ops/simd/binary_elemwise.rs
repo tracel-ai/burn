@@ -8,7 +8,7 @@ use macerator::{
 use ndarray::ArrayD;
 use seq_macro::seq;
 
-use crate::{NdArrayElement, NdArrayTensor};
+use crate::{NdArrayElement, SharedArray, ops::simd::uninit_array_like};
 
 use super::{MinMax, should_use_simd};
 
@@ -256,27 +256,27 @@ pub fn try_binary_scalar_simd<
     Out: NdArrayElement + Scalar,
     Op: ScalarSimdBinop<T, Out>,
 >(
-    input: NdArrayTensor<E>,
+    input: SharedArray<E>,
     elem: Op::Rhs,
-) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
-    if !should_use_simd(input.array.len())
-        || input.array.as_slice_memory_order().is_none()
+) -> Result<SharedArray<EOut>, SharedArray<E>> {
+    if !should_use_simd(input.len())
+        || input.as_slice_memory_order().is_none()
         || !is_accelerated::<T, Out, Op>(PhantomData)
     {
         return Err(input);
     }
     // Used to assert traits based on the dynamic `DType`.
-    let input = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(input) };
+    let input = unsafe { core::mem::transmute::<SharedArray<E>, SharedArray<T>>(input) };
     let out = if size_of::<T>() == size_of::<Out>()
         && align_of::<T>() >= align_of::<Out>()
-        && input.array.is_unique()
+        && input.is_unique()
     {
         unsafe { binary_scalar_simd_inplace::<T, Out, Op>(input, elem) }
     } else {
         binary_scalar_simd_owned::<T, Out, Op>(input, elem)
     };
     // Used to assert traits based on the dynamic `DType`.
-    let out = unsafe { core::mem::transmute::<NdArrayTensor<Out>, NdArrayTensor<EOut>>(out) };
+    let out = unsafe { core::mem::transmute::<SharedArray<Out>, SharedArray<EOut>>(out) };
     Ok(out)
 }
 
@@ -288,15 +288,15 @@ unsafe fn binary_scalar_simd_inplace<
     Out: NdArrayElement + Scalar,
     Op: ScalarSimdBinop<T, Out>,
 >(
-    input: NdArrayTensor<T>,
+    input: SharedArray<T>,
     elem: Op::Rhs,
-) -> NdArrayTensor<Out> {
-    let mut buffer = input.array.into_owned();
+) -> SharedArray<Out> {
+    let mut buffer = input.into_owned();
     let slice = buffer.as_slice_memory_order_mut().unwrap();
     unsafe { binary_scalar_slice_inplace::<T, Out, Op>(slice, elem, PhantomData) };
     // Buffer has the same elem size and is filled with the operation output, so this is safe
     let out = unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buffer) };
-    NdArrayTensor::new(out.into_shared())
+    out.into_shared()
 }
 
 /// Create a new copy of the tensor as the output
@@ -305,14 +305,14 @@ fn binary_scalar_simd_owned<
     Out: NdArrayElement + Scalar,
     Op: ScalarSimdBinop<T, Out>,
 >(
-    input: NdArrayTensor<T>,
+    input: SharedArray<T>,
     elem: Op::Rhs,
-) -> NdArrayTensor<Out> {
-    let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
-    let input = input.array.as_slice_memory_order().unwrap();
+) -> SharedArray<Out> {
+    let mut out = uninit_array_like(&input);
+    let input = input.as_slice_memory_order().unwrap();
     let out_slice = out.as_slice_memory_order_mut().unwrap();
     binary_scalar_slice::<T, Out, Op>(input, out_slice, elem, PhantomData);
-    NdArrayTensor::new(out.into_shared())
+    out.into_shared()
 }
 
 #[inline(always)]

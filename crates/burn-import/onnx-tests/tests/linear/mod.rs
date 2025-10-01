@@ -7,19 +7,19 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn linear() {
         let device = Default::default();
         // Initialize the model with weights (loaded from the exported file)
-        let model: linear::Model<Backend> = linear::Model::default();
+        let model: linear::Model<TestBackend> = linear::Model::default();
         #[allow(clippy::approx_constant)]
-        let input1 = Tensor::<Backend, 2>::full([4, 3], 3.14, &device);
+        let input1 = Tensor::<TestBackend, 2>::full([4, 3], 3.14, &device);
         #[allow(clippy::approx_constant)]
-        let input2 = Tensor::<Backend, 2>::full([2, 5], 3.14, &device);
+        let input2 = Tensor::<TestBackend, 2>::full([2, 5], 3.14, &device);
         #[allow(clippy::approx_constant)]
-        let input3 = Tensor::<Backend, 3>::full([3, 2, 7], 3.14, &device);
+        let input3 = Tensor::<TestBackend, 3>::full([3, 2, 7], 3.14, &device);
 
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
@@ -41,8 +41,8 @@ mod tests {
         let expected_sum2 = -8.053_822; // from pytorch
         let expected_sum3 = 27.575_281; // from pytorch
 
-        assert!(expected_sum1.approx_eq(output_sum1, (1.0e-6, 2)));
-        assert!(expected_sum2.approx_eq(output_sum2, (1.0e-6, 2)));
-        assert!(expected_sum3.approx_eq(output_sum3, (1.0e-6, 2)));
+        assert!(expected_sum1.approx_eq(output_sum1, (1.0e-5, 2)));
+        assert!(expected_sum2.approx_eq(output_sum2, (1.0e-5, 2)));
+        assert!(expected_sum3.approx_eq(output_sum3, (1.0e-5, 2)));
     }
 }

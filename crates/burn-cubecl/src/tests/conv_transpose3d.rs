@@ -7,7 +7,8 @@ mod tests {
 
     #[test]
     fn conv_transpose3d_should_match_reference_backend() {
-        TestBackend::seed(0);
+        let test_device = Default::default();
+        TestBackend::seed(&test_device, 0);
 
         let depth = 8;
         let height = 8;
@@ -26,7 +27,6 @@ mod tests {
             1,
         );
 
-        let test_device = Default::default();
         let input = Tensor::<TestBackend, 5>::random(
             [batch_size, in_channels, depth, height, width],
             Distribution::Default,

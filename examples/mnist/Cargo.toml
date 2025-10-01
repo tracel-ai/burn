@@ -17,9 +17,12 @@ ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu", "burn/fusion"]
-metal = ["burn/metal", "burn/fusion"]
 remote = ["burn/remote"]
+wgpu = ["burn/wgpu", "burn/default"]
+metal = ["burn/metal", "burn/default"]
+cuda = ["burn/cuda", "burn/default"]
+vulkan = ["burn/vulkan", "burn/default"]
+rocm = ["burn/rocm", "burn/default"]
 
 [dependencies]
 # Disable autotune default for now (convolutions not optimized)
@@ -27,9 +30,13 @@ burn = { path = "../../crates/burn", features = [
     "train",
     "vision",
     "metrics",
-    "std"
+    "std",
+    "fusion",
+    "ndarray",
+    "autotune",
 ], default-features = false }
 
 # Serialization
 log = { workspace = true }
+rand.workspace = true
 serde = { workspace = true, features = ["std", "derive"] }

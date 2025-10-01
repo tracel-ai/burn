@@ -1,16 +1,18 @@
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The Top-K accuracy metric.
 ///
 /// For K=1, this is equivalent to the [accuracy metric](`super::acc::AccuracyMetric`).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TopKAccuracyMetric<B: Backend> {
+    name: Arc<String>,
     k: usize,
     state: NumericMetricState,
     /// If specified, targets equal to this value will be considered padding and will not count
@@ -32,6 +34,7 @@ impl<B: Backend> TopKAccuracyMetric<B> {
     /// Creates the metric.
     pub fn new(k: usize) -> Self {
         Self {
+            name: Arc::new(format!("Top-K Accuracy @ TopK({})", k)),
             k,
             ..Default::default()
         }
@@ -91,13 +94,13 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        format!("Top-K Accuracy @ TopK({})", self.k)
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
 impl<B: Backend> Numeric for TopKAccuracyMetric<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
 }
@@ -125,7 +128,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     #[test]
@@ -149,7 +152,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     #[test]

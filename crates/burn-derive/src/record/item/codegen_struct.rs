@@ -28,7 +28,9 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         has_backend: bool,
     ) -> TokenStream {
         let mut fields = quote! {};
-        let mut bounds = quote! {};
+        let mut serde_bounds = quote! {};
+        let mut clone_bounds = vec![];
+        let mut clone_delegate = quote! {};
         let vis = &self.vis;
 
         for field in self.fields.iter() {
@@ -40,21 +42,42 @@ impl RecordItemCodegen for StructRecordItemCodegen {
                 pub #name: <#ty as burn::record::Record<B>>::Item<S>,
             });
 
-            bounds.extend(quote! {
-          <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
-      });
-        }
-        let bound = bounds.to_string();
+            serde_bounds.extend(quote! {
+                <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
+            });
 
-        let (generics, generics_where) = if !has_backend {
-            let mut generics = generics.clone();
+            clone_bounds.push(parse_quote! {
+                <#ty as burn::record::Record<B>>::Item<S>: Clone
+            });
+
+            clone_delegate.extend(quote! {
+                #name: self.#name.clone(),
+            });
+        }
+        let serde_bound = serde_bounds.to_string();
+
+        let mut generics = generics.clone();
+        if !has_backend {
             let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
             generics.params.push(syn::GenericParam::Type(param));
-            let (generics, _, generics_where) = generics.split_for_impl();
-            (quote! { #generics }, quote! { #generics_where })
-        } else {
-            let (generics, _, generics_where) = generics.split_for_impl();
-            (quote! { #generics }, quote! { #generics_where })
+        }
+        let (generics, type_generics, generics_where) = generics.split_for_impl();
+
+        let clone_bounds = generics_where.cloned().map(|mut where_clause| {
+            for predicate in clone_bounds {
+                where_clause.predicates.push(predicate);
+            }
+            where_clause
+        });
+
+        let clone_impl = quote! {
+            impl #generics Clone for #item_name #type_generics #clone_bounds {
+                fn clone(&self) -> Self {
+                    Self {
+                        #clone_delegate
+                    }
+                }
+            }
         };
 
         quote! {
@@ -62,10 +85,12 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             /// The record item type for the module.
             #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
             #[serde(crate = "burn::serde")]
-            #[serde(bound = #bound)]
+            #[serde(bound = #serde_bound)]
             #vis struct #item_name #generics #generics_where {
                 #fields
             }
+
+            #clone_impl
         }
     }
 

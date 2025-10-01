@@ -14,7 +14,7 @@ pub struct ConvBlock<B: Backend> {
     activation: nn::Gelu,
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ConvBlockConfig {
     channels: [usize; 2],
     #[config(default = "[3, 3]")]

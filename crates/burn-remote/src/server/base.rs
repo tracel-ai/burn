@@ -155,6 +155,9 @@ where
                         .expose_tensor_remote(tensor, count, transfer_id)
                         .await;
                 }
+                ComputeTask::Seed(seed) => {
+                    stream.seed(seed).await;
+                }
             }
         }
 

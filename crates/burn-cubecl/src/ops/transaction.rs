@@ -35,7 +35,7 @@ where
 
             kinds.push(Kind::Float(num_bindings, t.shape.into(), F::dtype()));
             num_bindings += 1;
-            bindings.push(t.handle.binding())
+            bindings.push(t.handle)
         });
         transaction.read_ints.into_iter().for_each(|t| {
             if client.is_none() {
@@ -44,7 +44,7 @@ where
 
             kinds.push(Kind::Int(num_bindings, t.shape.into(), I::dtype()));
             num_bindings += 1;
-            bindings.push(t.handle.binding())
+            bindings.push(t.handle)
         });
         transaction.read_bools.into_iter().for_each(|t| {
             if client.is_none() {
@@ -53,7 +53,7 @@ where
 
             kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
             num_bindings += 1;
-            bindings.push(t.handle.binding())
+            bindings.push(t.handle)
         });
 
         let client = client.unwrap();

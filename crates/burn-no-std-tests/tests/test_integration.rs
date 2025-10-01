@@ -17,7 +17,7 @@ fn test_mnist_model_with_random_input() {
     let mnist_model: Model<Backend> = Model::new(&mnist_config, &device);
 
     // Pass a fixed seed for random, otherwise a build generated random seed is used
-    Backend::seed(mnist_config.seed);
+    Backend::seed(&device, mnist_config.seed);
 
     // Some random input
     let input_shape = [1, 28, 28];

@@ -7,18 +7,18 @@ mod tests {
     use super::*;
     use burn::tensor::{Tensor, Tolerance, ops::FloatElem};
 
-    use crate::backend::Backend;
-    type FT = FloatElem<Backend>;
+    use crate::backend::TestBackend;
+    type FT = FloatElem<TestBackend>;
 
     #[test]
     fn erf() {
-        let model: erf::Model<Backend> = erf::Model::default();
+        let model: erf::Model<TestBackend> = erf::Model::default();
 
         let device = Default::default();
-        let input = Tensor::<Backend, 4>::from_data([[[[1.0, 2.0, 3.0, 4.0]]]], &device);
+        let input = Tensor::<TestBackend, 4>::from_data([[[[1.0, 2.0, 3.0, 4.0]]]], &device);
         let output = model.forward(input);
         let expected =
-            Tensor::<Backend, 4>::from_data([[[[0.8427f32, 0.9953, 1.0000, 1.0000]]]], &device);
+            Tensor::<TestBackend, 4>::from_data([[[[0.8427f32, 0.9953, 1.0000, 1.0000]]]], &device);
 
         output
             .to_data()

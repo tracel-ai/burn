@@ -1,4 +1,6 @@
-use crate::metric::{MetricEntry, Numeric, NumericEntry, format_float};
+use std::sync::Arc;
+
+use crate::metric::{MetricEntry, MetricName, Numeric, NumericEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
 ///
@@ -6,6 +8,7 @@ use crate::metric::{MetricEntry, Numeric, NumericEntry, format_float};
 ///
 /// The numeric metric store values inside floats.
 /// Even if some metric are integers, their mean are floats.
+#[derive(Clone)]
 pub struct NumericMetricState {
     sum: f64,
     count: usize,
@@ -14,16 +17,16 @@ pub struct NumericMetricState {
 
 /// Formatting options for the [numeric metric state](NumericMetricState).
 pub struct FormatOptions {
-    name: String,
+    name: Arc<String>,
     unit: Option<String>,
     precision: Option<usize>,
 }
 
 impl FormatOptions {
     /// Create the [formatting options](FormatOptions) with a name.
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new(name: MetricName) -> Self {
         Self {
-            name: name.into(),
+            name: name.clone(),
             unit: None,
             precision: None,
         }
@@ -39,6 +42,21 @@ impl FormatOptions {
     pub fn precision(mut self, precision: usize) -> Self {
         self.precision = Some(precision);
         self
+    }
+
+    /// Get the metric name.
+    pub fn name(&self) -> &Arc<String> {
+        &self.name
+    }
+
+    /// Get the metric unit.
+    pub fn unit_value(&self) -> &Option<String> {
+        &self.unit
+    }
+
+    /// Get the precision.
+    pub fn precision_value(&self) -> Option<usize> {
+        self.precision
     }
 }
 
@@ -68,7 +86,12 @@ impl NumericMetricState {
         let value_current = value;
         let value_running = self.sum / self.count as f64;
         // Numeric metric state is an aggregated value
-        let serialized = NumericEntry::Aggregated(value_current, batch_size).serialize();
+        let serialized = NumericEntry::Aggregated {
+            sum: value_current,
+            count: batch_size,
+            current: value_current,
+        }
+        .serialize();
 
         let (formatted_current, formatted_running) = match format.precision {
             Some(precision) => (
@@ -90,8 +113,12 @@ impl NumericMetricState {
 }
 
 impl Numeric for NumericMetricState {
-    fn value(&self) -> f64 {
-        self.current
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Aggregated {
+            sum: self.sum,
+            count: self.count,
+            current: self.current,
+        }
     }
 }
 

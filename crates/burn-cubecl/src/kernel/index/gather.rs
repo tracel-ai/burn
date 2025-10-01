@@ -1,36 +1,49 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
-use cubecl::CubeDim;
-use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
-use cubecl::std::tensor::index_offset_with_layout;
+use crate::{
+    CubeRuntime,
+    element::CubeElement,
+    kernel::utils::{linear_layout, linear_view},
+    ops::numeric::empty_device,
+    tensor::CubeTensor,
+};
+use cubecl::std::tensor::{
+    index_offset_with_layout,
+    layout::{Layout, LayoutExpand},
+};
+use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    frontend::{ABSOLUTE_POS, Numeric, Tensor},
+    std::tensor::layout::linear::LinearLayout,
+};
 
 #[cube(launch_unchecked)]
 fn gather_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<Line<T>>,
-    indices: &Tensor<Line<I>>,
+    indices: &LinearView<Line<I>>,
     output: &mut Tensor<Line<T>>,
+    out_layout: LinearLayout,
     dim: &u32,
 ) {
-    if ABSOLUTE_POS >= indices.len() {
+    if !indices.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    let idx = index_offset_with_layout(indices, output, ABSOLUTE_POS, 0, output.rank(), false);
-    let index = indices[idx];
+    let index = indices[ABSOLUTE_POS];
+    let out_pos = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let stride = input.stride(*dim);
     let mut offset = u32::cast_from(index);
     offset *= stride;
 
     if *dim > 0 {
-        let offset_before = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, *dim, false);
+        let offset_before = index_offset_with_layout(input, output, out_pos, 0, *dim, false);
         offset += offset_before;
     }
 
     let offset_after =
-        index_offset_with_layout(input, output, ABSOLUTE_POS, *dim + 1, input.rank(), false);
+        index_offset_with_layout(input, output, out_pos, *dim + 1, input.rank(), false);
     offset += offset_after;
-    output[ABSOLUTE_POS] = input[offset];
+    output[out_pos] = input[offset];
 }
 
 pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
@@ -50,8 +63,9 @@ pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            indices.as_tensor_arg::<I>(1),
+            linear_view(&indices, &1),
             output.as_tensor_arg::<E>(1),
+            linear_layout(&output, &1),
             ScalarArg::new(dim as u32),
         )
     }

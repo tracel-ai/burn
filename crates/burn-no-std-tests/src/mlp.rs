@@ -10,7 +10,7 @@ use burn::{
 };
 
 /// Configuration to create a [Multilayer Perceptron](Mlp) layer.
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MlpConfig {
     /// The number of layers.
     #[config(default = 3)]

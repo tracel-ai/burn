@@ -1,15 +1,17 @@
+use crate::shared::trace::block::QuantInput;
+
 use super::{
     super::{
         ir::{Arg, FuseOp, FusePrecision, LayoutInfo},
         settings::FuseSettings,
     },
-    FuseResources,
+    FuseResources, RegisterTensor,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
 use burn_fusion::stream::ScalarId;
-use burn_ir::{TensorId, TensorIr};
-use burn_tensor::{DType, Element};
+use burn_ir::{ScalarIr, TensorId, TensorIr};
+use burn_tensor::DType;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
@@ -26,6 +28,7 @@ pub struct FuseTraceBuilder {
 }
 
 impl FuseTraceBuilder {
+    /// Create a new trace builder with the given bool precision and [fuse settings](FuseSettings).
     pub fn new(bool_precision: FusePrecision, settings: FuseSettings) -> Self {
         Self {
             settings,
@@ -58,6 +61,7 @@ impl FuseTraceBuilder {
         num_ops_fused as u32
     }
 
+    /// Close the current block with the given reference shape and creates a new one with new [fusion settings](FuseSettings).
     pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
@@ -108,7 +112,6 @@ impl FuseTraceBuilder {
         }
 
         let precision = tensor.dtype.into();
-
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
             FusePrecision::Bool => self.bool_precision,
@@ -126,16 +129,32 @@ impl FuseTraceBuilder {
 
     /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         self.block_current.input(tensor, &mut self.resources)
+    }
+
+    /// Register an input tensor.
+    pub fn input_quantized(&mut self, tensor: &TensorIr) -> Option<QuantInput> {
+        self.block_current.input_quant(tensor, &mut self.resources)
     }
 
     /// Register an output tensor.
     pub fn output(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current.output(tensor, &mut self.resources)
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
     pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
             return Some(val.clone());
         };
@@ -161,20 +180,31 @@ impl FuseTraceBuilder {
         output: &TensorIr,
         dims: (u32, u32),
     ) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
         self.block_current
             .input_swap_dims(tensor, output, dims, &mut self.resources)
     }
 
     /// Register an input that is reshaped.
     pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
     }
 
     /// Register a scalar value.
-    pub fn scalar<E: Element>(&mut self, id: &E, dtype: DType) -> Arg {
+    pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> Arg {
         let precision = dtype.into();
-        let id = ScalarId { value: id.elem() };
+        let id = if let ScalarIr::U64(value) = elem {
+            ScalarId { value: *value }
+        } else {
+            unreachable!() // should always be u64
+        };
 
         // Bool scalars are encoded as bool_precision.
         let precision = match precision {
@@ -200,8 +230,15 @@ impl FuseTraceBuilder {
                 blocks.push(block);
 
                 let num_outputs = block_tensor_writes.len();
-                for (ir, precision) in block_tensor_writes.into_iter() {
-                    outputs.insert(precision, ir);
+                for entry in block_tensor_writes.into_iter() {
+                    match entry {
+                        RegisterTensor::Normal(ir, precision) => {
+                            outputs.insert(precision, ir);
+                        }
+                        _ => {
+                            panic!("Quantized tensor unsupported for output")
+                        }
+                    }
                 }
 
                 num_outputs

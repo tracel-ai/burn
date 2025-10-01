@@ -1,5 +1,4 @@
 use core::hash::Hash;
-use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use alloc::borrow::ToOwned;
@@ -7,14 +6,14 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
 use burn_tensor::{
-    DType, Distribution, Element,
+    DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantScheme,
 };
 
-use crate::{TensorId, TensorIr, TensorStatus};
+use crate::{ScalarIr, TensorId, TensorIr, TensorStatus};
 
 /// Custom operation in fusion stream, declaring its inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -56,7 +55,7 @@ impl CustomOpIr {
     }
 }
 
-/// irribe all tensor operations possible.
+/// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum OperationIr {
     /// Basic operation on a float tensor.
@@ -66,9 +65,9 @@ pub enum OperationIr {
     /// Basic operation on a bool tensor.
     BaseBool(BaseOperationIr),
     /// Numeric operation on a float tensor.
-    NumericFloat(DType, NumericOperationIr<f32>),
+    NumericFloat(DType, NumericOperationIr),
     /// Numeric operation on an int tensor.
-    NumericInt(DType, NumericOperationIr<i32>),
+    NumericInt(DType, NumericOperationIr),
     /// Operation specific to a bool tensor.
     Bool(BoolOperationIr),
     /// Operation specific to an int tensor.
@@ -97,7 +96,7 @@ pub enum FloatOperationIr {
     /// Operation corresponding to [erf](burn_tensor::ops::FloatTensorOps::float_erf).
     Erf(UnaryOpIr),
     /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
-    PowfScalar(ScalarOpIr<f32>),
+    PowfScalar(ScalarOpIr),
     /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOpIr),
     /// Operation corresponding to [cos](burn_tensor::ops::FloatTensorOps::float_cos).
@@ -116,6 +115,8 @@ pub enum FloatOperationIr {
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOpIr),
+    /// Operation corresponding to [cross](burn_tensor::ops::FloatTensorOps::float_cross).
+    Cross(CrossOpIr),
     /// Operation corresponding to [random](burn_tensor::ops::FloatTensorOps::float_random).
     Random(RandomOpIr),
     /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
@@ -238,6 +239,10 @@ pub enum BaseOperationIr {
     /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
     Expand(ExpandOpIr),
 
+    /// Unfold windows along an axis.
+    ///
+    Unfold(UnfoldOpIr),
+
     /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
@@ -281,7 +286,7 @@ pub enum BaseOperationIr {
 
 /// Numeric operations on int and float tensors.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum NumericOperationIr<E> {
+pub enum NumericOperationIr {
     /// Operation corresponding to:
     ///
     /// Float => [add](burn_tensor::ops::FloatTensorOps::float_add).
@@ -291,7 +296,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [add scalar](burn_tensor::ops::FloatTensorOps::float_add_scalar).
     /// Int => [add scalar](burn_tensor::ops::IntTensorOps::int_add_scalar).
-    AddScalar(ScalarOpIr<E>),
+    AddScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [sub](burn_tensor::ops::FloatTensorOps::float_sub).
@@ -301,7 +306,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [sub scalar](burn_tensor::ops::FloatTensorOps::float_sub_scalar).
     /// Int => [sub scalar](burn_tensor::ops::IntTensorOps::int_sub_scalar).
-    SubScalar(ScalarOpIr<E>),
+    SubScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [div](burn_tensor::ops::FloatTensorOps::float_div).
@@ -311,7 +316,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [div scalar](burn_tensor::ops::FloatTensorOps::float_div_scalar).
     /// Int => [div scalar](burn_tensor::ops::IntTensorOps::int_div_scalar).
-    DivScalar(ScalarOpIr<E>),
+    DivScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [rem](burn_tensor::ops::FloatTensorOps::float_remainder).
@@ -321,7 +326,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [rem scalar](burn_tensor::ops::FloatTensorOps::float_remainder_scalar).
     /// Int => [rem scalar](burn_tensor::ops::IntTensorOps::int_remainder_scalar).
-    RemScalar(ScalarOpIr<E>),
+    RemScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [mul](burn_tensor::ops::FloatTensorOps::float_mul).
@@ -331,7 +336,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [mul scalar](burn_tensor::ops::FloatTensorOps::float_mul_scalar).
     /// Int => [mul scalar](burn_tensor::ops::IntTensorOps::int_mul_scalar).
-    MulScalar(ScalarOpIr<E>),
+    MulScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [abs](burn_tensor::ops::FloatTensorOps::float_abs).
@@ -351,7 +356,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [full](burn_tensor::ops::FloatTensorOps::float_full).
     /// Int => [full](burn_tensor::ops::IntTensorOps::int_full).
-    Full((TensorIr, E)),
+    Full((TensorIr, ScalarIr)),
     /// Operation corresponding to:
     ///
     /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
@@ -381,7 +386,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
     /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
-    MaskFill(MaskFillOpIr<E>),
+    MaskFill(MaskFillOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
@@ -419,7 +424,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
     /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
-    EqualElem(ScalarOpIr<E>),
+    EqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
@@ -429,7 +434,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [greater elem](burn_tensor::ops::FloatTensorOps::float_greater_elem).
     /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
-    GreaterElem(ScalarOpIr<E>),
+    GreaterElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [greater equal](burn_tensor::ops::FloatTensorOps::float_greater_elem).
@@ -439,7 +444,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [greater equal elem](burn_tensor::ops::FloatTensorOps::float_greater_equal_elem).
     /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
-    GreaterEqualElem(ScalarOpIr<E>),
+    GreaterEqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [lower](burn_tensor::ops::FloatTensorOps::float_lower).
@@ -449,7 +454,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [lower elem](burn_tensor::ops::FloatTensorOps::float_lower_elem).
     /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
-    LowerElem(ScalarOpIr<E>),
+    LowerElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [lower equal](burn_tensor::ops::FloatTensorOps::float_lower_equal).
@@ -459,7 +464,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [lower equal elem](burn_tensor::ops::FloatTensorOps::float_lower_equal_elem).
     /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
-    LowerEqualElem(ScalarOpIr<E>),
+    LowerEqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [argmax](burn_tensor::ops::FloatTensorOps::float_argmax).
@@ -514,7 +519,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
-    Clamp(ClampOpIr<E>),
+    Clamp(ClampOpIr),
     /// Operation corresponding to:
     ///
     /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
@@ -538,7 +543,7 @@ pub enum IntOperationIr {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise and scalar](burn_tensor::ops::IntTensorOps::bitwise_and_scalar).
-    BitwiseAndScalar(ScalarOpIr<i32>),
+    BitwiseAndScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or](burn_tensor::ops::IntTensorOps::bitwise_or).
@@ -546,7 +551,7 @@ pub enum IntOperationIr {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or scalar](burn_tensor::ops::IntTensorOps::bitwise_or_scalar).
-    BitwiseOrScalar(ScalarOpIr<i32>),
+    BitwiseOrScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor](burn_tensor::ops::IntTensorOps::bitwise_xor).
@@ -554,7 +559,7 @@ pub enum IntOperationIr {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor scalar](burn_tensor::ops::IntTensorOps::bitwise_xor_scalar).
-    BitwiseXorScalar(ScalarOpIr<i32>),
+    BitwiseXorScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise not](burn_tensor::ops::IntTensorOps::bitwise_not).
@@ -566,7 +571,7 @@ pub enum IntOperationIr {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise left shift scalar](burn_tensor::ops::IntTensorOps::bitwise_left_shift_scalar).
-    BitwiseLeftShiftScalar(ScalarOpIr<i32>),
+    BitwiseLeftShiftScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift](burn_tensor::ops::IntTensorOps::bitwise_right_shift).
@@ -574,12 +579,20 @@ pub enum IntOperationIr {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift scalar](burn_tensor::ops::IntTensorOps::bitwise_right_shift_scalar).
-    BitwiseRightShiftScalar(ScalarOpIr<i32>),
+    BitwiseRightShiftScalar(ScalarOpIr),
+    /// Operation corresponding to [matmul](burn_tensor::ops::IntTensorOps::int_matmul).
+    Matmul(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to a bool tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BoolOperationIr {
+    /// Operation corresponding to:
+    /// [ones](burn_tensor::ops::BoolTensorOps::bool_zeros).
+    Zeros(TensorIr),
+    /// Operation corresponding to:
+    /// [ones](burn_tensor::ops::BoolTensorOps::bool_ones).
+    Ones(TensorIr),
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(UnaryOpIr),
     /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
@@ -627,6 +640,22 @@ pub struct ExpandOpIr {
     pub shape: Vec<usize>,
 }
 
+/// Unfold operation intermediate representation.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct UnfoldOpIr {
+    /// Input tensor intermediate representation.
+    pub input: TensorIr,
+    /// Output tensor intermediate representation.
+    pub out: TensorIr,
+
+    /// The selected dim.
+    pub dim: usize,
+    /// The window size.
+    pub size: usize,
+    /// The window step along dim.
+    pub step: usize,
+}
+
 /// Flip operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct FlipOpIr {
@@ -664,6 +693,15 @@ pub struct BinaryOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct CrossOpIr {
+    pub lhs: TensorIr,
+    pub rhs: TensorIr,
+    pub out: TensorIr,
+    pub dim: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct UnaryOpIr {
     pub input: TensorIr,
     pub out: TensorIr,
@@ -671,11 +709,11 @@ pub struct UnaryOpIr {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ScalarOpIr<E> {
+pub struct ScalarOpIr {
     pub lhs: TensorIr,
     // TODO: Make that an enum with `Value` and `Id` variants for relative/global
     // conversion.
-    pub rhs: E,
+    pub rhs: ScalarIr,
     pub out: TensorIr,
 }
 
@@ -729,7 +767,7 @@ pub struct SelectAssignOpIr {
 #[allow(missing_docs)]
 pub struct SliceOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<Slice>,
     pub out: TensorIr,
 }
 
@@ -737,7 +775,7 @@ pub struct SliceOpIr {
 #[allow(missing_docs)]
 pub struct SliceAssignOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<Range<usize>>,
+    pub ranges: Vec<burn_tensor::Slice>,
     pub value: TensorIr,
     pub out: TensorIr,
 }
@@ -753,19 +791,19 @@ pub struct MaskWhereOpIr {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaskFillOpIr<E> {
+pub struct MaskFillOpIr {
     pub tensor: TensorIr,
     pub mask: TensorIr,
-    pub value: E,
+    pub value: ScalarIr,
     pub out: TensorIr,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ClampOpIr<E> {
+pub struct ClampOpIr {
     pub tensor: TensorIr,
-    pub min: E,
-    pub max: E,
+    pub min: ScalarIr,
+    pub max: ScalarIr,
     pub out: TensorIr,
 }
 
@@ -1465,6 +1503,9 @@ impl BaseOperationIr {
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
+            BaseOperationIr::Unfold(repr) => {
+                vec![&repr.input, &repr.out]
+            }
         }
     }
 
@@ -1514,6 +1555,9 @@ impl BaseOperationIr {
             BaseOperationIr::Cast(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
+            BaseOperationIr::Unfold(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
             BaseOperationIr::Empty(_) => {}
         };
 
@@ -1521,7 +1565,7 @@ impl BaseOperationIr {
     }
 }
 
-impl<E: Element> NumericOperationIr<E> {
+impl NumericOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
             NumericOperationIr::Add(repr) => {
@@ -1835,6 +1879,9 @@ impl FloatOperationIr {
             FloatOperationIr::Matmul(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
             }
+            FloatOperationIr::Cross(repr) => {
+                vec![&repr.lhs, &repr.rhs, &repr.out]
+            }
             FloatOperationIr::Random(repr) => vec![&repr.out],
             FloatOperationIr::Exp(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Log(repr) => vec![&repr.input, &repr.out],
@@ -1860,6 +1907,10 @@ impl FloatOperationIr {
 
         match self {
             FloatOperationIr::Matmul(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Cross(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
@@ -1922,6 +1973,9 @@ impl FloatOperationIr {
 impl IntOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
+            IntOperationIr::Matmul(repr) => {
+                vec![&repr.lhs, &repr.rhs, &repr.out]
+            }
             IntOperationIr::IntoFloat(repr) => vec![&repr.input, &repr.out],
             IntOperationIr::BitwiseAnd(repr) => {
                 vec![&repr.lhs, &repr.rhs, &repr.out]
@@ -1963,6 +2017,10 @@ impl IntOperationIr {
         let mut output = Vec::new();
 
         match self {
+            IntOperationIr::Matmul(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
             IntOperationIr::IntoFloat(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
@@ -2013,6 +2071,8 @@ impl IntOperationIr {
 impl BoolOperationIr {
     fn nodes(&self) -> Vec<&TensorIr> {
         match self {
+            BoolOperationIr::Zeros(repr) => vec![repr],
+            BoolOperationIr::Ones(repr) => vec![repr],
             BoolOperationIr::IntoFloat(repr) => vec![&repr.input, &repr.out],
             BoolOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
             BoolOperationIr::Not(repr) => vec![&repr.input, &repr.out],
@@ -2024,6 +2084,8 @@ impl BoolOperationIr {
         let mut output = Vec::new();
 
         match self {
+            BoolOperationIr::Zeros(_) => {}
+            BoolOperationIr::Ones(_) => {}
             BoolOperationIr::IntoFloat(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
@@ -2359,14 +2421,14 @@ impl core::hash::Hash for RandomOpIr {
     }
 }
 
-impl<E> core::hash::Hash for ScalarOpIr<E> {
+impl core::hash::Hash for ScalarOpIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);
         self.out.hash(state);
     }
 }
 
-impl<E> core::hash::Hash for MaskFillOpIr<E> {
+impl core::hash::Hash for MaskFillOpIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.mask.hash(state);
@@ -2374,14 +2436,14 @@ impl<E> core::hash::Hash for MaskFillOpIr<E> {
     }
 }
 
-impl<E> core::hash::Hash for ClampOpIr<E> {
+impl core::hash::Hash for ClampOpIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.out.hash(state);
     }
 }
 
-impl<E> core::hash::Hash for NumericOperationIr<E> {
+impl core::hash::Hash for NumericOperationIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         match self {
             NumericOperationIr::Add(repr) => repr.hash(state),

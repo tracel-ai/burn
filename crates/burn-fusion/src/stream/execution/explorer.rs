@@ -52,10 +52,10 @@ impl<O: NumOperations> Explorer<O> {
         self.update(operations);
 
         // Can only continue exploration when not sync.
-        if let ExecutionMode::Lazy = mode {
-            if self.is_still_optimizing {
-                return ExplorationAction::Continue;
-            }
+        if let ExecutionMode::Lazy = mode
+            && self.is_still_optimizing
+        {
+            return ExplorationAction::Continue;
         }
 
         let optimization = self.optimizer.optimize(operations);

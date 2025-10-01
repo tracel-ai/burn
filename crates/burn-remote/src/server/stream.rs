@@ -112,4 +112,11 @@ where
             .await
             .unwrap();
     }
+
+    pub async fn seed(&self, seed: u64) {
+        self.compute_sender
+            .send(ProcessorTask::Seed(seed))
+            .await
+            .unwrap();
+    }
 }

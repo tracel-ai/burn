@@ -24,6 +24,10 @@ impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
     fn shape(&self) -> Shape {
         Shape::from(self.shape.clone())
     }
+
+    fn rank(&self) -> usize {
+        self.shape.len()
+    }
 }
 
 impl<C: RunnerClient> RouterTensor<C> {

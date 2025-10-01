@@ -8,15 +8,15 @@ mod tests {
     use burn::tensor::{Shape, Tensor};
     use float_cmp::ApproxEq;
 
-    use crate::backend::Backend;
+    use crate::backend::TestBackend;
 
     #[test]
     fn conv_transpose1d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
+        let model: conv_transpose1d::Model<TestBackend> = conv_transpose1d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 10], &Default::default());
 
         let output = model.forward(input);
 
@@ -35,10 +35,10 @@ mod tests {
     #[test]
     fn conv_transpose2d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose2d::Model<Backend> = conv_transpose2d::Model::default();
+        let model: conv_transpose2d::Model<TestBackend> = conv_transpose2d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15], &Default::default());
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &Default::default());
 
         let output = model.forward(input);
 
@@ -57,10 +57,10 @@ mod tests {
     #[test]
     fn conv_transpose3d() {
         // Initialize the model with weights (loaded from the exported file)
-        let model: conv_transpose3d::Model<Backend> = conv_transpose3d::Model::default();
+        let model: conv_transpose3d::Model<TestBackend> = conv_transpose3d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
+        let input = Tensor::<TestBackend, 5>::ones([2, 4, 4, 5, 7], &Default::default());
 
         let output = model.forward(input);
 

@@ -3,11 +3,13 @@ use burn_tensor::{
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use core::iter;
+#[cfg(test)]
+use cubecl::convolution::components::ConvSetupError;
+#[cfg(not(test))]
+use cubecl::convolution::components::ConvSetupError;
 use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{
-    calculate_cube_count_elemwise,
-    convolution::ConvLaunchError,
-    intrinsic,
+    calculate_cube_count_elemwise, intrinsic,
     prelude::*,
     std::tensor::{TensorHandle, into_contiguous_pitched},
 };
@@ -105,7 +107,7 @@ fn im2col_kernel<E: Numeric>(
 pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
-) -> Result<usize, ConvLaunchError> {
+) -> Result<usize, ConvSetupError> {
     use cubecl::matmul::components::MatmulAvailabilityError;
 
     let cube_count_per_batch = out_shape.div_ceil(cubecl::PLANE_DIM_APPROX);
@@ -121,7 +123,7 @@ pub(crate) fn batches_per_run(
     }
     Ok((0..=max_simultaneous)
         .rev()
-        .find(|per_run| batch_size % per_run == 0)
+        .find(|per_run| batch_size.is_multiple_of(*per_run))
         .expect("Logically not possible"))
 }
 
@@ -130,7 +132,7 @@ pub(crate) fn batches_per_run(
 pub(crate) fn batches_per_run(
     batch_size: usize,
     out_shape: usize,
-) -> Result<usize, ConvLaunchError> {
+) -> Result<usize, ConvSetupError> {
     Ok(1)
 }
 
@@ -158,7 +160,7 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
         empty_device_strided::<R, E>(input.client.clone(), input.device.clone(), shape_col);
 
     let num_elems = columns.shape.num_elements() / line_size as usize;
-    while num_elems % elems_per_thread != 0 && elems_per_thread > 1 {
+    while !num_elems.is_multiple_of(elems_per_thread) && elems_per_thread > 1 {
         elems_per_thread /= 2;
     }
 
@@ -221,9 +223,9 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     if options.groups != 1 {
-        return Err(ConvLaunchError::Groups(options.groups));
+        return Err(ConvSetupError::Groups(options.groups));
     }
 
     if let Ok(out) =
@@ -300,9 +302,9 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     mut weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvSetupError> {
     if options.groups != 1 {
-        return Err(ConvLaunchError::Groups(options.groups));
+        return Err(ConvSetupError::Groups(options.groups));
     }
 
     let rank = input.shape.num_dims();
@@ -326,7 +328,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     split_m.extend(out_shape.iter().copied());
 
     if kernel_shape.iter().any(|it| *it != 1) || in_shape != out_shape {
-        return Err(ConvLaunchError::Unknown);
+        return Err(ConvSetupError::Unknown);
     }
 
     let input = reshape_input::<R, E>(input); // [(NHW), C] : [M, K]
@@ -420,7 +422,7 @@ fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     out: &mut CubeTensor<R>,
     options: ConvOptions<N>,
     out_shape: &[usize],
-) -> Result<(), ConvLaunchError> {
+) -> Result<(), ConvSetupError> {
     let rank = weight.shape.num_dims();
     let dim_c = rank - 1;
 

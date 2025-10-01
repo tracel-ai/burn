@@ -3,9 +3,10 @@ use rand::{Rng, RngCore, distr::StandardUniform};
 use crate::{Element, ElementConversion};
 
 /// Distribution for random value of a tensor.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Distribution {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
+    #[default]
     Default,
 
     /// Bernoulli distribution with the given probability.
@@ -105,5 +106,18 @@ impl Distribution {
         };
 
         DistributionSampler::new(kind, rng)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_distribution_default() {
+        let dist: Distribution = Default::default();
+
+        assert_eq!(dist, Distribution::Default);
+        assert_eq!(Distribution::default(), Distribution::Default);
     }
 }

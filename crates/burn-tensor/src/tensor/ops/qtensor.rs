@@ -1,12 +1,12 @@
 use alloc::vec::Vec;
-use core::ops::Range;
+use cubecl_quant::scheme::QuantScheme;
 
 use crate::{
     Device, Shape, TensorData, TensorMetadata, TensorPrimitive,
     backend::Backend,
     quantization::{
-        Calibration, QTensorPrimitive, QuantPropagation, QuantScheme,
-        QuantizationParametersPrimitive,
+        Calibration, QTensorPrimitive, QuantPropagation, QuantizationParametersPrimitive,
+        compute_q_params_primitive, compute_range_primitive,
     },
 };
 
@@ -57,13 +57,14 @@ macro_rules! dequant_op_flow {
     ) => {{
         // Heuristic: prioritize lhs scheme
         let scheme = $t1.scheme().clone();
+        let propagation = $t1.propagation();
 
         let t1_f = <$ty>::dequantize($t1);
         let t2_f = <$ty>::dequantize($t2);
         #[allow(clippy::redundant_closure_call)]
         let out_f = $float_op(t1_f, t2_f);
 
-        match scheme.propagation {
+        match propagation {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(<$ty>::quantize_dynamic(out_f, &scheme))
             }
@@ -75,12 +76,13 @@ macro_rules! dequant_op_flow {
         ty $ty:ty, float_op $float_op:expr, $tensor:expr
     ) => {{
         let scheme = $tensor.scheme().clone();
+        let propagation = $tensor.propagation();
 
         let tensor_f = <$ty>::dequantize($tensor);
         #[allow(clippy::redundant_closure_call)]
         let out_f = $float_op(tensor_f);
 
-        match scheme.propagation {
+        match propagation {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(<$ty>::quantize_dynamic(out_f, &scheme))
             }
@@ -135,8 +137,8 @@ pub trait QTensorOps<B: Backend> {
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
     fn quantize_dynamic(tensor: FloatTensor<B>, scheme: &QuantScheme) -> QuantizedTensor<B> {
         // Dynamically compute min/max tensor range and qparams before quantizing
-        let (min, max) = scheme.compute_range_primitive::<B>(tensor.clone(), &Calibration::MinMax);
-        let qparams = scheme.compute_q_params_primitive(min, max);
+        let (min, max) = compute_range_primitive::<B>(scheme, tensor.clone(), &Calibration::MinMax);
+        let qparams = compute_q_params_primitive(scheme, min, max);
         Self::quantize(tensor, scheme, qparams)
     }
 
@@ -275,17 +277,17 @@ pub trait QTensorOps<B: Backend> {
         indices: IntTensor<B>,
     ) -> QuantizedTensor<B>;
 
-    /// Select tensor elements corresponding for the given ranges.
+    /// Select tensor elements corresponding to the given slices.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor to select from.
-    /// * `ranges` - The ranges to select.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
     ///
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn q_slice(tensor: QuantizedTensor<B>, ranges: &[Range<usize>]) -> QuantizedTensor<B>;
+    fn q_slice(tensor: QuantizedTensor<B>, slices: &[crate::Slice]) -> QuantizedTensor<B>;
 
     /// Gather elements from a tensor.
     ///

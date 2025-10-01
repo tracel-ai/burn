@@ -24,7 +24,7 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
+    use crate::backend::TestBackend;
     use burn::{
         record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
         tensor::TensorData,
@@ -33,16 +33,17 @@ mod tests {
 
     use super::*;
 
-    fn integer(record: NetRecord<Backend>, _precision: usize) {
+    fn integer(record: NetRecord<TestBackend>, _precision: usize) {
         let device = Default::default();
 
-        let model = Net::<Backend>::new_with(record);
+        let model = Net::<TestBackend>::new_with(record);
 
-        let input = Tensor::<Backend, 2>::ones([3, 3], &device);
+        let input = Tensor::<TestBackend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
+        let expected =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
 
         assert_eq!(output.to_data(), expected.to_data());
     }

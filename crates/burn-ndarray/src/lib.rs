@@ -4,9 +4,6 @@
 
 //! Burn ndarray backend.
 
-#[macro_use]
-extern crate derive_new;
-
 #[cfg(any(
     feature = "blas-netlib",
     feature = "blas-openblas",
@@ -17,6 +14,7 @@ extern crate blas_src;
 mod backend;
 mod element;
 mod ops;
+mod rand;
 mod sharing;
 mod tensor;
 
@@ -36,9 +34,16 @@ mod tests {
 
     use alloc::format;
     use alloc::vec;
+    use alloc::vec::Vec;
 
     burn_tensor::testgen_all!();
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();
+
+    // Quantization
+    burn_tensor::testgen_calibration!();
+    burn_tensor::testgen_scheme!();
+    burn_tensor::testgen_quantize!();
+    burn_tensor::testgen_q_data!();
 }
