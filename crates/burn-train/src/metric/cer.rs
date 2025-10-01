@@ -1,9 +1,10 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric, NumericEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 /// Computes the edit distance (Levenshtein distance) between two sequences of integers.
 ///
@@ -34,14 +35,15 @@ pub(crate) fn edit_distance(reference: &[i32], prediction: &[i32]) -> usize {
 /// This metric is commonly used in tasks such as speech recognition, OCR, or text generation
 /// to quantify how closely the predicted output matches the ground truth at a character level.
 ///
-#[derive(Default)]
+#[derive(Clone)]
 pub struct CharErrorRate<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
 }
 
-/// The [character error rate metric](CerMetric) input type.
+/// The [character error rate metric](CharErrorRate) input type.
 #[derive(new)]
 pub struct CerInput<B: Backend> {
     /// The predicted token sequences (as a 2-D tensor of token indices).
@@ -50,10 +52,21 @@ pub struct CerInput<B: Backend> {
     pub targets: Tensor<B, 2, Int>,
 }
 
+impl<B: Backend> Default for CharErrorRate<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<B: Backend> CharErrorRate<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: Arc::new("CER".to_string()),
+            state: NumericMetricState::default(),
+            pad_token: None,
+            _b: PhantomData,
+        }
     }
 
     /// Sets the pad token.
@@ -63,7 +76,7 @@ impl<B: Backend> CharErrorRate<B> {
     }
 }
 
-/// The [character error rate metric](CerMetric) implementation.
+/// The [character error rate metric](CharErrorRate) implementation.
 impl<B: Backend> Metric for CharErrorRate<B> {
     type Input = CerInput<B>;
 
@@ -96,7 +109,6 @@ impl<B: Backend> Metric for CharErrorRate<B> {
         let targets_data = targets.to_data().to_vec::<i64>().unwrap();
 
         let total_edit_distance: usize = (0..batch_size)
-            .into_iter()
             .map(|i| {
                 let start = i * seq_len;
 
@@ -132,14 +144,14 @@ impl<B: Backend> Metric for CharErrorRate<B> {
         self.state.reset();
     }
 
-    fn name(&self) -> String {
-        "CER".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }
 
-/// The [character error rate metric](CerMetric) implementation.
+/// The [character error rate metric](CharErrorRate) implementation.
 impl<B: Backend> Numeric for CharErrorRate<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> NumericEntry {
         self.state.value()
     }
 }
@@ -161,7 +173,7 @@ mod tests {
 
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert_eq!(0.0, metric.value());
+        assert_eq!(0.0, metric.value().current());
     }
 
     /// Two edits in four target tokens ⇒ 50 %.
@@ -177,7 +189,7 @@ mod tests {
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
 
         // 2 edits / 4 tokens = 50 %
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     /// Same scenario as above, but with right-padding (token 9) ignored.
@@ -192,7 +204,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     /// `clear()` must reset the running statistics to zero.
@@ -208,9 +220,9 @@ mod tests {
             &CerInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
         );
-        assert!(metric.value() > 0.0);
+        assert!(metric.value().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().is_nan());
+        assert!(metric.value().current().is_nan());
     }
 }

@@ -1,24 +1,26 @@
 use super::cer::edit_distance;
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric::{Metric, MetricName, Numeric, NumericEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
+use std::sync::Arc;
 
 // The edit_distance function remains the same as it calculates the Levenshtein distance
 // between two sequences. The "units" within the sequences will now be treated as words.
 /// The word error rate (WER) metric, similar to the CER, is defined as the edit distance (e.g. Levenshtein distance) between the predicted
 /// and reference word sequences, divided by the total number of words in the reference. Here, the "units" within the sequences are words.
 ///
-#[derive(Default)]
+#[derive(Clone)]
 pub struct WordErrorRate<B: Backend> {
+    name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
     _b: PhantomData<B>,
 }
 
-/// The [word error rate metric](WerMetric) input type.
+/// The [word error rate metric](WordErrorRate) input type.
 #[derive(new)]
 pub struct WerInput<B: Backend> {
     /// The predicted token sequences (as a 2-D tensor of token indices).
@@ -26,11 +28,21 @@ pub struct WerInput<B: Backend> {
     /// The target token sequences (as a 2-D tensor of token indices).
     pub targets: Tensor<B, 2, Int>,
 }
+impl<B: Backend> Default for WordErrorRate<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl<B: Backend> WordErrorRate<B> {
     /// Creates the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: Arc::new("WER".to_string()),
+            state: NumericMetricState::default(),
+            pad_token: None,
+            _b: PhantomData,
+        }
     }
 
     /// Sets the pad token.
@@ -108,8 +120,8 @@ impl<B: Backend> Metric for WordErrorRate<B> {
         )
     }
 
-    fn name(&self) -> String {
-        "WER".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 
     fn clear(&mut self) {
@@ -117,9 +129,9 @@ impl<B: Backend> Metric for WordErrorRate<B> {
     }
 }
 
-/// The [word error rate metric](WerMetric) implementation.
+/// The [word error rate metric](WordErrorRate) implementation.
 impl<B: Backend> Numeric for WordErrorRate<B> {
-    fn value(&self) -> f64 {
+    fn value(&self) -> NumericEntry {
         self.state.value()
     }
 }
@@ -141,7 +153,7 @@ mod tests {
 
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert_eq!(0.0, metric.value());
+        assert_eq!(0.0, metric.value().current());
     }
 
     /// Two word edits in four target words => 50 %.
@@ -159,7 +171,7 @@ mod tests {
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
 
         // Total errors = 2, Total target words = 4. WER = (2/4) * 100 = 50 %
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     /// Same scenario as above, but with right-padding (token 9) ignored.
@@ -176,7 +188,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value());
+        assert_eq!(50.0, metric.value().current());
     }
 
     /// `clear()` must reset the running statistics to NaN.
@@ -192,9 +204,9 @@ mod tests {
             &WerInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
         );
-        assert!(metric.value() > 0.0);
+        assert!(metric.value().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().is_nan());
+        assert!(metric.value().current().is_nan());
     }
 }
