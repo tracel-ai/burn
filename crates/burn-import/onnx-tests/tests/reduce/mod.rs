@@ -3,6 +3,7 @@ include_models!(
     reduce_max,
     reduce_min,
     reduce_mean,
+    reduce_mean_partial_shape,
     reduce_prod,
     reduce_sum,
     reduce_sum_square,
@@ -418,5 +419,45 @@ mod tests {
         output5
             .to_data()
             .assert_approx_eq::<FT>(&expected5, burn::tensor::Tolerance::default());
+    }
+
+    #[test]
+    fn reduce_mean_partial_shape() {
+        // Regression test for partial static_shape in ReduceMean
+        // This was causing "index out of bounds" panic before the fix
+        let device = Default::default();
+        let model: reduce_mean_partial_shape::Model<TestBackend> =
+            reduce_mean_partial_shape::Model::new(&device);
+
+        // Input with shape [1, 4, 8]
+        let input = Tensor::<TestBackend, 3>::from_floats(
+            [[
+                [
+                    1.9269, 1.4873, 0.9007, -2.1055, 0.6784, -1.2345, -0.0431, -1.6047,
+                ],
+                [
+                    -0.7521, 1.6487, -0.3925, -1.4036, -0.7279, -0.5594, -0.7688, 0.7624,
+                ],
+                [
+                    1.6423, -0.1596, -0.4974, 0.4396, -0.7581, 1.0783, 0.8008, 1.6806,
+                ],
+                [
+                    1.2791, 1.2964, 0.6105, 1.3347, -0.2316, 0.0418, -0.2516, 0.8599,
+                ],
+            ]],
+            &device,
+        );
+
+        // Run the model - this should not panic
+        let output = model.forward(input.clone());
+
+        // Expected output shape [1, 4, 1]
+        // Values computed by the model (with slight precision differences from PyTorch)
+        let expected =
+            TensorData::from([[[0.0006875098], [-0.27418748], [0.52833754], [0.61736876]]]);
+
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, burn::tensor::Tolerance::default());
     }
 }

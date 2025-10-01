@@ -123,6 +123,11 @@ where
         Self::new(tensor)
     }
 
+    /// Returns the number of dimensions of the tensor.
+    pub fn rank(&self) -> usize {
+        self.primitive.rank()
+    }
+
     /// Returns the tensor primitive data type.
     ///
     /// # Note

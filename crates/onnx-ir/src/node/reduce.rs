@@ -74,6 +74,20 @@ pub fn reduce_update_outputs(node: &mut Node) {
 
     let config = reduce_config(node);
 
+    log::debug!(
+        "{} config for {}: keepdims={}, dims={:?}",
+        node.node_type,
+        node.name,
+        config.keepdims,
+        config.dims
+    );
+    log::debug!(
+        "{} static_shape for {}: {:?}",
+        node.node_type,
+        node.name,
+        tensor.static_shape
+    );
+
     // Determine if the output should be a scalar
     let should_be_scalar =
         !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
@@ -91,17 +105,44 @@ pub fn reduce_update_outputs(node: &mut Node) {
         };
 
         // Infer static shape based if given
-        let output_shape = tensor.static_shape.clone().map(|mut shape| {
+        let output_shape = tensor.static_shape.clone().and_then(|mut shape| {
+            log::debug!(
+                "{} processing static_shape for {}: shape.len()={}, dims={:?}",
+                node.node_type,
+                node.name,
+                shape.len(),
+                config.dims
+            );
+
+            // Only process static shape if it's complete (matches tensor rank)
+            if shape.len() != tensor.rank {
+                log::debug!(
+                    "{} skipping static_shape for {}: shape.len()={} != rank={}",
+                    node.node_type,
+                    node.name,
+                    shape.len(),
+                    tensor.rank
+                );
+                return None;
+            }
+
             if config.keepdims {
                 for dim in config.dims {
+                    log::debug!(
+                        "{} setting shape[{}] = 1 for {} (shape.len()={})",
+                        node.node_type,
+                        dim,
+                        node.name,
+                        shape.len()
+                    );
                     shape[dim] = 1;
                 }
-                shape
+                Some(shape)
             } else {
                 for dim in config.dims.iter().rev() {
                     shape.remove(*dim);
                 }
-                shape
+                Some(shape)
             }
         });
 
@@ -262,6 +303,84 @@ mod tests {
             }
             _ => {
                 panic!("Unexpected output type");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_partial_static_shape_keepdims() {
+        // Regression test for partial static_shape with keepdims=true
+        // This was causing "index out of bounds" panic before the fix
+        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+            .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
+            .output_tensor_f32("reduced", 3, None)
+            .attr_ints("axes", vec![2]) // Reduce on dimension 2
+            .attr_int("keepdims", 1)
+            .build();
+
+        // This should not panic
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Should maintain rank 3 with keepdims=true
+                assert_eq!(tensor.rank, 3);
+                // Static shape should be None since input shape was partial
+                assert_eq!(tensor.static_shape, None);
+            }
+            _ => {
+                panic!("Expected tensor output");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_partial_static_shape_no_keepdims() {
+        // Regression test for partial static_shape without keepdims
+        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+            .input_tensor_f32("data", 3, Some(vec![768])) // Rank 3 but only last dim known
+            .output_tensor_f32("reduced", 3, None)
+            .attr_ints("axes", vec![1]) // Reduce on dimension 1
+            .attr_int("keepdims", 0)
+            .build();
+
+        // This should not panic
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Should be rank 2 (3 - 1 = 2) without keepdims
+                assert_eq!(tensor.rank, 2);
+                // Static shape should be None since input shape was partial
+                assert_eq!(tensor.static_shape, None);
+            }
+            _ => {
+                panic!("Expected tensor output");
+            }
+        }
+    }
+
+    #[test]
+    fn test_reduce_update_outputs_complete_static_shape_keepdims() {
+        // Test that complete static_shape is properly updated with keepdims=true
+        let mut node = NodeBuilder::new(NodeType::ReduceMean, "test_reduce_mean")
+            .input_tensor_f32("data", 3, Some(vec![2, 4, 768])) // Complete shape
+            .output_tensor_f32("reduced", 3, None)
+            .attr_ints("axes", vec![2]) // Reduce on dimension 2
+            .attr_int("keepdims", 1)
+            .build();
+
+        reduce_update_outputs(&mut node);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Should maintain rank 3 with keepdims=true
+                assert_eq!(tensor.rank, 3);
+                // Static shape should be updated: [2, 4, 768] -> [2, 4, 1]
+                assert_eq!(tensor.static_shape, Some(vec![2, 4, 1]));
+            }
+            _ => {
+                panic!("Expected tensor output");
             }
         }
     }

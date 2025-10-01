@@ -65,6 +65,10 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     fn shape(&self) -> Shape {
         Shape::from(self.shape.clone())
     }
+
+    fn rank(&self) -> usize {
+        self.shape.len()
+    }
 }
 
 impl<R: FusionRuntime> FusionTensor<R> {
