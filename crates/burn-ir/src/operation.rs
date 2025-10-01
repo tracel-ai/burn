@@ -280,7 +280,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
     /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
-    Cumsum(ReduceDimOpIr),
+    Cumsum(DimOpIr),
 
     /// Operation corresponding to:
     ///
@@ -726,6 +726,16 @@ pub struct ScalarOpIr {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
 pub struct ReduceDimOpIr {
+    pub input: TensorIr,
+    pub out: TensorIr,
+    pub axis: usize,
+}
+
+/// IR for operations that operate along a dimension without reducing it.
+/// Unlike `ReduceDimOpIr`, the output shape is the same as the input shape.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
+pub struct DimOpIr {
     pub input: TensorIr,
     pub out: TensorIr,
     pub axis: usize,

@@ -1446,7 +1446,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct CumsumOps<B: FusionBackend> {
-            desc: ReduceDimOpIr,
+            desc: DimOpIr,
             _b: PhantomData<B>,
         }
 
@@ -1464,7 +1464,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let shape = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ReduceDimOpIr {
+        let desc = DimOpIr {
             input: tensor.into_ir(),
             out: out.to_ir_out(),
             axis: dim,

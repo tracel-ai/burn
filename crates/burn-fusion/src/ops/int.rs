@@ -1282,7 +1282,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct CumsumOps<B: FusionBackend> {
-            desc: ReduceDimOpIr,
+            desc: DimOpIr,
             _b: PhantomData<B>,
         }
 
@@ -1300,7 +1300,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let shape = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ReduceDimOpIr {
+        let desc = DimOpIr {
             out: out.to_ir_out(),
             input: tensor.into_ir(),
             axis: dim,

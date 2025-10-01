@@ -3,7 +3,7 @@ use burn_tensor::backend::Backend;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, DimOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
     InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
     PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
     ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
@@ -854,7 +854,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let shape = tensor.shape.clone();
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ReduceDimOpIr {
+        let desc = DimOpIr {
             input: tensor.into_ir(),
             axis: dim,
             out: out.to_ir_out(),
