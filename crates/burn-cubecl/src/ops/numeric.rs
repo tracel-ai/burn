@@ -238,8 +238,19 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
 
 /// Compute the cumulative sum along a dimension
 ///
-/// Note: This is a naive sequential implementation along the cumsum dimension.
-/// TODO: Implement an efficient GPU-optimized parallel scan algorithm (cubecl-scan crate)
+/// # Limitations
+///
+/// This is a **naive sequential implementation** along the cumsum dimension:
+/// - Each output element sequentially reads all previous elements along the dimension
+/// - Computational complexity: O(n²) memory reads where n is the size of the cumsum dimension
+/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+///
+/// # TODO
+///
+/// Implement an efficient GPU-optimized parallel scan algorithm (cubecl-scan crate).
+/// See draft PR: https://github.com/tracel-ai/cubecl/pull/863
+///
 /// References:
 /// - https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
 /// - https://www.w3.org/TR/WGSL/#builtin-subgroupInclusiveAdd
