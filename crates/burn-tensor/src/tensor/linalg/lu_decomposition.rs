@@ -42,15 +42,9 @@ pub fn lu_decomposition<B: Backend>(
     let mut tensor = tensor;
 
     for k in 0..n {
-        let mut p = k;
-        let mut max = tensor.clone().slice(s![k, k]).abs();
-        for i in (k + 1)..n {
-            let val = tensor.clone().slice(s![i, k]).abs();
-            if val.clone().greater(max.clone()).into_scalar().to_bool() {
-                max = val.clone();
-                p = i;
-            }
-        }
+        // Find the pivot row
+        let p = tensor.clone().slice(s![k.., k]).abs().argmax(0).into_scalar().to_usize() + k;
+        let max = tensor.clone().slice(s![p, k]).abs();
 
         // Avoid division by zero
         if max.into_scalar().to_f32().abs() < f32::EPSILON * 10.0 {
