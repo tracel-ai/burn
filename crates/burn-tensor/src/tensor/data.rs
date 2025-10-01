@@ -296,6 +296,11 @@ impl TensorData {
         }
     }
 
+    /// Returns the rank (the number of dimensions).
+    pub fn rank(&self) -> usize {
+        self.shape.len()
+    }
+
     /// Returns the total number of elements of the tensor data.
     pub fn num_elements(&self) -> usize {
         Self::numel(&self.shape)
@@ -1061,6 +1066,18 @@ mod tests {
     use super::*;
     use alloc::vec;
     use rand::{SeedableRng, rngs::StdRng};
+
+    #[test]
+    fn should_have_rank() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        assert_eq!(data.rank(), 3);
+    }
 
     #[test]
     fn into_vec_should_yield_same_value_as_iter() {

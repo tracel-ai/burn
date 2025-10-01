@@ -16,7 +16,16 @@ impl Shape {
     }
 
     /// Returns the number of dimensions.
+    ///
+    /// Alias for `Shape::rank()`.
     pub fn num_dims(&self) -> usize {
+        self.dims.len()
+    }
+
+    /// Returns the rank (the number of dimensions).
+    ///
+    /// Alias for `Shape::num_dims()`.
+    pub fn rank(&self) -> usize {
         self.dims.len()
     }
 
@@ -201,6 +210,14 @@ mod tests {
     use super::*;
     use crate::s;
     use alloc::vec;
+
+    #[test]
+    fn num_dims_and_rank() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+        assert_eq!(4, shape.num_dims());
+        assert_eq!(4, shape.rank());
+    }
 
     #[test]
     fn num_elements() {

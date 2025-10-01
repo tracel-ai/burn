@@ -45,6 +45,13 @@ impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
             TensorPrimitive::QFloat(tensor) => tensor.shape(),
         }
     }
+
+    fn rank(&self) -> usize {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.rank(),
+            TensorPrimitive::QFloat(tensor) => tensor.rank(),
+        }
+    }
 }
 
 /// Tensor metadata trait for tensor primitive.
@@ -53,6 +60,11 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     fn dtype(&self) -> DType;
     /// The shape of the tensor.
     fn shape(&self) -> Shape;
+
+    /// The number of dimensions of the tensor.
+    fn rank(&self) -> usize {
+        self.shape().num_dims()
+    }
 }
 
 /// A type-level representation of the kind of a tensor.

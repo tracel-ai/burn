@@ -233,6 +233,7 @@ fn main() {
         .input("tests/recip/recip.onnx")
         .input("tests/reduce/reduce_max.onnx")
         .input("tests/reduce/reduce_mean.onnx")
+        .input("tests/reduce/reduce_mean_partial_shape.onnx")
         .input("tests/reduce/reduce_min.onnx")
         .input("tests/reduce/reduce_prod.onnx")
         .input("tests/reduce/reduce_sum.onnx")

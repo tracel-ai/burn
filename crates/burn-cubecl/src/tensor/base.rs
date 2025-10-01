@@ -152,6 +152,10 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     fn shape(&self) -> Shape {
         self.shape.clone()
     }
+
+    fn rank(&self) -> usize {
+        self.shape.num_dims()
+    }
 }
 
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
