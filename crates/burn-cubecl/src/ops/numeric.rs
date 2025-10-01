@@ -236,6 +236,39 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
     launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
 }
 
+#[cube(launch)]
+fn cumsum_kernel<C: Numeric>(
+    input: &Tensor<C>,
+    output: &mut Tensor<C>,
+    dim_stride: u32,
+    #[comptime] dim_size: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let idx = ABSOLUTE_POS;
+
+    // Compute components of the index
+    let before_dim = idx / dim_stride;
+    let after_dim = idx % dim_stride;
+
+    // Compute how many strides along dim we are
+    let dim_offset = (idx / dim_stride) % dim_size;
+
+    // Compute cumulative sum
+    let mut sum = C::from_int(0);
+    for i in 0..dim_size {
+        if i <= dim_offset {
+            let read_idx =
+                (before_dim / dim_size) * (dim_size * dim_stride) + i * dim_stride + after_dim;
+            sum += input[read_idx];
+        }
+    }
+
+    output[idx] = sum;
+}
+
 /// Compute the cumulative sum along a dimension
 ///
 /// # Limitations
@@ -255,39 +288,6 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
 /// - https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
 /// - https://www.w3.org/TR/WGSL/#builtin-subgroupInclusiveAdd
 pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    #[cube(launch)]
-    fn cumsum_kernel<C: Numeric>(
-        input: &Tensor<C>,
-        output: &mut Tensor<C>,
-        dim_stride: u32,
-        #[comptime] dim_size: u32,
-    ) {
-        if ABSOLUTE_POS >= output.len() {
-            terminate!();
-        }
-
-        let idx = ABSOLUTE_POS;
-
-        // Compute components of the index
-        let before_dim = idx / dim_stride;
-        let after_dim = idx % dim_stride;
-
-        // Compute how many strides along dim we are
-        let dim_offset = (idx / dim_stride) % dim_size;
-
-        // Compute cumulative sum
-        let mut sum = C::from_int(0);
-        for i in 0..dim_size {
-            if i <= dim_offset {
-                let read_idx =
-                    (before_dim / dim_size) * (dim_size * dim_stride) + i * dim_stride + after_dim;
-                sum += input[read_idx];
-            }
-        }
-
-        output[idx] = sum;
-    }
-
     let client = input.client.clone();
     let device = input.device.clone();
     let shape = input.shape.clone();
