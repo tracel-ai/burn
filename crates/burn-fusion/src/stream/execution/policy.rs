@@ -264,7 +264,7 @@ impl<O> Policy<O> {
 #[cfg(test)]
 mod tests {
     use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
-    use burn_tensor::DType;
+    use burn_tensor::{DType, Shape};
 
     use super::*;
     use crate::{
@@ -554,7 +554,7 @@ mod tests {
         fn new_empty_node(&mut self, id: u64) {
             self.tensors.push(TensorIr {
                 id: TensorId::new(id),
-                shape: vec![32, 32, 1],
+                shape: Shape::new([32, 32, 1]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             });

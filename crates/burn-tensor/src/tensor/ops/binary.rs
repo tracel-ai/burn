@@ -1,5 +1,7 @@
 use alloc::vec::Vec;
 
+// TODO: move to `Shape`
+
 /// Computes the output shape for binary operations with broadcasting support.
 pub fn binary_ops_shape(lhs: &[usize], rhs: &[usize]) -> Vec<usize> {
     let mut shape_out = Vec::with_capacity(lhs.len());

@@ -1,3 +1,4 @@
+use burn_tensor::Shape;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -637,7 +638,7 @@ pub struct ExpandOpIr {
     /// Output tensor intermediate representation.
     pub out: TensorIr,
     /// The new shape.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
 }
 
 /// Unfold operation intermediate representation.

@@ -1,9 +1,10 @@
 use crate::{Slice, SliceArg};
 use alloc::vec::Vec;
 use core::ops::Range;
+use serde::{Deserialize, Serialize};
 
 /// Shape of a tensor.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Shape {
     /// The dimensions of the tensor.
     pub dims: Vec<usize>,
@@ -140,6 +141,14 @@ impl IntoIterator for Shape {
         self.dims.into_iter()
     }
 }
+
+// impl Iterator for Shape {
+//     type Item = usize;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.dims.into_iter()
+//     }
+// }
 
 impl<const D: usize> From<[usize; D]> for Shape {
     fn from(dims: [usize; D]) -> Self {

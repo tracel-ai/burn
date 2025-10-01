@@ -29,7 +29,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let shape = tensor.shape();
 
         let handle = B::quantized_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape.dims, stream, dtype);
+        let out = client.register_tensor(handle, shape, stream, dtype);
         let desc = out.to_ir_out();
 
         client.register(
@@ -63,7 +63,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = tensor.shape.clone();
         let dtype = tensor.dtype;
         let out = tensor
             .client
@@ -110,7 +110,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = tensor.shape.clone();
         let dtype = B::FloatElem::dtype();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
@@ -148,7 +148,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        if tensor.shape == shape.dims {
+        if tensor.shape == shape {
             return tensor;
         }
 
@@ -161,7 +161,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
-                let output = B::q_reshape(input, Shape::from(&self.desc.out.shape));
+                let output = B::q_reshape(input, self.desc.out.shape.clone());
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -170,7 +170,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let dtype = tensor.dtype;
-        let out = tensor.client.tensor_uninitialized(shape.dims, dtype);
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = UnaryOpIr {
             input: tensor.into_ir(),
@@ -213,8 +213,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape[dim1] = tensor.shape[dim2];
-        shape[dim2] = tensor.shape[dim1];
+        shape.dims[dim1] = tensor.shape.dims[dim2];
+        shape.dims[dim2] = tensor.shape.dims[dim1];
 
         let mut out = tensor.client.tensor_uninitialized(shape, dtype);
 
@@ -253,9 +253,14 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
+        let shape = axes
+            .iter()
+            .map(|x| tensor.shape.dims[*x])
+            .collect::<Vec<_>>();
 
-        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
+        let out = tensor
+            .client
+            .tensor_uninitialized(Shape::from(shape), tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
@@ -334,7 +339,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&indices);
 
         let dtype = tensor.dtype;
-        let shape: Vec<usize> = indices.shape.clone();
+        let shape = indices.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = GatherOpIr {
@@ -379,8 +384,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&indices);
 
         let dtype = tensor.dtype;
-        let mut shape: Vec<usize> = tensor.shape.clone();
-        shape[dim] = indices.shape[0];
+        let mut shape = tensor.shape.clone();
+        shape.dims[dim] = indices.shape.dims[0];
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SelectOpIr {
             tensor: tensor.into_ir(),
@@ -416,9 +421,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
-        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape);
+        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape.dims);
 
-        let out = tensor.client.tensor_uninitialized(shape, dtype);
+        let out = tensor
+            .client
+            .tensor_uninitialized(Shape::from(shape), dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
@@ -444,7 +451,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
-                let output = B::q_expand(input, self.desc.shape.clone().into());
+                let output = B::q_expand(input, self.desc.shape.clone());
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
@@ -455,11 +462,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let out = tensor
             .client
-            .tensor_uninitialized(shape.dims.clone(), tensor.dtype);
+            .tensor_uninitialized(shape.clone(), tensor.dtype);
 
         let desc = ExpandOpIr {
             input: tensor.into_ir(),
-            shape: shape.dims,
+            shape,
             out: out.to_ir_out(),
         };
 

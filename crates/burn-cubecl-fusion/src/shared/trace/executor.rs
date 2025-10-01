@@ -154,7 +154,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::Normal(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -164,7 +164,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs
                     .tensors
                     .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
@@ -349,7 +349,7 @@ fn register_scalars<'h, R: Runtime>(
         if let TensorView::Reshape { reshaped, .. } = relative {
             let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.iter() {
+            for shape in global.shape.dims.iter() {
                 inputs.reshapes.push(ScalarArg::new(*shape as u32));
             }
         }

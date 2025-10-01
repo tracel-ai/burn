@@ -16,7 +16,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(shape, R::BoolElem::dtype());
 
         client.register(OperationIr::BaseBool(BaseOperationIr::Empty(
             out.to_ir_out(),
@@ -28,7 +28,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(shape, R::BoolElem::dtype());
 
         client.register(OperationIr::Bool(BoolOperationIr::Zeros(out.to_ir_out())));
 
@@ -38,7 +38,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(shape, R::BoolElem::dtype());
 
         client.register(OperationIr::Bool(BoolOperationIr::Ones(out.to_ir_out())));
 
@@ -102,7 +102,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(shape.into(), tensor.dtype);
+        let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = UnaryOpIr {
             input: tensor.into_ir(),
@@ -116,9 +116,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let shape = calculate_slice_output_shape(slices, &tensor.shape);
+        let shape = calculate_slice_output_shape(slices, &tensor.shape.dims);
 
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
@@ -213,8 +213,8 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let mut shape = tensor.shape.clone();
-        shape[dim1] = tensor.shape[dim2];
-        shape[dim2] = tensor.shape[dim1];
+        shape.dims[dim1] = tensor.shape.dims[dim2];
+        shape.dims[dim2] = tensor.shape.dims[dim1];
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = SwapDimsOpIr {
@@ -232,8 +232,11 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         // Change the shape of the tensor to match the new axes
-        let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let shape = axes
+            .iter()
+            .map(|x| tensor.shape.dims[*x])
+            .collect::<Vec<_>>();
+        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
@@ -263,7 +266,6 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let shape: Vec<_> = shape.into();
         let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
 
         let desc = ExpandOpIr {
@@ -284,9 +286,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         // Calculate the output shape
         let mut shape = tensor_first.shape.clone();
-        shape[dim] = 0;
+        shape.dims[dim] = 0;
         for tensor in tensors.iter() {
-            shape[dim] += tensor.shape[dim];
+            shape.dims[dim] += tensor.shape.dims[dim];
         }
         let out = client.register_empty_tensor(shape, dtype);
 
@@ -304,7 +306,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let mut shape = tensor.shape.clone();
-        shape[dim] *= times;
+        shape.dims[dim] *= times;
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = RepeatDimOpIr {
@@ -328,7 +330,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
 
         let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
 
         let desc = UnfoldOpIr {
             input: tensor.into_ir(),

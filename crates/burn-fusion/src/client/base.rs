@@ -5,7 +5,7 @@ use crate::{
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorIr};
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, Shape, TensorData};
 
 /// Define how to interact with the fusion server.
 pub trait FusionClient<R>: Send + Sync + Clone + Sized
@@ -23,12 +23,12 @@ where
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> &FusionDevice<R>;
     /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
-    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<R>;
+    fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R>;
     /// Create a tensor with the given handle and shape.
     fn register_tensor(
         &self,
         handle: FusionHandle<R>,
-        shape: Vec<usize>,
+        shape: Shape,
         stream: StreamId,
         dtype: DType,
     ) -> FusionTensor<R>;

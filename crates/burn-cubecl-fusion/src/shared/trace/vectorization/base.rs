@@ -223,7 +223,7 @@ fn vectorization_input<R: Runtime>(
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
     let axis = axis.unwrap_or_else(|| handle.strides.len() - 1);
-    let shape_axis = desc.shape[axis];
+    let shape_axis = desc.shape.dims[axis];
 
     if shape_axis == 1 {
         return Vect::Broadcasted;
@@ -269,11 +269,11 @@ fn vectorization_output(
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
+    let axis = axis.unwrap_or_else(|| desc.shape.dims.len() - 1);
 
     let inner = |s: u8| {
         // The dimension should be a multiple of the vector size.
-        if desc.shape[axis].is_multiple_of(s as usize) && s <= max {
+        if desc.shape.dims[axis].is_multiple_of(s as usize) && s <= max {
             return Some(Vect::Aligned(s));
         }
 
@@ -308,19 +308,19 @@ fn vectorization_reshape(
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
-    let reshape_shape_axis = reshaped.shape[axis];
+    let axis = axis.unwrap_or_else(|| reshaped.shape.dims.len() - 1);
+    let reshape_shape_axis = reshaped.shape.dims[axis];
 
     if !multi_reads && reshape_shape_axis == 1 {
         return Vect::Broadcasted;
     }
 
     // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
-    if axis != reshaped.shape.len() - 1 {
+    if axis != reshaped.shape.dims.len() - 1 {
         return Vect::Aligned(1);
     }
 
-    let original_shape_axis = original.shape[original.shape.len() - 1];
+    let original_shape_axis = original.shape.dims[original.shape.dims.len() - 1];
 
     if original_shape_axis != reshape_shape_axis {
         return Vect::Aligned(1);
@@ -381,10 +381,10 @@ fn vectorization_swapped<R: Runtime>(
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
+    let axis = axis.unwrap_or_else(|| swapped.shape.dims.len() - 1);
 
-    let swapped_axis = swapped.shape[axis];
-    let shape_axis = original.shape[axis];
+    let swapped_axis = swapped.shape.dims[axis];
+    let shape_axis = original.shape.dims[axis];
 
     let axis_index = axis;
     let dim_index = if dims.0 as usize == axis_index {

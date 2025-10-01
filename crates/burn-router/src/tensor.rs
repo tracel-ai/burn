@@ -9,7 +9,7 @@ use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
     pub(crate) id: TensorId,
-    pub(crate) shape: Vec<usize>,
+    pub(crate) shape: Shape,
     pub(crate) dtype: DType,
     /// The client that has this tensor
     pub client: C,
@@ -22,17 +22,17 @@ impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
     }
 
     fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
+        self.shape.clone()
     }
 
     fn rank(&self) -> usize {
-        self.shape.len()
+        self.shape.num_dims()
     }
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
     /// Create a new router tensor.
-    pub fn new(id: TensorId, shape: Vec<usize>, dtype: DType, client: C) -> Self {
+    pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {
             id,
             shape,
@@ -50,7 +50,7 @@ impl<C: RunnerClient> RouterTensor<C> {
     pub fn into_ir(mut self) -> TensorIr {
         let count = self.count.load(Ordering::Relaxed);
         let status = self.status(count);
-        let mut shape_out = Vec::new();
+        let mut shape_out = Shape::from(Vec::<usize>::new());
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
@@ -123,7 +123,7 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
         match self.status(count) {
             TensorStatus::ReadWrite => {
                 let id = self.id;
-                let mut shape = Vec::new();
+                let mut shape = Shape::from(Vec::<usize>::new());
                 core::mem::swap(&mut shape, &mut self.shape);
 
                 let ir = TensorIr {

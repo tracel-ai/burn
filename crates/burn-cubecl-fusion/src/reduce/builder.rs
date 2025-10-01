@@ -73,7 +73,7 @@ impl<R: Runtime> ReduceBuilder<R> {
     }
 
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        if self.builder.current_output_shape != op.input.shape {
+        if self.builder.current_output_shape != op.input.shape.dims {
             self.builder.close();
             self.builder_read_fallback.close();
             return;
@@ -95,7 +95,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
         //
         // We could still fuse some output operations, but it would probably lead to worse performance.
-        let fuse_on_write_activated = axis != op.input.shape.len() - 1;
+        let fuse_on_write_activated = axis != op.input.shape.dims.len() - 1;
 
         if !fuse_on_write_activated {
             self.builder.close();

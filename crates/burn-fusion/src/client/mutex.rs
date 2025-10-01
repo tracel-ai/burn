@@ -4,7 +4,7 @@ use crate::{
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorIr};
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, Shape, TensorData};
 use spin::Mutex;
 use std::sync::Arc;
 
@@ -51,7 +51,7 @@ where
         self.server.lock().drain_stream(id);
     }
 
-    fn tensor_uninitialized(&self, shape: Vec<usize>, dtype: DType) -> FusionTensor<R> {
+    fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
@@ -64,7 +64,7 @@ where
     fn register_tensor(
         &self,
         handle: FusionHandle<R>,
-        shape: Vec<usize>,
+        shape: Shape,
         stream: StreamId,
         dtype: DType,
     ) -> FusionTensor<R> {
