@@ -490,6 +490,36 @@ where
         Self::new(K::mean_dim(self.primitive, dim))
     }
 
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the mean operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
+    ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[2.5]]
+    /// }
+    /// ```
+    pub fn mean_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.mean_dim(dim))
+    }
+
     /// Aggregate all elements along the given *dimension* or *axis*
     /// in the tensor with the sum operation.
     ///
@@ -521,6 +551,36 @@ where
         Self::new(K::sum_dim(self.primitive, dim))
     }
 
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the sum operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[27]]
+    /// }
+    /// ```
+    pub fn sum_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
+    }
+
     /// Aggregate all elements in the tensor with the product operation.
     ///
     /// # Example
@@ -549,6 +609,11 @@ where
     /// * `dim` - The dimension or axis along which to aggregate the elements,
     ///   supports negative indexing.
     ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -570,6 +635,36 @@ where
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
         Self::new(K::prod_dim(self.primitive, dim))
+    }
+
+    /// Aggregate all elements along the given *axes*
+    /// in the tensor with the prod operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate, supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
+    ///    println!("{tensor}");
+    ///    // [[-1620.0]]
+    /// }
+    /// ```
+    pub fn prod_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.prod_dim(dim))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
@@ -976,6 +1071,16 @@ where
 
     /// Find the maximum value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -990,10 +1095,40 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+    pub fn max_dim<I: AsIndex>(self, dim: I) -> Self {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
         Tensor::new(K::max_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.max_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[9.0]]
+    /// }
+    /// ```
+    pub fn max_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.max_dim(dim))
     }
 
     /// Find the maximum value along the given dimension.
@@ -1016,7 +1151,7 @@ where
     ///    println!("{index}");
     /// }
     /// ```
-    pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn max_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Max", dim));
 
@@ -1081,6 +1216,16 @@ where
 
     /// Find the maximum absolute value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements,
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1095,11 +1240,42 @@ where
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
-    pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+    pub fn max_abs_dim<I: AsIndex>(self, dim: I) -> Self {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("MaxAbs", dim));
 
         Tensor::new(K::max_abs_dim(self.primitive, dim))
+    }
+
+    /// Find the maximum absolute value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axes along which to aggregate the elements,
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.max_abs_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[9.0]]
+    /// }
+    /// ```
+    pub fn max_abs_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter()
+            .fold(self, |tensor, &dim| tensor.max_abs_dim(dim))
     }
 
     /// Applies the argmin function along the given dimension and returns an integer tensor.
@@ -1144,6 +1320,16 @@ where
 
     /// Find the minimum value along the given dimension.
     ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimension will have size 1.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1158,10 +1344,40 @@ where
     ///    // [[1.0, -2.0, 3.0]]
     /// }
     /// ```
-    pub fn min_dim<I: AsIndex>(self, dim: I) -> Tensor<B, D, K> {
+    pub fn min_dim<I: AsIndex>(self, dim: I) -> Self {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
         Tensor::new(K::min_dim(self.primitive, dim))
+    }
+
+    /// Find the minimum value along the given dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - The dimensions or axes along which to aggregate the elements;
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///   let device = B::Device::default();
+    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = tensor.min_dims(&[0, 1]);
+    ///   println!("{tensor}");
+    ///   // [[-2.0]]
+    /// }
+    /// ```
+    pub fn min_dims<I: AsIndex>(self, dims: &[I]) -> Self {
+        dims.iter().fold(self, |tensor, &dim| tensor.min_dim(dim))
     }
 
     /// Find the minimum value along the given dimension.
@@ -1184,7 +1400,7 @@ where
     ///    // [[1, 0, 0]]
     /// }
     /// ```
-    pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn min_dim_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<B, D, Int>) {
         let dim = canonicalize_dim(dim, D, false);
         check!(TensorCheck::aggregate_dim::<D>("Min", dim));
 
@@ -1630,7 +1846,7 @@ where
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
-    pub fn sort(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn sort(self, dim: usize) -> Self {
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
     }
@@ -1664,7 +1880,7 @@ where
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
-    pub fn sort_descending(self, dim: usize) -> Tensor<B, D, K> {
+    pub fn sort_descending(self, dim: usize) -> Self {
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
@@ -1698,7 +1914,7 @@ where
     ///   // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn sort_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn sort_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) =
             K::sort_with_indices(self.primitive, dim, /*descending*/ false);
@@ -1730,7 +1946,7 @@ where
     ///    // [[0, 1, 1], [1, 0, 0]]
     /// }
     /// ```
-    pub fn sort_descending_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn sort_descending_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
@@ -1820,7 +2036,7 @@ where
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
-    pub fn topk(self, k: usize, dim: usize) -> Tensor<B, D, K> {
+    pub fn topk(self, k: usize, dim: usize) -> Self {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
         self.sort_descending(dim).select(dim, k_indices)
     }
@@ -1854,7 +2070,7 @@ where
     ///    // [[0], [2]]
     /// }
     /// ```
-    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<B, D, Int>) {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
         let (values, indices) = self.sort_descending_with_indices(dim);
         (
@@ -1897,7 +2113,7 @@ where
         self,
         padding: (usize, usize, usize, usize),
         value: E,
-    ) -> Tensor<B, D, K> {
+    ) -> Self {
         let (left, right, top, bottom) = padding;
 
         let mut padded_dims: [usize; D] = self.dims();
@@ -2032,7 +2248,7 @@ where
     /// ```math
     /// C = AB
     /// ```
-    pub fn matmul(self, other: Tensor<B, D, K>) -> Tensor<B, D, K> {
+    pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Tensor::new(K::matmul(self.primitive, other.primitive))
     }
@@ -3988,7 +4204,7 @@ where
 {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<B, D, K>) -> Self::Output {
+    fn add(self, rhs: Self) -> Self::Output {
         Self::add(self, rhs)
     }
 }
@@ -4032,7 +4248,7 @@ where
 {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<B, D, K>) -> Self::Output {
+    fn sub(self, rhs: Self) -> Self::Output {
         Tensor::sub(self, rhs)
     }
 }

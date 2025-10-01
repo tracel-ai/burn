@@ -265,6 +265,30 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_dims_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        tensor
+            .clone()
+            .sum_dims(&[1])
+            .to_data()
+            .assert_eq(&TensorData::from([[3.], [12.]]), false);
+
+        tensor
+            .clone()
+            .sum_dims(&[-1])
+            .to_data()
+            .assert_eq(&TensorData::from([[3.], [12.]]), false);
+
+        tensor
+            .clone()
+            .sum_dims(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([[15.]]), false);
+    }
+
+    #[test]
     fn test_sum_dim_1_reshape_maybe_fused() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
         TestBackend::sync(&tensor.device());
@@ -438,5 +462,29 @@ mod tests {
         output
             .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_mean_dims_2d() {
+        let tensor =
+            TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+
+        tensor
+            .clone()
+            .mean_dims(&[1])
+            .to_data()
+            .assert_eq(&TensorData::from([[1.], [4.]]), false);
+
+        tensor
+            .clone()
+            .mean_dims(&[-1])
+            .to_data()
+            .assert_eq(&TensorData::from([[1.], [4.]]), false);
+
+        tensor
+            .clone()
+            .mean_dims(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([[2.5]]), false);
     }
 }
