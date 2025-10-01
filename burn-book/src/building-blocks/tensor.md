@@ -386,13 +386,17 @@ strategies.
 | `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
 | `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
 
+
+
 ## Linalg Functions
 
-| Burn API                               | PyTorch Equivalent                        |
-| -------------------------------------- | ----------------------------------------- |
-| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim) |
-| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                      |
-| `linalg::trace(tensor)`                | `torch.trace(tensor)`                     |
+
+| Burn API                               | PyTorch Equivalent                                 |
+|----------------------------------------|----------------------------------------------------|
+| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`         |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                               |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                              |
+| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)`    |
 
 ## Displaying Tensor Details
 

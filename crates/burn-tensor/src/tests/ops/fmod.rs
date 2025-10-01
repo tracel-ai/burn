@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(fmod)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{ElementConversion, Tensor, TensorData, tests::NumFloat};
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -99,7 +99,7 @@ mod tests {
 
         let output = dividend_tensor.fmod(divisor_tensor);
         let data = output.into_data();
-        let values = data.as_slice::<f32>().unwrap();
+        let values = data.as_slice::<FT>().unwrap();
 
         // All results should be NaN
         assert!(values[0].is_nan(), "fmod(inf, 2.0) should be NaN");
@@ -119,7 +119,7 @@ mod tests {
 
         let output = dividend_tensor.fmod(divisor_tensor);
         let data = output.into_data();
-        let values = data.as_slice::<f32>().unwrap();
+        let values = data.as_slice::<FT>().unwrap();
 
         // All results should be NaN
         assert!(values[0].is_nan(), "fmod(5.3, 0.0) should be NaN");
@@ -161,7 +161,7 @@ mod tests {
 
         let output = dividend_tensor.fmod(divisor_tensor);
         let data = output.into_data();
-        let values = data.as_slice::<f32>().unwrap();
+        let values = data.as_slice::<FT>().unwrap();
 
         assert!(values[0].is_nan(), "fmod(NaN, 2.0) should be NaN");
         assert!(values[1].is_nan(), "fmod(5.3, NaN) should be NaN");
@@ -180,10 +180,14 @@ mod tests {
 
         let output = dividend_tensor.fmod(divisor_tensor);
         let data = output.into_data();
-        let values = data.as_slice::<f32>().unwrap();
+        let values = data.as_slice::<FT>().unwrap();
 
         // Result should be zero (either +0 or -0 is acceptable)
-        assert_eq!(values[0], 0.0, "fmod(-0, 2.0) should be zero");
+        assert_eq!(
+            values[0],
+            0.0f32.elem::<FT>(),
+            "fmod(-0, 2.0) should be zero"
+        );
     }
 
     #[test]
@@ -272,14 +276,21 @@ mod tests {
             .assert_approx_eq::<FT>(&expected_inf, Tolerance::default());
 
         // Test with very small divisor
+        // Doesn't work if the test divisor is subnormal
+        if FT::MIN_POSITIVE > 1e-5f32.elem::<FT>() {
+            return;
+        }
+
         let output_small = tensor.clone().fmod_scalar(1e-5);
         let data = output_small.into_data();
-        let values = data.as_slice::<f32>().unwrap();
+        let values = data.as_slice::<FT>().unwrap();
+
+        let expected = TensorData::from([0.0, 0.0, 0.0, 0.0]);
 
         // Results should be very small remainders
-        assert!(values[0].abs() < 1e-5);
-        assert!(values[1].abs() < 1e-5);
-        assert_eq!(values[2], 0.0);
-        assert_eq!(values[3], 0.0);
+        assert!(values[0].abs() < 1e-5f32.elem::<FT>());
+        assert!(values[1].abs() < 1e-5f32.elem::<FT>());
+        assert_eq!(values[2], 0.0f32.elem::<FT>());
+        assert_eq!(values[3], 0.0f32.elem::<FT>());
     }
 }

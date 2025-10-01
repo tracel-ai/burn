@@ -4,6 +4,29 @@ mod tests {
     use burn_tensor::{Int, Slice, Tensor, TensorData, as_type, s};
 
     #[test]
+    fn should_support_const_and_full() {
+        static SLICES: [Slice; 2] = [Slice::full(), Slice::new(2, None, 1)];
+        assert_eq!(SLICES[0], Slice::new(0, None, 1));
+        assert_eq!(SLICES[1], Slice::new(2, None, 1));
+    }
+
+    #[test]
+    fn should_support_default() {
+        assert_eq!(Slice::default(), Slice::new(0, None, 1));
+    }
+
+    #[test]
+    fn should_support_copy() {
+        let mut slice = Slice::new(1, Some(3), 2);
+        let slice_copy = slice;
+
+        slice.end = Some(4);
+
+        assert_eq!(slice, Slice::new(1, Some(4), 2));
+        assert_eq!(slice_copy, Slice::new(1, Some(3), 2));
+    }
+
+    #[test]
     fn should_support_slice_dim_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());

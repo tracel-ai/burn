@@ -123,6 +123,11 @@ where
         Self::new(tensor)
     }
 
+    /// Returns the number of dimensions of the tensor.
+    pub fn rank(&self) -> usize {
+        self.primitive.rank()
+    }
+
     /// Returns the tensor primitive data type.
     ///
     /// # Note
@@ -2882,13 +2887,8 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     fn slice_dim(tensor: Self::Primitive, dim: usize, slice: &Slice) -> Self::Primitive {
-        let mut slices: Vec<Slice> = tensor
-            .shape()
-            .dims
-            .iter()
-            .map(|&s| Slice::new(0, Some(s as isize), 1))
-            .collect();
-        slices[dim] = slice.clone();
+        let mut slices = vec![Slice::full(); tensor.shape().num_dims()];
+        slices[dim] = *slice;
 
         Self::slice(tensor, &slices)
     }

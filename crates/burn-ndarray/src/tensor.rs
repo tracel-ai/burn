@@ -308,6 +308,10 @@ impl TensorMetadata for NdArrayTensor {
             a.shape().to_vec()
         ))
     }
+
+    fn rank(&self) -> usize {
+        self.shape().num_dims()
+    }
 }
 
 pub(crate) trait ShapeOps {
@@ -551,6 +555,10 @@ impl TensorMetadata for NdArrayQTensor {
 
     fn shape(&self) -> Shape {
         self.qtensor.shape()
+    }
+
+    fn rank(&self) -> usize {
+        self.shape().num_dims()
     }
 }
 
