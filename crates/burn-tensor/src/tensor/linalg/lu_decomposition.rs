@@ -1,15 +1,4 @@
-use crate::{backend::Backend, cast::ToElement, s, tensor::Tensor, BasicOps, Int, SliceArg, TensorKind};
-
-fn swap_slices<B: Backend, const D: usize, K, S>(tensor: Tensor<B, D, K>, slices1: S, slices2: S) -> Tensor<B, D, K>
-where
-    S: SliceArg<D> + Clone,
-    K: TensorKind<B> + BasicOps<B>,
-{
-    let temporary = tensor.clone().slice(slices1.clone());
-    let tensor = tensor.clone().slice_assign(slices1, tensor.slice(slices2.clone()));
-    tensor.slice_assign(slices2, temporary)
-}
-
+use crate::{Int, backend::Backend, cast::ToElement, linalg::swap_slices, s, tensor::Tensor};
 
 /// The things that can go wrong when computing the LU decomposition.
 #[derive(Debug)]
@@ -20,25 +9,26 @@ pub enum LuError {
     SingularMatrix(String),
 }
 
-
 /// Performs PLU decomposition of a square matrix.
-/// 
+///
 /// The function decomposes a given square matrix `A` into three matrices: a permutation vector `p`,
 /// a lower triangular matrix `L`, and an upper triangular matrix `U`, such that `PA = LU`.
 /// The permutation vector `p` represents the row swaps made during the decomposition process.
 /// The lower triangular matrix `L` has ones on its diagonal and contains the multipliers used
 /// during the elimination process below the diagonal. The upper triangular matrix `U` contains
 /// the resulting upper triangular form of the matrix after the elimination process.
-/// 
+///
 /// # Arguments
 /// * `tensor` - A square matrix to decompose, represented as a 2D tensor.
-/// 
+///
 /// # Returns
 /// A tuple containing:
 /// - A 2D tensor representing the combined `L` and `U` matrices.
 /// - A 1D tensor representing the permutation vector `p`.
-/// 
-pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> Result<(Tensor<B, 2>, Tensor<B, 1, Int>), LuError> {
+///
+pub fn lu_decomposition<B: Backend>(
+    tensor: Tensor<B, 2>,
+) -> Result<(Tensor<B, 2>, Tensor<B, 1, Int>), LuError> {
     let dims = tensor.shape().dims::<2>();
     if dims[0] != dims[1] {
         return Err(LuError::NotSquareMatrix(format!(
@@ -50,7 +40,7 @@ pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> Result<(Tensor<B, 2
 
     let mut permutations = Tensor::arange(0..n as i64, &tensor.device());
     let mut tensor = tensor;
-    
+
     for k in 0..n {
         let mut p = k;
         let mut max = tensor.clone().slice(s![k, k]).abs();
@@ -63,7 +53,7 @@ pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> Result<(Tensor<B, 2
         }
 
         // Avoid division by zero
-        if max.into_scalar().to_f32().abs() < f32::EPSILON*10.0 {
+        if max.into_scalar().to_f32().abs() < f32::EPSILON * 10.0 {
             return Err(LuError::SingularMatrix(format!(
                 "LU decomposition failed: matrix is singular or near-singular at column {k}",
             )));
@@ -77,8 +67,8 @@ pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> Result<(Tensor<B, 2
         // Normalize k-th column under the diagonal
         if k < n - 1 {
             let a_kk = tensor.clone().slice(s![k, k]);
-            let column = tensor.clone().slice(s![ (k + 1).., k]) / a_kk;
-            tensor = tensor.slice_assign(s![ (k + 1).., k], column);
+            let column = tensor.clone().slice(s![(k + 1).., k]) / a_kk;
+            tensor = tensor.slice_assign(s![(k + 1).., k], column);
         }
 
         // Update the trailing submatrix
