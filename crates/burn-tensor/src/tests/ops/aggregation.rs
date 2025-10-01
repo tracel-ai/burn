@@ -289,6 +289,22 @@ mod tests {
     }
 
     #[test]
+    fn test_sum_and_squeeze_dims() {
+        let tensor = TestTensor::<3>::from_floats(
+            [
+                [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
+                [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
+            ],
+            &Default::default(),
+        );
+
+        tensor
+            .sum_and_squeeze_dims::<1, _>(&[0, 1])
+            .to_data()
+            .assert_eq(&TensorData::from([20., 16., 21.]), false);
+    }
+
+    #[test]
     fn test_sum_dim_1_reshape_maybe_fused() {
         let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
         TestBackend::sync(&tensor.device());
