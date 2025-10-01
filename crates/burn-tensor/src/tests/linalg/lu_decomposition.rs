@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(lu_decomposition)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, cast::ToElement, linalg::lu_decomposition, Distribution, Shape, s};
+    use burn_tensor::{Distribution, Shape, Tensor, cast::ToElement, linalg::lu_decomposition, s};
 
     #[test]
     fn test_lu_2x2_decomposition() {
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_lu_identity_matrix() {
         let device = Default::default();
-       
+
         let tensor = TestTensor::<2>::eye(4, &device);
         let (result, permutations) = lu_decomposition(tensor).unwrap();
         let expected = TestTensor::<2>::eye(4, &device);
@@ -117,7 +117,10 @@ mod tests {
         let mut p = TestTensor::<2>::zeros(Shape::new([size, size]), &device);
         for i in 0..size {
             let perm_index = permutations.clone().slice(s![i]).into_scalar().to_usize();
-            p = p.slice_assign(s![perm_index, i], TestTensor::<2>::from_data([[1.0]], &device));
+            p = p.slice_assign(
+                s![perm_index, i],
+                TestTensor::<2>::from_data([[1.0]], &device),
+            );
         }
 
         // Verify that P * L * U reconstructs the original matrix
@@ -132,5 +135,4 @@ mod tests {
             tolerance
         );
     }
-
 }
