@@ -43,7 +43,14 @@ pub fn lu_decomposition<B: Backend>(
 
     for k in 0..n {
         // Find the pivot row
-        let p = tensor.clone().slice(s![k.., k]).abs().argmax(0).into_scalar().to_usize() + k;
+        let p = tensor
+            .clone()
+            .slice(s![k.., k])
+            .abs()
+            .argmax(0)
+            .into_scalar()
+            .to_usize()
+            + k;
         let max = tensor.clone().slice(s![p, k]).abs();
 
         // Avoid division by zero

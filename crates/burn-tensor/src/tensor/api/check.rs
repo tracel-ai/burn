@@ -828,8 +828,7 @@ impl TensorCheck {
                 check = check.register(
                     "Slice",
                     TensorError::new("The provided slice has a step of 0.").details(format!(
-                        "The slice at dimension '{}' has a step of 0. Step must be non-zero.",
-                        i,
+                        "The slice at dimension '{i}' has a step of 0. Step must be non-zero.",
                     )),
                 );
             }
