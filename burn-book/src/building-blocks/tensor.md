@@ -260,6 +260,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.sum_dims(dims)`                                         | `tensor.sum(dims, keepdim=True)`               |
+| `tensor.sum_and_squeeze_dims(dims)`                             | `tensor.sum(dims, keepdim=False)`              |
 | `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
