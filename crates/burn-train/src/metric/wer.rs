@@ -1,10 +1,10 @@
+use super::cer::edit_distance;
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
 use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
-use super::cer::edit_distance;
 
 // The edit_distance function remains the same as it calculates the Levenshtein distance
 // between two sequences. The "units" within the sequences will now be treated as words.
