@@ -120,10 +120,12 @@ pub enum OpCode {
     Stop = b'.',
     NewObj = 0x81,
     EmptyList = b']',
+    List = b'l',
     BinFloat = b'G',
     Append = b'a',
     Appends = b'e',
     Long1 = 0x8a,
+    Memoize = 0x94,
 }
 
 // Avoid using FromPrimitive so as not to drag another dependency.
@@ -162,10 +164,12 @@ impl TryFrom<u8> for OpCode {
             b'.' => Ok(Self::Stop),
             0x81 => Ok(Self::NewObj),
             b']' => Ok(Self::EmptyList),
+            b'l' => Ok(Self::List),
             b'G' => Ok(Self::BinFloat),
             b'a' => Ok(Self::Append),
             b'e' => Ok(Self::Appends),
             0x8a => Ok(Self::Long1),
+            0x94 => Ok(Self::Memoize),
             value => Err(value),
         }
     }
@@ -721,6 +725,10 @@ impl Stack {
     fn memo_put(&mut self, idx: u32, obj: Object) {
         self.memo.insert(idx, obj);
     }
+
+    fn memo_len(&self) -> usize {
+        self.memo.len()
+    }
 }
 
 fn read_global<R: BufRead>(r: &mut R, stack: &mut Stack) -> Result<()> {
@@ -1133,7 +1141,6 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                     args: Box::new(args),
                 });
             }
-            OpCode::Stop => break,
             OpCode::Dict => {
                 let objs = stack.pop_to_marker()?;
                 let mut dict = HashMap::new();
@@ -1153,6 +1160,18 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                 }
                 stack.push(Object::Dict(dict));
             }
+            OpCode::List => {
+                let objs = stack.pop_to_marker()?;
+                stack.push(Object::List(objs));
+            }
+            OpCode::Memoize => {
+                // Store top of stack in memo without popping
+                // The memo index is the current number of items in the memo
+                let obj = stack.top()?;
+                let idx = stack.memo_len() as u32;
+                stack.memo_put(idx, obj);
+            }
+            OpCode::Stop => break,
         }
     }
     stack.pop()
