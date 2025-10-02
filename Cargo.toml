@@ -56,7 +56,7 @@ futures = "0.3"
 futures-util = "0.3"
 gix-tempfile = { version = "18.0.0", features = ["signals"] }
 globwalk = "0.9.1"
-hashbrown = "0.15.5"
+hashbrown = "0.16.0"
 hound = "3.5.1"
 image = "0.25.8"
 indicatif = "0.18.0"
