@@ -101,7 +101,7 @@ fn load_resnet18_materialize_all(bencher: Bencher) {
         for key in &keys {
             let tensor = reader.get(key).expect("Failed to get tensor");
             // Materialize the tensor data
-            let _data = tensor.to_data();
+            let _data = tensor.to_data().expect("Failed to materialize tensor data");
             total_bytes += tensor.data_len();
         }
 
@@ -122,7 +122,7 @@ fn load_resnet18_materialize_sequential(bencher: Bencher) {
         // This simulates processing tensors sequentially without keeping all in memory
         for key in &keys {
             let tensor = reader.get(key).expect("Failed to get tensor");
-            let data = tensor.to_data();
+            let data = tensor.to_data().expect("Failed to materialize tensor data");
 
             // Do minimal work with the data to prevent optimization
             let sum = match data.dtype {
@@ -169,7 +169,7 @@ fn load_resnet18_largest_tensor(bencher: Bencher) {
         let tensor = reader
             .get(&largest_key)
             .expect("Failed to get largest tensor");
-        let _data = tensor.to_data();
+        let _data = tensor.to_data().expect("Failed to materialize tensor data");
 
         assert!(largest_size > 9_000_000); // Should be ~9MB for layer4.0.conv2.weight
     });
@@ -199,7 +199,7 @@ fn load_resnet18_memory_profile(bencher: Bencher) {
                 }
 
                 // Materialize the tensor
-                let data = tensor.to_data();
+                let data = tensor.to_data().expect("Failed to materialize tensor data");
                 total_data += tensor_size;
 
                 // Drop data immediately to test lazy loading memory efficiency
