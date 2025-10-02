@@ -1,6 +1,9 @@
 use crate::{Slice, SliceArg};
 use alloc::vec::Vec;
-use core::ops::Range;
+use core::{
+    ops::{Deref, DerefMut, Index, IndexMut, Range},
+    slice::{Iter, IterMut, SliceIndex},
+};
 use serde::{Deserialize, Serialize};
 
 /// Shape of a tensor.
@@ -11,6 +14,14 @@ pub struct Shape {
 }
 
 impl Shape {
+    /// Constructs a new `Shape`.
+    pub fn new<const D: usize>(dims: [usize; D]) -> Self {
+        // For backward compat
+        Self {
+            dims: dims.to_vec(),
+        }
+    }
+
     /// Returns the total number of elements of a tensor having this shape
     pub fn num_elements(&self) -> usize {
         self.dims.iter().product()
@@ -28,14 +39,6 @@ impl Shape {
     /// Alias for `Shape::num_dims()`.
     pub fn rank(&self) -> usize {
         self.dims.len()
-    }
-
-    /// Constructs a new `Shape`.
-    pub fn new<const D: usize>(dims: [usize; D]) -> Self {
-        // For backward compat
-        Self {
-            dims: dims.to_vec(),
-        }
     }
 
     // For compat with dims: [usize; D]
@@ -131,6 +134,26 @@ impl Shape {
     pub fn to_vec(&self) -> Vec<usize> {
         self.dims.clone()
     }
+
+    /// Returns an iterator over the shape dimensions.
+    pub fn iter(&self) -> Iter<'_, usize> {
+        self.dims.iter()
+    }
+
+    /// Mutable iterator over the dimensions.
+    pub fn iter_mut(&mut self) -> IterMut<'_, usize> {
+        self.dims.iter_mut()
+    }
+
+    /// Borrow the underlying dimensions slice.
+    pub fn as_slice(&self) -> &[usize] {
+        &self.dims
+    }
+
+    /// Borrow the underlying dimensions slice mutably.
+    pub fn as_mut_slice(&mut self) -> &mut [usize] {
+        &mut self.dims
+    }
 }
 
 impl IntoIterator for Shape {
@@ -142,14 +165,43 @@ impl IntoIterator for Shape {
     }
 }
 
-// impl Iterator for Shape {
-//     type Item = usize;
+impl<Idx> Index<Idx> for Shape
+where
+    Idx: SliceIndex<[usize]>,
+{
+    type Output = Idx::Output;
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.dims.into_iter()
-//     }
-// }
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.dims[index]
+    }
+}
 
+impl<Idx> IndexMut<Idx> for Shape
+where
+    Idx: SliceIndex<[usize]>,
+{
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        &mut self.dims[index]
+    }
+}
+
+// Allow `&shape` to behave like a slice `&[usize]` directly
+impl Deref for Shape {
+    type Target = [usize];
+
+    fn deref(&self) -> &Self::Target {
+        &self.dims
+    }
+}
+
+// Allow `&shape` to behave like a mut slice `&mut [usize]` directly
+impl DerefMut for Shape {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.dims
+    }
+}
+
+// Conversion sugar
 impl<const D: usize> From<[usize; D]> for Shape {
     fn from(dims: [usize; D]) -> Self {
         Shape::new(dims)
@@ -236,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter() {
+    fn test_shape_into_iter() {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
 
@@ -277,5 +329,71 @@ mod tests {
         let slices = Shape::new([2, 3, 4]).into_slices(s![..20, 2]);
         assert_eq!(slices[0].to_range(2), 0..2);
         assert_eq!(slices[1].to_range(3), 2..3);
+    }
+
+    #[test]
+    fn test_shape_index() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        assert_eq!(shape[0], 2);
+        assert_eq!(shape[1], 3);
+        assert_eq!(shape[2], 4);
+        assert_eq!(shape[3], 5);
+
+        // Works with ranges
+        assert_eq!(shape[1..3], *&[3, 4]);
+        assert_eq!(shape[1..=2], *&[3, 4]);
+        assert_eq!(shape[..], *&[2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_shape_iter() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+
+        for (d, sd) in dims.iter().zip(shape.iter()) {
+            assert_eq!(d, sd);
+        }
+    }
+
+    #[test]
+    fn test_shape_iter_mut() {
+        let mut shape = Shape::new([2, 3, 4, 5]);
+
+        for d in shape.iter_mut() {
+            *d += 1;
+        }
+
+        assert_eq!(&shape.dims, &[3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn test_shape_as_slice() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+
+        assert_eq!(shape.as_slice(), dims.as_slice());
+
+        // Deref coercion
+        let shape_slice: &[usize] = &shape;
+        assert_eq!(shape_slice, *&[2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_shape_as_mut_slice() {
+        let mut dims = [2, 3, 4, 5];
+        let mut shape = Shape::new(dims);
+
+        let shape_mut = shape.as_mut_slice();
+        assert_eq!(shape_mut, dims.as_mut_slice());
+        shape_mut[1] = 6;
+
+        assert_eq!(shape_mut, &[2, 6, 4, 5]);
+
+        let mut shape = Shape::new(dims);
+        let shape = &mut shape[..];
+        shape[1] = 6;
+
+        assert_eq!(shape, shape_mut)
     }
 }
