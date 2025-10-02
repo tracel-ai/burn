@@ -157,7 +157,7 @@ impl TryFrom<u8> for OpCode {
             b's' => Ok(Self::SetItem),
             b'u' => Ok(Self::SetItems),
             b'}' => Ok(Self::EmptyDict),
-            b'd' => Ok(Self::EmptyDict),
+            b'd' => Ok(Self::Dict),
             b'b' => Ok(Self::Build),
             b'.' => Ok(Self::Stop),
             0x81 => Ok(Self::NewObj),
