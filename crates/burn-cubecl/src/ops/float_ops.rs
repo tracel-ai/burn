@@ -727,4 +727,12 @@ where
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
     }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_nan::<R, E, BT>(tensor))
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_inf::<R, E, BT>(tensor))
+    }
 }

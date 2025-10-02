@@ -1430,4 +1430,24 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
     -> FloatTensor<B>;
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    fn float_is_nan(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        B::float_not_equal(tensor.clone(), tensor)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is infinite
+    fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.elem())
+    }
 }

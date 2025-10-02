@@ -2384,4 +2384,72 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct IsNanOps<B: FusionBackend> {
+            desc: UnaryOpIr,
+            _b: PhantomData<B>,
+        }
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for IsNanOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_is_nan(input);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::BoolElem::dtype());
+
+        let dtype = tensor.dtype;
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::IsNan(desc.clone())),
+            IsNanOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct IsInfOps<B: FusionBackend> {
+            desc: UnaryOpIr,
+            _b: PhantomData<B>,
+        }
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for IsInfOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_is_inf(input);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::BoolElem::dtype());
+
+        let dtype = tensor.dtype;
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::IsInf(desc.clone())),
+            IsInfOps::<B>::new(desc),
+        );
+
+        out
+    }
 }
