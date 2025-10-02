@@ -284,7 +284,7 @@ impl GatherNode {
 
                         quote! {
                             let sliced = #input.slice(s![#(#slice_args),*]);
-                            let #output = sliced.squeeze::<#output_rank>(#dim);
+                            let #output = sliced.squeeze_dim::<#output_rank>(#dim);
                         }
                     }
                     GatherIndices::Runtime(Type::Tensor(idx_tensor)) => {
@@ -577,7 +577,7 @@ mod tests {
                     scalar1: i64
                 ) -> Tensor<B, 1> {
                     let sliced = tensor1.slice(s![(scalar1 as usize)..((scalar1 as usize) + 1), ..]);
-                    let tensor2 = sliced.squeeze::<1usize>(0);
+                    let tensor2 = sliced.squeeze_dim::<1usize>(0);
                     tensor2
                 }
             }

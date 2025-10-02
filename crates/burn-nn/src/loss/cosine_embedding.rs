@@ -120,7 +120,7 @@ impl CosineEmbeddingLoss {
         // cos_sim shape: [batch_size, 1]
         let cos_sim = cosine_similarity(input1, input2, 1, None);
         // cos_sim shape: [batch_size]
-        let cos_sim: Tensor<B, 1> = cos_sim.squeeze(1);
+        let cos_sim: Tensor<B, 1> = cos_sim.squeeze_dim(1);
 
         let mut loss = cos_sim.zeros_like();
 

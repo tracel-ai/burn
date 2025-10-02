@@ -1,6 +1,6 @@
 use cubecl::{
     CubeElement as CubeElem, flex32,
-    matmul::components::{InputPrecision, MatmulPrecision},
+    matmul::components::{MatmulPrecision, MatrixPrecision},
     prelude::{Float, Int, Numeric},
     reduce::ReducePrecision,
 };
@@ -12,9 +12,9 @@ pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 pub trait MatmulElement:
     CubeElement
     + MatmulPrecision<
-        Lhs: InputPrecision,
-        Rhs: InputPrecision,
-        Acc: InputPrecision<Global: CubeElement>,
+        Lhs: MatrixPrecision,
+        Rhs: MatrixPrecision,
+        Acc: MatrixPrecision<Global: CubeElement>,
     >
 {
 }

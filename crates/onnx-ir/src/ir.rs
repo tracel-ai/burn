@@ -120,13 +120,14 @@ impl Argument {
                         1 => ElementType::Float32,  // FLOAT
                         2 => ElementType::Uint8,    // UINT8
                         3 => ElementType::Int8,     // INT8
+                        4 => ElementType::Uint16,   // UINT16
                         6 => ElementType::Int32,    // INT32
                         7 => ElementType::Int64,    // INT64
                         9 => ElementType::Bool,     // BOOL
                         10 => ElementType::Float16, // FLOAT16
                         11 => ElementType::Float64, // DOUBLE
                         8 => ElementType::String,   // STRING (rare as tensor; empty ok)
-                        // If you need more (e.g., UINT16/UINT32/UINT64), add them here.
+                        // If you need more (e.g., UINT32/UINT64), add them here.
                         other => panic!(
                             "unsupported empty-tensor data_type={} for '{}'",
                             other, name
@@ -140,6 +141,7 @@ impl Argument {
                         ElementType::Float16 => Data::Float16s(Vec::new()),
                         ElementType::Int32 => Data::Int32s(Vec::new()),
                         ElementType::Int64 => Data::Int64s(Vec::new()),
+                        ElementType::Uint16 => Data::Uint16s(Vec::new()),
                         ElementType::Uint8 => Data::Uint8s(Vec::new()),
                         ElementType::Int8 => Data::Int8s(Vec::new()),
                         ElementType::Bool => Data::Bools(Vec::new()),
@@ -206,6 +208,7 @@ pub enum ElementType {
     String,
     Float16,
     Bool,
+    Uint16,
     Uint8,
     Int8,
 }
@@ -303,6 +306,7 @@ impl TensorData {
             Data::Float16(_) | Data::Float16s(_) => ElementType::Float16,
             Data::Float32(_) | Data::Float32s(_) => ElementType::Float32,
             Data::Float64(_) | Data::Float64s(_) => ElementType::Float64,
+            Data::Uint16(_) | Data::Uint16s(_) => ElementType::Uint16,
             Data::Uint8(_) | Data::Uint8s(_) => ElementType::Uint8,
             Data::Int8(_) | Data::Int8s(_) => ElementType::Int8,
             Data::Int32(_) | Data::Int32s(_) => ElementType::Int32,
@@ -323,6 +327,8 @@ pub enum Data {
     Float32s(Vec<f32>),
     Float64(f64),
     Float64s(Vec<f64>),
+    Uint16(u16),
+    Uint16s(Vec<u16>),
     Uint8(u8),
     Uint8s(Vec<u8>),
     Int8(i8),
@@ -644,6 +650,8 @@ impl fmt::Debug for Data {
             Data::Float16(v) => write!(f, "Float16({v})"),
             Data::Float32(v) => write!(f, "Float32({v})"),
             Data::Float64(v) => write!(f, "Float64({v})"),
+            Data::Uint16(v) => write!(f, "Uint16({v})"),
+            Data::Uint16s(v) => write!(f, "Uint16s({})", trunc(v)),
             Data::Uint8s(v) => write!(f, "Uint8s({})", trunc(v)),
             Data::Int8s(v) => write!(f, "Int8s({})", trunc(v)),
             Data::Uint8(v) => write!(f, "Uint8({v})"),

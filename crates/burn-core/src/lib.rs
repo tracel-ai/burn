@@ -110,7 +110,7 @@ pub mod prelude {
         config::Config,
         module::Module,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, RangesArg, Shape, Tensor, TensorData,
+            Bool, Device, ElementConversion, Float, Int, Shape, SliceArg, Tensor, TensorData,
             backend::Backend, cast::ToElement, s,
         },
     };

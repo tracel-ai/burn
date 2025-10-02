@@ -185,6 +185,18 @@ where
         )
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(lhs.dtype, rhs.dtype),
+            E,
+            kernel::cross::<R, E>(lhs, rhs, dim)
+        )
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::swap_dims(tensor, dim1, dim2)
     }

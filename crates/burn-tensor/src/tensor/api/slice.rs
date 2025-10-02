@@ -1,7 +1,54 @@
 use alloc::vec::Vec;
 
+use crate::Shape;
 use crate::indexing::AsIndex;
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
+
+/// Trait for slice arguments that can be converted into an array of slices.
+/// This allows the `slice` method to accept both single slices (from `s![..]`)
+/// and arrays of slices (from `s![.., ..]` or `[0..5, 1..3]`).
+pub trait SliceArg<const D2: usize> {
+    /// Convert to an array of slices with clamping to shape dimensions
+    fn into_slices(self, shape: Shape) -> [Slice; D2];
+}
+
+impl<const D2: usize, T> SliceArg<D2> for [T; D2]
+where
+    T: Into<Slice>,
+{
+    fn into_slices(self, shape: Shape) -> [Slice; D2] {
+        self.into_iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let slice: Slice = s.into();
+                // Apply shape clamping by converting to range and back
+                let clamped_range = slice.to_range(shape.dims[i]);
+                Slice::new(
+                    clamped_range.start as isize,
+                    Some(clamped_range.end as isize),
+                    slice.step(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+    }
+}
+
+impl<T> SliceArg<1> for T
+where
+    T: Into<Slice>,
+{
+    fn into_slices(self, shape: Shape) -> [Slice; 1] {
+        let slice: Slice = self.into();
+        let clamped_range = slice.to_range(shape.dims[0]);
+        [Slice::new(
+            clamped_range.start as isize,
+            Some(clamped_range.end as isize),
+            slice.step(),
+        )]
+    }
+}
 
 /// Calculates the output shape for a slice operation with steps
 ///
@@ -284,7 +331,7 @@ macro_rules! s {
 /// ```
 ///
 /// See also the [`s!`] macro for the preferred way to create slices.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Slice {
     /// Slice start index.
     pub start: isize,
@@ -294,11 +341,22 @@ pub struct Slice {
     pub step: isize,
 }
 
+impl Default for Slice {
+    fn default() -> Self {
+        Self::full()
+    }
+}
+
 impl Slice {
     /// Creates a new slice with start, end, and step
-    pub fn new(start: isize, end: Option<isize>, step: isize) -> Self {
+    pub const fn new(start: isize, end: Option<isize>, step: isize) -> Self {
         assert!(step != 0, "Step cannot be zero");
         Self { start, end, step }
+    }
+
+    /// Creates a slice that represents the full range.
+    pub const fn full() -> Self {
+        Self::new(0, None, 1)
     }
 
     /// Creates a slice that represents a single index
