@@ -3,7 +3,8 @@
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
-    tensor::backend::AutodiffBackend,
+    prelude::*,
+    tensor::backend::{AutodiffBackend, DeviceId},
 };
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
@@ -15,6 +16,17 @@ type ElemType = f32;
 type ElemType = burn::tensor::f16;
 #[cfg(feature = "flex32")]
 type ElemType = burn::tensor::flex32;
+
+pub fn launch_multi<B: AutodiffBackend>() {
+    let type_id = 0;
+    let num_devices = B::Device::device_count(type_id);
+
+    let devices = (0..num_devices)
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .collect();
+
+    launch::<B>(devices)
+}
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
@@ -135,13 +147,7 @@ mod cuda {
 
     pub fn run() {
         let type_id = 0;
-        let num_devices = 1;
-
-        let devices = (0..num_devices)
-            .map(|i| CudaDevice::new(i as usize))
-            .collect();
-
-        launch::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>(devices);
+        launch_multi::<Autodiff<Cuda<ElemType, i32>, BalancedCheckpointing>>();
     }
 }
 
