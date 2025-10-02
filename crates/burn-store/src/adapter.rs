@@ -19,7 +19,7 @@ mod module_names {
     // Import the types to ensure they exist at compile time
     // If these types are renamed or moved, we'll get a compile error
     #[allow(unused_imports)]
-    use burn_nn::{BatchNorm, GroupNorm, LayerNorm, Linear}; // RENAME CONSTANTS TOO
+    use burn_nn::{BatchNorm, GroupNorm, LayerNorm, Linear};
 
     // The actual string constants that match what the Module derive macro produces
     // The imports above ensure these types exist at compile-time
@@ -68,52 +68,7 @@ pub struct PyTorchToBurnAdapter;
 
 impl ModuleAdapter for PyTorchToBurnAdapter {
     fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
-        // Get parameter name (last path item)
-        let path_stack = match snapshot.path_stack.as_ref() {
-            Some(stack) => stack,
-            None => return snapshot.clone(),
-        };
-
-        let param_name = match path_stack.last() {
-            Some(name) => name,
-            None => return snapshot.clone(),
-        };
-
-        // Check container type if available
-        if let Some(container_stack) = snapshot.container_stack.as_ref()
-            && let Some(container_type) = container_stack.last()
-        {
-            match container_type.as_str() {
-                // Linear: transpose weight
-                module_names::LINEAR if param_name == "weight" && snapshot.shape.len() == 2 => {
-                    return transpose_2d_tensor(snapshot);
-                }
-                // Normalization layers: rename weight->gamma, bias->beta
-                module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM => {
-                    let new_name = match param_name.as_str() {
-                        "weight" => "gamma",
-                        "bias" => "beta",
-                        _ => return snapshot.clone(),
-                    };
-
-                    let mut new_path = path_stack.clone();
-                    let last_idx = new_path.len() - 1;
-                    new_path[last_idx] = new_name.to_string();
-                    return TensorSnapshot::from_closure(
-                        snapshot.clone_data_fn(),
-                        snapshot.dtype,
-                        snapshot.shape.clone(),
-                        new_path,
-                        container_stack.clone(),
-                        snapshot.tensor_id.unwrap_or_default(),
-                    );
-                }
-                _ => {}
-            }
-        }
-
-        // No transformation needed
-        snapshot.clone()
+        adapt_pytorch_tensor(snapshot, PyTorchConversionDirection::PyTorchToBurn)
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
@@ -131,57 +86,7 @@ pub struct BurnToPyTorchAdapter;
 
 impl ModuleAdapter for BurnToPyTorchAdapter {
     fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
-        // Get parameter name (last path item)
-        let path_stack = match snapshot.path_stack.as_ref() {
-            Some(stack) => stack,
-            None => return snapshot.clone(),
-        };
-
-        let param_name = match path_stack.last() {
-            Some(name) => name,
-            None => return snapshot.clone(),
-        };
-
-        // Check container type if available
-        if let Some(container_stack) = snapshot.container_stack.as_ref()
-            && let Some(container_type) = container_stack.last()
-        {
-            match container_type.as_str() {
-                // Linear: transpose weight
-                module_names::LINEAR if param_name == "weight" && snapshot.shape.len() == 2 => {
-                    return transpose_2d_tensor(snapshot);
-                }
-                // Normalization layers: rename gamma->weight, beta->bias
-                module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM => {
-                    match param_name.as_str() {
-                        "gamma" | "beta" => {
-                            let new_name = match param_name.as_str() {
-                                "gamma" => "weight",
-                                "beta" => "bias",
-                                _ => return snapshot.clone(),
-                            };
-
-                            let mut new_path = path_stack.clone();
-                            let last_idx = new_path.len() - 1;
-                            new_path[last_idx] = new_name.to_string();
-                            return TensorSnapshot::from_closure(
-                                snapshot.clone_data_fn(),
-                                snapshot.dtype,
-                                snapshot.shape.clone(),
-                                new_path,
-                                container_stack.clone(),
-                                snapshot.tensor_id.unwrap_or_default(),
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // No transformation needed
-        snapshot.clone()
+        adapt_pytorch_tensor(snapshot, PyTorchConversionDirection::BurnToPyTorch)
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
@@ -189,7 +94,80 @@ impl ModuleAdapter for BurnToPyTorchAdapter {
     }
 }
 
-// Helper functions
+/// Direction of PyTorch conversion for parameter naming
+#[derive(Debug, Clone, Copy)]
+enum PyTorchConversionDirection {
+    PyTorchToBurn,
+    BurnToPyTorch,
+}
+
+/// Core tensor adaptation logic for PyTorch format conversions
+fn adapt_pytorch_tensor(
+    snapshot: &TensorSnapshot,
+    direction: PyTorchConversionDirection,
+) -> TensorSnapshot {
+    // Extract path and parameter name
+    let (path_stack, param_name) = match get_path_and_param(snapshot) {
+        Some(result) => result,
+        None => return snapshot.clone(),
+    };
+
+    // Get container type
+    let container_type = match snapshot.container_stack.as_ref().and_then(|s| s.last()) {
+        Some(ct) => ct,
+        None => return snapshot.clone(),
+    };
+
+    match container_type.as_str() {
+        // Linear: transpose weight (bidirectional - same operation both ways)
+        module_names::LINEAR if param_name == "weight" && snapshot.shape.len() == 2 => {
+            transpose_2d_tensor(snapshot)
+        }
+        // Normalization layers: rename parameters based on direction
+        module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM => {
+            let new_name = match direction {
+                PyTorchConversionDirection::PyTorchToBurn => match param_name {
+                    "weight" => "gamma",
+                    "bias" => "beta",
+                    _ => return snapshot.clone(),
+                },
+                PyTorchConversionDirection::BurnToPyTorch => match param_name {
+                    "gamma" => "weight",
+                    "beta" => "bias",
+                    _ => return snapshot.clone(),
+                },
+            };
+            rename_parameter(snapshot, path_stack, new_name)
+        }
+        _ => snapshot.clone(),
+    }
+}
+
+/// Extract path stack and parameter name from snapshot
+fn get_path_and_param(snapshot: &TensorSnapshot) -> Option<(&[String], &str)> {
+    let path_stack = snapshot.path_stack.as_ref()?;
+    let param_name = path_stack.last()?.as_str();
+    Some((path_stack.as_slice(), param_name))
+}
+
+/// Rename a parameter in the snapshot
+fn rename_parameter(
+    snapshot: &TensorSnapshot,
+    path_stack: &[String],
+    new_name: &str,
+) -> TensorSnapshot {
+    let mut new_path = path_stack.to_vec();
+    *new_path.last_mut().unwrap() = new_name.to_string();
+
+    TensorSnapshot::from_closure(
+        snapshot.clone_data_fn(),
+        snapshot.dtype,
+        snapshot.shape.clone(),
+        new_path,
+        snapshot.container_stack.clone().unwrap_or_default(),
+        snapshot.tensor_id.unwrap_or_default(),
+    )
+}
 
 /// Transpose a 2D tensor
 fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
@@ -217,13 +195,9 @@ fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
     )
 }
 
-/// Transpose tensor data
+/// Transpose tensor data (assumes 2D shape is already validated)
 fn transpose_tensor_data(data: TensorData) -> TensorData {
-    let shape = data.shape.clone();
-    if shape.len() != 2 {
-        return data;
-    }
-
+    let shape = &data.shape;
     let rows = shape[0];
     let cols = shape[1];
     let transposed_shape = vec![cols, rows];
