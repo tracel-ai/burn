@@ -120,6 +120,7 @@ mod tests {
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_expand!();
     burn_tensor::testgen_cumsum!();
+    burn_tensor::testgen_cumprod!();
 
     // test stats
     burn_tensor::testgen_var!();
@@ -183,4 +184,5 @@ mod tests {
     burn_autodiff::testgen_ad_ceil!();
     burn_autodiff::testgen_ad_slice_assign!();
     burn_autodiff::testgen_ad_cumsum!();
+    burn_autodiff::testgen_ad_cumprod!();
 }
