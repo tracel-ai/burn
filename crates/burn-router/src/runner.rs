@@ -229,7 +229,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_cast(tensor, desc.out.dtype.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Cumsum(desc) => {
+                BaseOperationIr::CumSum(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::float_cumsum(tensor, desc.axis);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
@@ -311,7 +311,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
-                BaseOperationIr::Cumsum(desc) => {
+                BaseOperationIr::CumSum(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
                     let output = B::int_cumsum(tensor, desc.axis);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
@@ -397,7 +397,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
-                BaseOperationIr::Cumsum(_) => unreachable!("cumsum not supported for bool tensors"),
+                BaseOperationIr::CumSum(_) => unreachable!("cumsum not supported for bool tensors"),
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);

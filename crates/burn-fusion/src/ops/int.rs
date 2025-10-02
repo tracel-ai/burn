@@ -1307,7 +1307,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             streams,
-            OperationIr::BaseInt(BaseOperationIr::Cumsum(desc.clone())),
+            OperationIr::BaseInt(BaseOperationIr::CumSum(desc.clone())),
             CumsumOps::<B>::new(desc),
         );
 

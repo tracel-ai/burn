@@ -691,7 +691,7 @@ where
     /// }
     /// ```
     pub fn cumsum(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("Cumsum", dim));
+        check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
         Self::new(K::cumsum(self.primitive, dim))
     }
 

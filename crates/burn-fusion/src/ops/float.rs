@@ -1472,7 +1472,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             streams,
-            OperationIr::BaseFloat(BaseOperationIr::Cumsum(desc.clone())),
+            OperationIr::BaseFloat(BaseOperationIr::CumSum(desc.clone())),
             CumsumOps::<B>::new(desc),
         );
 

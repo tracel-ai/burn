@@ -860,7 +860,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::BaseInt(BaseOperationIr::Cumsum(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::CumSum(desc)));
 
         out
     }

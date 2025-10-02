@@ -1622,9 +1622,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         #[derive(Debug)]
-        struct Cumsum;
+        struct CumSum;
 
-        impl<B: Backend> Backward<B, 1> for Cumsum {
+        impl<B: Backend> Backward<B, 1> for CumSum {
             type State = (Shape, usize);
 
             fn backward(
@@ -1644,7 +1644,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        match Cumsum
+        match CumSum
             .prepare::<C>([tensor.node])
             .compute_bound()
             .stateful()

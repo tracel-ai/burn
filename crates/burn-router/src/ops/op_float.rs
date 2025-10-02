@@ -957,7 +957,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Cumsum(desc)));
+        client.register(OperationIr::BaseFloat(BaseOperationIr::CumSum(desc)));
 
         out
     }
