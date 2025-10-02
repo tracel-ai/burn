@@ -1,6 +1,15 @@
 //! Just enough pickle support to be able to read PyTorch checkpoints.
-// This hardcodes objects that are required for tensor reading, we may want to make this a bit more
-// composable/tensor agnostic at some point.
+//!
+//! This implementation is based on the candle project's pickle loader with significant
+//! modifications for improved separation of concerns and extended PyTorch compatibility.
+//!
+//! Original source: https://github.com/huggingface/candle/blob/main/candle-core/src/pickle.rs
+//!
+//! Modifications include:
+//! - Lazy tensor data loading for memory efficiency
+//! - Extended PyTorch version compatibility (0.1.10 - 2.x)
+//! - Better separation of pickle parsing and tensor extraction
+//! - Support for both legacy and modern PyTorch formats
 use crate::TensorSnapshot;
 use crate::pytorch::lazy_data::LazyDataSource;
 use alloc::rc::Rc;
