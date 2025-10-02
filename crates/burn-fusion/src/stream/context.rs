@@ -949,6 +949,11 @@ impl RelativeOps for BaseOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            BaseOperationIr::CumSum(desc) => BaseOperationIr::CumSum(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
         }
     }

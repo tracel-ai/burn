@@ -326,6 +326,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
+    }
+
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.exp().unwrap())
     }

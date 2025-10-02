@@ -71,6 +71,9 @@ pub fn flip(tensor: CandleTensor, axes: &[usize]) -> CandleTensor {
     // FIXME: Replace with an appropriate method when Candle provides one.
     let mut tensor = tensor.tensor;
     for &axis in axes {
+        // Ensure tensor is contiguous before index_select (required by Candle)
+        tensor = tensor.contiguous().unwrap();
+
         let indexes = candle_core::Tensor::arange_step(
             tensor.dim(axis).unwrap() as i64 - 1,
             -1,

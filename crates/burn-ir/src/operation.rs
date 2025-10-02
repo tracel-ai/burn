@@ -278,6 +278,12 @@ pub enum BaseOperationIr {
 
     /// Operation corresponding to:
     ///
+    /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
+    CumSum(DimOpIr),
+
+    /// Operation corresponding to:
+    ///
     /// Float => [empty](burn_tensor::ops::FloatTensorOps::float_empty).
     /// Int => [empty](burn_tensor::ops::IntTensorOps::int_empty).
     /// Bool => [empty](burn_tensor::ops::BoolTensorOps::bool_empty).
@@ -720,6 +726,16 @@ pub struct ScalarOpIr {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
 #[allow(missing_docs)]
 pub struct ReduceDimOpIr {
+    pub input: TensorIr,
+    pub out: TensorIr,
+    pub axis: usize,
+}
+
+/// IR for operations that operate along a dimension without reducing it.
+/// Unlike `ReduceDimOpIr`, the output shape is the same as the input shape.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
+pub struct DimOpIr {
     pub input: TensorIr,
     pub out: TensorIr,
     pub axis: usize,
@@ -1502,6 +1518,7 @@ impl BaseOperationIr {
                 tensors
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::CumSum(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
             BaseOperationIr::Unfold(repr) => {
                 vec![&repr.input, &repr.out]
@@ -1553,6 +1570,9 @@ impl BaseOperationIr {
                 }
             }
             BaseOperationIr::Cast(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::CumSum(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Unfold(repr) => {
