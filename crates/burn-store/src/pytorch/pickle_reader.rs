@@ -475,7 +475,9 @@ fn rebuild_tensor_v2(
     // Track storage usage IMMEDIATELY for lazy boundary detection
     // This must happen BEFORE creating the closure, not inside it!
     if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source {
-        let source = source.lock().unwrap();
+        let source = source
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let num_elements: usize = shape.iter().product();
         let bytes_needed = storage_offset * dtype.size() + num_elements * dtype.size();
         source.track_storage_usage(&storage_key, 0, bytes_needed);

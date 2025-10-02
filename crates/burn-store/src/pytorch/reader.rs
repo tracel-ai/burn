@@ -761,7 +761,9 @@ fn load_legacy_pytorch_file_with_metadata(
     if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source
         && !storage_keys.is_empty()
     {
-        let source = source.lock().unwrap();
+        let source = source
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         source.set_storage_keys(storage_keys.clone());
     }
 

@@ -161,14 +161,20 @@ impl LegacyMultiStorageSource {
 
     /// Set the ordered storage keys from the pickle
     pub fn set_storage_keys(&self, keys: Vec<String>) {
-        let mut storage_keys = self.storage_keys.write().unwrap();
+        let mut storage_keys = self
+            .storage_keys
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *storage_keys = Some(keys);
     }
 
     /// Track storage usage from tensor access
     /// This is called from within tensor loading closures
     pub fn track_storage_usage(&self, storage_key: &str, offset: usize, size: usize) {
-        let mut usage = self.storage_usage.write().unwrap();
+        let mut usage = self
+            .storage_usage
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let max_extent = offset + size;
         usage
             .entry(storage_key.to_string())
@@ -182,14 +188,25 @@ impl LegacyMultiStorageSource {
     /// Try to build the storage map from tracked usage
     fn try_build_storage_map(&self) {
         // Only build if we don't already have a map
-        if self.storage_map.read().unwrap().is_some() {
+        if self
+            .storage_map
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_some()
+        {
             return;
         }
 
         // Check if we have storage keys
-        let keys_guard = self.storage_keys.read().unwrap();
+        let keys_guard = self
+            .storage_keys
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(ref keys) = *keys_guard {
-            let usage = self.storage_usage.read().unwrap();
+            let usage = self
+                .storage_usage
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
 
             // Only build if we have usage info for all storages
             if keys.iter().all(|k| usage.contains_key(k)) {
@@ -206,7 +223,10 @@ impl LegacyMultiStorageSource {
                 // Set the storage map
                 drop(keys_guard);
                 drop(usage);
-                let mut storage_map = self.storage_map.write().unwrap();
+                let mut storage_map = self
+                    .storage_map
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 *storage_map = Some(map);
             }
         }
@@ -219,7 +239,10 @@ impl LegacyMultiStorageSource {
         let storage_key = key.split('/').next_back().unwrap_or(key);
 
         // Get storage map - must be available for lazy loading to work
-        let storage_map = self.storage_map.read().unwrap();
+        let storage_map = self
+            .storage_map
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(ref map) = *storage_map
             && let Some(&(offset, size)) = map.get(storage_key)
         {
@@ -269,11 +292,15 @@ impl LazyDataSource {
     pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
         match self {
             Self::Zip(source) => {
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.read_file(key)
             }
             Self::LegacyMultiStorage(source) => {
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.read(key)
             }
         }
@@ -283,16 +310,23 @@ impl LazyDataSource {
     pub fn read_range(&self, key: &str, offset: usize, length: usize) -> std::io::Result<Vec<u8>> {
         match self {
             Self::Zip(source) => {
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.read_file_range(key, offset, length)
             }
             Self::LegacyMultiStorage(source) => {
                 // For legacy format, read only the requested range
                 let storage_key = key.split('/').next_back().unwrap_or(key);
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
 
                 // Get storage boundaries
-                let storage_map = source.storage_map.read().unwrap();
+                let storage_map = source
+                    .storage_map
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 if let Some(ref map) = *storage_map
                     && let Some(&(storage_offset, storage_size)) = map.get(storage_key)
                 {
@@ -324,7 +358,9 @@ impl LazyDataSource {
     pub fn contains(&self, key: &str) -> bool {
         match self {
             Self::Zip(source) => {
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.contains(key)
             }
             Self::LegacyMultiStorage(_) => true, // Legacy format has all data
@@ -335,7 +371,9 @@ impl LazyDataSource {
     pub fn keys(&self) -> Vec<String> {
         match self {
             Self::Zip(source) => {
-                let source = source.lock().unwrap();
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.data_files()
             }
             Self::LegacyMultiStorage(_) => vec![], // Legacy format doesn't have distinct keys
