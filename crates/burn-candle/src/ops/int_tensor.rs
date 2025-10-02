@@ -303,6 +303,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
+    fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        // Candle doesn't have cummin for int, convert to float, compute, convert back
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+
+        let dim_size = tensor_float.dims()[dim];
+        let mut slices = Vec::with_capacity(dim_size);
+
+        // First slice is just the first element along dim
+        slices.push(tensor_float.narrow(dim, 0, 1).unwrap());
+
+        // For each subsequent position, take min of previous cummin and current element
+        for i in 1..dim_size {
+            let curr = tensor_float.narrow(dim, i, 1).unwrap();
+            let min_val = slices[i - 1].broadcast_minimum(&curr).unwrap();
+            slices.push(min_val);
+        }
+
+        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        CandleTensor::new(result.to_dtype(dtype).unwrap())
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor

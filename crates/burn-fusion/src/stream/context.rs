@@ -962,6 +962,11 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
                 axis: desc.axis,
             }),
+            BaseOperationIr::CumMin(desc) => BaseOperationIr::CumMin(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
         }
     }

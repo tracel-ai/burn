@@ -695,6 +695,39 @@ where
         Self::new(K::cumsum(self.primitive, dim))
     }
 
+    /// Computes the cumulative minimum of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
+    ///
+    /// # Note
+    ///
+    /// This operation is **not supported for the autodiff backend** and will panic.
+    /// Proper gradient computation requires scatter_add which is not yet implemented.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[3.0, 5.0, 2.0], [4.0, 1.0, 6.0]], &device);
+    ///    let result = tensor.clone().cummin(0);
+    ///    println!("{result}");
+    ///    // [[3.0, 5.0, 2.0], [3.0, 1.0, 2.0]]
+    ///    let result = tensor.cummin(1);
+    ///    println!("{result}");
+    ///    // [[3.0, 3.0, 2.0], [4.0, 1.0, 1.0]]
+    /// }
+    /// ```
+    pub fn cummin(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("CumMin", dim));
+        Self::new(K::cummin(self.primitive, dim))
+    }
+
     ///
     /// # Arguments
     ///
@@ -2794,6 +2827,28 @@ where
     /// the [Tensor::cumsum](Tensor::cumsum) function, which is more high-level and designed for public use.
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the minimum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative minimum of elements along a dimension, users should prefer
+    /// the [Tensor::cummin](Tensor::cummin) function, which is more high-level and designed for public use.
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
     /// Element-wise equality between two tensors.
     ///
     /// # Arguments
@@ -3642,6 +3697,10 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_cumsum(tensor, dim)
     }
 
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cummin(tensor, dim)
+    }
+
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
         B::int_equal_elem(lhs, rhs)
     }
@@ -3959,6 +4018,13 @@ impl<B: Backend> Numeric<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumsum(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => B::q_cumsum(tensor, dim),
+        }
+    }
+
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_cummin(tensor, dim),
         }
     }
 

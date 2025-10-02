@@ -315,6 +315,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::cumsum(tensor, dim)
     }
 
+    fn float_cummin(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummin(tensor, dim)
+    }
+
     fn float_prod(tensor: TchTensor) -> TchTensor {
         TchOps::prod(tensor)
     }
