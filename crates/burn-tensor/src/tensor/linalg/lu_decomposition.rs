@@ -1,4 +1,5 @@
 use crate::{Int, backend::Backend, cast::ToElement, linalg::swap_slices, s, tensor::Tensor};
+use alloc::{format, string::String};
 
 /// The things that can go wrong when computing the LU decomposition.
 #[derive(Debug)]
