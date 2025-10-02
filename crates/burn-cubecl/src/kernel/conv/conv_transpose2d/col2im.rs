@@ -121,11 +121,11 @@ pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.shape.dims[1..].iter() {
+    for dim in tensor.shape[1..].iter() {
         indices.push(0..*dim);
     }
     let mut tensor = slice::<R, E>(tensor, &indices);
-    tensor.shape.dims.remove(0);
+    tensor.shape.remove(0);
     tensor.strides.remove(0);
     tensor
 }

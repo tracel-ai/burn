@@ -6,7 +6,7 @@ macro_rules! keepdim {
     ) => {{
         let tensor: SharedArray<E> = mean_dim($self.clone(), $dim);
         let mut shape = $self.shape().into_shape();
-        shape.dims[$dim] = 1;
+        shape[$dim] = 1;
         NdArrayOps::reshape(tensor.clone(), shape)
     }};
     (
@@ -16,7 +16,7 @@ macro_rules! keepdim {
     ) => {{
         let tensor: SharedArray<E> = sum_dim($self.clone(), $dim);
         let mut shape = $self.shape().into_shape();
-        shape.dims[$dim] = 1;
+        shape[$dim] = 1;
         NdArrayOps::reshape(tensor, shape)
     }};
     (
@@ -26,7 +26,7 @@ macro_rules! keepdim {
     ) => {{
         let tensor: SharedArray<E> = prod_dim($self.clone(), $dim);
         let mut shape = $self.shape().into_shape();
-        shape.dims[$dim] = 1;
+        shape[$dim] = 1;
         NdArrayOps::reshape(tensor, shape)
     }};
 }

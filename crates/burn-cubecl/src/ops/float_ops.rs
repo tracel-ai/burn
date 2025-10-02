@@ -280,7 +280,7 @@ where
             let simple_ranges: Vec<Range<usize>> = slices
                 .iter()
                 .enumerate()
-                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
             execute_with_dtype!(

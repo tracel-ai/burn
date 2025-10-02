@@ -349,7 +349,7 @@ fn register_scalars<'h, R: Runtime>(
         if let TensorView::Reshape { reshaped, .. } = relative {
             let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.dims.iter() {
+            for shape in global.shape.iter() {
                 inputs.reshapes.push(ScalarArg::new(*shape as u32));
             }
         }

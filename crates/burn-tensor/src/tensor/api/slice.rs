@@ -22,7 +22,7 @@ where
             .map(|(i, s)| {
                 let slice: Slice = s.into();
                 // Apply shape clamping by converting to range and back
-                let clamped_range = slice.to_range(shape.dims[i]);
+                let clamped_range = slice.to_range(shape[i]);
                 Slice::new(
                     clamped_range.start as isize,
                     Some(clamped_range.end as isize),
@@ -41,7 +41,7 @@ where
 {
     fn into_slices(self, shape: Shape) -> [Slice; 1] {
         let slice: Slice = self.into();
-        let clamped_range = slice.to_range(shape.dims[0]);
+        let clamped_range = slice.to_range(shape[0]);
         [Slice::new(
             clamped_range.start as isize,
             Some(clamped_range.end as isize),

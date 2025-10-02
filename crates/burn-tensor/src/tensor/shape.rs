@@ -13,6 +13,22 @@ pub struct Shape {
     pub dims: Vec<usize>,
 }
 
+#[allow(missing_docs)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Error that can occur when attempting to modify shapes.
+pub enum ShapeError {
+    /// The operands have different ranks.
+    RankMismatch { left: usize, right: usize },
+    /// A pair of dimensions are incompatible for broadcasting.
+    IncompatibleDims {
+        left: usize,
+        right: usize,
+        dim: usize,
+    },
+    /// Invalid dimension specified for the rank.
+    OutOfBounds { dim: usize, rank: usize },
+}
+
 impl Shape {
     /// Constructs a new `Shape`.
     pub fn new<const D: usize>(dims: [usize; D]) -> Self {
@@ -38,7 +54,7 @@ impl Shape {
     ///
     /// Alias for `Shape::num_dims()`.
     pub fn rank(&self) -> usize {
-        self.dims.len()
+        self.num_dims()
     }
 
     // For compat with dims: [usize; D]
@@ -50,10 +66,9 @@ impl Shape {
     }
 
     /// Change the shape to one dimensional with the same number of elements.
-    pub fn flatten(&self) -> Self {
-        Self {
-            dims: [self.dims.iter().product()].into(),
-        }
+    pub fn flatten(mut self) -> Self {
+        self.dims = [self.num_elements()].into();
+        self
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -153,6 +168,88 @@ impl Shape {
     /// Borrow the underlying dimensions slice mutably.
     pub fn as_mut_slice(&mut self) -> &mut [usize] {
         &mut self.dims
+    }
+
+    /// Insert a dimension of `size` at position `index`.
+    pub fn insert(&mut self, index: usize, size: usize) {
+        self.dims.insert(index, size);
+    }
+
+    /// Remove and return the dimension at position `index` from the shape.
+    pub fn remove(&mut self, index: usize) -> usize {
+        self.dims.remove(index)
+    }
+
+    /// Swap two dimensions in the shape.
+    pub fn swap(mut self, dim1: usize, dim2: usize) -> Result<Self, ShapeError> {
+        if dim1 > self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim: dim1,
+                rank: self.rank(),
+            });
+        }
+        if dim2 > self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim: dim2,
+                rank: self.rank(),
+            });
+        }
+        self.dims.swap(dim1, dim2);
+        Ok(self)
+    }
+
+    /// Reorder the shape dimensions according to the permutation of `axes`.
+    pub fn permute(mut self, axes: &[usize]) -> Result<Self, ShapeError> {
+        if axes.len() != self.rank() {
+            return Err(ShapeError::RankMismatch {
+                left: self.rank(),
+                right: axes.len(),
+            });
+        }
+        debug_assert!(axes.iter().all(|i| i < &self.rank()));
+
+        self.dims = axes.iter().map(|&i| self.dims[i]).collect();
+        Ok(self)
+    }
+
+    /// Repeated the specified `dim` a number of `times`.
+    pub fn repeat(mut self, dim: usize, times: usize) -> Self {
+        self.dims[dim] *= times;
+        self
+    }
+
+    /// Compute the output shape for binary operations with broadcasting support.
+    ///
+    /// - Shapes must be of the same rank (missing dimensions are not handled automatically).
+    /// - Two dimensions are compatible if they are equal, or one of them is 1.
+    ///
+    /// For example, a shape `[1, 1, 2, 4]` can be broadcast into `[7, 6, 2, 4]`
+    /// because its axes are either equal or 1. On the other hand, a shape `[2, 2]`
+    /// can *not* be broadcast into `[2, 4]`.
+    pub fn broadcast(&self, other: &Self) -> Result<Self, ShapeError> {
+        if self.rank() != other.rank() {
+            return Err(ShapeError::RankMismatch {
+                left: self.rank(),
+                right: other.rank(),
+            });
+        }
+
+        let mut broadcasted = self.clone();
+        for (dim, (lhs, &rhs)) in broadcasted.iter_mut().zip(other.iter()).enumerate() {
+            if *lhs != rhs {
+                if *lhs == 1 {
+                    *lhs = rhs;
+                } else if rhs != 1 {
+                    return Err(ShapeError::IncompatibleDims {
+                        left: *lhs,
+                        right: rhs,
+                        dim,
+                    });
+                }
+            }
+        }
+
+        Ok(broadcasted)
     }
 }
 
@@ -347,6 +444,20 @@ mod tests {
     }
 
     #[test]
+    fn test_shape_slice_methods() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let dim = shape.first();
+        assert_eq!(dim, Some(&2));
+        let dim = shape.last();
+        assert_eq!(dim, Some(&5));
+
+        assert!(!shape.is_empty());
+        let shape = Shape::new([]);
+        assert!(shape.is_empty());
+    }
+
+    #[test]
     fn test_shape_iter() {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
@@ -395,5 +506,99 @@ mod tests {
         shape[1] = 6;
 
         assert_eq!(shape, shape_mut)
+    }
+
+    #[test]
+    fn test_shape_flatten() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        assert_eq!(shape.num_elements(), 120);
+
+        let shape = shape.flatten();
+        assert_eq!(shape.num_elements(), 120);
+        assert_eq!(&shape.dims, &[120]);
+    }
+
+    #[test]
+    fn test_shape_insert_remove() {
+        let dims = [2, 3, 4, 5];
+        let mut shape = Shape::new(dims);
+        let size = 6;
+        shape.insert(1, size);
+
+        assert_eq!(&shape.dims, &[2, 6, 3, 4, 5]);
+
+        let removed = shape.remove(1);
+        assert_eq!(removed, size);
+        assert_eq!(&shape.dims, &dims);
+    }
+
+    #[test]
+    fn test_shape_swap_permute() {
+        let dims = [2, 3, 4, 5];
+        let shape = Shape::new(dims);
+        let shape = shape.swap(1, 2).unwrap();
+
+        assert_eq!(&shape.dims, &[2, 4, 3, 5]);
+
+        let shape = shape.permute(&[0, 2, 1, 3]).unwrap();
+        assert_eq!(&shape.dims, &dims);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_shape_swap_out_of_bounds() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        shape.swap(0, 4).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_shape_permute_incomplete() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        shape.permute(&[0, 2, 1]).unwrap();
+    }
+
+    #[test]
+    fn test_shape_repeat() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let shape = shape.repeat(2, 3);
+        assert_eq!(&shape.dims, &[2, 3, 12, 5]);
+    }
+
+    #[test]
+    fn test_shape_broadcast_elemwise() {
+        let lhs = Shape::new([1, 1, 2, 4]);
+        let rhs = Shape::new([7, 6, 2, 1]);
+
+        let out = lhs.broadcast(&rhs).unwrap();
+        assert_eq!(&out.dims, &[7, 6, 2, 4]);
+    }
+
+    #[test]
+    fn test_shape_broadcast_rank_mismatch() {
+        let lhs = Shape::new([1, 2, 4]);
+        let rhs = Shape::new([7, 6, 2, 4]);
+
+        let out = lhs.broadcast(&rhs);
+        assert_eq!(out, Err(ShapeError::RankMismatch { left: 3, right: 4 }));
+    }
+
+    #[test]
+    fn test_shape_broadcast_incompatible_dims() {
+        let lhs = Shape::new([1, 2, 2, 4]);
+        let rhs = Shape::new([7, 6, 2, 1]);
+
+        let out = lhs.broadcast(&rhs);
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleDims {
+                left: 2,
+                right: 6,
+                dim: 1
+            })
+        );
     }
 }

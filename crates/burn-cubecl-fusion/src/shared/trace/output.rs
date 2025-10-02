@@ -66,8 +66,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .collect();
 
         outputs_sorted.sort_by(|a, b| {
-            let a_val: usize = a.tensor_relative.shape.dims.iter().sum();
-            let b_val: usize = b.tensor_relative.shape.dims.iter().sum();
+            let a_val: usize = a.tensor_relative.shape.iter().sum();
+            let b_val: usize = b.tensor_relative.shape.iter().sum();
 
             b_val.cmp(&a_val)
         });
@@ -438,8 +438,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
-        let size =
-            tensor_global.shape.dims.iter().product::<usize>() * StorageType::from(dtype).size();
+        let size = tensor_global.shape.iter().product::<usize>() * StorageType::from(dtype).size();
 
         let handle = CubeFusionHandle {
             client: client.clone(),
@@ -450,7 +449,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             qparams: None,
         };
 
-        plan.rank = usize::max(tensor_global.shape.dims.len(), plan.rank);
+        plan.rank = usize::max(tensor_global.shape.rank(), plan.rank);
         context
             .handles
             .register_handle(tensor_global.id, handle.clone());

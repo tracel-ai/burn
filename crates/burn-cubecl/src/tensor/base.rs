@@ -33,7 +33,7 @@ pub struct CubeTensor<R: CubeRuntime> {
 
 impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(val.handle, val.shape.dims.to_vec(), val.strides.to_vec())
+        TensorHandle::new(val.handle, val.shape.to_vec(), val.strides.to_vec())
     }
 }
 
@@ -447,8 +447,8 @@ where
         let ndims = self.shape.num_dims();
 
         for i in 0..ndims {
-            let shape_lhs = self.shape.dims[i];
-            let shape_rhs = rhs.shape.dims[i];
+            let shape_lhs = self.shape[i];
+            let shape_rhs = rhs.shape[i];
 
             // Output tensor will be different from the mutable tensor.
             if shape_lhs < shape_rhs {

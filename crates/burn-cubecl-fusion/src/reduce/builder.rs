@@ -95,7 +95,7 @@ impl<R: Runtime> ReduceBuilder<R> {
         // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
         //
         // We could still fuse some output operations, but it would probably lead to worse performance.
-        let fuse_on_write_activated = axis != op.input.shape.dims.len() - 1;
+        let fuse_on_write_activated = axis != op.input.shape.rank() - 1;
 
         if !fuse_on_write_activated {
             self.builder.close();

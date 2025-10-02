@@ -37,7 +37,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().dims.to_vec();
+        let shape = tensor.shape().to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || tensor.to_data()),
@@ -57,7 +57,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().dims.to_vec();
+        let shape = tensor.shape().to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || tensor.to_data()),
@@ -77,7 +77,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().dims.to_vec();
+        let shape = tensor.shape().to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || tensor.to_data()),

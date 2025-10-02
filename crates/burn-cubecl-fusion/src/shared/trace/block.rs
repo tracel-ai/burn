@@ -239,7 +239,7 @@ impl FuseBlockBuilder {
         let out = self.output(output, resources)?;
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
-        let broadcasted = output.shape.dims[output.shape.dims.len() - 1] == 0;
+        let broadcasted = output.shape[output.shape.rank() - 1] == 0;
 
         resources.views.push(TensorView::SwapDims {
             swapped: output.id,
@@ -314,9 +314,9 @@ impl FuseBlockBuilder {
         let index = resources.num_reshaped;
         resources.num_reshaped += 1;
 
-        let rank = output.shape.dims.len();
+        let rank = output.shape.rank();
 
-        for i in 0..output.shape.dims.len() {
+        for i in 0..output.shape.rank() {
             let id = index * rank + i;
             shape.push(Arg::ScalarShape(id as u32));
         }
@@ -331,7 +331,7 @@ impl FuseBlockBuilder {
         let input = Arg::InputReshaped {
             original: Box::new(original),
             shape,
-            broadcasted: output.shape.dims[rank - 1] == 0,
+            broadcasted: output.shape[rank - 1] == 0,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {

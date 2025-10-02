@@ -64,7 +64,7 @@ pub(crate) fn create_key<R: Runtime>(
         out.dtype.into(),
         acc,
         &input.shape.dims,
-        opt.info.reduce.axis == input.shape.dims.len() - 1,
+        opt.info.reduce.axis == input.shape.rank() - 1,
         opt.info.reduce.axis,
     );
     let read = &opt.info.trace.blocks[0];

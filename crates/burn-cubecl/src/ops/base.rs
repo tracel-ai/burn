@@ -65,7 +65,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     dim2: usize,
 ) -> CubeTensor<R> {
     tensor.strides.swap(dim1, dim2);
-    tensor.shape.dims.swap(dim1, dim2);
+    tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
 
     tensor
 }
@@ -76,7 +76,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
     // remap shape
-    tensor.shape.dims = axes.iter().map(|i| tensor.shape.dims[*i]).collect();
+    tensor.shape = tensor.shape.permute(axes).unwrap();
 
     tensor
 }
@@ -116,13 +116,13 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     let dim_diff = ndims_out.saturating_sub(ndims_in);
 
     // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
-    let mut tensor_dim_iter = tensor.shape.dims.iter().rev();
+    let mut tensor_dim_iter = tensor.shape.iter().rev();
     for i in (0..ndims_out).rev() {
         if i >= dim_diff {
             if let Some(&tensor_dim) = tensor_dim_iter.next() {
-                if tensor_dim == target_shape.dims[i] || tensor_dim == 1 {
+                if tensor_dim == target_shape[i] || tensor_dim == 1 {
                     // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
-                    new_strides[i] = if tensor_dim == target_shape.dims[i] {
+                    new_strides[i] = if tensor_dim == target_shape[i] {
                         tensor.strides[i - dim_diff]
                     } else {
                         0

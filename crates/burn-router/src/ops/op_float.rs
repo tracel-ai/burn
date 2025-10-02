@@ -10,9 +10,7 @@ use burn_ir::{
     SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::unfold::calculate_unfold_shape;
-use burn_tensor::ops::{
-    BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor, binary_ops_shape,
-};
+use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
 use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
     calculate_slice_output_shape,
@@ -148,8 +146,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -211,8 +208,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -250,8 +246,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -289,8 +284,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -328,8 +322,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -368,12 +361,12 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
 
-        let mut shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
+        let mut shape = lhs.shape.broadcast(&rhs.shape).unwrap();
         let ndims = lhs.shape.num_dims();
 
-        shape[ndims - 2] = lhs.shape.dims[ndims - 2];
-        shape[ndims - 1] = rhs.shape.dims[ndims - 1];
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        shape[ndims - 2] = lhs.shape[ndims - 2];
+        shape[ndims - 1] = rhs.shape[ndims - 1];
+        let out = client.register_empty_tensor(shape, dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -393,8 +386,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = CrossOpIr {
             lhs: lhs.into_ir(),
@@ -410,9 +402,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim1] = tensor.shape.dims[dim2];
-        shape.dims[dim2] = tensor.shape.dims[dim1];
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = SwapDimsOpIr {
@@ -499,7 +489,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = indices.shape.dims[0];
+        shape[dim] = indices.shape[0];
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SelectOpIr {
@@ -590,8 +580,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let shape = binary_ops_shape(&tensor.shape.dims, &mask.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(tensor.shape.broadcast(&mask.shape).unwrap(), dtype);
 
         let desc = MaskWhereOpIr {
             tensor: tensor.into_ir(),
@@ -634,8 +623,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            R::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -670,8 +661,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            R::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -709,8 +702,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            R::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -748,8 +743,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            R::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -787,8 +784,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), R::BoolElem::dtype());
+        let out = client.register_empty_tensor(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            R::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -845,7 +844,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[axis] = 1;
+        shape[axis] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -884,7 +883,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -923,7 +922,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1163,9 +1162,9 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         // Calculate the output shape
         let mut shape = tensor_first.shape.clone();
-        shape.dims[dim] = 0;
+        shape[dim] = 0;
         for tensor in tensors.iter() {
-            shape.dims[dim] += tensor.shape.dims[dim];
+            shape[dim] += tensor.shape[dim];
         }
         let out = client.register_empty_tensor(shape, tensor_first.dtype);
 
@@ -1184,7 +1183,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
         let desc = ReduceDimOpIr {
@@ -1203,8 +1202,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim] *= times;
+        let shape = tensor.shape.clone().repeat(dim, times);
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = RepeatDimOpIr {
@@ -1223,7 +1221,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
         let desc = ReduceDimOpIr {
@@ -1262,7 +1260,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1286,7 +1284,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape.clone(), dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
@@ -1327,7 +1325,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1351,7 +1349,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = client.register_empty_tensor(shape.clone(), dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
@@ -1373,8 +1371,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1393,11 +1390,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         // Change the shape of the tensor to match the new axes
-        let shape = axes
-            .iter()
-            .map(|x| tensor.shape.dims[*x])
-            .collect::<Vec<_>>();
-        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
+        let shape = tensor.shape.clone().permute(axes).unwrap();
+        let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),

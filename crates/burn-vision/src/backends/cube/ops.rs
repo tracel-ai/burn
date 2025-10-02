@@ -85,8 +85,8 @@ mod fusion {
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
         fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
-            let height = img.shape.dims[0];
-            let width = img.shape.dims[1];
+            let height = img.shape[0];
+            let width = img.shape[1];
             let client = img.client.clone();
 
             #[derive(derive_new::new, Clone, Debug)]
@@ -131,8 +131,8 @@ mod fusion {
             conn: Connectivity,
             opts: ConnectedStatsOptions,
         ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-            let height = img.shape.dims[0];
-            let width = img.shape.dims[1];
+            let height = img.shape[0];
+            let width = img.shape[1];
             let client = img.client.clone();
 
             #[derive(derive_new::new, Clone, Debug)]

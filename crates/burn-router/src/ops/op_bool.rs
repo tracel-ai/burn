@@ -212,9 +212,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim1] = tensor.shape.dims[dim2];
-        shape.dims[dim2] = tensor.shape.dims[dim1];
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = SwapDimsOpIr {
@@ -232,11 +230,8 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         // Change the shape of the tensor to match the new axes
-        let shape = axes
-            .iter()
-            .map(|x| tensor.shape.dims[*x])
-            .collect::<Vec<_>>();
-        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
+        let shape = tensor.shape.clone().permute(axes).unwrap();
+        let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
@@ -286,9 +281,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         // Calculate the output shape
         let mut shape = tensor_first.shape.clone();
-        shape.dims[dim] = 0;
+        shape[dim] = 0;
         for tensor in tensors.iter() {
-            shape.dims[dim] += tensor.shape.dims[dim];
+            shape[dim] += tensor.shape[dim];
         }
         let out = client.register_empty_tensor(shape, dtype);
 
@@ -305,8 +300,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim] *= times;
+        let shape = tensor.shape.clone().repeat(dim, times);
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = RepeatDimOpIr {

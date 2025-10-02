@@ -110,7 +110,7 @@ impl TchOps {
             // Workaround for non-unit steps: use PyTorch's index_put operation
             // This generates explicit indices for the slice and uses advanced indexing
             let tensor_shape = tensor.shape();
-            let dims = tensor_shape.dims.clone();
+            let dims = tensor_shape.clone();
 
             // Copy the tensor since we'll modify it
             let result_tensor = tensor.tensor.shallow_clone();

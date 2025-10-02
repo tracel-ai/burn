@@ -172,7 +172,7 @@ impl FuseOptimizationBuilder {
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.dims.clone();
-        } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.dims.iter().sum() {
+        } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
             // The larguest shape win.
             self.current_output_shape = tensor.shape.dims.clone();
         }
@@ -260,7 +260,7 @@ impl FuseOptimizationBuilder {
                     });
                 }
 
-                if desc.input.shape.dims.len() > desc.out.shape.dims.len() {
+                if desc.input.shape.rank() > desc.out.shape.rank() {
                     // Not yet supported.
                     return false;
                 }
@@ -652,7 +652,7 @@ impl FuseOptimizationBuilder {
         #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
             let curr = self.current_output_shape[i];
-            let new = out.shape.dims[i];
+            let new = out.shape[i];
 
             if curr == new {
                 continue;

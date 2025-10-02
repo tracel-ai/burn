@@ -374,7 +374,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Default => TchTensor::new(tch::Tensor::randint_low(
                 0,
                 255,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Bernoulli(prob) => {
@@ -386,7 +386,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Uniform(from, to) => TchTensor::new(tch::Tensor::randint_low(
                 from as i64,
                 to as i64,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Normal(mean, std) => {

@@ -77,7 +77,7 @@ pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems *= tensor.shape.dims[index];
+            num_elems *= tensor.shape[index];
         });
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
