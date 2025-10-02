@@ -695,6 +695,34 @@ where
         Self::new(K::cumsum(self.primitive, dim))
     }
 
+    /// Computes the cumulative product of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///    let result = tensor.clone().cumprod(0);
+    ///    println!("{result}");
+    ///    // [[1.0, 2.0, 3.0], [4.0, 10.0, 18.0]]
+    ///    let result = tensor.cumprod(1);
+    ///    println!("{result}");
+    ///    // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
+    /// }
+    /// ```
+    pub fn cumprod(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
+        Self::new(K::cumprod(self.primitive, dim))
+    }
+
     /// Computes the cumulative minimum of elements along the given *dimension* or *axis*.
     ///
     /// # Arguments
@@ -2860,6 +2888,16 @@ where
     /// the [Tensor::cumsum](Tensor::cumsum) function, which is more high-level and designed for public use.
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the cumulative product
     /// Computes the cumulative minimum of elements along a dimension.
     ///
     /// # Arguments
@@ -2869,8 +2907,7 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the minimum
-    /// of all elements up to and including that position along the specified dimension.
+    /// A tensor with the same shape as the input tensor, where each element is the minimum    /// of all elements up to and including that position along the specified dimension.
     ///
     /// # Remarks
     ///
@@ -2878,6 +2915,9 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
+    /// For computing the cumulative product of elements along a dimension, users should prefer
+    /// the [Tensor::cumprod](Tensor::cumprod) function, which is more high-level and designed for public use.
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
     /// For computing the cumulative minimum of elements along a dimension, users should prefer
     /// the [Tensor::cummin](Tensor::cummin) function, which is more high-level and designed for public use.
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
@@ -2903,7 +2943,6 @@ where
     /// For computing the cumulative maximum of elements along a dimension, users should prefer
     /// the [Tensor::cummax](Tensor::cummax) function, which is more high-level and designed for public use.
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
-
     /// Element-wise equality between two tensors.
     ///
     /// # Arguments
@@ -3751,6 +3790,9 @@ impl<B: Backend> Numeric<B> for Int {
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cumsum(tensor, dim)
     }
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cumprod(tensor, dim)
+    }
 
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cummin(tensor, dim)
@@ -4080,6 +4122,10 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumprod(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_cumprod(tensor, dim),
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
@@ -4090,8 +4136,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummax(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),
-        }
+            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),        }
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {

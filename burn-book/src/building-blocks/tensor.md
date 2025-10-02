@@ -188,7 +188,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
-|-----------------------------------------------------------------|------------------------------------------------|
+| --------------------------------------------------------------- | ---------------------------------------------- |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
@@ -202,8 +202,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
 | `tensor.contains_nan()`                                         | N/A                                            |
-| `tensor.cummin(dim)`                                            | `tensor.cummin(dim)`                           |
 | `tensor.cumsum(dim)`                                            | `tensor.cumsum(dim)`                           |
+| `tensor.cumprod(dim)`                                           | `tensor.cumprod(dim)`                          |
+| `tensor.cummin(dim)`                                            | `tensor.cummin(dim)`                           |
 | `tensor.cummax(dim)`                                            | `tensor.cummax(dim)`                           |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
@@ -395,17 +396,14 @@ strategies.
 | `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
 | `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
 
-
-
 ## Linalg Functions
 
-
-| Burn API                               | PyTorch Equivalent                                 |
-|----------------------------------------|----------------------------------------------------|
-| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`         |
-| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                               |
-| `linalg::trace(tensor)`                | `torch.trace(tensor)`                              |
-| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)`    |
+| Burn API                               | PyTorch Equivalent                              |
+| -------------------------------------- | ----------------------------------------------- |
+| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`      |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                            |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                           |
+| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)` |
 
 ## Displaying Tensor Details
 
@@ -519,7 +517,6 @@ Options:
   operations that may introduce small numerical discrepancies.
 
   The function uses color-coded output to highlight the results:
-
   - Green [PASS]: All elements are within the specified tolerance.
   - Yellow [WARN]: Most elements (90% or more) are within tolerance.
   - Red [FAIL]: Significant differences are detected.

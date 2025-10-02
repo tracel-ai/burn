@@ -458,6 +458,11 @@ impl TchOps {
         )
     }
 
+    pub fn cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumprod(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
     pub fn cummin(tensor: TchTensor, dim: usize) -> TchTensor {
         let (values, _indices) = tensor.tensor.cummin(dim as i64);
         TchTensor::from_existing(values, tensor.storage)
@@ -466,8 +471,7 @@ impl TchOps {
     pub fn cummax(tensor: TchTensor, dim: usize) -> TchTensor {
         // cummax returns (values, indices) tuple in PyTorch, we only need values
         let (values, _indices) = tensor.tensor.cummax(dim as i64);
-        TchTensor::from_existing(values, tensor.storage)
-    }
+        TchTensor::from_existing(values, tensor.storage)    }
 
     pub fn argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         let storage = tensor.storage.clone();

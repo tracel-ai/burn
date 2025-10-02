@@ -212,6 +212,10 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
     }
 
+    fn int_cumprod(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumprod(tensor, dim))
+    }
+
     fn int_cummin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
     }

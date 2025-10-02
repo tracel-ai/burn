@@ -330,6 +330,23 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        // Candle doesn't have cumprod yet, implement manually using iterative multiplication
+        let dim_size = tensor.tensor.dims()[dim];
+
+        let mut slices = Vec::with_capacity(dim_size);
+        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
+
+        for i in 1..dim_size {
+            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
+            let prod = slices[i - 1].broadcast_mul(&curr).unwrap();
+            slices.push(prod);
+        }
+
+        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        CandleTensor::new(result)
+    }
+
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         // Candle doesn't have cummin, implement manually using slicing and min
         let dim_size = tensor.tensor.dims()[dim];

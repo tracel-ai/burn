@@ -1665,6 +1665,47 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumProd;
+
+        impl<B: Backend> Backward<B, 1> for CumProd {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cumprod(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient of cumprod: grad_input[i] = sum(grad_output[j] * output[j] / input[i]) for all j >= i
+                    // This can be computed as: (grad * output).flip().cumsum().flip() / input
+                    let grad_times_output = B::float_mul(grad, output);
+                    let grad_reversed = B::float_flip(grad_times_output, &[dim]);
+                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
+                    let grad_flipped = B::float_flip(grad_cumsum, &[dim]);
+                    B::float_div(grad_flipped, input)
+                });
+            }
+        }
+
+        match CumProd
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cumprod(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cumprod(tensor.primitive, dim)),
+        }
+    }
+
     fn float_cummin(_tensor: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
         // Cummin backward pass requires scatter_add which is not yet implemented
         // The gradient should only flow to the first occurrence of each minimum value

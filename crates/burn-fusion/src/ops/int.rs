@@ -1314,18 +1314,23 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct CumprodOps<B: FusionBackend> {
     fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         #[derive(new, Debug)]
-        struct CumminOps<B: FusionBackend> {
-            desc: DimOpIr,
+        struct CumminOps<B: FusionBackend> {            desc: DimOpIr,
             _b: PhantomData<B>,
         }
 
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CumprodOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_cumprod(input, self.desc.axis);
         impl<B: FusionBackend> Operation<B::FusionRuntime> for CumminOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
-                let output = B::int_cummin(input, self.desc.axis);
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+                let output = B::int_cummin(input, self.desc.axis);                handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
@@ -1342,6 +1347,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             streams,
+            OperationIr::BaseInt(BaseOperationIr::CumProd(desc.clone())),
+            CumprodOps::<B>::new(desc),
             OperationIr::BaseInt(BaseOperationIr::CumMin(desc.clone())),
             CumminOps::<B>::new(desc),
         );
@@ -1378,8 +1385,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out.client.register(
             streams,
             OperationIr::BaseInt(BaseOperationIr::CumMax(desc.clone())),
-            CummaxOps::<B>::new(desc),
-        );
+            CummaxOps::<B>::new(desc),        );
 
         out
     }

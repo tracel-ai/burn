@@ -767,6 +767,19 @@ pub trait IntTensorOps<B: Backend> {
     /// of all elements up to and including that position along the dimension.
     fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
 
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative product
+    /// of all elements up to and including that position along the dimension.
+    fn int_cumprod(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
     /// Computes the cumulative minimum of elements along a dimension.
     ///
     /// # Arguments
