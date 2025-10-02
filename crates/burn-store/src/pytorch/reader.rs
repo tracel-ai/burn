@@ -524,14 +524,9 @@ fn load_pytorch_file_with_metadata(
     file.seek(std::io::SeekFrom::Start(0))?;
 
     // Only check for legacy format if we have enough bytes
-    let is_legacy_format = bytes_read >= 15
-        && header[0] == 0x80
-        && header[1] == 0x02
-        && header[2] == 0x8a
-        && header[3] == 0x0a
-        && header[14] == 0x2e;
-
     // PyTorch legacy format detection (PyTorch 0.1.10 - 1.3)
+    // Reference: https://github.com/pytorch/pytorch/blob/main/torch/serialization.py#L65
+    //
     // These files use sequential pickle streams with metadata before the actual data.
     // Format structure:
     //   1. Magic number (0x1950a86a20f9469cfc6c) stored as LONG1 pickle
@@ -542,7 +537,25 @@ fn load_pytorch_file_with_metadata(
     //   6. Raw binary data for each storage
     //
     // The pattern is: 0x80 0x02 0x8a 0x0a (PROTO 2, LONG1 with 10 bytes)
-    // followed by 10 bytes of magic number, then 0x2e (STOP)
+    // followed by 10 bytes of magic number (little-endian), then 0x2e (STOP)
+    let is_legacy_format = bytes_read >= 15
+        && header[0] == 0x80  // PROTO opcode
+        && header[1] == 0x02  // Protocol version 2
+        && header[2] == 0x8a  // LONG1 opcode
+        && header[3] == 0x0a  // 10 bytes follow
+        // Magic number 0x1950a86a20f9469cfc6c in little-endian
+        && header[4] == 0x6c
+        && header[5] == 0xfc
+        && header[6] == 0x9c
+        && header[7] == 0x46
+        && header[8] == 0xf9
+        && header[9] == 0x20
+        && header[10] == 0x6a
+        && header[11] == 0xa8
+        && header[12] == 0x50
+        && header[13] == 0x19
+        && header[14] == 0x2e; // STOP opcode
+
     if is_legacy_format {
         return load_legacy_pytorch_file_with_metadata(path, top_level_key);
     }
