@@ -654,30 +654,29 @@ fn extract_tensors_with_data(
     };
 
     let mut tensors = HashMap::new();
-    extract_tensors_recursive(&Object::Dict(dict), String::new(), &mut tensors);
+    let mut path = Vec::new();
+    extract_tensors_recursive(&Object::Dict(dict), &mut path, &mut tensors);
     Ok(tensors)
 }
 
 /// Recursively extract tensors from an object
-fn extract_tensors_recursive(
-    obj: &Object,
-    path: String,
+fn extract_tensors_recursive<'a>(
+    obj: &'a Object,
+    path: &mut Vec<&'a str>,
     tensors: &mut HashMap<String, TensorSnapshot>,
 ) {
     match obj {
         Object::Dict(dict) => {
             for (key, value) in dict {
-                let new_path = if path.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}.{}", path, key)
-                };
-                extract_tensors_recursive(value, new_path, tensors);
+                path.push(key);
+                extract_tensors_recursive(value, path, tensors);
+                path.pop();
             }
         }
         Object::TorchParam(snapshot) => {
             // The TensorSnapshot already contains the data loading closure
-            tensors.insert(path, snapshot.clone());
+            // Only allocate the string here when we actually insert
+            tensors.insert(path.join("."), snapshot.clone());
         }
         _ => {}
     }

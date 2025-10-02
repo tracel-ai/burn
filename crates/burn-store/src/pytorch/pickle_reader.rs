@@ -1155,25 +1155,28 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
 
     // Extract tensors from the loaded object
     let mut tensors = HashMap::new();
-    extract_tensors(&obj, String::new(), &mut tensors);
+    let mut path = Vec::new();
+    extract_tensors(&obj, &mut path, &mut tensors);
 
     Ok(tensors)
 }
 
-fn extract_tensors(obj: &Object, path: String, tensors: &mut HashMap<String, TensorSnapshot>) {
+fn extract_tensors<'a>(
+    obj: &'a Object,
+    path: &mut Vec<&'a str>,
+    tensors: &mut HashMap<String, TensorSnapshot>,
+) {
     match obj {
         Object::Dict(dict) => {
             for (key, value) in dict {
-                let new_path = if path.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}.{}", path, key)
-                };
-                extract_tensors(value, new_path, tensors);
+                path.push(key);
+                extract_tensors(value, path, tensors);
+                path.pop();
             }
         }
         Object::TorchParam(snapshot) => {
-            tensors.insert(path, snapshot.clone());
+            // Only allocate the string here when we actually insert
+            tensors.insert(path.join("."), snapshot.clone());
         }
         _ => {}
     }
