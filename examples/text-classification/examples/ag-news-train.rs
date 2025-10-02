@@ -140,7 +140,7 @@ mod remote {
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::{ElemType, launch};
+    use crate::{ElemType, launch_multi};
     use burn::backend::{
         Autodiff, Cuda, autodiff::checkpoint::strategy::BalancedCheckpointing, cuda::CudaDevice,
     };
