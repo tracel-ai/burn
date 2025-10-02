@@ -120,6 +120,7 @@ mod tests {
     burn_tensor::testgen_transpose!();
     burn_tensor::testgen_expand!();
     burn_tensor::testgen_cumsum!();
+    burn_tensor::testgen_cummax!();
 
     // test stats
     burn_tensor::testgen_var!();

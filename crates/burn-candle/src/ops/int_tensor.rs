@@ -303,6 +303,25 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
+    fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        // Implement manually using slicing and max operations
+        let dim_size = tensor.tensor.dims()[dim];
+        let mut slices = Vec::with_capacity(dim_size);
+
+        // First slice is just the first element along dim
+        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
+
+        // For each subsequent position, take max of previous cummax and current element
+        for i in 1..dim_size {
+            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
+            let max_val = slices[i - 1].broadcast_maximum(&curr).unwrap();
+            slices.push(max_val);
+        }
+
+        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        CandleTensor::new(result)
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor

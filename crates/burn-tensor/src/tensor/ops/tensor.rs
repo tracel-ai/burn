@@ -801,6 +801,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// of all elements up to and including that position along the dimension.
     fn float_cumsum(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cummax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
     /// Converts a tensor to another floating point data type.
     ///
     /// # Arguments
