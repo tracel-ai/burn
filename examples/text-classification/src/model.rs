@@ -7,6 +7,7 @@ use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBa
 use burn::{
     nn::{
         Embedding, EmbeddingConfig, Linear, LinearConfig,
+        attention::SeqLengthOption,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     },
@@ -21,7 +22,7 @@ pub struct TextClassificationModelConfig {
     transformer: TransformerEncoderConfig,
     n_classes: usize,
     vocab_size: usize,
-    max_seq_length: usize,
+    seq_length: SeqLengthOption,
 }
 
 // Define the model structure
@@ -32,7 +33,6 @@ pub struct TextClassificationModel<B: Backend> {
     embedding_pos: Embedding<B>,
     output: Linear<B>,
     n_classes: usize,
-    max_seq_length: usize,
 }
 
 // Define functions for model initialization
@@ -43,8 +43,14 @@ impl TextClassificationModelConfig {
         let transformer = self.transformer.init(device);
         let embedding_token =
             EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init(device);
+        let max_seq_length = match self.seq_length {
+            SeqLengthOption::Fixed(max) | SeqLengthOption::Max(max) => max,
+            SeqLengthOption::NoMax => panic!(
+                "Text classification requires a max sequence length because of the embedding strategy."
+            ),
+        };
         let embedding_pos =
-            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init(device);
+            EmbeddingConfig::new(max_seq_length, self.transformer.d_model).init(device);
 
         TextClassificationModel {
             transformer,
@@ -52,7 +58,6 @@ impl TextClassificationModelConfig {
             embedding_pos,
             output,
             n_classes: self.n_classes,
-            max_seq_length: self.max_seq_length,
         }
     }
 }

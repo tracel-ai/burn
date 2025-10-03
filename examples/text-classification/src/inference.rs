@@ -35,7 +35,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     // Initialize batcher for batching samples
     let batcher = Arc::new(TextClassificationBatcher::new(
         tokenizer.clone(),
-        config.max_seq_length,
+        config.seq_length,
     ));
 
     // Load pre-trained model weights
@@ -50,7 +50,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         config.transformer,
         n_classes,
         tokenizer.vocab_size(),
-        config.max_seq_length,
+        config.seq_length,
     )
     .init::<B>(&device)
     .load_record(record); // Initialize model with loaded weights
