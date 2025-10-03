@@ -1,7 +1,34 @@
-// Master registry - ALL nodes declared here
-// Add one line to registry:
-//    - Single mapping: `Add => add as AddNode,`
-//    - Grouped mapping: `[ReduceMax, ReduceMin, ...] => ReduceMax: reduce as ReduceNode,`
+// This file contains the master registry of all ONNX operations supported by
+// burn-import. The `node_registry!` macro auto-generates all conversion logic.
+//
+// # How to Add a New Operation
+//
+// 1. Implement the node in `src/burn/node/<operation>.rs`:
+//    - Create `<Operation>Node` struct
+//    - Implement `OnnxIntoNode::from_onnx()` to convert from ONNX IR
+//    - Implement `NodeCodegen` trait for code generation
+//
+// 2. Add module declaration in `src/burn/mod.rs`:
+//    ```rust
+//    pub(crate) mod node {
+//        // ...
+//        pub(crate) mod <operation>;
+//    }
+//    ```
+//
+// 3. Add ONE line to this registry:
+//
+//    For single ONNX op → single node type:
+//    ```rust
+//    <OnnxOp> => <module> as <NodeType>,
+//    ```
+//
+//    For multiple ONNX ops → single node type:
+//    ```rust
+//    [<Op1>, <Op2>, <Op3>] => <Variant>: <module> as <NodeType>,
+//    ```
+// See `registry_macro.rs` for detailed documentation of the macro itself.
+
 node_registry! {
     // Binary ops
     Add => add as AddNode,

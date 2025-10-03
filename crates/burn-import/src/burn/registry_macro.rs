@@ -1,12 +1,24 @@
-/// Master node registry - single source of truth for all ONNX nodes
+/// Master node registry - auto-generates ONNX to Burn conversion infrastructure.
 ///
-/// To add a new node:
-/// 1. Create the node file (e.g., my_node.rs) with from_onnx() implementation
-/// 2. Add module declaration in mod.rs: pub(crate) mod my_node;
-/// 3. Add one line to registry:
-///    - Single mapping: `Add => add as AddNode,`
-///    - Grouped mapping: `[ReduceMax, ReduceMin, ...] => ReduceMax: reduce as ReduceNode,`
-/// 4. Done! Node enum, imports, dispatch, and ONNX conversion all auto-generated.
+/// Generates: Node<PS> enum, imports, match_all! macro, name() method, try_convert_onnx_node()
+///
+/// # Syntax
+///
+/// Single mapping: `Add => add as AddNode,`
+/// - `Add` = ONNX operation (from `onnx_ir::NodeType`)
+/// - `add` = module name
+/// - `AddNode` = node struct type
+///
+/// Grouped mapping: `[ReduceMax, ReduceMin, ...] => ReduceMax: reduce as ReduceNode,`
+/// - Maps multiple ONNX ops to one node type
+///
+/// # Adding a Node
+///
+/// 1. Implement in `node/<op>.rs`: `<Op>Node` struct with `OnnxIntoNode` + `NodeCodegen` traits
+/// 2. Add module in `mod.rs`: `pub(crate) mod <op>;`
+/// 3. Add one line to registry in `node_registry.rs`
+///
+/// See: `contributor-book/src/guides/onnx-to-burn-conversion-tool.md`
 macro_rules! node_registry {
     (
         $(
