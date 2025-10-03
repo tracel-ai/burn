@@ -6,7 +6,6 @@
 /// 3. Add one line to registry:
 ///    - Single mapping: `Add => add as AddNode,`
 ///    - Grouped mapping: `[ReduceMax, ReduceMin, ...] => ReduceMax: reduce as ReduceNode,`
-///                                                         ^^^^^^^^ variant name (uses first ONNX op by convention)
 /// 4. Done! Node enum, imports, dispatch, and ONNX conversion all auto-generated.
 macro_rules! node_registry {
     (
