@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -32,6 +32,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LeakyReluNode {
 
     fn into_node(self) -> Node<PS> {
         Node::LeakyRelu(self)
+    }
+}
+
+impl OnnxIntoNode for LeakyReluNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("LeakyRelu expects tensor input"),
+        };
+        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("LeakyRelu expects tensor output"),
+        };
+        let alpha = onnx_ir::node::leaky_relu::leaky_relu_config(&node);
+        Self::new(input, output, alpha)
     }
 }
 

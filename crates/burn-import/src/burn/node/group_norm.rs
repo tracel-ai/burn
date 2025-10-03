@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -122,6 +122,43 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
     fn into_node(self) -> Node<PS> {
         Node::GroupNorm(self)
     }
+}
+
+impl OnnxIntoNode for GroupNormNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let (config, full_precision) = onnx_ir::node::group_norm::group_norm_config(&node);
+
+        // Scale tensor (aka gamma)
+        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        // Bias (B) tensor
+        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+
+        let name = &node.name;
+        Self::new(name, input, output, gamma, beta, config, full_precision)
+    }
+}
+
+// Helper function to extract tensor data from a node input
+fn extract_node_data<E: burn::tensor::Element>(
+    node: &onnx_ir::Node,
+    input_index: usize,
+) -> Option<TensorData> {
+    let input = node.inputs.get(input_index)?;
+    let value = input.value.as_ref()?;
+
+    use onnx_ir::ir::Data;
+    let data = match &value.data {
+        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        _ => panic!("Unsupported tensor element type"),
+    };
+
+    Some(data)
 }
 
 #[cfg(test)]

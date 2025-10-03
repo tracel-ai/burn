@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, Scope, ShapeType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -60,6 +60,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ShapeNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         imports.register("alloc::vec::Vec");
+    }
+}
+
+impl OnnxIntoNode for ShapeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Shape(s) => s,
+            _ => panic!("Shape expects shape output"),
+        };
+        let (start_dim, end_dim) = onnx_ir::util::shape_config(&node);
+        Self::new(input, output, start_dim, end_dim)
     }
 }
 

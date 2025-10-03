@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
@@ -363,6 +363,25 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
     fn register_imports(&self, _imports: &mut BurnImports) {
         // s is already available in burn::prelude::*
+    }
+}
+
+impl OnnxIntoNode for GatherNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::gather::gather_config(&node);
+
+        // Create GatherNode based on whether indices are static or runtime
+        match config.indices {
+            onnx_ir::node::gather::GatherInput::Static(indices) => {
+                Self::with_static_indices(input, indices, output, config.axis)
+            }
+            onnx_ir::node::gather::GatherInput::Runtime(arg) => {
+                let index = Type::from(&arg);
+                Self::new(input, index, output, config.axis)
+            }
+        }
     }
 }
 

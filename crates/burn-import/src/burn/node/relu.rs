@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -30,6 +30,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReluNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Relu(self)
+    }
+}
+
+impl OnnxIntoNode for ReluNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Relu expects tensor input"),
+        };
+        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Relu expects tensor output"),
+        };
+        Self::new(input, output)
     }
 }
 

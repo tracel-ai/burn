@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -34,6 +34,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for HardSigmoidNode {
 
     fn into_node(self) -> Node<PS> {
         Node::HardSigmoid(self)
+    }
+}
+
+impl OnnxIntoNode for HardSigmoidNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("HardSigmoid expects tensor input"),
+        };
+        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("HardSigmoid expects tensor output"),
+        };
+        let (alpha, beta) = onnx_ir::node::hard_sigmoid::hard_sigmoid_config(&node);
+        Self::new(input, output, alpha, beta)
     }
 }
 

@@ -1,5 +1,5 @@
-use super::Node;
-use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type, node::NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
+use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::attention::{AttentionConfig, AttentionQkMatmulOutputMode};
 use quote::quote;
@@ -345,6 +345,28 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Attention(self)
+    }
+}
+
+impl OnnxIntoNode for AttentionNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let q = TensorType::from(node.inputs.first().unwrap());
+        let k = TensorType::from(node.inputs.get(1).unwrap());
+        let v = TensorType::from(node.inputs.get(2).unwrap());
+        let attn_mask = node.inputs.get(3).map(TensorType::from);
+        let past_key = node.inputs.get(4).map(TensorType::from);
+        let past_value = node.inputs.get(5).map(TensorType::from);
+        let y = TensorType::from(node.outputs.first().unwrap());
+        let present_key = node.outputs.get(1).map(TensorType::from);
+        let present_value = node.outputs.get(2).map(TensorType::from);
+        let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
+        let config = onnx_ir::node::attention::attention_config(&node);
+
+        AttentionNode::new(
+            AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
+            AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
+            config,
+        )
     }
 }
 

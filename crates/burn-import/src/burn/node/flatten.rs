@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -41,6 +41,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for FlattenNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Flatten(self)
+    }
+}
+
+impl OnnxIntoNode for FlattenNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Flatten expects tensor input"),
+        };
+        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Flatten expects tensor output"),
+        };
+        let axis = onnx_ir::node::flatten::flatten_config(&node);
+        Self::new(input, output, axis)
     }
 }
 

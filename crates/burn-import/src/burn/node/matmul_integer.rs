@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::Ident;
@@ -151,6 +151,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
     }
     fn into_node(self) -> Node<PS> {
         Node::MatmulInteger(self)
+    }
+}
+
+impl OnnxIntoNode for MatMulIntegerNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let lhs = TensorType::from(node.inputs.first().unwrap());
+        let rhs = TensorType::from(node.inputs.get(1).unwrap());
+        let lhs_zp = node.inputs.get(2).map(TensorType::from);
+        let rhs_zp = node.inputs.get(3).map(TensorType::from);
+        let mut output = TensorType::from(node.outputs.first().unwrap());
+        output.kind = TensorKind::Int;
+
+        Self::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
 }
 #[cfg(test)]

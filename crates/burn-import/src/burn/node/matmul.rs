@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
 
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -97,6 +97,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Matmul(self)
+    }
+}
+
+impl OnnxIntoNode for MatmulNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let lhs = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let rhs = crate::burn::TensorType::from(node.inputs.get(1).unwrap());
+        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        Self::new(lhs, rhs, output)
     }
 }
 

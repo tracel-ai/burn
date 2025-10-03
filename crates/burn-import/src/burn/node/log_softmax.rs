@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -32,6 +32,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LogSoftmaxNode {
 
     fn into_node(self) -> Node<PS> {
         Node::LogSoftmax(self)
+    }
+}
+
+impl OnnxIntoNode for LogSoftmaxNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LogSoftmax expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LogSoftmax expects tensor output"),
+        };
+        let dim = onnx_ir::node::log_softmax::log_softmax_config(&node);
+        Self::new(input, output, dim)
     }
 }
 

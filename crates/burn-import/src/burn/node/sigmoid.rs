@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -30,6 +30,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SigmoidNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Sigmoid(self)
+    }
+}
+
+impl OnnxIntoNode for SigmoidNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("SigmoidNode expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("SigmoidNode expects tensor output"),
+        };
+        Self::new(input, output)
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -37,6 +37,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqrtNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Sqrt(self)
+    }
+}
+
+impl OnnxIntoNode for SqrtNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        Self::new(input, output)
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -138,6 +138,55 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
     fn into_node(self) -> Node<PS> {
         Node::BatchNorm(self)
     }
+}
+
+impl OnnxIntoNode for BatchNormNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let config = onnx_ir::node::batch_norm::batch_norm_config(&node);
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let dim = input.rank - 2;
+
+        // Extract data using f32 as the element type
+        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+        let running_mean = extract_node_data::<f32>(&node, 3).expect("Running mean is required");
+        let running_var = extract_node_data::<f32>(&node, 4).expect("Running var is required");
+
+        let name = &node.name;
+        Self::new(
+            dim,
+            name,
+            input,
+            output,
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            config,
+        )
+    }
+}
+
+// Helper function to extract tensor data from a node input
+fn extract_node_data<E: burn::tensor::Element>(
+    node: &onnx_ir::Node,
+    input_index: usize,
+) -> Option<TensorData> {
+    let input = node.inputs.get(input_index)?;
+    let value = input.value.as_ref()?;
+
+    use onnx_ir::ir::Data;
+    let data = match &value.data {
+        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        _ => panic!("Unsupported tensor element type"),
+    };
+
+    Some(data)
 }
 
 #[cfg(test)]

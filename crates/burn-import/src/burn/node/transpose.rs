@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -32,6 +32,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TransposeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Transpose(self)
+    }
+}
+
+impl OnnxIntoNode for TransposeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match crate::burn::Type::from(node.inputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Transpose expects tensor input"),
+        };
+        let output = match crate::burn::Type::from(node.outputs.first().unwrap()) {
+            crate::burn::Type::Tensor(t) => t,
+            _ => panic!("Transpose expects tensor output"),
+        };
+        let perm = onnx_ir::node::transpose::transpose_config(&node);
+        Self::new(input, output, perm)
     }
 }
 
