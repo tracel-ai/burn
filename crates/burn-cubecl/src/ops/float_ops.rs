@@ -507,6 +507,10 @@ where
         )
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cumsum::<R, E>(tensor, dim))
+    }
+
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),
@@ -722,5 +726,13 @@ where
         step: usize,
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_nan::<R, E, BT>(tensor))
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_inf::<R, E, BT>(tensor))
     }
 }

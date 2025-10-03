@@ -31,14 +31,19 @@ unsafe impl Sync for ComputingProperty {}
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
-    pub parents: Vec<NodeID>,
+    pub parents: Vec<Parent>,
     pub order: usize,
-    pub id: NodeID,
+    pub id: NodeId,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
 }
 pub type NodeRef = Arc<Node>;
+
+#[derive(new, Debug, Clone, PartialEq, Eq)]
+pub struct Parent {
+    pub id: NodeId,
+}
 
 impl Node {
     /// Returns the [node](Node) only if gradients are required.
@@ -52,24 +57,30 @@ impl Node {
 
 /// Unique identifier generated for each node.
 #[derive(Clone, Hash, PartialEq, Eq, Debug, Copy)]
-pub struct NodeID {
+pub struct NodeId {
     /// The integer representation of the id
     pub value: u64,
 }
 
-impl NodeID {
-    /// Create a unique [node id](NodeID).
+impl core::fmt::Display for NodeId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("NodeId({})", self.value))
+    }
+}
+
+impl NodeId {
+    /// Create a unique [node id](NodeId).
     pub fn new() -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         if value == u64::MAX {
-            panic!("NodeID overflowed");
+            panic!("NodeId overflowed");
         }
         Self { value }
     }
 }
 
-impl Default for NodeID {
+impl Default for NodeId {
     fn default() -> Self {
         Self::new()
     }

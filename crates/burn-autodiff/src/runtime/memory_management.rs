@@ -1,6 +1,7 @@
 use crate::{
-    NodeID,
+    NodeId,
     collections::{HashMap, HashSet},
+    graph::Parent,
     tensor::NodeRefCount,
 };
 use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
@@ -8,9 +9,9 @@ use core::mem;
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
-    nodes: HashMap<NodeRefCount, Vec<NodeID>>,
-    leaves: HashSet<NodeID>,
-    statuses: HashMap<NodeID, NodeMemoryStatus>,
+    nodes: HashMap<NodeRefCount, Vec<NodeId>>,
+    leaves: HashSet<NodeId>,
+    statuses: HashMap<NodeId, NodeMemoryStatus>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,20 +22,27 @@ enum NodeMemoryStatus {
 }
 
 impl GraphMemoryManagement {
+    pub fn extend(&mut self, other: Self) {
+        self.nodes.extend(other.nodes);
+        self.leaves.extend(other.leaves);
+        self.statuses.extend(other.statuses);
+    }
+
     /// Register a new node with its parent.
-    pub fn register(&mut self, node: NodeRefCount, parents: Vec<NodeID>) {
+    pub fn register(&mut self, node: NodeRefCount, parents: &[Parent]) {
         let node_id = *node.as_ref();
 
-        for parent_id in parents.iter() {
-            self.leaves.remove(parent_id);
+        for parent in parents.iter() {
+            self.leaves.remove(&parent.id);
         }
 
         self.leaves.insert(node_id);
-        self.nodes.insert(node, parents);
+        self.nodes
+            .insert(node, parents.iter().map(|p| p.id).collect());
     }
 
     /// Free the node from the state.
-    pub fn consume_node(&mut self, node_id: NodeID) {
+    pub fn consume_node(&mut self, node_id: NodeId) {
         if !self.is_referenced(node_id) {
             self.leaves.remove(&node_id);
             self.nodes.remove(&node_id);
@@ -45,7 +53,7 @@ impl GraphMemoryManagement {
     ///
     /// This function goes into three steps, which must happen for all leaves
     /// before going into the next step. Then it deletes what can be safely deleted
-    pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeID)) {
+    pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeId)) {
         let leaves = self.leaves.clone();
         let mut new_leaves = HashSet::new();
         let mut deletables = Vec::new();
@@ -81,7 +89,7 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeID>) {
+    fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeId>) {
         for (id, parents) in self.nodes.iter() {
             let is_useful = matches!(
                 self.statuses.get(id.as_ref()),
@@ -97,7 +105,7 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn unavailable_propagation(&mut self, node_id: NodeID) -> NodeMemoryStatus {
+    fn unavailable_propagation(&mut self, node_id: NodeId) -> NodeMemoryStatus {
         // If already visited
         if let Some(status) = self.statuses.get(&node_id) {
             return status.clone();
@@ -127,7 +135,7 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn useful_propagation(&mut self, leaves: HashSet<NodeID>) {
+    fn useful_propagation(&mut self, leaves: HashSet<NodeId>) {
         // Accumulate visited nodes
         let mut explored = HashSet::new();
         let mut tagged_useful = HashSet::new();
@@ -199,9 +207,9 @@ impl GraphMemoryManagement {
 
     fn identify_leaves_and_deletables(
         &self,
-        leaf_id: NodeID,
-        new_leaves: &mut HashSet<NodeID>,
-        to_delete: &mut Vec<NodeID>,
+        leaf_id: NodeId,
+        new_leaves: &mut HashSet<NodeId>,
+        to_delete: &mut Vec<NodeId>,
     ) {
         let mut visited = HashSet::new();
         let mut to_visit = vec![leaf_id];
@@ -236,7 +244,7 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn is_referenced(&self, node_id: NodeID) -> bool {
+    fn is_referenced(&self, node_id: NodeId) -> bool {
         match self.nodes.get_key_value(&node_id) {
             Some((key, _value)) => Arc::strong_count(key) > 1,
             None => panic!("Node should be in the nodes map"),
@@ -247,12 +255,12 @@ impl GraphMemoryManagement {
 /// Wrapper over hash set for fast popping of any node
 #[derive(new, Default)]
 struct PopNodeSet {
-    hash_set: HashSet<NodeID>,
+    hash_set: HashSet<NodeId>,
 }
 
 impl PopNodeSet {
     #[inline(always)]
-    fn pop(&mut self) -> Option<NodeID> {
+    fn pop(&mut self) -> Option<NodeId> {
         self.hash_set
             .iter()
             .next()
@@ -261,12 +269,12 @@ impl PopNodeSet {
     }
 
     #[inline(always)]
-    fn contains(&self, node_id: &NodeID) -> bool {
+    fn contains(&self, node_id: &NodeId) -> bool {
         self.hash_set.contains(node_id)
     }
 
     #[inline(always)]
-    fn insert(&mut self, node_id: NodeID) {
+    fn insert(&mut self, node_id: NodeId) {
         self.hash_set.insert(node_id);
     }
 }

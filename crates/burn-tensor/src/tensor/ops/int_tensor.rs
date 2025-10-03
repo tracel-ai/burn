@@ -754,6 +754,19 @@ pub trait IntTensorOps<B: Backend> {
     /// The mean of all elements in the tensor along the dimension.
     fn int_mean_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
 
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
     /// Gets the indices of the maximum elements along a dimension.
     ///
     /// # Arguments
