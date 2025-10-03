@@ -7,6 +7,7 @@ use burn::record::PrecisionSettings;
 use crate::burn::{BurnImports, Scope, Type, node::modulo::ModNode};
 
 use super::abs::AbsNode;
+use super::add::AddNode;
 use super::argmax::ArgMaxNode;
 use super::argmin::ArgMinNode;
 use super::attention::AttentionNode;
@@ -14,12 +15,14 @@ use super::avg_pool1d::AvgPool1dNode;
 use super::avg_pool2d::AvgPool2dNode;
 use super::batch_norm::BatchNormNode;
 use super::bernoulli::BernoulliNode;
-use super::binary::BinaryNode;
 use super::bitshift::BitShiftNode;
 use super::bitwiseand::BitwiseAndNode;
 use super::bitwisenot::BitwiseNotNode;
 use super::bitwiseor::BitwiseOrNode;
 use super::bitwisexor::BitwiseXorNode;
+use super::bool_and::BoolAndNode;
+use super::bool_or::BoolOrNode;
+use super::bool_xor::BoolXorNode;
 use super::cast::CastNode;
 use super::ceil::CeilNode;
 use super::clip::ClipNode;
@@ -35,7 +38,9 @@ use super::conv3d::Conv3dNode;
 use super::cos::CosNode;
 use super::cosh::CoshNode;
 use super::depth_to_space::DepthToSpaceNode;
+use super::div::DivNode;
 use super::dropout::DropoutNode;
+use super::equal::EqualNode;
 use super::erf::ErfNode;
 use super::exp::ExpNode;
 use super::expand::ExpandNode;
@@ -47,6 +52,8 @@ use super::gather_elements::GatherElementsNode;
 use super::gelu::GeluNode;
 use super::gemm::GemmNode;
 use super::global_avg_pool::GlobalAvgPoolNode;
+use super::greater::GreaterNode;
+use super::greater_equal::GreaterEqualNode;
 use super::group_norm::GroupNormNode;
 use super::hard_sigmoid::HardSigmoidNode;
 use super::identity::IdentityNode;
@@ -58,16 +65,23 @@ use super::leaky_relu::LeakyReluNode;
 use super::linear::LinearNode;
 use super::log::LogNode;
 use super::log_softmax::LogSoftmaxNode;
+use super::lower::LowerNode;
+use super::lower_equal::LowerEqualNode;
 use super::matmul::MatmulNode;
 use super::matmul_integer::MatMulIntegerNode;
+use super::max_pair::MaxPairNode;
 use super::max_pool1d::MaxPool1dNode;
 use super::max_pool2d::MaxPool2dNode;
 use super::mean::MeanNode;
+use super::min_pair::MinPairNode;
+use super::mul::MulNode;
 use super::neg::NegNode;
 use super::nonzero::NonZeroNode;
 use super::not::NotNode;
 use super::one_hot::OneHotNode;
 use super::pad::PadNode;
+use super::powf::PowfNode;
+use super::powi::PowiNode;
 use super::prelu::PReluNode;
 use super::random_normal::RandomNormalNode;
 use super::random_normal_like::RandomNormalLikeNode;
@@ -92,6 +106,7 @@ use super::space_to_depth::SpaceToDepthNode;
 use super::split::SplitNode;
 use super::sqrt::SqrtNode;
 use super::squeeze::SqueezeNode;
+use super::sub::SubNode;
 use super::sum::SumNode;
 use super::tan::TanNode;
 use super::tanh::TanhNode;
@@ -165,6 +180,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
     Abs(AbsNode),
+    Add(AddNode),
     ArgMax(ArgMaxNode),
     ArgMin(ArgMinNode),
     Attention(AttentionNode),
@@ -172,7 +188,9 @@ pub enum Node<PS: PrecisionSettings> {
     AvgPool2d(AvgPool2dNode),
     BatchNorm(BatchNormNode),
     Bernoulli(BernoulliNode),
-    Binary(BinaryNode),
+    BoolAnd(BoolAndNode),
+    BoolOr(BoolOrNode),
+    BoolXor(BoolXorNode),
     BitShift(BitShiftNode),
     BitwiseAnd(BitwiseAndNode),
     BitwiseOr(BitwiseOrNode),
@@ -193,7 +211,9 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose2d(ConvTranspose2dNode),
     ConvTranspose3d(ConvTranspose3dNode),
     DepthToSpace(DepthToSpaceNode),
+    Div(DivNode),
     Dropout(DropoutNode),
+    Equal(EqualNode),
     Erf(ErfNode),
     Exp(ExpNode),
     Expand(ExpandNode),
@@ -204,6 +224,8 @@ pub enum Node<PS: PrecisionSettings> {
     GatherElements(GatherElementsNode),
     Gelu(GeluNode),
     Gemm(GemmNode),
+    Greater(GreaterNode),
+    GreaterEqual(GreaterEqualNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     GroupNorm(GroupNormNode),
     HardSigmoid(HardSigmoidNode),
@@ -216,17 +238,24 @@ pub enum Node<PS: PrecisionSettings> {
     Linear(LinearNode),
     Log(LogNode),
     LogSoftmax(LogSoftmaxNode),
+    Lower(LowerNode),
+    LowerEqual(LowerEqualNode),
     Matmul(MatmulNode),
     MatmulInteger(MatMulIntegerNode),
+    MaxPair(MaxPairNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
     Mean(MeanNode),
+    MinPair(MinPairNode),
     Mod(ModNode),
+    Mul(MulNode),
     Neg(NegNode),
     NonZero(NonZeroNode),
     Not(NotNode),
     OneHot(OneHotNode),
     Pad(PadNode),
+    Powf(PowfNode),
+    Powi(PowiNode),
     PRelu(PReluNode),
     RandomNormal(RandomNormalNode),
     RandomNormalLike(RandomNormalLikeNode),
@@ -251,6 +280,7 @@ pub enum Node<PS: PrecisionSettings> {
     Split(SplitNode),
     Sqrt(SqrtNode),
     Squeeze(SqueezeNode),
+    Sub(SubNode),
     Sum(SumNode),
     Tan(TanNode),
     Tanh(TanhNode),
@@ -270,6 +300,7 @@ macro_rules! match_all {
         #[allow(clippy::redundant_closure_call)]
         match $self {
             Node::Abs(node) => $func(node),
+            Node::Add(node) => $func(node),
             Node::ArgMax(node) => $func(node),
             Node::ArgMin(node) => $func(node),
             Node::Attention(node) => $func(node),
@@ -277,7 +308,9 @@ macro_rules! match_all {
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::Bernoulli(node) => $func(node),
-            Node::Binary(node) => $func(node),
+            Node::BoolAnd(node) => $func(node),
+            Node::BoolOr(node) => $func(node),
+            Node::BoolXor(node) => $func(node),
             Node::BitShift(node) => $func(node),
             Node::BitwiseAnd(node) => $func(node),
             Node::BitwiseOr(node) => $func(node),
@@ -298,7 +331,9 @@ macro_rules! match_all {
             Node::ConvTranspose2d(node) => $func(node),
             Node::ConvTranspose3d(node) => $func(node),
             Node::DepthToSpace(node) => $func(node),
+            Node::Div(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Equal(node) => $func(node),
             Node::Erf(node) => $func(node),
             Node::Exp(node) => $func(node),
             Node::Expand(node) => $func(node),
@@ -309,6 +344,8 @@ macro_rules! match_all {
             Node::GatherElements(node) => $func(node),
             Node::Gelu(node) => $func(node),
             Node::Gemm(node) => $func(node),
+            Node::Greater(node) => $func(node),
+            Node::GreaterEqual(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::GroupNorm(node) => $func(node),
             Node::HardSigmoid(node) => $func(node),
@@ -321,17 +358,24 @@ macro_rules! match_all {
             Node::Linear(node) => $func(node),
             Node::Log(node) => $func(node),
             Node::LogSoftmax(node) => $func(node),
+            Node::Lower(node) => $func(node),
+            Node::LowerEqual(node) => $func(node),
             Node::Matmul(node) => $func(node),
             Node::MatmulInteger(node) => $func(node),
+            Node::MaxPair(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Mean(node) => $func(node),
+            Node::MinPair(node) => $func(node),
             Node::Mod(node) => $func(node),
+            Node::Mul(node) => $func(node),
             Node::Neg(node) => $func(node),
             Node::NonZero(node) => $func(node),
             Node::Not(node) => $func(node),
             Node::OneHot(node) => $func(node),
             Node::Pad(node) => $func(node),
+            Node::Powf(node) => $func(node),
+            Node::Powi(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::RandomNormal(node) => $func(node),
             Node::RandomNormalLike(node) => $func(node),
@@ -356,6 +400,7 @@ macro_rules! match_all {
             Node::Split(node) => $func(node),
             Node::Sqrt(node) => $func(node),
             Node::Squeeze(node) => $func(node),
+            Node::Sub(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tan(node) => $func(node),
             Node::Tanh(node) => $func(node),
@@ -383,6 +428,7 @@ impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
             Node::Abs(_) => "abs",
+            Node::Add(_) => "add",
             Node::ArgMax(_) => "argmax",
             Node::ArgMin(_) => "argmin",
             Node::Attention(_) => "attention",
@@ -390,7 +436,9 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
             Node::Bernoulli(_) => "bernoulli",
-            Node::Binary(binary) => binary.binary_type.as_str(),
+            Node::BoolAnd(_) => "and",
+            Node::BoolOr(_) => "or",
+            Node::BoolXor(_) => "xor",
             Node::BitShift(_) => "bitshift",
             Node::BitwiseAnd(_) => "bitwiseand",
             Node::BitwiseOr(_) => "bitwiseor",
@@ -411,7 +459,9 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::ConvTranspose3d(_) => "conv_transpose3d",
             Node::DepthToSpace(_) => "depth_to_space",
+            Node::Div(_) => "div",
             Node::Dropout(_) => "dropout",
+            Node::Equal(_) => "equal",
             Node::Erf(_) => "erf",
             Node::Exp(_) => "exp",
             Node::Expand(_) => "expand",
@@ -422,6 +472,8 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::GatherElements(_) => "gather_elements",
             Node::Gelu(_) => "gelu",
             Node::Gemm(_) => "gemm",
+            Node::Greater(_) => "greater",
+            Node::GreaterEqual(_) => "greater_equal",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::GroupNorm(_) => "group_norm",
             Node::HardSigmoid(_) => "hard_sigmoid",
@@ -434,17 +486,24 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Linear(_) => "linear",
             Node::Log(_) => "log",
             Node::LogSoftmax(_) => "log_softmax",
+            Node::Lower(_) => "lower",
+            Node::LowerEqual(_) => "lower_equal",
             Node::Matmul(_) => "matmul",
             Node::MatmulInteger(_) => "matmul_integer",
+            Node::MaxPair(_) => "max_pair",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Mean(_) => "mean",
+            Node::MinPair(_) => "min_pair",
             Node::Mod(_) => "mod",
+            Node::Mul(_) => "mul",
             Node::Neg(_) => "neg",
             Node::NonZero(_) => "nonzero",
             Node::Not(_) => "not",
             Node::OneHot(_) => "one_hot",
             Node::Pad(_) => "pad",
+            Node::Powf(_) => "powf",
+            Node::Powi(_) => "powi",
             Node::PRelu(_) => "prelu",
             Node::RandomNormal(_) => "random_normal",
             Node::RandomNormalLike(_) => "random_normal_like",
@@ -469,7 +528,8 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Split(_) => "split",
             Node::Sqrt(_) => "sqrt",
             Node::Squeeze(_) => "squeeze",
-            Node::Sum(_) => "add",
+            Node::Sub(_) => "sub",
+            Node::Sum(_) => "sum",
             Node::Tan(_) => "tan",
             Node::Tanh(_) => "tanh",
             Node::Tile(_) => "tile",

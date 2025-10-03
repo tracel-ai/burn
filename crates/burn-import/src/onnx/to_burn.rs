@@ -26,7 +26,6 @@ use crate::{
             avg_pool2d::AvgPool2dNode,
             batch_norm::BatchNormNode,
             bernoulli::BernoulliNode,
-            binary::BinaryNode,
             bitshift::{BitShiftNode, Direction},
             bitwiseand::BitwiseAndNode,
             bitwisenot::BitwiseNotNode,
@@ -504,7 +503,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::conv_transpose3d_conversion::<PS>(node))
                 }
                 NodeType::Pad => graph.register(Self::pad_conversion(node)),
-                NodeType::Pow => graph.register(Self::pow_conversion(node)),
+                NodeType::Pow => graph.register(Self::pow_conversion::<PS>(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
@@ -823,23 +822,23 @@ impl ParsedOnnxGraph {
         ConstantOfShapeNode::new(shape, output, value)
     }
 
-    fn add_conversion(node: Node) -> BinaryNode {
+    fn add_conversion(node: Node) -> crate::burn::node::add::AddNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::add(lhs, rhs, output)
+        crate::burn::node::add::AddNode::new(lhs, rhs, output)
     }
 
-    fn sub_conversion(node: Node) -> BinaryNode {
+    fn sub_conversion(node: Node) -> crate::burn::node::sub::SubNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::sub(lhs, rhs, output)
+        crate::burn::node::sub::SubNode::new(lhs, rhs, output)
     }
 
-    fn mul_conversion(node: Node) -> BinaryNode {
+    fn mul_conversion(node: Node) -> crate::burn::node::mul::MulNode {
         let lhs_arg = node.inputs.first().unwrap();
         let rhs_arg = node.inputs.get(1).unwrap();
         let output_arg = node.outputs.first().unwrap();
@@ -855,15 +854,15 @@ impl ParsedOnnxGraph {
         let rhs = Type::from(rhs_arg);
         let output = Type::from(output_arg);
 
-        BinaryNode::mul(lhs, rhs, output)
+        crate::burn::node::mul::MulNode::new(lhs, rhs, output)
     }
 
-    fn div_conversion(node: Node) -> BinaryNode {
+    fn div_conversion(node: Node) -> crate::burn::node::div::DivNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::div(lhs, rhs, output)
+        crate::burn::node::div::DivNode::new(lhs, rhs, output)
     }
 
     fn mod_conversion(node: Node) -> ModNode {
@@ -972,12 +971,12 @@ impl ParsedOnnxGraph {
         MatMulIntegerNode::new(lhs, rhs, lhs_zp, rhs_zp, output)
     }
 
-    fn equal_conversion(node: Node) -> BinaryNode {
+    fn equal_conversion(node: Node) -> crate::burn::node::equal::EqualNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::equal(lhs, rhs, output)
+        crate::burn::node::equal::EqualNode::new(lhs, rhs, output)
     }
 
     fn bitshift_conversion(node: Node) -> BitShiftNode {
@@ -1022,12 +1021,12 @@ impl ParsedOnnxGraph {
         BitwiseNotNode::new(input, output)
     }
 
-    fn max_conversion(node: Node) -> BinaryNode {
+    fn max_conversion(node: Node) -> crate::burn::node::max_pair::MaxPairNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::max_pair(lhs, rhs, output)
+        crate::burn::node::max_pair::MaxPairNode::new(lhs, rhs, output)
     }
 
     fn erf_conversion(node: Node) -> ErfNode {
@@ -1223,12 +1222,12 @@ impl ParsedOnnxGraph {
         ResizeNode::new(name, input, output, mode, scales, sizes)
     }
 
-    fn min_conversion(node: Node) -> BinaryNode {
+    fn min_conversion(node: Node) -> crate::burn::node::min_pair::MinPairNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::min_pair(lhs, rhs, output)
+        crate::burn::node::min_pair::MinPairNode::new(lhs, rhs, output)
     }
 
     fn range_conversion(node: Node) -> RangeNode {
@@ -1932,56 +1931,58 @@ impl ParsedOnnxGraph {
         NonZeroNode::new(input, output, config)
     }
 
-    fn and_conversion(node: Node) -> BinaryNode {
+    fn and_conversion(node: Node) -> crate::burn::node::bool_and::BoolAndNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::bool_and(lhs, rhs, output)
+        crate::burn::node::bool_and::BoolAndNode::new(lhs, rhs, output)
     }
 
-    fn or_conversion(node: Node) -> BinaryNode {
+    fn or_conversion(node: Node) -> crate::burn::node::bool_or::BoolOrNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::bool_or(lhs, rhs, output)
+        crate::burn::node::bool_or::BoolOrNode::new(lhs, rhs, output)
     }
 
-    fn xor_conversion(node: Node) -> BinaryNode {
+    fn xor_conversion(node: Node) -> crate::burn::node::bool_xor::BoolXorNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        BinaryNode::bool_xor(lhs, rhs, output)
+        crate::burn::node::bool_xor::BoolXorNode::new(lhs, rhs, output)
     }
 
-    fn greater_conversion(node: Node) -> BinaryNode {
+    fn greater_conversion(node: Node) -> crate::burn::node::greater::GreaterNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        BinaryNode::greater(lhs, rhs, output)
+        crate::burn::node::greater::GreaterNode::new(lhs, rhs, output)
     }
 
-    fn less_conversion(node: Node) -> BinaryNode {
+    fn less_conversion(node: Node) -> crate::burn::node::lower::LowerNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        BinaryNode::lower(lhs, rhs, output)
+        crate::burn::node::lower::LowerNode::new(lhs, rhs, output)
     }
 
-    fn greater_or_equal_conversion(node: Node) -> BinaryNode {
+    fn greater_or_equal_conversion(
+        node: Node,
+    ) -> crate::burn::node::greater_equal::GreaterEqualNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        BinaryNode::greater_equal(lhs, rhs, output)
+        crate::burn::node::greater_equal::GreaterEqualNode::new(lhs, rhs, output)
     }
 
-    fn less_or_equal_conversion(node: Node) -> BinaryNode {
+    fn less_or_equal_conversion(node: Node) -> crate::burn::node::lower_equal::LowerEqualNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        BinaryNode::lower_equal(lhs, rhs, output)
+        crate::burn::node::lower_equal::LowerEqualNode::new(lhs, rhs, output)
     }
 
     fn pad_conversion(node: Node) -> PadNode {
@@ -1992,19 +1993,27 @@ impl ParsedOnnxGraph {
         PadNode::new(input, output, config)
     }
 
-    fn pow_conversion(node: Node) -> BinaryNode {
+    fn pow_conversion<PS: PrecisionSettings>(node: Node) -> crate::burn::node::Node<PS> {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         match &rhs {
             Type::Tensor(x) => match x.kind {
-                TensorKind::Int => BinaryNode::powi(lhs, rhs, output),
-                TensorKind::Float => BinaryNode::powf(lhs, rhs, output),
+                TensorKind::Int => crate::burn::node::Node::Powi(
+                    crate::burn::node::powi::PowiNode::new(lhs, rhs, output),
+                ),
+                TensorKind::Float => crate::burn::node::Node::Powf(
+                    crate::burn::node::powf::PowfNode::new(lhs, rhs, output),
+                ),
                 _ => panic!("pow function requires RHS to be int or float type"),
             },
             Type::Scalar(x) => match x.kind {
-                ScalarKind::Int32 | ScalarKind::Int64 => BinaryNode::powi(lhs, rhs, output),
-                ScalarKind::Float32 | ScalarKind::Float64 => BinaryNode::powf(lhs, rhs, output),
+                ScalarKind::Int32 | ScalarKind::Int64 => crate::burn::node::Node::Powi(
+                    crate::burn::node::powi::PowiNode::new(lhs, rhs, output),
+                ),
+                ScalarKind::Float32 | ScalarKind::Float64 => crate::burn::node::Node::Powf(
+                    crate::burn::node::powf::PowfNode::new(lhs, rhs, output),
+                ),
                 _ => panic!("pow function requires RHS to be int or float type"),
             },
             _ => panic!("pow function only supports RHS scalar or tensor types"),
