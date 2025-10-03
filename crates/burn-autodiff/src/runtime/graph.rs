@@ -13,7 +13,6 @@ use alloc::vec::Vec;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::Backend;
 use hashbrown::{HashMap, HashSet};
-use spin::MutexGuard;
 
 /// A client for managing multiple graphs using mutex-based synchronization.
 ///
@@ -114,7 +113,7 @@ impl AutodiffClient for GraphMutexClient {
 }
 
 struct GraphCleaner<'a> {
-    guard: MutexGuard<'a, Option<GraphLocator>>,
+    guard: spin::MutexGuard<'a, Option<GraphLocator>>,
 }
 
 impl<'a> NodeCleaner for GraphCleaner<'a> {
