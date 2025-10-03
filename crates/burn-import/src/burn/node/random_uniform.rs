@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -58,6 +58,30 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformNode {
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
         imports.register("burn::tensor::Distribution");
+    }
+}
+
+impl OnnxIntoNode for RandomUniformNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let output = node.outputs.first().unwrap();
+        let output_type = TensorType::from(output);
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let shape = node
+            .attrs
+            .get("shape")
+            .map(|val| val.clone().into_i64s())
+            .unwrap_or_else(|| panic!("Shape attribute is required"));
+        let shape: Vec<usize> = shape.into_iter().map(|i| i as usize).collect();
+        Self::new(output_type, low, high, shape)
     }
 }
 

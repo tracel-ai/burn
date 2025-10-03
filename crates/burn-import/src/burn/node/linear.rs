@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{Param, ParamId},
@@ -111,6 +111,53 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Linear(self)
+    }
+}
+
+impl OnnxIntoNode for LinearNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        use burn::tensor::TensorData;
+        use onnx_ir::ir::{ArgType, Data};
+
+        let name = &node.name;
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::linear::linear_config(&node);
+
+        // Helper function to extract and serialize data - hardcoded to f32
+        fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
+            if node.inputs.is_empty() {
+                return None;
+            }
+
+            let input = node.inputs.get(input_index)?;
+            let value = input.value.as_ref()?;
+            let ty = input.ty.clone();
+
+            match ty {
+                ArgType::Tensor(_) => {
+                    let data = value.data.clone();
+                    let shape = value.shape.clone();
+
+                    let tensor_data = match data {
+                        Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
+                        Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
+                        Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
+                        Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
+                        Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
+                        _ => panic!("Unsupported tensor element type"),
+                    };
+
+                    Some(tensor_data)
+                }
+                _ => panic!("Unsupported serialization type"),
+            }
+        }
+
+        let weight = extract_data_serialize(1, &node).expect("Weight is required");
+        let bias = extract_data_serialize(2, &node);
+
+        LinearNode::new(name, input, output, weight, bias, config)
     }
 }
 

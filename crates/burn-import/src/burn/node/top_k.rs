@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::topk::TopKConfig;
@@ -39,6 +39,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
 
     fn into_node(self) -> Node<PS> {
         Node::TopK(self)
+    }
+}
+
+impl OnnxIntoNode for TopKNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = onnx_ir::node::topk::top_k_config(&node);
+        Self::new(input, outputs, config)
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::expand::ExpandShape;
@@ -56,6 +56,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Expand(self)
+    }
+}
+
+impl OnnxIntoNode for ExpandNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let shape = onnx_ir::node::expand::expand_config(&node);
+        Self::new(input, output, shape)
     }
 }
 

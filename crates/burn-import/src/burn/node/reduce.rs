@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::reduce::ReduceConfig;
@@ -297,7 +297,34 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Reduce(self)
+        Node::ReduceMax(self)
+    }
+}
+
+impl OnnxIntoNode for ReduceNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        use onnx_ir::ir::NodeType;
+
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::reduce::reduce_config(&node);
+
+        // Determine reduction type from node type
+        let reduction_type = match node.node_type {
+            NodeType::ReduceMax => ReductionType::Max,
+            NodeType::ReduceMin => ReductionType::Min,
+            NodeType::ReduceSum => ReductionType::Sum,
+            NodeType::ReduceProd => ReductionType::Prod,
+            NodeType::ReduceMean => ReductionType::Mean,
+            NodeType::ReduceL1 => ReductionType::L1,
+            NodeType::ReduceL2 => ReductionType::L2,
+            NodeType::ReduceLogSum => ReductionType::LogSum,
+            NodeType::ReduceLogSumExp => ReductionType::LogSumExp,
+            NodeType::ReduceSumSquare => ReductionType::SumSquare,
+            _ => panic!("Unsupported reduction type: {:?}", node.node_type),
+        };
+
+        ReduceNode::new(input, output, reduction_type, config)
     }
 }
 

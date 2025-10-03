@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -45,6 +45,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomUniformLikeNode {
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
         imports.register("burn::tensor::Distribution");
+    }
+}
+
+impl OnnxIntoNode for RandomUniformLikeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+        Self::new(low, high, input, output)
     }
 }
 

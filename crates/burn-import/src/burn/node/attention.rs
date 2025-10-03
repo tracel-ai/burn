@@ -1,5 +1,5 @@
-use super::Node;
-use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type, node::NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
+use crate::burn::{BurnImports, Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::attention::{AttentionConfig, AttentionQkMatmulOutputMode};
 use quote::quote;
@@ -348,11 +348,82 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AttentionNode {
     }
 }
 
+impl OnnxIntoNode for AttentionNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let q = TensorType::from(node.inputs.first().unwrap());
+        let k = TensorType::from(node.inputs.get(1).unwrap());
+        let v = TensorType::from(node.inputs.get(2).unwrap());
+        let attn_mask = node.inputs.get(3).map(TensorType::from);
+        let past_key = node.inputs.get(4).map(TensorType::from);
+        let past_value = node.inputs.get(5).map(TensorType::from);
+        let y = TensorType::from(node.outputs.first().unwrap());
+        let present_key = node.outputs.get(1).map(TensorType::from);
+        let present_value = node.outputs.get(2).map(TensorType::from);
+        let qk_matmul_output = node.outputs.get(3).map(TensorType::from);
+        let config = onnx_ir::node::attention::attention_config(&node);
+
+        AttentionNode::new(
+            AttentionNodeInputs::new(q, k, v, attn_mask, past_key, past_value),
+            AttentionNodeOutputs::new(y, present_key, present_value, qk_matmul_output),
+            config,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::node::tests::one_node_graph;
+    use crate::burn::{
+        BurnImports,
+        graph::BurnGraph,
+        node::{NodeCodegen, test::assert_tokens},
+    };
+    use burn::record::FullPrecisionSettings;
+    use proc_macro2::TokenStream;
+    use quote::quote;
 
+    #[track_caller]
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + Clone + 'static>(
+        node_gen: T,
+        forward: TokenStream,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+    ) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen.clone());
+
+        graph.register_input_output(input_names, output_names);
+
+        let mut imports = BurnImports::default();
+        node_gen.register_imports(&mut imports);
+        let imports = imports.codegen();
+
+        let expected = quote! {
+            #imports
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                #forward
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
     #[test]
     fn test_attention_codegen_simple_4d() {
         one_node_graph(

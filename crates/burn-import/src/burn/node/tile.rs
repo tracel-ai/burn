@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::tile::TileConfig;
@@ -34,6 +34,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TileNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Tile(self)
+    }
+}
+
+impl OnnxIntoNode for TileNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::tile::tile_config(&node);
+        Self::new(input, output, config)
     }
 }
 

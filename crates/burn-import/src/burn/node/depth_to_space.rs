@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::depth_to_space::{DepthToSpaceConfig, DepthToSpaceMode};
@@ -65,6 +65,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for DepthToSpaceNode {
 
     fn into_node(self) -> Node<PS> {
         Node::DepthToSpace(self)
+    }
+}
+
+impl OnnxIntoNode for DepthToSpaceNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::depth_to_space::depth_to_space_config(&node);
+        Self::new(input, output, config)
     }
 }
 

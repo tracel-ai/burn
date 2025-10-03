@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 
 use burn::record::PrecisionSettings;
@@ -39,6 +39,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MeanNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Mean(self)
+    }
+}
+
+impl OnnxIntoNode for MeanNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+        Self::new(inputs, output)
     }
 }
 
