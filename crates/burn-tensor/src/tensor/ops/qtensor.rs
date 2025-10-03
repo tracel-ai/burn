@@ -690,6 +690,25 @@ pub trait QTensorOps<B: Backend> {
         )
     }
 
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the minimum
+    /// of all elements up to and including that position along the dimension.
+    fn q_cummin(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cummin(tensor, dim),
+            tensor
+        )
+    }
+
     /// Returns a new tensor with exponential values.
     ///
     /// # Arguments

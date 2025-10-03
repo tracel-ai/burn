@@ -330,6 +330,25 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
     }
 
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        // Candle doesn't have cummin, implement manually using slicing and min
+        let dim_size = tensor.tensor.dims()[dim];
+        let mut slices = Vec::with_capacity(dim_size);
+
+        // First slice is just the first element along dim
+        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
+
+        // For each subsequent position, take min of previous cummin and current element
+        for i in 1..dim_size {
+            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
+            let min_val = slices[i - 1].broadcast_minimum(&curr).unwrap();
+            slices.push(min_val);
+        }
+
+        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        CandleTensor::new(result)
+    }
+
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.exp().unwrap())
     }
