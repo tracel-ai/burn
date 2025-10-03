@@ -50,8 +50,8 @@ pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(
         &client,
         cube_count,
         cube_dim,
-        linear_view(&input, &line_size),
-        linear_view(&output, &line_size),
+        linear_view(&input, line_size),
+        linear_view(&output, line_size),
     );
 
     output
