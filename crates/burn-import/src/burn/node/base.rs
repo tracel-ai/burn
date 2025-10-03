@@ -6,6 +6,7 @@ use burn::record::PrecisionSettings;
 
 use crate::burn::{BurnImports, Scope, Type, node::modulo::ModNode};
 
+use super::abs::AbsNode;
 use super::argmax::ArgMaxNode;
 use super::argmin::ArgMinNode;
 use super::attention::AttentionNode;
@@ -31,26 +32,40 @@ use super::conv_transpose_3d::ConvTranspose3dNode;
 use super::conv1d::Conv1dNode;
 use super::conv2d::Conv2dNode;
 use super::conv3d::Conv3dNode;
+use super::cos::CosNode;
+use super::cosh::CoshNode;
 use super::depth_to_space::DepthToSpaceNode;
 use super::dropout::DropoutNode;
+use super::erf::ErfNode;
+use super::exp::ExpNode;
 use super::expand::ExpandNode;
 use super::eye_like::EyeLikeNode;
+use super::flatten::FlattenNode;
 use super::floor::FloorNode;
 use super::gather::GatherNode;
 use super::gather_elements::GatherElementsNode;
+use super::gelu::GeluNode;
 use super::gemm::GemmNode;
 use super::global_avg_pool::GlobalAvgPoolNode;
 use super::group_norm::GroupNormNode;
+use super::hard_sigmoid::HardSigmoidNode;
 use super::identity::IdentityNode;
 use super::instance_norm::InstanceNormNode;
+use super::is_inf::IsInfNode;
+use super::is_nan::IsNanNode;
 use super::layer_norm::LayerNormNode;
+use super::leaky_relu::LeakyReluNode;
 use super::linear::LinearNode;
+use super::log::LogNode;
+use super::log_softmax::LogSoftmaxNode;
 use super::matmul::MatmulNode;
 use super::matmul_integer::MatMulIntegerNode;
 use super::max_pool1d::MaxPool1dNode;
 use super::max_pool2d::MaxPool2dNode;
 use super::mean::MeanNode;
+use super::neg::NegNode;
 use super::nonzero::NonZeroNode;
+use super::not::NotNode;
 use super::one_hot::OneHotNode;
 use super::pad::PadNode;
 use super::prelu::PReluNode;
@@ -59,19 +74,31 @@ use super::random_normal_like::RandomNormalLikeNode;
 use super::random_uniform::RandomUniformNode;
 use super::random_uniform_like::RandomUniformLikeNode;
 use super::range::RangeNode;
+use super::reciprocal::ReciprocalNode;
 use super::reduce::ReduceNode;
+use super::relu::ReluNode;
 use super::reshape::ReshapeNode;
 use super::resize::ResizeNode;
 use super::round::RoundNode;
+use super::shape::ShapeNode;
+use super::sigmoid::SigmoidNode;
+use super::sign::SignNode;
+use super::sin::SinNode;
+use super::sinh::SinhNode;
+use super::size::SizeNode;
 use super::slice::SliceNode;
+use super::softmax::SoftmaxNode;
 use super::space_to_depth::SpaceToDepthNode;
 use super::split::SplitNode;
+use super::sqrt::SqrtNode;
 use super::squeeze::SqueezeNode;
 use super::sum::SumNode;
+use super::tan::TanNode;
+use super::tanh::TanhNode;
 use super::tile::TileNode;
 use super::top_k::TopKNode;
+use super::transpose::TransposeNode;
 use super::trilu::TriluNode;
-use super::unary::UnaryNode;
 use super::unsqueeze::UnsqueezeNode;
 use super::where_op::WhereNode;
 
@@ -137,6 +164,7 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
+    Abs(AbsNode),
     ArgMax(ArgMaxNode),
     ArgMin(ArgMinNode),
     Attention(AttentionNode),
@@ -151,9 +179,13 @@ pub enum Node<PS: PrecisionSettings> {
     BitwiseNot(BitwiseNotNode),
     BitwiseXor(BitwiseXorNode),
     Cast(CastNode),
+    Ceil(CeilNode),
     Clip(ClipNode),
     Concat(ConcatNode),
     Constant(ConstantNode),
+    ConstantOfShape(ConstantOfShapeNode),
+    Cos(CosNode),
+    Cosh(CoshNode),
     Conv1d(Conv1dNode),
     Conv2d(Conv2dNode),
     Conv3d(Conv3dNode),
@@ -161,51 +193,73 @@ pub enum Node<PS: PrecisionSettings> {
     ConvTranspose2d(ConvTranspose2dNode),
     ConvTranspose3d(ConvTranspose3dNode),
     DepthToSpace(DepthToSpaceNode),
-    PRelu(PReluNode),
     Dropout(DropoutNode),
+    Erf(ErfNode),
+    Exp(ExpNode),
     Expand(ExpandNode),
     EyeLike(EyeLikeNode),
+    Flatten(FlattenNode),
     Floor(FloorNode),
-    Ceil(CeilNode),
-    Mod(ModNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
+    Gelu(GeluNode),
     Gemm(GemmNode),
     GlobalAvgPool(GlobalAvgPoolNode),
+    GroupNorm(GroupNormNode),
+    HardSigmoid(HardSigmoidNode),
     Identity(IdentityNode),
     InstanceNorm(InstanceNormNode),
+    IsInf(IsInfNode),
+    IsNan(IsNanNode),
     LayerNorm(LayerNormNode),
-    GroupNorm(GroupNormNode),
+    LeakyRelu(LeakyReluNode),
     Linear(LinearNode),
+    Log(LogNode),
+    LogSoftmax(LogSoftmaxNode),
     Matmul(MatmulNode),
     MatmulInteger(MatMulIntegerNode),
     MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
     Mean(MeanNode),
+    Mod(ModNode),
+    Neg(NegNode),
     NonZero(NonZeroNode),
+    Not(NotNode),
     OneHot(OneHotNode),
     Pad(PadNode),
-    Range(RangeNode),
-    Reduce(ReduceNode),
-    Reshape(ReshapeNode),
-    Resize(ResizeNode),
-    Round(RoundNode),
-    Slice(SliceNode),
-    Squeeze(SqueezeNode),
-    SpaceToDepth(SpaceToDepthNode),
-    Split(SplitNode),
-    Sum(SumNode),
-    Tile(TileNode),
-    TopK(TopKNode),
-    Trilu(TriluNode),
-    Unary(UnaryNode),
-    Unsqueeze(UnsqueezeNode),
-    Where(WhereNode),
+    PRelu(PReluNode),
     RandomNormal(RandomNormalNode),
     RandomNormalLike(RandomNormalLikeNode),
     RandomUniform(RandomUniformNode),
     RandomUniformLike(RandomUniformLikeNode),
-    ConstantOfShape(ConstantOfShapeNode),
+    Range(RangeNode),
+    Reciprocal(ReciprocalNode),
+    Reduce(ReduceNode),
+    Relu(ReluNode),
+    Reshape(ReshapeNode),
+    Resize(ResizeNode),
+    Round(RoundNode),
+    Shape(ShapeNode),
+    Sigmoid(SigmoidNode),
+    Sign(SignNode),
+    Sin(SinNode),
+    Sinh(SinhNode),
+    Size(SizeNode),
+    Slice(SliceNode),
+    Softmax(SoftmaxNode),
+    SpaceToDepth(SpaceToDepthNode),
+    Split(SplitNode),
+    Sqrt(SqrtNode),
+    Squeeze(SqueezeNode),
+    Sum(SumNode),
+    Tan(TanNode),
+    Tanh(TanhNode),
+    Tile(TileNode),
+    TopK(TopKNode),
+    Transpose(TransposeNode),
+    Trilu(TriluNode),
+    Unsqueeze(UnsqueezeNode),
+    Where(WhereNode),
     // For now, we have to keep the precision settings in order to correctly serialize the fields
     // into the right data types.
     _Unreachable(std::convert::Infallible, PhantomData<PS>),
@@ -215,6 +269,7 @@ macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         #[allow(clippy::redundant_closure_call)]
         match $self {
+            Node::Abs(node) => $func(node),
             Node::ArgMax(node) => $func(node),
             Node::ArgMin(node) => $func(node),
             Node::Attention(node) => $func(node),
@@ -229,9 +284,13 @@ macro_rules! match_all {
             Node::BitwiseNot(node) => $func(node),
             Node::BitwiseXor(node) => $func(node),
             Node::Cast(node) => $func(node),
+            Node::Ceil(node) => $func(node),
             Node::Clip(node) => $func(node),
             Node::Concat(node) => $func(node),
             Node::Constant(node) => $func(node),
+            Node::ConstantOfShape(node) => $func(node),
+            Node::Cos(node) => $func(node),
+            Node::Cosh(node) => $func(node),
             Node::Conv1d(node) => $func(node),
             Node::Conv2d(node) => $func(node),
             Node::Conv3d(node) => $func(node),
@@ -239,51 +298,73 @@ macro_rules! match_all {
             Node::ConvTranspose2d(node) => $func(node),
             Node::ConvTranspose3d(node) => $func(node),
             Node::DepthToSpace(node) => $func(node),
-            Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Erf(node) => $func(node),
+            Node::Exp(node) => $func(node),
             Node::Expand(node) => $func(node),
             Node::EyeLike(node) => $func(node),
+            Node::Flatten(node) => $func(node),
             Node::Floor(node) => $func(node),
-            Node::Ceil(node) => $func(node),
-            Node::Mod(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
+            Node::Gelu(node) => $func(node),
             Node::Gemm(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::GroupNorm(node) => $func(node),
+            Node::HardSigmoid(node) => $func(node),
             Node::Identity(node) => $func(node),
             Node::InstanceNorm(node) => $func(node),
+            Node::IsInf(node) => $func(node),
+            Node::IsNan(node) => $func(node),
             Node::LayerNorm(node) => $func(node),
-            Node::GroupNorm(node) => $func(node),
+            Node::LeakyRelu(node) => $func(node),
             Node::Linear(node) => $func(node),
-            Node::MatmulInteger(node) => $func(node),
+            Node::Log(node) => $func(node),
+            Node::LogSoftmax(node) => $func(node),
             Node::Matmul(node) => $func(node),
+            Node::MatmulInteger(node) => $func(node),
             Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
             Node::Mean(node) => $func(node),
+            Node::Mod(node) => $func(node),
+            Node::Neg(node) => $func(node),
             Node::NonZero(node) => $func(node),
+            Node::Not(node) => $func(node),
             Node::OneHot(node) => $func(node),
             Node::Pad(node) => $func(node),
-            Node::Range(node) => $func(node),
-            Node::Reduce(node) => $func(node),
-            Node::Reshape(node) => $func(node),
-            Node::Resize(node) => $func(node),
-            Node::Round(node) => $func(node),
-            Node::Slice(node) => $func(node),
-            Node::SpaceToDepth(node) => $func(node),
-            Node::Squeeze(node) => $func(node),
-            Node::Sum(node) => $func(node),
-            Node::Tile(node) => $func(node),
-            Node::TopK(node) => $func(node),
-            Node::Trilu(node) => $func(node),
-            Node::Unary(node) => $func(node),
-            Node::Unsqueeze(node) => $func(node),
-            Node::Where(node) => $func(node),
+            Node::PRelu(node) => $func(node),
             Node::RandomNormal(node) => $func(node),
             Node::RandomNormalLike(node) => $func(node),
             Node::RandomUniform(node) => $func(node),
             Node::RandomUniformLike(node) => $func(node),
-            Node::ConstantOfShape(node) => $func(node),
+            Node::Range(node) => $func(node),
+            Node::Reciprocal(node) => $func(node),
+            Node::Reduce(node) => $func(node),
+            Node::Relu(node) => $func(node),
+            Node::Reshape(node) => $func(node),
+            Node::Resize(node) => $func(node),
+            Node::Round(node) => $func(node),
+            Node::Shape(node) => $func(node),
+            Node::Sigmoid(node) => $func(node),
+            Node::Sign(node) => $func(node),
+            Node::Sin(node) => $func(node),
+            Node::Sinh(node) => $func(node),
+            Node::Size(node) => $func(node),
+            Node::Slice(node) => $func(node),
+            Node::Softmax(node) => $func(node),
+            Node::SpaceToDepth(node) => $func(node),
             Node::Split(node) => $func(node),
+            Node::Sqrt(node) => $func(node),
+            Node::Squeeze(node) => $func(node),
+            Node::Sum(node) => $func(node),
+            Node::Tan(node) => $func(node),
+            Node::Tanh(node) => $func(node),
+            Node::Tile(node) => $func(node),
+            Node::TopK(node) => $func(node),
+            Node::Transpose(node) => $func(node),
+            Node::Trilu(node) => $func(node),
+            Node::Unsqueeze(node) => $func(node),
+            Node::Where(node) => $func(node),
             _ => unimplemented!(),
         }
     }};
@@ -301,6 +382,7 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
+            Node::Abs(_) => "abs",
             Node::ArgMax(_) => "argmax",
             Node::ArgMin(_) => "argmin",
             Node::Attention(_) => "attention",
@@ -315,9 +397,13 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::BitwiseNot(_) => "bitwisenot",
             Node::BitwiseXor(_) => "bitwisexor",
             Node::Cast(_) => "cast",
-            Node::Concat(_) => "concat",
+            Node::Ceil(_) => "ceil",
             Node::Clip(_) => "clip",
+            Node::Concat(_) => "concat",
             Node::Constant(_) => "constant",
+            Node::ConstantOfShape(_) => "constant_of_shape",
+            Node::Cos(_) => "cos",
+            Node::Cosh(_) => "cosh",
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",
             Node::Conv3d(_) => "conv3d",
@@ -325,51 +411,73 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::ConvTranspose3d(_) => "conv_transpose3d",
             Node::DepthToSpace(_) => "depth_to_space",
-            Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
+            Node::Erf(_) => "erf",
+            Node::Exp(_) => "exp",
             Node::Expand(_) => "expand",
             Node::EyeLike(_) => "eye_like",
+            Node::Flatten(_) => "flatten",
             Node::Floor(_) => "floor",
-            Node::Ceil(_) => "ceil",
-            Node::Mod(_) => "mod",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
+            Node::Gelu(_) => "gelu",
             Node::Gemm(_) => "gemm",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::GroupNorm(_) => "group_norm",
+            Node::HardSigmoid(_) => "hard_sigmoid",
             Node::Identity(_) => "identity",
             Node::InstanceNorm(_) => "instance_norm",
+            Node::IsInf(_) => "is_inf",
+            Node::IsNan(_) => "is_nan",
             Node::LayerNorm(_) => "layer_norm",
-            Node::GroupNorm(_) => "group_norm",
+            Node::LeakyRelu(_) => "leaky_relu",
             Node::Linear(_) => "linear",
-            Node::MatmulInteger(_) => "matmul_integer",
+            Node::Log(_) => "log",
+            Node::LogSoftmax(_) => "log_softmax",
             Node::Matmul(_) => "matmul",
+            Node::MatmulInteger(_) => "matmul_integer",
             Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Mean(_) => "mean",
+            Node::Mod(_) => "mod",
+            Node::Neg(_) => "neg",
             Node::NonZero(_) => "nonzero",
+            Node::Not(_) => "not",
             Node::OneHot(_) => "one_hot",
             Node::Pad(_) => "pad",
-            Node::Range(_) => "range",
-            Node::Reduce(_) => "reduce",
-            Node::Reshape(_) => "reshape",
-            Node::Resize(_) => "resize",
-            Node::Round(_) => "round",
-            Node::Slice(_) => "slice",
-            Node::SpaceToDepth(_) => "space_to_depth",
-            Node::Squeeze(_) => "squeeze",
-            Node::Sum(_) => "add",
-            Node::Tile(_) => "tile",
-            Node::TopK(_) => "top_k",
-            Node::Trilu(_) => "trilu",
-            Node::Unary(unary) => unary.kind.as_str(),
-            Node::Unsqueeze(_) => "unsqueeze",
-            Node::Where(_) => "where",
+            Node::PRelu(_) => "prelu",
             Node::RandomNormal(_) => "random_normal",
             Node::RandomNormalLike(_) => "random_normal_like",
             Node::RandomUniform(_) => "random_uniform",
             Node::RandomUniformLike(_) => "random_uniform_like",
-            Node::ConstantOfShape(_) => "constant_of_shape",
+            Node::Range(_) => "range",
+            Node::Reciprocal(_) => "reciprocal",
+            Node::Reduce(_) => "reduce",
+            Node::Relu(_) => "relu",
+            Node::Reshape(_) => "reshape",
+            Node::Resize(_) => "resize",
+            Node::Round(_) => "round",
+            Node::Shape(_) => "shape",
+            Node::Sigmoid(_) => "sigmoid",
+            Node::Sign(_) => "sign",
+            Node::Sin(_) => "sin",
+            Node::Sinh(_) => "sinh",
+            Node::Size(_) => "size",
+            Node::Slice(_) => "slice",
+            Node::Softmax(_) => "softmax",
+            Node::SpaceToDepth(_) => "space_to_depth",
             Node::Split(_) => "split",
+            Node::Sqrt(_) => "sqrt",
+            Node::Squeeze(_) => "squeeze",
+            Node::Sum(_) => "add",
+            Node::Tan(_) => "tan",
+            Node::Tanh(_) => "tanh",
+            Node::Tile(_) => "tile",
+            Node::TopK(_) => "top_k",
+            Node::Transpose(_) => "transpose",
+            Node::Trilu(_) => "trilu",
+            Node::Unsqueeze(_) => "unsqueeze",
+            Node::Where(_) => "where",
             _ => unimplemented!(),
         }
     }

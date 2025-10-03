@@ -18,6 +18,7 @@ use crate::{
         ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type,
         graph::BurnGraph,
         node::{
+            abs::AbsNode,
             argmax::ArgMaxNode,
             argmin::ArgMinNode,
             attention::{AttentionNode, AttentionNodeInputs, AttentionNodeOutputs},
@@ -43,25 +44,39 @@ use crate::{
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv3d::Conv3dNode,
+            cos::CosNode,
+            cosh::CoshNode,
             depth_to_space::DepthToSpaceNode,
             dropout::DropoutNode,
+            erf::ErfNode,
+            exp::ExpNode,
             expand::ExpandNode,
             eye_like::EyeLikeNode,
+            flatten::FlattenNode,
             floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
+            gelu::GeluNode,
             gemm::GemmNode,
             global_avg_pool::GlobalAvgPoolNode,
             group_norm::GroupNormNode,
+            hard_sigmoid::HardSigmoidNode,
             identity::IdentityNode,
             instance_norm::InstanceNormNode,
+            is_inf::IsInfNode,
+            is_nan::IsNanNode,
             layer_norm::LayerNormNode,
+            leaky_relu::LeakyReluNode,
             linear::LinearNode,
+            log::LogNode,
+            log_softmax::LogSoftmaxNode,
             matmul::MatmulNode,
             matmul_integer::MatMulIntegerNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
             modulo::ModNode,
+            neg::NegNode,
+            not::NotNode,
             one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
@@ -70,19 +85,31 @@ use crate::{
             random_uniform::RandomUniformNode,
             random_uniform_like::RandomUniformLikeNode,
             range::RangeNode,
+            reciprocal::ReciprocalNode,
             reduce::{ReduceNode, ReductionType},
+            relu::ReluNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
             round::RoundNode,
+            shape::ShapeNode,
+            sigmoid::SigmoidNode,
+            sign::SignNode,
+            sin::SinNode,
+            sinh::SinhNode,
+            size::SizeNode,
             slice::SliceNode,
+            softmax::SoftmaxNode,
             space_to_depth::SpaceToDepthNode,
             split::SplitNode,
+            sqrt::SqrtNode,
             squeeze::SqueezeNode,
             sum::SumNode,
+            tan::TanNode,
+            tanh::TanhNode,
             tile::TileNode,
             top_k::TopKNode,
+            transpose::TransposeNode,
             trilu::TriluNode,
-            unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
             where_op::WhereNode,
         },
@@ -1003,56 +1030,86 @@ impl ParsedOnnxGraph {
         BinaryNode::max_pair(lhs, rhs, output)
     }
 
-    fn erf_conversion(node: Node) -> UnaryNode {
+    fn erf_conversion(node: Node) -> ErfNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::erf(input, output)
+        ErfNode::new(input, output)
     }
 
-    fn leaky_relu_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn leaky_relu_conversion(node: Node) -> LeakyReluNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LeakyRelu expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LeakyRelu expects tensor output"),
+        };
         let alpha = leaky_relu_config(&node);
 
-        UnaryNode::leaky_relu(input, output, alpha)
+        LeakyReluNode::new(input, output, alpha)
     }
 
-    fn hard_sigmoid_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn hard_sigmoid_conversion(node: Node) -> HardSigmoidNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("HardSigmoid expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("HardSigmoid expects tensor output"),
+        };
         let (alpha, beta) = hard_sigmoid_config(&node);
 
-        UnaryNode::hard_sigmoid(input, output, alpha, beta)
+        HardSigmoidNode::new(input, output, alpha, beta)
     }
 
-    fn relu_conversion(node: Node) -> UnaryNode {
+    fn relu_conversion(node: Node) -> ReluNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Relu expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Relu expects tensor output"),
+        };
+
+        ReluNode::new(input, output)
+    }
+
+    fn gelu_conversion(node: Node) -> GeluNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Gelu expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Gelu expects tensor output"),
+        };
+
+        GeluNode::new(input, output)
+    }
+
+    fn log_conversion(node: Node) -> LogNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::relu(input, output)
+        LogNode::new(input, output)
     }
 
-    fn gelu_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-
-        UnaryNode::gelu(input, output)
-    }
-
-    fn log_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-
-        UnaryNode::log(input, output)
-    }
-
-    fn flatten_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn flatten_conversion(node: Node) -> FlattenNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Flatten expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Flatten expects tensor output"),
+        };
         let axis = flatten_config(&node);
 
-        UnaryNode::flatten(input, output, axis)
+        FlattenNode::new(input, output, axis)
     }
 
     fn gather_conversion(node: Node) -> GatherNode {
@@ -1081,12 +1138,18 @@ impl ParsedOnnxGraph {
         GatherElementsNode::new(input, index, output, config.axis)
     }
 
-    fn transpose_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn transpose_conversion(node: Node) -> TransposeNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Transpose expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Transpose expects tensor output"),
+        };
         let perm = transpose_config(&node);
 
-        UnaryNode::transpose(input, output, perm)
+        TransposeNode::new(input, output, perm)
     }
 
     fn cast_conversion(node: Node) -> CastNode {
@@ -1280,12 +1343,15 @@ impl ParsedOnnxGraph {
         ReduceNode::new(input, output, ReductionType::LogSumExp, config)
     }
 
-    fn shape_conversion(node: Node) -> UnaryNode {
+    fn shape_conversion(node: Node) -> ShapeNode {
         let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Shape(s) => s,
+            _ => panic!("Shape expects shape output"),
+        };
         let (start_dim, end_dim) = shape_config(&node);
 
-        UnaryNode::shape(input, output, start_dim, end_dim)
+        ShapeNode::new(input, output, start_dim, end_dim)
     }
 
     fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
@@ -1312,32 +1378,44 @@ impl ParsedOnnxGraph {
         ClipNode::new(input, output, min, max)
     }
 
-    fn sigmoid_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn sigmoid_conversion(node: Node) -> SigmoidNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Sigmoid expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Sigmoid expects tensor output"),
+        };
 
-        UnaryNode::sigmoid(input, output)
+        SigmoidNode::new(input, output)
     }
 
-    fn sin_conversion(node: Node) -> UnaryNode {
+    fn sin_conversion(node: Node) -> SinNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::sin(input, output)
+        SinNode::new(input, output)
     }
 
-    fn sinh_conversion(node: Node) -> UnaryNode {
+    fn sinh_conversion(node: Node) -> SinhNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::sinh(input, output)
+        SinhNode::new(input, output)
     }
 
-    fn size_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn size_conversion(node: Node) -> SizeNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Size expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Scalar(s) => s,
+            _ => panic!("Size expects scalar output"),
+        };
 
-        UnaryNode::size(input, output)
+        SizeNode::new(input, output)
     }
 
     fn slice_conversion(node: Node) -> SliceNode {
@@ -1398,55 +1476,67 @@ impl ParsedOnnxGraph {
         SumNode::new(inputs, output)
     }
 
-    fn reciprocal_conversion(node: Node) -> UnaryNode {
+    fn reciprocal_conversion(node: Node) -> ReciprocalNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::reciprocal(input, output)
+        ReciprocalNode::new(input, output)
     }
 
-    fn log_softmax_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn log_softmax_conversion(node: Node) -> LogSoftmaxNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LogSoftmax expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("LogSoftmax expects tensor output"),
+        };
         let dim = log_softmax_config(&node);
 
-        UnaryNode::log_softmax(input, output, dim)
+        LogSoftmaxNode::new(input, output, dim)
     }
 
-    fn softmax_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
+    fn softmax_conversion(node: Node) -> SoftmaxNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Softmax expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Softmax expects tensor output"),
+        };
         let dim = softmax_config(&node);
 
-        UnaryNode::softmax(input, output, dim)
+        SoftmaxNode::new(input, output, dim)
     }
 
-    fn sqrt_conversion(node: Node) -> UnaryNode {
+    fn sqrt_conversion(node: Node) -> SqrtNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::sqrt(input, output)
+        SqrtNode::new(input, output)
     }
 
-    fn abs_conversion(node: Node) -> UnaryNode {
+    fn abs_conversion(node: Node) -> AbsNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::abs(input, output)
+        AbsNode::new(input, output)
     }
 
-    fn tan_conversion(node: Node) -> UnaryNode {
+    fn tan_conversion(node: Node) -> TanNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::tan(input, output)
+        TanNode::new(input, output)
     }
 
-    fn tanh_conversion(node: Node) -> UnaryNode {
+    fn tanh_conversion(node: Node) -> TanhNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::tanh(input, output)
+        TanhNode::new(input, output)
     }
 
     fn argmax_conversion(node: Node) -> ArgMaxNode {
@@ -1782,25 +1872,25 @@ impl ParsedOnnxGraph {
         GlobalAvgPoolNode::new(name, input, output)
     }
 
-    fn cos_conversion(node: Node) -> UnaryNode {
+    fn cos_conversion(node: Node) -> CosNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::cos(input, output)
+        CosNode::new(input, output)
     }
 
-    fn cosh_conversion(node: Node) -> UnaryNode {
+    fn cosh_conversion(node: Node) -> CoshNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::cosh(input, output)
+        CoshNode::new(input, output)
     }
 
-    fn exp_conversion(node: Node) -> UnaryNode {
+    fn exp_conversion(node: Node) -> ExpNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
 
-        UnaryNode::exp(input, output)
+        ExpNode::new(input, output)
     }
 
     fn expand_conversion(node: Node) -> ExpandNode {
@@ -1817,16 +1907,22 @@ impl ParsedOnnxGraph {
         EyeLikeNode::new(input, output, config)
     }
 
-    fn neg_conversion(node: Node) -> UnaryNode {
+    fn neg_conversion(node: Node) -> NegNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        UnaryNode::neg(input, output)
+        NegNode::new(input, output)
     }
 
-    fn not_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        UnaryNode::not(input, output)
+    fn not_conversion(node: Node) -> NotNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Not expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Not expects tensor output"),
+        };
+        NotNode::new(input, output)
     }
 
     fn nonzero_conversion(node: Node) -> NonZeroNode {
@@ -1915,10 +2011,16 @@ impl ParsedOnnxGraph {
         }
     }
 
-    fn sign_conversion(node: Node) -> UnaryNode {
-        let input = Type::from(node.inputs.first().unwrap());
-        let output = Type::from(node.outputs.first().unwrap());
-        UnaryNode::sign(input, output)
+    fn sign_conversion(node: Node) -> SignNode {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Sign expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("Sign expects tensor output"),
+        };
+        SignNode::new(input, output)
     }
 
     fn squeeze_conversion(node: Node) -> SqueezeNode {
@@ -2002,17 +2104,17 @@ impl ParsedOnnxGraph {
         GemmNode::new(a, b, c, output, alpha, beta, trans_a, trans_b)
     }
 
-    fn is_inf_conversion(node: Node) -> UnaryNode {
+    fn is_inf_conversion(node: Node) -> IsInfNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
         let config = is_inf_config(&node);
-        UnaryNode::is_inf(input, output, config)
+        IsInfNode::new(input, output, config)
     }
 
-    fn is_nan_conversion(node: Node) -> UnaryNode {
+    fn is_nan_conversion(node: Node) -> IsNanNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        UnaryNode::is_nan(input, output)
+        IsNanNode::new(input, output)
     }
 
     fn attention_conversion(node: Node) -> AttentionNode {
