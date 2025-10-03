@@ -281,6 +281,10 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::cumsum(tensor, dim)
     }
 
+    fn int_cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummax(tensor, dim)
+    }
+
     fn int_gather(dim: usize, tensor: TchTensor, indices: TchTensor) -> TchTensor {
         TchOps::gather(dim, tensor, indices)
     }
