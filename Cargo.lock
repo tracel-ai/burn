@@ -888,15 +888,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-import-macros"
-version = "0.19.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
 name = "burn-ir"
 version = "0.19.0"
 dependencies = [
