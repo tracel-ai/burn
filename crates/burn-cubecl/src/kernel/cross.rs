@@ -81,9 +81,9 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
             &lhs.client,
             cube_count,
             cube_dim,
-            linear_view_ref(&lhs, &output, &line_size),
-            linear_view_ref(&rhs, &output, &line_size),
-            linear_view(&output, &line_size),
+            linear_view_ref(&lhs, &output, line_size),
+            linear_view_ref(&rhs, &output, line_size),
+            linear_view(&output, line_size),
         );
     }
 

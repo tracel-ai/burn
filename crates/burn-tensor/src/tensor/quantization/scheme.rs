@@ -1,6 +1,6 @@
 // We re-export those types.
 pub use cubecl_quant::scheme::{
-    QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
+    BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
 
 use serde::{Deserialize, Serialize};
@@ -57,6 +57,23 @@ pub fn compute_range<B: Backend, const D: usize>(
     }
 }
 
+/// Calculate the shape of the quantization parameters for a given tensor and level
+pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
+    match level {
+        QuantLevel::Tensor => Shape::new([1]),
+        QuantLevel::Block(block_size) => {
+            let mut params_shape = data_shape.clone();
+            let block_size = block_size.to_dim_vec(data_shape.num_dims());
+
+            for (shape, block_size) in params_shape.dims.iter_mut().zip(block_size) {
+                *shape = (*shape).div_ceil(block_size as usize);
+            }
+
+            params_shape
+        }
+    }
+}
+
 pub(crate) fn compute_range_primitive<B: Backend>(
     scheme: &QuantScheme,
     tensor: B::FloatTensorPrimitive,
@@ -66,24 +83,24 @@ pub(crate) fn compute_range_primitive<B: Backend>(
         Calibration::MinMax => match scheme.level {
             QuantLevel::Tensor => (B::float_min(tensor.clone()), B::float_max(tensor)),
             QuantLevel::Block(block_size) => {
+                let block_elems = block_size.num_elements();
                 let shape = tensor.shape();
                 let numel = shape.num_elements();
 
                 assert_eq!(
-                    numel % block_size,
+                    numel % block_elems,
                     0,
-                    "Tensor {shape:?} must be evenly divisible by block size {block_size}"
+                    "Tensor {shape:?} must be evenly divisible by block size {block_elems}"
                 );
 
-                let num_blocks = numel / block_size;
+                let num_blocks = numel / block_elems;
 
-                let blocks = B::float_reshape(tensor, Shape::new([num_blocks, block_size]));
-                let blocks_min = B::float_reshape(
-                    B::float_min_dim(blocks.clone(), 1),
-                    Shape::new([num_blocks]),
-                );
-                let blocks_max =
-                    B::float_reshape(B::float_max_dim(blocks, 1), Shape::new([num_blocks]));
+                let params_shape = params_shape(&shape, scheme.level);
+
+                let blocks = B::float_reshape(tensor, Shape::new([num_blocks, block_elems]));
+                let blocks_min =
+                    B::float_reshape(B::float_min_dim(blocks.clone(), 1), params_shape.clone());
+                let blocks_max = B::float_reshape(B::float_max_dim(blocks, 1), params_shape);
                 (blocks_min, blocks_max)
             }
         },

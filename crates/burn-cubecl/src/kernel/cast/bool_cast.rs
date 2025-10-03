@@ -46,8 +46,8 @@ pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            linear_view(&tensor, &line_size),
-            linear_view(&output, &line_size),
+            linear_view(&tensor, line_size),
+            linear_view(&output, line_size),
         );
     }
 

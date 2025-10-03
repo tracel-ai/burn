@@ -128,7 +128,7 @@ impl QuantizedBytes {
     fn split_values_off(self) -> (Vec<i8>, (Vec<u32>, usize)) {
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
-            QuantLevel::Block(block_size) => self.num_elements / block_size,
+            QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
         };
 
         let (values, qparams) = match self.scheme.store {
@@ -144,6 +144,9 @@ impl QuantizedBytes {
                     // Sub-byte values are unpacked as i8s for value equality tests
                     let values = unpack_q_to_i8s(&values, self.num_elements, &self.scheme.value);
                     (values, qparams)
+                }
+                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    unimplemented!("Not yet supported")
                 }
             },
         };
@@ -187,7 +190,10 @@ impl QuantizedBytes {
             } => {
                 let value = self.scheme.value;
                 let (values, qparams) = self.into_vec_i8();
-                assert_eq!(values.len() / qparams.scales.len(), block_size);
+                assert_eq!(
+                    values.len() / qparams.scales.len(),
+                    block_size.num_elements()
+                );
                 let strategy = QuantizationStrategy::PerBlockSymmetric(
                     qparams
                         .scales
@@ -198,6 +204,10 @@ impl QuantizedBytes {
                 );
                 (strategy.dequantize(&values), qparams)
             }
+            QuantScheme {
+                value: QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                ..
+            } => unimplemented!("Not yet supported"),
         }
     }
 }

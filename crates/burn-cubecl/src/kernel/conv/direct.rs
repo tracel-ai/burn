@@ -296,7 +296,7 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
             input.as_tensor_arg::<E>(line_size_in),
             weight.as_tensor_arg::<E>(line_size_in),
             bias.into(),
-            linear_view(&output, &line_size_out),
+            linear_view(&output, line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,

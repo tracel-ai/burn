@@ -61,18 +61,18 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     };
 
     let out = match strategy {
-        MaskWhereStrategy::Readonly => linear_view(&output, &line_size),
-        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, &line_size, 0),
-        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, &line_size, 1),
+        MaskWhereStrategy::Readonly => linear_view(&output, line_size),
+        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, line_size, 0),
+        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, line_size, 1),
     };
 
     mask_where_kernel::launch::<E, BT, R>(
         &input.client,
         cube_count,
         cube_dim,
-        linear_view_ref(&input, &output, &line_size),
-        linear_view_ref(&value, &output, &line_size),
-        linear_view_ref(&mask, &output, &line_size),
+        linear_view_ref(&input, &output, line_size),
+        linear_view_ref(&value, &output, line_size),
+        linear_view_ref(&mask, &output, line_size),
         out,
     );
 

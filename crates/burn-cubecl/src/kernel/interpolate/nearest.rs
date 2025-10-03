@@ -58,7 +58,7 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime, E: FloatElement>(
         calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
 
     let shape_out = shape_divmod(&output);
-    let out_layout = linear_layout(&output, &line_size);
+    let out_layout = linear_layout(&output, line_size);
 
     unsafe {
         interpolate_nearest_kernel::launch_unchecked::<E, R>(

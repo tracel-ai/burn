@@ -18,11 +18,11 @@
 //! ```
 
 use burn_core::module::Module;
-use burn_core::nn;
 use burn_core::prelude::*;
 use burn_core::record::{FullPrecisionSettings, Recorder};
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 use burn_import::safetensors::SafetensorsFileRecorder;
+use burn_nn as nn;
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore};
 use divan::{AllocProfiler, Bencher};
 use std::fs;

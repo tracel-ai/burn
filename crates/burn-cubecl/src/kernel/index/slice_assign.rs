@@ -173,7 +173,7 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(line_size),
-            linear_view(&value, &line_size),
+            linear_view(&value, line_size),
             shape,
             offsets,
         );
@@ -230,7 +230,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            linear_view(&value, &1),
+            linear_view(&value, 1),
             shape_divmod(&value),
             starts,
             ends,

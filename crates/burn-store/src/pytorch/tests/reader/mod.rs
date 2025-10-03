@@ -580,7 +580,7 @@ fn test_legacy_shared_storage() {
             }
             _ => {
                 // For other types, just verify we can convert to data
-                assert!(data.shape.len() > 0, "Tensor {} should have shape", key);
+                assert!(!data.shape.is_empty(), "Tensor {} should have shape", key);
             }
         }
     }
@@ -777,7 +777,7 @@ fn test_read_pickle_data_nested_structure() {
     if let PickleValue::Dict(dict) = data {
         // nested_dict.pt has a nested structure, not flat keys
         // It should have layer1 and layer2 as nested dicts
-        assert!(dict.len() > 0, "Dictionary should not be empty");
+        assert!(!dict.is_empty(), "Dictionary should not be empty");
 
         // The structure depends on how the file was saved
         // It could be flat keys like "layer1.weight" or nested dicts

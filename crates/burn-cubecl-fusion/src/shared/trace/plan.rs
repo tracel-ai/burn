@@ -163,7 +163,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
 pub struct QuantParamsHandleInput<R: Runtime> {
     pub precision: FusePrecision,
     pub handle: CubeFusionHandle<R>,
-    pub shape: [usize; 1],
+    pub shape: Vec<usize>,
 }
 
 #[derive(Debug)]

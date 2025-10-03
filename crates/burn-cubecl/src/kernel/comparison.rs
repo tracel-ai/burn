@@ -119,9 +119,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             cube_dim,
-            linear_view(&lhs, &line_size),
-            linear_view_ref(&rhs, &lhs, &line_size),
-            linear_view_alias(&lhs, &line_size, 0),
+            linear_view(&lhs, line_size),
+            linear_view_ref(&rhs, &lhs, line_size),
+            linear_view_alias(&lhs, line_size, 0),
         );
 
         CubeTensor::new(
@@ -137,9 +137,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             CubeDim::default(),
-            linear_view_ref(&lhs, &rhs, &line_size),
-            linear_view(&rhs, &line_size),
-            linear_view_alias(&rhs, &line_size, 1),
+            linear_view_ref(&lhs, &rhs, line_size),
+            linear_view(&rhs, line_size),
+            linear_view_alias(&rhs, line_size, 1),
         );
 
         CubeTensor::new(
@@ -157,9 +157,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             CubeDim::default(),
-            linear_view_ref(&lhs, &output, &line_size),
-            linear_view_ref(&rhs, &output, &line_size),
-            linear_view(&output, &line_size),
+            linear_view_ref(&lhs, &output, line_size),
+            linear_view_ref(&rhs, &output, line_size),
+            linear_view(&output, line_size),
         );
 
         output
@@ -189,9 +189,9 @@ pub(crate) fn launch_scalar_cmp<
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view_alias(&tensor, &line_size, 0),
+                linear_view_alias(&tensor, line_size, 0),
             );
         }
 
@@ -215,9 +215,9 @@ pub(crate) fn launch_scalar_cmp<
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view(&output, &line_size),
+                linear_view(&output, line_size),
             );
         }
 
@@ -370,8 +370,8 @@ pub(crate) fn launch_predicate<
             &client,
             cube_count,
             CubeDim::default(),
-            linear_view_ref(&tensor, &output, &line_size),
-            linear_view(&output, &line_size),
+            linear_view_ref(&tensor, &output, line_size),
+            linear_view(&output, line_size),
         );
     }
 

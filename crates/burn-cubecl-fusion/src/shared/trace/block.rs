@@ -168,6 +168,9 @@ impl FuseBlockBuilder {
                 QuantParam::F32 => FusePrecision::F32,
                 QuantParam::F16 => FusePrecision::F16,
                 QuantParam::BF16 => FusePrecision::BF16,
+                QuantParam::UE8M0 | QuantParam::UE4M3 => {
+                    unimplemented!("Unsupported fuse precision");
+                }
             },
             _ => return None,
         };

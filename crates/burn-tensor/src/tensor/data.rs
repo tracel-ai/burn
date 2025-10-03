@@ -291,6 +291,15 @@ impl TensorData {
                                 .into_iter(),
                         )
                     }
+                    QuantScheme {
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        mode: QuantMode::Symmetric,
+                        value:
+                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                        ..
+                    } => {
+                        unimplemented!("Not yet implemented for iteration");
+                    }
                 },
             }
         }
@@ -857,7 +866,16 @@ impl core::fmt::Display for TensorData {
                     ..
                 } => {
                     format!("{:?} {scheme:?}", self.iter::<i8>().collect::<Vec<_>>())
-                }
+                },
+                QuantScheme {
+                        level: QuantLevel::Tensor | QuantLevel::Block(_),
+                        mode: QuantMode::Symmetric,
+                        value:
+                            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                        ..
+                    } => {
+                        unimplemented!("Can't format yet");
+                    }
             },
         };
         f.write_str(fmt.as_str())

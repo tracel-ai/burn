@@ -632,7 +632,7 @@ where
         execute_with_dtype!(
             int(tensor.dtype),
             I,
-            unary_basic_int::launch::<R, _, I>(tensor, |_| &BasicIntUnaryKind::BitwiseNot)
+            unary_basic_int::launch::<R, _, I>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
         )
     }
 

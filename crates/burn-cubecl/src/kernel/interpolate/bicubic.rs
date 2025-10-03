@@ -154,7 +154,7 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&input);
     let out_shape = shape_divmod(&output);
-    let out_layout = linear_layout(&output, &line_size);
+    let out_layout = linear_layout(&output, line_size);
 
     let cube_dim = CubeDim::default();
     let cube_count =

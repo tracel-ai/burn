@@ -63,9 +63,9 @@ pub(crate) fn gather<R: CubeRuntime, E: CubeElement, I: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            linear_view(&indices, &1),
+            linear_view(&indices, 1),
             output.as_tensor_arg::<E>(1),
-            linear_layout(&output, &1),
+            linear_layout(&output, 1),
             ScalarArg::new(dim as u32),
         )
     }

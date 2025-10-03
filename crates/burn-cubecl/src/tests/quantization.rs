@@ -48,7 +48,7 @@ mod tests {
     ) {
         let scheme = QuantScheme::default()
             .with_value(value)
-            .with_level(QuantLevel::Block(block_size))
+            .with_level(QuantLevel::block([block_size as u8]))
             .with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
@@ -80,7 +80,7 @@ mod tests {
     ) {
         let scheme = QuantScheme::default()
             .with_value(value)
-            .with_level(QuantLevel::Block(block_size))
+            .with_level(QuantLevel::block([block_size as u8]))
             .with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 

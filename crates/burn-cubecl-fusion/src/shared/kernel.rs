@@ -773,6 +773,9 @@ fn dequantize<C: Float>(
     set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(comptime![match scheme.store {
         QuantStore::Native => match scheme.value {
             QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
+            QuantValue::E4M3 => StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
+            QuantValue::E5M2 => StorageType::Scalar(ElemType::Float(FloatKind::E5M2)),
+            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
             QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
                 unreachable!("Can't store native sub-byte values"),
         },
@@ -785,6 +788,10 @@ fn dequantize<C: Float>(
             StorageType::Scalar(ElemType::Float(FloatKind::F16)),
         cubecl_quant::scheme::QuantParam::BF16 =>
             StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
+        cubecl_quant::scheme::QuantParam::UE8M0 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::UE8M0)),
+        cubecl_quant::scheme::QuantParam::UE4M3 =>
+            StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }]);
 
     let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
@@ -794,8 +801,9 @@ fn dequantize<C: Float>(
         Arg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    // Assume scales have plain layout for now
-    let scales = input_as_linear_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos);
+
+    let scales =
+        input_as_scales_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos, scheme.level);
     let result = dequantize_symmetric_packed_value_at::<
         C,
         ElemExpand<Q_PARAM_DYN_ELEM_ID>,

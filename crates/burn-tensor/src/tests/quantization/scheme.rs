@@ -34,7 +34,7 @@ mod tests {
         let device = Default::default();
         let scheme = QuantizedTensor::<TestBackend>::default_scheme()
             .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(4));
+            .with_level(QuantLevel::block([4]));
         let range = CalibrationRange {
             min: TestTensor::<1>::from_floats([-1.8, -0.5, 0.01, -0.04], &device),
             max: TestTensor::<1>::from_floats([0.5, 1.8, 0.04, -0.01], &device),

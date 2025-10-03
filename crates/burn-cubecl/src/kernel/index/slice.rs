@@ -110,7 +110,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            linear_view(&output, &1),
+            linear_view(&output, 1),
             shape_divmod(&output),
             indices_sequence,
         )
@@ -224,7 +224,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg::<E>(1),
-            linear_view(&output, &1),
+            linear_view(&output, 1),
             shape_divmod(&output),
             starts,
             ends,

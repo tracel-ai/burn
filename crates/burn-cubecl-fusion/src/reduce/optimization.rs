@@ -383,10 +383,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             axis: self.axis as u32,
             strategy: &strategy,
             config_reduce,
-            config_fuse_read: config_read,
-            config_fuse_write: config_write,
-            input: &self.input,
-            output: &self.output,
+            config_fuse_read: config_read.clone(),
+            config_fuse_write: config_write.clone(),
+            input: self.input.clone(),
+            output: self.output.clone(),
         };
         launch_reduce_mixed_precision::<R>(
             kwargs,
@@ -407,10 +407,10 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     axis: u32,
     strategy: &'b ReduceStrategy,
     config_reduce: ReduceConfig,
-    config_fuse_read: &'a FuseBlockConfig,
-    config_fuse_write: &'a FuseBlockConfig,
-    input: &'a Arg,
-    output: &'a Arg,
+    config_fuse_read: FuseBlockConfig,
+    config_fuse_write: FuseBlockConfig,
+    input: Arg,
+    output: Arg,
 }
 
 fn launch_reduce_mixed_precision<Run: Runtime>(

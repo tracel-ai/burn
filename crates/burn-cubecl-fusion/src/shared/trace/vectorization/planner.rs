@@ -316,7 +316,12 @@ fn apply_vectorization_block<R: Runtime>(
 fn line_sizes_quants<R: Runtime>(quants_line_sizes: &mut Option<Vec<u8>>, scheme: QuantScheme) {
     match scheme.store {
         QuantStore::Native => match scheme.value {
-            QuantValue::Q8F | QuantValue::Q8S => {
+            // Type sizes are the same so just treat fp8/fp4x2 as i8
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::E4M3
+            | QuantValue::E5M2
+            | QuantValue::E2M1 => {
                 let line_sizes = R::io_optimized_line_sizes_unchecked(
                     &ElemType::Int(cubecl::ir::IntKind::I8).into(),
                 )
