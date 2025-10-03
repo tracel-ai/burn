@@ -9,18 +9,12 @@ use burn::record::{
 };
 
 use crate::{
-    burn::{
-        ScalarKind, ScalarType, ShapeType, TensorKind, TensorType, Type, graph::BurnGraph,
-        node::try_convert_onnx_node,
-    },
+    burn::{graph::BurnGraph, node::try_convert_onnx_node},
     format_tokens,
     logger::init_log,
 };
 
-use onnx_ir::{
-    ir::{ArgType, Argument as OnnxArgument, ElementType, OnnxGraph},
-    parse_onnx,
-};
+use onnx_ir::{ir::OnnxGraph, parse_onnx};
 
 pub use crate::burn::graph::RecordType;
 
@@ -255,99 +249,5 @@ impl ParsedOnnxGraph {
         graph.register_input_output(input_names, output_names);
 
         graph
-    }
-}
-
-impl From<&onnx_ir::ir::Argument> for TensorType {
-    fn from(arg: &onnx_ir::ir::Argument) -> Self {
-        use onnx_ir::ir::{ArgType, TensorType as OnnxTensorType};
-
-        match &arg.ty {
-            ArgType::Tensor(OnnxTensorType {
-                elem_type, rank, ..
-            }) => tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, *rank),
-            ArgType::Scalar(elem_type) => {
-                // Represent scalar as rank-0 tensor type of the appropriate kind
-                tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, 0)
-            }
-            ArgType::Shape(_) => panic!("Cannot convert Shape to Burn TensorType"),
-        }
-    }
-}
-impl From<&OnnxArgument> for Type {
-    fn from(arg: &OnnxArgument) -> Self {
-        match &arg.ty {
-            ArgType::Tensor(tensor) => {
-                // Treat tensor with rank 0 as scalar
-                if tensor.rank == 0 {
-                    Type::Scalar(ScalarType::new(
-                        arg.name.clone(),
-                        ScalarKind::from(&tensor.elem_type),
-                    ))
-                } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
-                    let rank = tensor.rank;
-                    let name = arg.name.clone();
-                    Type::Tensor(TensorType::new(name, rank, kind))
-                }
-            }
-
-            ArgType::Scalar(elem_type) => {
-                Type::Scalar(ScalarType::new(arg.name.clone(), elem_type.into()))
-            }
-            ArgType::Shape(rank) => Type::Shape(ShapeType::new(arg.name.clone(), *rank)),
-        }
-    }
-}
-
-impl From<&ElementType> for ScalarKind {
-    fn from(elem_type: &ElementType) -> Self {
-        match elem_type {
-            ElementType::Float32 => ScalarKind::Float32,
-            ElementType::Float64 => ScalarKind::Float64,
-            ElementType::Int32 => ScalarKind::Int32,
-            ElementType::Int64 => ScalarKind::Int64,
-            ElementType::Bool => ScalarKind::Bool,
-            ElementType::Uint16 => ScalarKind::Int32,
-            ElementType::Int8 | ElementType::Uint8 => ScalarKind::Int32,
-            ElementType::String => panic!("String tensor unsupported"),
-            ElementType::Float16 => panic!("Float16 tensor unsupported"),
-        }
-    }
-}
-
-impl From<ElementType> for TensorKind {
-    fn from(elem_type: ElementType) -> Self {
-        match elem_type {
-            ElementType::Float32 => TensorKind::Float,
-            ElementType::Float64 => TensorKind::Float,
-            ElementType::Int32 => TensorKind::Int,
-            ElementType::Int64 => TensorKind::Int,
-            ElementType::Int8 | ElementType::Uint8 => TensorKind::Int,
-            ElementType::Bool => TensorKind::Bool,
-            _ => panic!("Unsupported tensor type"),
-        }
-    }
-}
-
-fn tensor_type_from_elem_and_rank(name: String, elem: &ElementType, rank: usize) -> TensorType {
-    match elem {
-        ElementType::Uint8
-        | ElementType::Int8
-        | ElementType::Uint16
-        | ElementType::Int32
-        | ElementType::Int64 => TensorType::new(name, rank, TensorKind::Int),
-
-        ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
-            // If you have TensorType::new_float, use that; otherwise:
-            // TensorType::new(name, rank, TensorKind::Float)
-            TensorType::new(name, rank, TensorKind::Float)
-        }
-
-        ElementType::Bool => TensorType::new(name, rank, TensorKind::Bool),
-
-        ElementType::String => {
-            panic!("String element type cannot be converted to Burn TensorType")
-        }
     }
 }
