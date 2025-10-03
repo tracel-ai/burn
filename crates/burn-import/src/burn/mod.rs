@@ -7,13 +7,12 @@ mod node_registry;
 #[cfg(test)]
 pub(crate) mod node_test;
 
-mod codegen;
 mod imports;
 mod scope;
 mod ty;
 
-pub(crate) use codegen::*;
 pub(crate) use imports::*;
+pub(crate) use node_codegen::ToTokens;
 pub(crate) use scope::*;
 pub(crate) use ty::*;
 
