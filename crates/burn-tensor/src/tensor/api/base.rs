@@ -2864,7 +2864,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         let slice_shape_vec = calculate_slice_output_shape(slices, &tensor_shape.dims);
         let slice_shape = Shape::from(slice_shape_vec);
 
-        let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
+        let value = Self::from_data_dtype(
+            TensorData::from([value]),
+            &Self::device(&tensor),
+            Self::dtype(&tensor),
+        );
         let value = Self::expand(value, slice_shape);
         Self::slice_assign(tensor, slices, value)
     }
