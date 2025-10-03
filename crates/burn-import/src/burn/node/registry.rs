@@ -42,6 +42,25 @@ macro_rules! node_registry {
             _Unreachable(std::convert::Infallible, std::marker::PhantomData<PS>),
         }
 
+        // Generate match_all! macro for dispatching on Node variants
+        macro_rules! match_all {
+            ($self:expr, $func:expr) => {{
+                #[allow(clippy::redundant_closure_call)]
+                match $self {
+                    $(
+                        Node::$single_onnx(node) => $func(node),
+                    )*
+                    $(
+                        Node::$group_variant(node) => $func(node),
+                    )*
+                    Node::_Unreachable(_, _) => unimplemented!(),
+                }
+            }};
+        }
+
+        // Re-export match_all! so it's accessible from parent module
+        pub(crate) use match_all;
+
         // Generate name() method
         impl<PS: burn::record::PrecisionSettings> Node<PS> {
             pub fn name(&self) -> &str {
