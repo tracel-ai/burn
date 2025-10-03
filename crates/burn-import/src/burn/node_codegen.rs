@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use serde::Serialize;
 
 // Import the generated Node enum and match_all! macro from registry
-use super::registry::{Node, match_all};
+use super::node_registry::{Node, match_all};
 
 use burn::record::PrecisionSettings;
 

@@ -20,10 +20,10 @@ macro_rules! node_registry {
     ) => {
         // Generate imports (from both single and grouped)
         $(
-            pub use super::$single_module::$single_node_type;
+            pub use super::node::$single_module::$single_node_type;
         )*
         $(
-            pub use super::$group_module::$group_node_type;
+            pub use super::node::$group_module::$group_node_type;
         )*
 
         // Generate Node enum (one variant per unique node type)
@@ -80,8 +80,8 @@ macro_rules! node_registry {
             node: onnx_ir::Node,
         ) -> Option<Node<PS>> {
             use onnx_ir::NodeType;
-            use super::NodeCodegen;
-            use super::OnnxIntoNode;
+            use super::node_codegen::NodeCodegen;
+            use super::node_codegen::OnnxIntoNode;
 
             match node.node_type {
                 // Single mappings
