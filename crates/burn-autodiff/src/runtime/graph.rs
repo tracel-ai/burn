@@ -8,8 +8,6 @@ use crate::{
     tensor::{AutodiffTensor, NodeRefCount},
 };
 use alloc::sync::Arc;
-use alloc::vec;
-use alloc::vec::Vec;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::Backend;
 use hashbrown::{HashMap, HashSet};
@@ -155,28 +153,34 @@ impl GraphLocator {
     ///
     /// An `Arc<Graph>` representing the selected or merged graph.
     pub(crate) fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
-        let mut graphs = self.select_many(node, parents);
+        match self.analyse(node, parents) {
+            GraphAnalysis::NoCollision(graph) => {
+                if graph.origin != node {
+                    self.graphs.insert(node, graph.clone());
+                    self.register_key(graph.origin, node);
+                }
 
-        if graphs.len() == 1 {
-            let graph = graphs.pop().unwrap();
-            if graph.origin != node {
-                self.graphs.insert(node, graph.clone());
-                self.register_key(graph.origin, node);
+                graph
             }
-
-            return graph;
+            GraphAnalysis::Collisions(graphs) => self.merge(node, graphs),
         }
-
-        self.merge(node, graphs)
     }
 
-    fn select_many(&mut self, node: NodeId, parents: &[Parent]) -> Vec<Arc<Graph>> {
+    /// Analyses the graph for a given node and its parents, returning the associated `GraphAnalysis`.
+    fn analyse(&mut self, node: NodeId, parents: &[Parent]) -> GraphAnalysis {
+        // If no parents, there is no collision, therefore a single graph is ok.
+        if parents.is_empty() {
+            let graph = match self.graphs.get(&node) {
+                Some(val) => val.clone(),
+                None => self.new_graph(node),
+            };
+            return GraphAnalysis::NoCollision(graph);
+        };
+
+        // We collect all graphs of parents and of the current node based on their origin node id.
         let mut graphs = HashMap::<NodeId, Arc<Graph>>::new();
 
         if let Some(val) = self.graphs.get(&node) {
-            if parents.is_empty() {
-                return vec![val.clone()];
-            }
             graphs.insert(val.origin, val.clone());
         }
 
@@ -189,24 +193,28 @@ impl GraphLocator {
 
         if graphs.is_empty() {
             return match self.graphs.get(&node) {
-                Some(old) => vec![old.clone()],
-                None => {
-                    let graph = self.new_graph(node);
-                    vec![graph]
-                }
+                Some(old) => GraphAnalysis::NoCollision(old.clone()),
+                None => GraphAnalysis::NoCollision(self.new_graph(node)),
             };
         }
 
-        graphs.drain().map(|(_, v)| v).collect()
+        if graphs.len() == 1 {
+            return GraphAnalysis::NoCollision(graphs.drain().next().unwrap().1);
+        }
+
+        GraphAnalysis::Collisions(graphs)
     }
 
-    fn merge(&mut self, node: NodeId, mut graphs: Vec<Arc<Graph>>) -> Arc<Graph> {
-        let main = graphs.pop().unwrap();
+    /// Merges multiple graphs associated with a node into a single graph.
+    fn merge(&mut self, node: NodeId, mut graphs: HashMap<NodeId, Arc<Graph>>) -> Arc<Graph> {
+        let mut graphs = graphs.drain().map(|g| g.1);
+
+        let main = graphs.next().expect("At least one graph");
         self.register_key(main.origin, node);
 
         let mut state = main.state.lock().unwrap();
 
-        for graph in graphs.drain(..) {
+        for graph in graphs {
             self.merge_two(&mut state, &main, graph);
         }
 
@@ -218,6 +226,7 @@ impl GraphLocator {
         main
     }
 
+    /// Registers a key for a given origin node.
     fn register_key(&mut self, origin: NodeId, key: NodeId) {
         if !self.keys.contains_key(&origin) {
             self.keys.insert(origin, HashSet::new());
@@ -228,6 +237,7 @@ impl GraphLocator {
         }
     }
 
+    /// Merges two graphs by combining their states and updating graph mappings.
     fn merge_two(&mut self, main_state: &mut GraphState, main: &Arc<Graph>, merged: Arc<Graph>) {
         let mut locked = merged.state.lock().unwrap();
         let mut state_old = GraphState::default();
@@ -249,6 +259,7 @@ impl GraphLocator {
         }
     }
 
+    /// Creates a new graph for a given node.
     fn new_graph(&mut self, origin: NodeId) -> Arc<Graph> {
         let graph = Arc::new(Graph {
             origin,
@@ -258,4 +269,13 @@ impl GraphLocator {
         self.keys.insert(origin, HashSet::new());
         graph
     }
+}
+
+/// Represents the analysis result of graph operations for a given node and its parents.
+#[derive(Debug)]
+enum GraphAnalysis {
+    /// No collision detected, contains the graph associated with the node.
+    NoCollision(Arc<Graph>),
+    /// Collision detected, contains a map of node IDs to their associated graphs.
+    Collisions(HashMap<NodeId, Arc<Graph>>),
 }
