@@ -150,7 +150,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatMulIntegerNode {
         }
     }
     fn into_node(self) -> Node<PS> {
-        Node::MatmulInteger(self)
+        Node::MatMulInteger(self)
     }
 }
 

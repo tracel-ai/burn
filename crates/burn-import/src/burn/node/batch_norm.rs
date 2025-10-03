@@ -136,7 +136,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::BatchNorm(self)
+        Node::BatchNormalization(self)
     }
 }
 

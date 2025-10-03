@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MaxPairNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::MaxPair(self)
+        Node::Max(self)
     }
 }
 

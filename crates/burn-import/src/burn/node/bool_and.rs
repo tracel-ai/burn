@@ -69,7 +69,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolAndNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::BoolAnd(self)
+        Node::And(self)
     }
 }
 

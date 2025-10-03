@@ -120,7 +120,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::LayerNorm(self)
+        Node::LayerNormalization(self)
     }
 }
 

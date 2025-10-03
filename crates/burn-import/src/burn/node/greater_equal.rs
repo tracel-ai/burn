@@ -92,7 +92,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GreaterEqualNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::GreaterEqual(self)
+        Node::GreaterOrEqual(self)
     }
 }
 

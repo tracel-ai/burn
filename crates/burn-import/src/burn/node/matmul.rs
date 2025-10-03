@@ -96,7 +96,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MatmulNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Matmul(self)
+        Node::MatMul(self)
     }
 }
 

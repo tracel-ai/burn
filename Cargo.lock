@@ -865,7 +865,6 @@ name = "burn-import"
 version = "0.19.0"
 dependencies = [
  "burn",
- "burn-import-macros",
  "burn-ndarray",
  "burn-store",
  "candle-core",

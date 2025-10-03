@@ -82,7 +82,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::AvgPool2d(self)
+        Node::AveragePool2d(self)
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

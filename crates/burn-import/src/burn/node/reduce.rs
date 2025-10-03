@@ -297,7 +297,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReduceNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Reduce(self)
+        Node::ReduceMax(self)
     }
 }
 

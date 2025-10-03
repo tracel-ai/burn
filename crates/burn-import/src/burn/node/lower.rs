@@ -92,7 +92,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LowerNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::Lower(self)
+        Node::Less(self)
     }
 }
 

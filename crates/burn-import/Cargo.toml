@@ -32,7 +32,6 @@ safetensors = [
 burn = { path = "../burn", version = "0.19.0", default-features = false, features = [
     "std",
 ] }
-burn-import-macros = { path = "../burn-import-macros", version = "0.19.0" }
 burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false, optional = true }
 burn-store = { path = "../burn-store", version = "0.19.0", default-features = false, features = ["std", "pytorch"] }
 onnx-ir = { path = "../onnx-ir", version = "0.19.0" }

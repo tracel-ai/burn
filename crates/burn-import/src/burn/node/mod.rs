@@ -1,5 +1,8 @@
+// Base traits and types
 mod base;
+pub(crate) use base::*;
 
+// Module declarations (unfortunately must be manual due to Rust's module system)
 pub(crate) mod abs;
 pub(crate) mod add;
 pub(crate) mod argmax;
@@ -110,177 +113,17 @@ pub(crate) mod transpose;
 pub(crate) mod trilu;
 pub(crate) mod unsqueeze;
 pub(crate) mod where_op;
-pub(crate) use base::*;
 
-// Auto-generated ONNX node dispatchers
-burn_import_macros::onnx_node_registry! {
-    Add => add,
-    Sub => sub,
-    Mul => mul,
-    Div => div,
-    Max => max_pair,
-    Min => min_pair,
-    MatMul => matmul,
-    Equal => equal,
-    Greater => greater,
-    GreaterOrEqual => greater_equal,
-    Less => lower,
-    LessOrEqual => lower_equal,
-}
+// Master node registry - Everything else auto-generated from here!
+// To add a new node:
+// 1. Add module declaration above
+// 2. Add one line below
+// 3. Done!
+#[macro_use]
+mod registry;
 
-burn_import_macros::onnx_node_registry! {
-    And => bool_and,
-    Or => bool_or,
-    Xor => bool_xor,
-    Abs => abs,
-    Ceil => ceil,
-    Cos => cos,
-    Cosh => cosh,
-    Erf => erf,
-    Exp => exp,
-    Floor => floor,
-    Identity => identity,
-}
-
-burn_import_macros::onnx_node_registry! {
-    Log => log,
-    Neg => neg,
-    Not => not,
-    Reciprocal => reciprocal,
-    Round => round,
-    Sigmoid => sigmoid,
-    Sign => sign,
-    Sin => sin,
-    Sinh => sinh,
-    Sqrt => sqrt,
-    Tan => tan,
-    Tanh => tanh,
-}
-
-burn_import_macros::onnx_node_registry! {
-    ArgMax => argmax,
-    ArgMin => argmin,
-    Attention => attention,
-    AveragePool1d => avg_pool1d,
-    AveragePool2d => avg_pool2d,
-    BatchNormalization => batch_norm,
-    Bernoulli => bernoulli,
-    BitShift => bitshift,
-    BitwiseAnd => bitwiseand,
-    BitwiseNot => bitwisenot,
-    BitwiseOr => bitwiseor,
-    BitwiseXor => bitwisexor,
-}
-
-burn_import_macros::onnx_node_registry! {
-    Cast => cast,
-    Clip => clip,
-    Concat => concat,
-    Constant => constant,
-    ConstantOfShape => constant_of_shape,
-    Conv1d => conv1d,
-    Conv2d => conv2d,
-    Conv3d => conv3d,
-    ConvTranspose1d => conv_transpose_1d,
-    ConvTranspose2d => conv_transpose_2d,
-    ConvTranspose3d => conv_transpose_3d,
-}
-
-burn_import_macros::onnx_node_registry! {
-    DepthToSpace => depth_to_space,
-    Dropout => dropout,
-    Expand => expand,
-    EyeLike => eye_like,
-    Flatten => flatten,
-    Gather => gather,
-    GatherElements => gather_elements,
-    Gelu => gelu,
-    Gemm => gemm,
-    GlobalAveragePool => global_avg_pool,
-    GroupNormalization => group_norm,
-    HardSigmoid => hard_sigmoid,
-}
-
-burn_import_macros::onnx_node_registry! {
-    InstanceNormalization => instance_norm,
-    IsInf => is_inf,
-    IsNaN => is_nan,
-    LayerNormalization => layer_norm,
-    LeakyRelu => leaky_relu,
-    Linear => linear,
-    LogSoftmax => log_softmax,
-    MatMulInteger => matmul_integer,
-    MaxPool1d => max_pool1d,
-    MaxPool2d => max_pool2d,
-    Mean => mean,
-    Mod => modulo,
-}
-
-burn_import_macros::onnx_node_registry! {
-    NonZero => nonzero,
-    OneHot => one_hot,
-    Pad => pad,
-    Pow => pow,
-    PRelu => prelu,
-    RandomNormal => random_normal,
-    RandomNormalLike => random_normal_like,
-    RandomUniform => random_uniform,
-    RandomUniformLike => random_uniform_like,
-    Range => range,
-    Relu => relu,
-    Reshape => reshape,
-    Resize => resize,
-}
-
-burn_import_macros::onnx_node_registry! {
-    ReduceMax => reduce,
-    ReduceMin => reduce,
-    ReduceMean => reduce,
-    ReduceProd => reduce,
-    ReduceSum => reduce,
-    ReduceSumSquare => reduce,
-    ReduceL1 => reduce,
-    ReduceL2 => reduce,
-    ReduceLogSum => reduce,
-    ReduceLogSumExp => reduce,
-    Shape => shape,
-    Size => size,
-}
-
-burn_import_macros::onnx_node_registry! {
-    Slice => slice,
-    Softmax => softmax,
-    SpaceToDepth => space_to_depth,
-    Split => split,
-    Squeeze => squeeze,
-    Sum => sum,
-    Tile => tile,
-    TopK => top_k,
-    Transpose => transpose,
-    Trilu => trilu,
-    Unsqueeze => unsqueeze,
-    Where => where_op,
-}
-
-// Combined dispatcher
-pub(crate) fn try_convert_onnx_node<PS: burn::record::PrecisionSettings>(
-    node: onnx_ir::Node,
-) -> Option<Node<PS>> {
-    onnx_dispatch_add::try_convert_onnx_node_add(node.clone())
-        .or_else(|| onnx_dispatch_and::try_convert_onnx_node_and(node.clone()))
-        .or_else(|| onnx_dispatch_log::try_convert_onnx_node_log(node.clone()))
-        .or_else(|| onnx_dispatch_argmax::try_convert_onnx_node_argmax(node.clone()))
-        .or_else(|| onnx_dispatch_cast::try_convert_onnx_node_cast(node.clone()))
-        .or_else(|| onnx_dispatch_depthtospace::try_convert_onnx_node_depthtospace(node.clone()))
-        .or_else(|| {
-            onnx_dispatch_instancenormalization::try_convert_onnx_node_instancenormalization(
-                node.clone(),
-            )
-        })
-        .or_else(|| onnx_dispatch_nonzero::try_convert_onnx_node_nonzero(node.clone()))
-        .or_else(|| onnx_dispatch_reducemax::try_convert_onnx_node_reducemax(node.clone()))
-        .or_else(|| onnx_dispatch_slice::try_convert_onnx_node_slice(node))
-}
+// Re-export everything from registry
+pub(crate) use registry::*;
 
 #[cfg(test)]
 pub(crate) mod test;

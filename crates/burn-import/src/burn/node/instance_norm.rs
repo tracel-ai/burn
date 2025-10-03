@@ -70,7 +70,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::InstanceNorm(self)
+        Node::InstanceNormalization(self)
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {

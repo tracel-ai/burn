@@ -69,7 +69,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolXorNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::BoolXor(self)
+        Node::Xor(self)
     }
 }
 

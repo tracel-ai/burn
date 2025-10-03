@@ -36,7 +36,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for IsNanNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::IsNan(self)
+        Node::IsNaN(self)
     }
 }
 

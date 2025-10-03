@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for MinPairNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::MinPair(self)
+        Node::Min(self)
     }
 }
 

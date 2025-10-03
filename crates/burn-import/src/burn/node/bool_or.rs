@@ -69,7 +69,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolOrNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::BoolOr(self)
+        Node::Or(self)
     }
 }
 

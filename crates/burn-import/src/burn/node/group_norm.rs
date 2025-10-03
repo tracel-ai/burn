@@ -120,7 +120,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GroupNormNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::GroupNorm(self)
+        Node::GroupNormalization(self)
     }
 }
 
