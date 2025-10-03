@@ -87,8 +87,7 @@ use super::nonzero::NonZeroNode;
 use super::not::NotNode;
 use super::one_hot::OneHotNode;
 use super::pad::PadNode;
-use super::powf::PowfNode;
-use super::powi::PowiNode;
+use super::pow::PowNode;
 use super::prelu::PReluNode;
 use super::random_normal::RandomNormalNode;
 use super::random_normal_like::RandomNormalLikeNode;
@@ -261,8 +260,7 @@ pub enum Node<PS: PrecisionSettings> {
     Not(NotNode),
     OneHot(OneHotNode),
     Pad(PadNode),
-    Powf(PowfNode),
-    Powi(PowiNode),
+    Pow(PowNode),
     PRelu(PReluNode),
     RandomNormal(RandomNormalNode),
     RandomNormalLike(RandomNormalLikeNode),
@@ -381,8 +379,7 @@ macro_rules! match_all {
             Node::Not(node) => $func(node),
             Node::OneHot(node) => $func(node),
             Node::Pad(node) => $func(node),
-            Node::Powf(node) => $func(node),
-            Node::Powi(node) => $func(node),
+            Node::Pow(node) => $func(node),
             Node::PRelu(node) => $func(node),
             Node::RandomNormal(node) => $func(node),
             Node::RandomNormalLike(node) => $func(node),
@@ -509,8 +506,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Not(_) => "not",
             Node::OneHot(_) => "one_hot",
             Node::Pad(_) => "pad",
-            Node::Powf(_) => "powf",
-            Node::Powi(_) => "powi",
+            Node::Pow(_) => "pow",
             Node::PRelu(_) => "prelu",
             Node::RandomNormal(_) => "random_normal",
             Node::RandomNormalLike(_) => "random_normal_like",

@@ -76,8 +76,6 @@ pub(crate) mod not;
 pub(crate) mod one_hot;
 pub(crate) mod pad;
 pub(crate) mod pow;
-pub(crate) mod powf;
-pub(crate) mod powi;
 pub(crate) mod prelu;
 pub(crate) mod random_normal;
 pub(crate) mod random_normal_like;
