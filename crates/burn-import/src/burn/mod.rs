@@ -1,13 +1,16 @@
 /// The graph module.
 pub mod graph;
 
-mod node_codegen;
 #[macro_use]
+mod registry_macro;
+
+mod node_codegen;
 mod node_registry;
 #[cfg(test)]
 pub(crate) mod node_test;
 
 mod imports;
+
 mod scope;
 mod ty;
 
