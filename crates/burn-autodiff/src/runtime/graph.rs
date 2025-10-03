@@ -229,10 +229,12 @@ impl GraphLocator {
     /// Registers a key for a given origin node.
     fn register_key(&mut self, origin: NodeId, key: NodeId) {
         if !self.keys.contains_key(&origin) {
+            // Ensure an entry exists for this origin
             self.keys.insert(origin, HashSet::new());
         }
 
         if origin != key {
+            // Register this node to point to the origin graph
             self.keys.get_mut(&origin).unwrap().insert(key);
         }
     }
@@ -244,8 +246,10 @@ impl GraphLocator {
         core::mem::swap(&mut state_old, &mut locked);
         main_state.server.extend(state_old.server);
 
+        // Re-map merged origin to the main graph
         self.graphs.insert(merged.origin, main.clone());
 
+        // Move all keys (node IDs) from the merged graph to the main graph
         if let Some(locator_keys) = self.keys.remove(&merged.origin) {
             for k in locator_keys.iter() {
                 self.graphs.insert(*k, main.clone());
