@@ -24,7 +24,7 @@ use spin::MutexGuard;
 ///
 /// The [AutodiffServer] fully supports multiple graphs with sharing nodes, however those type of
 /// graphs will be stored under a single mutex-protected graph by the client, limiting
-/// parralelisation.
+/// parallelisation.
 #[derive(Clone, new, Debug)]
 pub struct GraphMutexClient;
 
