@@ -388,7 +388,7 @@ pub fn mask_where_broadcasted(
     if shape != *tensor.shape() {
         tensor = tensor.broadcast_as(shape.clone()).unwrap();
     }
-    if shape != *value.shape() {
+    if shape != *mask.shape() {
         mask = mask.broadcast_as(shape.clone()).unwrap();
     }
     if shape != *value.shape() {
