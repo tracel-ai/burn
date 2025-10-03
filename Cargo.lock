@@ -865,6 +865,7 @@ name = "burn-import"
 version = "0.19.0"
 dependencies = [
  "burn",
+ "burn-import-macros",
  "burn-ndarray",
  "burn-store",
  "candle-core",
@@ -885,6 +886,15 @@ dependencies = [
  "tracing-core",
  "tracing-subscriber",
  "zip 4.6.1",
+]
+
+[[package]]
+name = "burn-import-macros"
+version = "0.19.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]

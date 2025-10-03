@@ -113,5 +113,25 @@ pub(crate) mod unsqueeze;
 pub(crate) mod where_op;
 pub(crate) use base::*;
 
+// Auto-generated ONNX node dispatcher
+burn_import_macros::onnx_node_registry! {
+    Add => add,
+    Sub => sub,
+    Mul => mul,
+    Div => div,
+}
+
 #[cfg(test)]
 pub(crate) mod test;
+
+#[cfg(test)]
+mod test_convert {
+    use super::convert_onnx_node;
+    use burn::record::FullPrecisionSettings;
+
+    #[test]
+    fn test_convert_onnx_node_exists() {
+        // Just checking if the function compiles and is accessible
+        let _f: fn(onnx_ir::Node) -> super::Node<FullPrecisionSettings> = convert_onnx_node;
+    }
+}

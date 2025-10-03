@@ -6,6 +6,21 @@ use burn::record::PrecisionSettings;
 
 use crate::burn::{BurnImports, Scope, Type, node::modulo::ModNode};
 
+/// Trait for converting ONNX IR nodes to Burn nodes
+#[allow(dead_code)]
+pub trait OnnxIntoNode: Sized {
+    /// Convert an ONNX IR node into this Burn node type
+    fn from_onnx(node: onnx_ir::Node) -> Self;
+
+    /// Convert to the Node enum (default implementation uses into_node from NodeCodegen)
+    fn into_node<PS: PrecisionSettings>(self) -> Node<PS>
+    where
+        Self: NodeCodegen<PS>,
+    {
+        NodeCodegen::into_node(self)
+    }
+}
+
 use super::abs::AbsNode;
 use super::add::AddNode;
 use super::argmax::ArgMaxNode;
