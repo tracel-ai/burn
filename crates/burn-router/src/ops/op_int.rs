@@ -865,6 +865,22 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseInt(BaseOperationIr::CumProd(desc)));
+
+        out
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;

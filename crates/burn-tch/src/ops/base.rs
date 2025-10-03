@@ -458,6 +458,13 @@ impl TchOps {
         )
     }
 
+    pub fn cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumprod(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
+    }
+
     pub fn argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         let storage = tensor.storage.clone();
         let tensor = tensor.tensor.argmax(dim as i64, true);
