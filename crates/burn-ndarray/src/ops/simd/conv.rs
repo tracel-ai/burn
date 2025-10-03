@@ -1,18 +1,15 @@
 use core::{marker::PhantomData, mem::transmute};
 
+use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{
-    DType, Element,
-    ops::{ConvOptions, conv::calculate_conv_output_size},
-};
+use burn_tensor::ops::conv::expect_conv_output_shape;
+use burn_tensor::{DType, Element, ops::ConvOptions};
 use bytemuck::Zeroable;
 use macerator::{Simd, VMulAdd, Vector, vload_unaligned, vstore_unaligned};
 use ndarray::{
     ArcArray1, Array4, ArrayView3, ArrayView4, ArrayViewMut2, ArrayViewMut3, Dim, Ix1, Ix4, s,
 };
 use seq_macro::seq;
-
-use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef};
 
 type Args<E> = (SharedArray<E>, SharedArray<E>, Option<SharedArray<E>>);
 
@@ -71,15 +68,17 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let bias = bias.map(|bias| cast::<_, E>(bias));
 
     let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
-    let [dilate_h, dilate_w] = options.dilation;
-    let [stride_h, stride_w] = options.stride;
-    let [pad_h, pad_w] = options.padding;
     let padded = options.padding != [0, 0];
     let strided = options.stride != [1, 1] || options.dilation != [1, 1];
     let grouped = options.groups != 1;
 
-    let out_height = calculate_conv_output_size(k_height, stride_h, pad_h, dilate_h, in_height);
-    let out_width = calculate_conv_output_size(k_width, stride_w, pad_w, dilate_w, in_width);
+    let [out_height, out_width] = expect_conv_output_shape(
+        [in_height, in_width],
+        [k_height, k_width],
+        options.stride,
+        options.padding,
+        options.dilation,
+    );
 
     let x = x.into_dimensionality::<Ix4>().unwrap();
     let weights = weight.into_dimensionality::<Ix4>().unwrap();

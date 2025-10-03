@@ -4,16 +4,14 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::*;
+use burn_tensor::ops::conv::{expect_conv_output_shape, expect_conv1d_output_size};
 use burn_tensor::{
     Element,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
         IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
-        conv::{
-            calculate_conv_output_size, calculate_conv_transpose_output_size,
-            calculate_pool_output_size,
-        },
+        conv::{calculate_conv_transpose_output_size, calculate_pool_output_size},
     },
 };
 use std::marker::PhantomData;
@@ -56,12 +54,12 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&desc.out.id, output);
         });
 
-        let size = calculate_conv_output_size(
+        let size = expect_conv1d_output_size(
+            x.shape[2],
             weight.shape[2],
             options.stride[0],
             options.padding[0],
             options.dilation[0],
-            x.shape[2],
         );
 
         let mut streams = OperationStreams::default();
@@ -114,19 +112,12 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&args.out.id, output);
         });
 
-        let size_0 = calculate_conv_output_size(
-            weight.shape[2],
-            options.stride[0],
-            options.padding[0],
-            options.dilation[0],
-            x.shape[2],
-        );
-        let size_1 = calculate_conv_output_size(
-            weight.shape[3],
-            options.stride[1],
-            options.padding[1],
-            options.dilation[1],
-            x.shape[3],
+        let [size_0, size_1] = expect_conv_output_shape::<2>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
         );
 
         let mut streams = OperationStreams::default();
@@ -187,19 +178,12 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
-        let size_0 = calculate_conv_output_size(
-            weight.shape[2],
-            options.stride[0],
-            options.padding[0],
-            options.dilation[0],
-            x.shape[2],
-        );
-        let size_1 = calculate_conv_output_size(
-            weight.shape[3],
-            options.stride[1],
-            options.padding[1],
-            options.dilation[1],
-            x.shape[3],
+        let [size_0, size_1] = expect_conv_output_shape::<2>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
         );
 
         let mut streams = OperationStreams::default();
@@ -365,26 +349,12 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&args.out.id, output);
         });
 
-        let size_0 = calculate_conv_output_size(
-            weight.shape[2],
-            options.stride[0],
-            options.padding[0],
-            options.dilation[0],
-            x.shape[2],
-        );
-        let size_1 = calculate_conv_output_size(
-            weight.shape[3],
-            options.stride[1],
-            options.padding[1],
-            options.dilation[1],
-            x.shape[3],
-        );
-        let size_2 = calculate_conv_output_size(
-            weight.shape[4],
-            options.stride[2],
-            options.padding[2],
-            options.dilation[2],
-            x.shape[4],
+        let [size_0, size_1, size_2] = expect_conv_output_shape::<3>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
         );
 
         let mut streams = OperationStreams::default();

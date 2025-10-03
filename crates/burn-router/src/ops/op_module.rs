@@ -1,5 +1,4 @@
 use alloc::{boxed::Box, vec};
-
 use burn_ir::{
     AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
     AdaptiveAvgPool2dOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
@@ -11,7 +10,8 @@ use burn_ir::{
 };
 use burn_tensor::Element;
 use burn_tensor::ops::conv::{
-    calculate_conv_output_size, calculate_conv_transpose_output_size, calculate_pool_output_size,
+    calculate_conv_transpose_output_size, calculate_pool_output_size, expect_conv_output_shape,
+    expect_conv1d_output_size,
 };
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
@@ -31,12 +31,12 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        let size = calculate_conv_output_size(
+        let size = expect_conv1d_output_size(
+            x.shape[2],
             weight.shape[2],
             options.stride[0],
             options.padding[0],
             options.dilation[0],
-            x.shape[2],
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size];
@@ -62,19 +62,12 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        let size_0 = calculate_conv_output_size(
-            weight.shape[2],
-            options.stride[0],
-            options.padding[0],
-            options.dilation[0],
-            x.shape[2],
-        );
-        let size_1 = calculate_conv_output_size(
-            weight.shape[3],
-            options.stride[1],
-            options.padding[1],
-            options.dilation[1],
-            x.shape[3],
+        let [size_0, size_1] = expect_conv_output_shape::<2>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
@@ -100,26 +93,12 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        let size_0 = calculate_conv_output_size(
-            weight.shape[2],
-            options.stride[0],
-            options.padding[0],
-            options.dilation[0],
-            x.shape[2],
-        );
-        let size_1 = calculate_conv_output_size(
-            weight.shape[3],
-            options.stride[1],
-            options.padding[1],
-            options.dilation[1],
-            x.shape[3],
-        );
-        let size_2 = calculate_conv_output_size(
-            weight.shape[4],
-            options.stride[2],
-            options.padding[2],
-            options.dilation[2],
-            x.shape[4],
+        let [size_0, size_1, size_2] = expect_conv_output_shape::<3>(
+            x.shape[2..].try_into().unwrap(),
+            weight.shape[2..].try_into().unwrap(),
+            options.stride,
+            options.padding,
+            options.dilation,
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1, size_2];
@@ -718,19 +697,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         bias: Option<FloatTensor<Self>>,
         options: DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
-        let size_0 = calculate_conv_output_size(
+        let size_0 = expect_conv1d_output_size(
+            x.shape[2],
             weight.shape[2],
             options.stride[0],
             options.padding[0],
             options.dilation[0],
-            x.shape[2],
         );
-        let size_1 = calculate_conv_output_size(
+        let size_1 = expect_conv1d_output_size(
+            x.shape[3],
             weight.shape[3],
             options.stride[1],
             options.padding[1],
             options.dilation[1],
-            x.shape[3],
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
