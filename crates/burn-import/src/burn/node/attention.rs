@@ -373,8 +373,57 @@ impl OnnxIntoNode for AttentionNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::burn::node::tests::one_node_graph;
+    use crate::burn::{
+        BurnImports,
+        graph::BurnGraph,
+        node::{NodeCodegen, test::assert_tokens},
+    };
+    use burn::record::FullPrecisionSettings;
+    use proc_macro2::TokenStream;
+    use quote::quote;
 
+    #[track_caller]
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + Clone + 'static>(
+        node_gen: T,
+        forward: TokenStream,
+        input_names: Vec<String>,
+        output_names: Vec<String>,
+    ) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(node_gen.clone());
+
+        graph.register_input_output(input_names, output_names);
+
+        let mut imports = BurnImports::default();
+        node_gen.register_imports(&mut imports);
+        let imports = imports.codegen();
+
+        let expected = quote! {
+            #imports
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                #forward
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
     #[test]
     fn test_attention_codegen_simple_4d() {
         one_node_graph(
