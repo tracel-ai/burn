@@ -4,7 +4,7 @@ use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
     kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size, max_line_size_many, numeric::empty_device},
+    ops::{max_line_size_many, numeric::empty_device},
     tensor::CubeTensor,
 };
 
