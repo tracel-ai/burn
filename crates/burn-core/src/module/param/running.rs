@@ -80,7 +80,8 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.lock().unwrap();
-        visitor.visit_float(self.id, &tensor)
+        let param = Param::initialized(self.id, tensor.clone());
+        visitor.visit_float(&param)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {

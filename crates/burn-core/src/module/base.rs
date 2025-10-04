@@ -36,9 +36,9 @@ macro_rules! module {
             backend: core::marker::PhantomData<B>,
         }
         impl<'a, B: Backend> ModuleVisitor<B> for Visitor<'a, B> {
-            fn visit_float<const D: usize>(&mut self, _id: ParamId, tensor: &Tensor<B, D>) {
+            fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
                 let func = $item;
-                func(tensor, &mut self.state)
+                func(&param.val(), &mut self.state)
             }
         }
         #[allow(clippy::redundant_closure_call)]
@@ -212,29 +212,26 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
 
 /// Module visitor trait for traversing and inspecting module parameters.
 pub trait ModuleVisitor<B: Backend> {
-    /// Visit a float tensor in the module.
+    /// Visit a float parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The float tensor to visit
+    /// - `param`: The float parameter to visit
     #[allow(unused_variables)]
-    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {}
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {}
 
-    /// Visit an int tensor in the module.
+    /// Visit an int parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The integer tensor to visit
+    /// - `param`: The integer parameter to visit
     #[allow(unused_variables)]
-    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {}
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {}
 
-    /// Visit a bool tensor in the module.
+    /// Visit a bool parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The boolean tensor to visit
+    /// - `param`: The boolean parameter to visit
     #[allow(unused_variables)]
-    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {}
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {}
 
     /// Called when entering a submodule.
     ///

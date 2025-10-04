@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
-use burn_core::module::{ModuleVisitor, ParamId};
+use burn_core::module::{ModuleVisitor, Param, ParamId};
 
 /// Collects tensor views from modules without copying data.
 ///
@@ -118,41 +118,41 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         self.container_stack.pop();
     }
 
-    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
         if !self.path_stack.is_empty()
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_float(
-                tensor,
+                &param.val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
-                id,
+                param.id,
             ));
         }
     }
 
-    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
         if !self.path_stack.is_empty()
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_int(
-                tensor,
+                &param.val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
-                id,
+                param.id,
             ));
         }
     }
 
-    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
         if !self.path_stack.is_empty()
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_bool(
-                tensor,
+                &param.val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
-                id,
+                param.id,
             ));
         }
     }
@@ -439,24 +439,27 @@ mod tests {
             self.path_stack.pop();
         }
 
-        fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
+        fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths.insert(path, (id, tensor.shape().dims.to_vec()));
+                self.paths
+                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
             }
         }
 
-        fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>) {
+        fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths.insert(path, (id, tensor.shape().dims.to_vec()));
+                self.paths
+                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
             }
         }
 
-        fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>) {
+        fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths.insert(path, (id, tensor.shape().dims.to_vec()));
+                self.paths
+                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
             }
         }
     }

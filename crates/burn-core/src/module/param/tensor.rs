@@ -207,7 +207,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_float(self.id, &self.val())
+        visitor.visit_float(self)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
@@ -271,7 +271,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     type Record = Param<Tensor<B, D, Int>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_int(self.id, &self.val())
+        visitor.visit_int(self)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
@@ -326,7 +326,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     type Record = Param<Tensor<B, D, Bool>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_bool(self.id, &self.val())
+        visitor.visit_bool(self)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
