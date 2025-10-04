@@ -12,6 +12,7 @@ fn main() {
         .input("tests/add/add_broadcast.onnx")
         .input("tests/initializer_to_const/initializer_to_const.onnx")
         .input("tests/and/and.onnx")
+        .input("tests/and/and_broadcast.onnx")
         .input("tests/and/and_scalar.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/add/add_shape_tensor.onnx")
