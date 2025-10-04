@@ -123,7 +123,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_float(
-                &param.val(),
+                &param.save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,
@@ -136,7 +136,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_int(
-                &param.val(),
+                &param.save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,
@@ -149,7 +149,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
             && self.should_collect(&self.path_stack, &self.container_stack)
         {
             self.tensors.push(TensorSnapshot::from_bool(
-                &param.val(),
+                &param.save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,

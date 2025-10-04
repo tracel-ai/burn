@@ -116,12 +116,13 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(self) -> Self {
-        let (param_id, mut tensor, mapper) = self.consume();
+    pub fn save(&self) -> Self {
+        let mut tensor = self.val();
+        let mapper = self.param_mapper.clone();
 
         tensor = mapper.on_save(tensor);
 
-        Self::initialized(param_id, tensor)
+        Self::initialized(self.id, tensor)
     }
 }
 
@@ -155,12 +156,13 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(self) -> Self {
-        let (param_id, mut tensor, mapper) = self.consume();
+    pub fn save(&self) -> Self {
+        let mut tensor = self.val();
+        let mapper = self.param_mapper.clone();
 
         tensor = mapper.on_save(tensor);
 
-        Self::initialized(param_id, tensor)
+        Self::initialized(self.id, tensor)
     }
 }
 
@@ -194,12 +196,13 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(self) -> Self {
-        let (param_id, mut tensor, mapper) = self.consume();
+    pub fn save(&self) -> Self {
+        let mut tensor = self.val();
+        let mapper = self.param_mapper.clone();
 
         tensor = mapper.on_save(tensor);
 
-        Self::initialized(param_id, tensor)
+        Self::initialized(self.id, tensor)
     }
 }
 
