@@ -82,6 +82,125 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
         let value = Tensor::from_data(data, device);
         Param::initialized(ParamId::new(), value.require_grad())
     }
+
+    /// Load a parameter from a tensor.
+    ///
+    /// This method is used to restore a parameter from a tensor (typically during deserialization).
+    /// It ensures the tensor is moved to the expected device, applies the param mapper's
+    /// `on_load` transformation, and preserves the autodiff settings (require_grad).
+    pub fn load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
+        let mut new_tensor = tensor;
+
+        let mapper = self.param_mapper.clone();
+
+        let expected_device = self.lazy_device();
+        let expected_require_grad = self.lazy_is_require_grad();
+
+        // Make sure we load the tensor into the same module device.
+        if new_tensor.device() != expected_device {
+            new_tensor = new_tensor.to_device(&expected_device).detach();
+        }
+
+        new_tensor = mapper.on_load(new_tensor);
+
+        // Make sure we load the tensor with the same autodiff setting.
+        new_tensor = new_tensor.set_require_grad(expected_require_grad);
+
+        let mut loaded = Self::initialized(param_id, new_tensor);
+        loaded.param_mapper = mapper;
+        loaded
+    }
+
+    /// Save a parameter by applying transformations.
+    ///
+    /// This method is used to prepare a parameter for saving (typically during serialization).
+    /// It applies the param mapper's `on_save` transformation, which can be used
+    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
+    pub fn save(self) -> Self {
+        let (param_id, mut tensor, mapper) = self.consume();
+
+        tensor = mapper.on_save(tensor);
+
+        Self::initialized(param_id, tensor)
+    }
+}
+
+impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
+    /// Load a parameter from a tensor.
+    ///
+    /// This method is used to restore a parameter from a tensor (typically during deserialization).
+    /// It ensures the tensor is moved to the expected device and applies the param mapper's
+    /// `on_load` transformation.
+    pub fn load(self, tensor: Tensor<B, D, Int>, param_id: ParamId) -> Self {
+        let mut new_tensor = tensor;
+
+        let mapper = self.param_mapper.clone();
+
+        let expected_device = self.lazy_device();
+
+        // Make sure we load the tensor into the same module device.
+        if new_tensor.device() != expected_device {
+            new_tensor = new_tensor.to_device(&expected_device);
+        }
+
+        new_tensor = mapper.on_load(new_tensor);
+
+        let mut loaded = Self::initialized(param_id, new_tensor);
+        loaded.param_mapper = mapper;
+        loaded
+    }
+
+    /// Save a parameter by applying transformations.
+    ///
+    /// This method is used to prepare a parameter for saving (typically during serialization).
+    /// It applies the param mapper's `on_save` transformation, which can be used
+    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
+    pub fn save(self) -> Self {
+        let (param_id, mut tensor, mapper) = self.consume();
+
+        tensor = mapper.on_save(tensor);
+
+        Self::initialized(param_id, tensor)
+    }
+}
+
+impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
+    /// Load a parameter from a tensor.
+    ///
+    /// This method is used to restore a parameter from a tensor (typically during deserialization).
+    /// It ensures the tensor is moved to the expected device and applies the param mapper's
+    /// `on_load` transformation.
+    pub fn load(self, tensor: Tensor<B, D, Bool>, param_id: ParamId) -> Self {
+        let mut new_tensor = tensor;
+
+        let mapper = self.param_mapper.clone();
+
+        let expected_device = self.lazy_device();
+
+        // Make sure we load the tensor into the same module device.
+        if new_tensor.device() != expected_device {
+            new_tensor = new_tensor.to_device(&expected_device);
+        }
+
+        new_tensor = mapper.on_load(new_tensor);
+
+        let mut loaded = Self::initialized(param_id, new_tensor);
+        loaded.param_mapper = mapper;
+        loaded
+    }
+
+    /// Save a parameter by applying transformations.
+    ///
+    /// This method is used to prepare a parameter for saving (typically during serialization).
+    /// It applies the param mapper's `on_save` transformation, which can be used
+    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
+    pub fn save(self) -> Self {
+        let (param_id, mut tensor, mapper) = self.consume();
+
+        tensor = mapper.on_save(tensor);
+
+        Self::initialized(param_id, tensor)
+    }
 }
 
 impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
@@ -98,33 +217,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mapper) = self.consume();
-
-        new_value = mapper.on_save(new_value);
-
-        Self::initialized(new_id, new_value)
+        self.save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _mapper) = record.consume();
-        let mapper = self.record_mapper.clone();
-
-        let expected_device = self.lazy_device();
-        let expected_require_grad = self.lazy_is_require_grad();
-
-        // Make sure we load the record into the same module device.
-        if new_value.device() != expected_device {
-            new_value = new_value.to_device(&expected_device).detach();
-        }
-
-        new_value = mapper.on_load(new_value);
-
-        // Make sure we load the record with the same autodiff setting.
-        new_value = new_value.set_require_grad(expected_require_grad);
-
-        let mut loaded = Self::initialized(new_id, new_value);
-        loaded.record_mapper = mapper;
-        loaded
+        let (record_param_id, record_tensor, _) = record.consume();
+        self.load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -184,29 +282,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mapper) = self.consume();
-
-        new_value = mapper.on_save(new_value);
-
-        Self::initialized(new_id, new_value)
+        self.save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _mapper) = record.consume();
-        let mapper = self.record_mapper.clone();
-
-        let expected_device = self.lazy_device();
-
-        // Make sure we load the record into the same module device.
-        if new_value.device() != expected_device {
-            new_value = new_value.to_device(&expected_device);
-        }
-
-        new_value = mapper.on_load(new_value);
-
-        let mut loaded = Self::initialized(new_id, new_value);
-        loaded.record_mapper = mapper;
-        loaded
+        let (record_param_id, record_tensor, _) = record.consume();
+        self.load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -257,29 +338,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn into_record(self) -> Self::Record {
-        let (new_id, mut new_value, mapper) = self.consume();
-
-        new_value = mapper.on_save(new_value);
-
-        Self::initialized(new_id, new_value)
+        self.save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let (new_id, mut new_value, _mapper) = record.consume();
-        let mapper = self.record_mapper.clone();
-
-        let expected_device = self.lazy_device();
-
-        // Make sure we load the record into the same module device.
-        if new_value.device() != expected_device {
-            new_value = new_value.to_device(&expected_device);
-        }
-
-        new_value = mapper.on_load(new_value);
-
-        let mut loaded = Self::initialized(new_id, new_value);
-        loaded.record_mapper = mapper;
-        loaded
+        let (record_param_id, record_tensor, _) = record.consume();
+        self.load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
