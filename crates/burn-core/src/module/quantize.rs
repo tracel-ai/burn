@@ -4,7 +4,7 @@ use burn_tensor::{
     quantization::{Calibration, QuantScheme, compute_q_params, compute_range},
 };
 
-use crate::module::{ModuleMapper, ParamId};
+use crate::module::{ModuleMapper, Param};
 
 /// Describes how to quantize a module.
 pub struct Quantizer {
@@ -15,10 +15,12 @@ pub struct Quantizer {
 }
 
 impl<B: Backend> ModuleMapper<B> for Quantizer {
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
         let range = compute_range(&self.scheme, &tensor, &self.calibration);
         let qparams = compute_q_params(&self.scheme, range);
-        tensor.quantize(&self.scheme, qparams)
+        let tensor = tensor.quantize(&self.scheme, qparams);
+        Param::into_initialized(id, tensor, mapper)
     }
 }
 

@@ -220,6 +220,19 @@ impl<T: Parameter> Param<T> {
         }
     }
 
+    /// Create an initialized parameter with the given id, value, and param mapper.
+    ///
+    /// This is a helper method for creating parameters while preserving the param mapper,
+    /// typically used in ModuleMapper implementations.
+    pub fn into_initialized(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
+        Self {
+            id,
+            state: OnceCell::from(value),
+            initialization: None,
+            param_mapper,
+        }
+    }
+
     /// Runs a transformation on the parameter when loading a saved record.
     pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
         self.param_mapper.load = Some(new_mapper(func));

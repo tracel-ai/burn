@@ -1,4 +1,4 @@
-use super::{Module, ModuleMapper, ParamId};
+use super::{Module, ModuleMapper};
 use burn_tensor::{
     Element, ElementConversion, Tensor, TensorData,
     backend::Backend,
@@ -118,12 +118,16 @@ impl<B: Backend> Reinitializer<B> {
 }
 
 impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(
+        &mut self,
+        param: super::Param<Tensor<B, D>>,
+    ) -> super::Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
         let device = tensor.device();
         let shape = tensor.shape();
         let num_elements = shape.num_elements();
 
-        match &self.float {
+        let tensor = match &self.float {
             ReinitStrategy::Range { min, max } => {
                 let tensor = Tensor::arange(0..num_elements as i64, &device)
                     .reshape(shape)
@@ -139,19 +143,21 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
                 );
                 Tensor::from_data(data, &device)
             }
-        }
+        };
+
+        super::Param::into_initialized(id, tensor, mapper)
     }
 
     fn map_int<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, burn_tensor::Int>,
-    ) -> Tensor<B, D, burn_tensor::Int> {
+        param: super::Param<Tensor<B, D, burn_tensor::Int>>,
+    ) -> super::Param<Tensor<B, D, burn_tensor::Int>> {
+        let (id, tensor, mapper) = param.consume();
         let device = tensor.device();
         let shape = tensor.shape();
         let num_elements = shape.num_elements();
 
-        match &self.int {
+        let tensor = match &self.int {
             ReinitStrategy::Range { min, max } => {
                 let tensor = Tensor::arange(0..num_elements as i64, &device).reshape(shape);
                 let (factor, bias) = resolve::<IntElem<B>>(*min, *max, num_elements);
@@ -165,15 +171,17 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
                 );
                 Tensor::from_data(data, &device)
             }
-        }
+        };
+
+        super::Param::into_initialized(id, tensor, mapper)
     }
 
     fn map_bool<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, burn_tensor::Bool>,
-    ) -> Tensor<B, D, burn_tensor::Bool> {
-        tensor
+        param: super::Param<Tensor<B, D, burn_tensor::Bool>>,
+    ) -> super::Param<Tensor<B, D, burn_tensor::Bool>> {
+        let (id, tensor, mapper) = param.consume();
+        super::Param::into_initialized(id, tensor, mapper)
     }
 }
 

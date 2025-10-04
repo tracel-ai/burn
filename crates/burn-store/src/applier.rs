@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
-use burn_core::module::{ModuleMapper, ParamId};
+use burn_core::module::{ModuleMapper, Param};
 use burn_tensor::{Bool, DType, Int, Tensor, backend::Backend};
 
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
@@ -293,32 +293,39 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         self.container_stack.pop();
     }
 
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        if self.path_stack.is_empty() {
-            return tensor;
-        }
-        self.apply_tensor(tensor)
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
+        let tensor = if self.path_stack.is_empty() {
+            tensor
+        } else {
+            self.apply_tensor(tensor)
+        };
+        Param::into_initialized(id, tensor, mapper)
     }
 
     fn map_int<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, Int>,
-    ) -> Tensor<B, D, Int> {
-        if self.path_stack.is_empty() {
-            return tensor;
-        }
-        self.apply_tensor(tensor)
+        param: Param<Tensor<B, D, Int>>,
+    ) -> Param<Tensor<B, D, Int>> {
+        let (id, tensor, mapper) = param.consume();
+        let tensor = if self.path_stack.is_empty() {
+            tensor
+        } else {
+            self.apply_tensor(tensor)
+        };
+        Param::into_initialized(id, tensor, mapper)
     }
 
     fn map_bool<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, Bool>,
-    ) -> Tensor<B, D, Bool> {
-        if self.path_stack.is_empty() {
-            return tensor;
-        }
-        self.apply_tensor(tensor)
+        param: Param<Tensor<B, D, Bool>>,
+    ) -> Param<Tensor<B, D, Bool>> {
+        let (id, tensor, mapper) = param.consume();
+        let tensor = if self.path_stack.is_empty() {
+            tensor
+        } else {
+            self.apply_tensor(tensor)
+        };
+        Param::into_initialized(id, tensor, mapper)
     }
 }

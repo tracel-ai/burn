@@ -1,4 +1,4 @@
-use super::{ParamId, Quantizer};
+use super::{Param, ParamId, Quantizer};
 use crate::{
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
@@ -19,11 +19,12 @@ macro_rules! module {
         impl<B: Backend> ModuleMapper<B> for Mapper {
             fn map_float<const D: usize>(
                 &mut self,
-                _id: ParamId,
-                tensor: Tensor<B, D>,
-            ) -> Tensor<B, D> {
+                param: Param<Tensor<B, D>>,
+            ) -> Param<Tensor<B, D>> {
+                let (id, tensor, mapper) = param.consume();
                 let func = $item;
-                func(tensor)
+                let tensor = func(tensor);
+                Param::into_initialized(id, tensor, mapper)
             }
         }
         let mut mapper = Mapper;
@@ -321,51 +322,49 @@ pub trait ModuleMapper<B: Backend> {
     #[allow(unused_variables)]
     fn exit_module(&mut self, name: &str, container_type: &str) {}
 
-    /// Map a float tensor in the module.
+    /// Map a float parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The float tensor to transform
+    /// - `param`: The float parameter to transform
     ///
     /// # Returns
-    /// The transformed tensor
+    /// The transformed parameter
     #[allow(unused_variables)]
-    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        tensor
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::into_initialized(id, tensor, mapper)
     }
 
-    /// Map an int tensor in the module.
+    /// Map an int parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The integer tensor to transform
+    /// - `param`: The integer parameter to transform
     ///
     /// # Returns
-    /// The transformed tensor
+    /// The transformed parameter
     #[allow(unused_variables)]
     fn map_int<const D: usize>(
         &mut self,
-        id: ParamId,
-        tensor: Tensor<B, D, Int>,
-    ) -> Tensor<B, D, Int> {
-        tensor
+        param: Param<Tensor<B, D, Int>>,
+    ) -> Param<Tensor<B, D, Int>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::into_initialized(id, tensor, mapper)
     }
 
-    /// Map a bool tensor in the module.
+    /// Map a bool parameter in the module.
     ///
     /// # Parameters
-    /// - `id`: The unique identifier of the parameter
-    /// - `tensor`: The boolean tensor to transform
+    /// - `param`: The boolean parameter to transform
     ///
     /// # Returns
-    /// The transformed tensor
+    /// The transformed parameter
     #[allow(unused_variables)]
     fn map_bool<const D: usize>(
         &mut self,
-        id: ParamId,
-        tensor: Tensor<B, D, Bool>,
-    ) -> Tensor<B, D, Bool> {
-        tensor
+        param: Param<Tensor<B, D, Bool>>,
+    ) -> Param<Tensor<B, D, Bool>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::into_initialized(id, tensor, mapper)
     }
 }
 

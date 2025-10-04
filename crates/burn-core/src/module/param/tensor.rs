@@ -211,9 +211,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let (id, tensor, _mapper) = self.consume();
-        let value = mapper.map_float(id, tensor);
-        Self::initialized(id, value)
+        mapper.map_float(self)
     }
 
     fn into_record(self) -> Self::Record {
@@ -277,8 +275,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_int(self.id, self.val());
-        Self::initialized(self.id, value)
+        mapper.map_int(self)
     }
 
     fn into_record(self) -> Self::Record {
@@ -333,8 +330,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_bool(self.id, self.val());
-        Self::initialized(self.id, value)
+        mapper.map_bool(self)
     }
 
     fn into_record(self) -> Self::Record {

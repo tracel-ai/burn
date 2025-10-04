@@ -85,7 +85,9 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.lock().unwrap();
-        let tensor_out = mapper.map_float(self.id, tensor.clone());
+        let param = Param::initialized(self.id, tensor.clone());
+        let param_out = mapper.map_float(param);
+        let (_, tensor_out, _) = param_out.consume();
 
         *tensor = tensor_out;
         core::mem::drop(tensor);
