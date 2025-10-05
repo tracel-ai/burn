@@ -119,9 +119,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
-        if !self.path_stack.is_empty()
-            && self.should_collect(&self.path_stack, &self.container_stack)
-        {
+        if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_float(
                 &param.save().val(),
                 self.path_stack.clone(),
@@ -132,9 +130,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
-        if !self.path_stack.is_empty()
-            && self.should_collect(&self.path_stack, &self.container_stack)
-        {
+        if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_int(
                 &param.save().val(),
                 self.path_stack.clone(),
@@ -145,9 +141,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
-        if !self.path_stack.is_empty()
-            && self.should_collect(&self.path_stack, &self.container_stack)
-        {
+        if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_bool(
                 &param.save().val(),
                 self.path_stack.clone(),
@@ -234,6 +228,52 @@ mod tests {
         let view = &collector.tensors[0];
         let data = view.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
+    }
+
+    #[test]
+    fn root_level_parameters() {
+        use burn_core::module::ModuleVisitor;
+
+        let device = Default::default();
+
+        // Create root-level parameters (single-element path, not nested in modules)
+        let weight = Param::<Tensor<TestBackend, 2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let bias = Param::<Tensor<TestBackend, 1>>::from_data([5.0, 6.0], &device);
+
+        let mut collector = Collector::new(None, None);
+
+        // Simulate module traversal for root-level parameters
+        // Enter "weight" path (as if we're visiting a field named "weight")
+        ModuleVisitor::<TestBackend>::enter_module(&mut collector, "weight", "");
+        ModuleVisitor::<TestBackend>::visit_float(&mut collector, &weight);
+        ModuleVisitor::<TestBackend>::exit_module(&mut collector, "weight", "");
+
+        // Enter "bias" path (as if we're visiting a field named "bias")
+        ModuleVisitor::<TestBackend>::enter_module(&mut collector, "bias", "");
+        ModuleVisitor::<TestBackend>::visit_float(&mut collector, &bias);
+        ModuleVisitor::<TestBackend>::exit_module(&mut collector, "bias", "");
+
+        // Verify both parameters were collected
+        assert_eq!(collector.tensors.len(), 2);
+
+        // Verify paths are correct (single-element paths)
+        assert_eq!(collector.tensors[0].full_path(), "weight");
+        assert_eq!(collector.tensors[1].full_path(), "bias");
+
+        // Verify data is correct
+        let weight_data = collector.tensors[0]
+            .to_data()
+            .unwrap()
+            .to_vec::<f32>()
+            .unwrap();
+        let bias_data = collector.tensors[1]
+            .to_data()
+            .unwrap()
+            .to_vec::<f32>()
+            .unwrap();
+
+        assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(bias_data, vec![5.0, 6.0]);
     }
 
     #[test]
