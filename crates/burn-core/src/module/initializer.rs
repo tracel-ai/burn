@@ -107,11 +107,13 @@ impl Initializer {
         let device = device.clone();
         let shape: Shape = shape.into();
         let config = self.clone();
+        let shape_for_closure = shape.clone();
 
         Param::uninitialized(
             ParamId::new(),
             move |device, require_grad| {
-                let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                let mut tensor =
+                    config.init_tensor(shape_for_closure.clone(), fan_in, fan_out, device);
 
                 if require_grad {
                     tensor = tensor.require_grad();
@@ -121,6 +123,7 @@ impl Initializer {
             },
             device,
             true,
+            shape,
         )
     }
 

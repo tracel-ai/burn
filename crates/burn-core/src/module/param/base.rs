@@ -1,6 +1,7 @@
 use super::ParamId;
 use alloc::{boxed::Box, format};
 use burn_common::stub::RwLock;
+use burn_tensor::Shape;
 use core::cell::OnceCell;
 use core::ops::Deref;
 
@@ -214,6 +215,7 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 ///     init: Box<dyn FnOnce(&P::Device, bool) -> P>,  // initialization function
 ///     device: P::Device,                              // target device
 ///     is_require_grad: bool,                          // gradient requirement
+///     shape: Shape,                                   // tensor shape
 /// }
 /// ```
 ///
@@ -226,10 +228,13 @@ pub(crate) struct Uninitialized<P: Parameter> {
     init: Box<dyn FnOnce(&P::Device, bool) -> P + Send>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
-    device: P::Device,
+    pub(crate) device: P::Device,
     /// The gradient requirement for the parameter.
     /// Used by `lazy_is_require_grad()` to provide gradient settings without triggering initialization.
-    is_require_grad: bool,
+    pub(crate) is_require_grad: bool,
+    /// The shape of the tensor parameter.
+    /// Used by `lazy_shape()` to provide shape information without triggering initialization.
+    pub(crate) shape: Shape,
 }
 
 impl<P: Parameter> Uninitialized<P> {
@@ -255,7 +260,13 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Create a new parameter that is not already initialized.
-    pub fn uninitialized<F>(id: ParamId, init: F, device: T::Device, is_require_grad: bool) -> Self
+    pub fn uninitialized<F>(
+        id: ParamId,
+        init: F,
+        device: T::Device,
+        is_require_grad: bool,
+        shape: Shape,
+    ) -> Self
     where
         F: FnOnce(&T::Device, bool) -> T + Send + 'static,
     {
@@ -266,6 +277,7 @@ impl<T: Parameter> Param<T> {
                 init: Box::new(init),
                 device,
                 is_require_grad,
+                shape,
             }))),
             param_mapper: Default::default(),
         }

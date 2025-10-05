@@ -72,6 +72,32 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
         Param::initialized(ParamId::new(), value.require_grad())
     }
 
+    /// The shape of the parameter, **without triggering initialization**.
+    ///
+    /// This is critical for shape validation during loading: when applying tensors to an
+    /// uninitialized parameter, we need to validate the shape without triggering the
+    /// initialization function (which would allocate an unnecessary tensor).
+    ///
+    /// **Returns:**
+    /// - For uninitialized params: the shape from the `Uninitialized` struct
+    /// - For initialized params: the actual shape from the tensor
+    ///
+    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
+    /// preserve lazy initialization.
+    pub fn lazy_shape(&self) -> burn_tensor::Shape {
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.shape(),
+        };
+
+        let init = initialization.read().unwrap();
+
+        match init.as_ref() {
+            Some(value) => value.shape.clone(),
+            None => self.shape(),
+        }
+    }
+
     /// Create a new parameter from data.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
@@ -127,6 +153,32 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
 }
 
 impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
+    /// The shape of the parameter, **without triggering initialization**.
+    ///
+    /// This is critical for shape validation during loading: when applying tensors to an
+    /// uninitialized parameter, we need to validate the shape without triggering the
+    /// initialization function (which would allocate an unnecessary tensor).
+    ///
+    /// **Returns:**
+    /// - For uninitialized params: the shape from the `Uninitialized` struct
+    /// - For initialized params: the actual shape from the tensor
+    ///
+    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
+    /// preserve lazy initialization.
+    pub fn lazy_shape(&self) -> burn_tensor::Shape {
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.shape(),
+        };
+
+        let init = initialization.read().unwrap();
+
+        match init.as_ref() {
+            Some(value) => value.shape.clone(),
+            None => self.shape(),
+        }
+    }
+
     /// Load a parameter from a tensor.
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
@@ -167,6 +219,32 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
 }
 
 impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
+    /// The shape of the parameter, **without triggering initialization**.
+    ///
+    /// This is critical for shape validation during loading: when applying tensors to an
+    /// uninitialized parameter, we need to validate the shape without triggering the
+    /// initialization function (which would allocate an unnecessary tensor).
+    ///
+    /// **Returns:**
+    /// - For uninitialized params: the shape from the `Uninitialized` struct
+    /// - For initialized params: the actual shape from the tensor
+    ///
+    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
+    /// preserve lazy initialization.
+    pub fn lazy_shape(&self) -> burn_tensor::Shape {
+        let initialization = match &self.initialization {
+            Some(init) => init,
+            None => return self.shape(),
+        };
+
+        let init = initialization.read().unwrap();
+
+        match init.as_ref() {
+            Some(value) => value.shape.clone(),
+            None => self.shape(),
+        }
+    }
+
     /// Load a parameter from a tensor.
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
