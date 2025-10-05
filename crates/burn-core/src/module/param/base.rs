@@ -28,45 +28,114 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
 /// serve as containers for [tensors](crate::tensor::Tensor) that can be updated during
-/// training, and loaded during inference. If you don't want to save the tensors with a record
+/// training, and loaded during inference. If you don't want to save the tensors
 /// and/or don't want to update it during training, you don't need this type to wrap your tensor.
 ///
-/// # Laziness
+/// # Core Lazy Initialization Architecture
 ///
-/// The initialization of parameters can be lazy when created using
-/// [uninitialized](Self::uninitialized), which can be done using an [initializer](crate::module::Initializer).
+/// `Param<T>` has a dual-state design using `OnceCell<T>`:
 ///
-/// This reduces the amount of allocations done when loading a model for inference without having
-/// to create a custom initialization function only for inference.
+/// ## State Management
 ///
-/// ## Example
+/// **Two possible states:**
 ///
-/// ```rust, ignore
-/// let device = Device::default();
-/// let config = ModuleConfig::default();
-/// let record = Recorder::new().load("/path/to/module", &device);
+/// 1. **Initialized**: `state: OnceCell<T>` contains value, `initialization: None`
+/// 2. **Uninitialized (Lazy)**: `state` is empty, `initialization: Some(RwLock<Option<Uninitialized<T>>>)`
 ///
-/// // No tensor allocation
+/// ## Critical Methods
+///
+/// **Initialization trigger** ([val](Self::val)):
+/// ```rust,ignore
+/// pub fn val(&self) -> T {
+///     self.state.get_or_init(|| {
+///         let mut result = self.initialization.as_ref().unwrap().write().unwrap();
+///         let state = result.take();  // Takes ownership, replaces with None
+///         state.initialize()           // Runs: init(&device, is_require_grad)
+///     }).clone()
+/// }
+/// ```
+///
+/// **Lazy queries WITHOUT triggering initialization:**
+/// - [lazy_device](Self::lazy_device): Reads device from `Uninitialized` if lazy, else calls `device()`
+/// - `lazy_is_require_grad()`: Reads flag from `Uninitialized` if lazy, else calls `is_require_grad()`
+///
+/// ## The Load Optimization
+///
+/// **Key insight:** When loading tensors into an uninitialized param, the original `init` function
+/// is **never called** - this is the performance win for loading pre-trained weights.
+///
+/// The `load()` method (in tensor.rs):
+/// ```rust,ignore
+/// pub fn load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
+///     let expected_device = self.lazy_device();         // NO initialization!
+///     let expected_require_grad = self.lazy_is_require_grad(); // NO initialization!
+///
+///     // Move to expected device, apply mapper, set require_grad
+///     new_tensor = tensor.to_device(&expected_device);
+///     new_tensor = mapper.on_load(new_tensor);
+///     new_tensor = new_tensor.set_require_grad(expected_require_grad);
+///
+///     Self::initialized(param_id, new_tensor)  // Returns initialized param
+/// }
+/// ```
+///
+/// ## Thread Safety
+///
+/// **Why RwLock?**
+/// - `OnceCell` guarantees single initialization
+/// - BUT concurrent calls to `lazy_device()` during initialization need to wait
+/// - `RwLock` ensures readers wait for the write lock during initialization
+///
+/// ## Important Behaviors
+///
+/// 1. **Clone**: Forces initialization, creates new initialized param with same ID
+/// 2. **map()**: Forces initialization, always returns initialized param
+/// 3. **init_mapper()**: If lazy, wraps the init function; if initialized, maps value
+/// 4. **set_require_grad()**: If lazy, updates `Uninitialized.is_require_grad`; if initialized, maps value
+///
+/// ## Performance Pattern
+///
+/// ```rust,ignore
+/// // Create uninitialized module (no tensor allocations)
 /// let module = config.init(device);
-/// // Will use the tensor allocated for the record if the same device is used.
-/// let module = module.load_record(record);
+///
+/// // Load tensors - lazy params use loaded tensors directly, bypassing init functions
+/// let module = module.load(...);
 /// ```
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
+    /// The OnceCell holding the initialized parameter value.
+    /// Empty for uninitialized parameters, populated after first access or explicit initialization.
     pub(crate) state: OnceCell<T>,
-    /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
+    /// The deferred initialization state for lazy parameters.
     ///
-    /// Because of once cell, we have a guarantee that the initialization will only be called once,
-    /// but it may be called at the same time as `lazy_device` and `lazy_is_require_grad`, which is
-    /// when the lock is actually useful, waiting for the initialization to be completed before
-    /// returning the value.
-    initialization: Option<RwLock<Option<Uninitialized<T>>>>,
+    /// **State Transitions:**
+    /// - Initialized params: `None`
+    /// - Uninitialized params: `Some(RwLock<Some(Uninitialized<T>)>)`
+    /// - After lazy init triggers: `Some(RwLock<None>)` (inner Option is taken)
+    ///
+    /// **Thread Safety:**
+    /// The RwLock ensures that concurrent calls to `lazy_device()` or `lazy_is_require_grad()`
+    /// during initialization will wait for the write lock to complete, preventing race conditions
+    /// between initialization and lazy queries.
+    pub(crate) initialization: Option<RwLock<Option<Uninitialized<T>>>>,
     pub(crate) param_mapper: ParamMapper<T>,
 }
 
 #[derive(Clone)]
-/// Applies functions when loading and saving parameters.
+/// Applies transformations when loading and saving parameters.
+///
+/// # Mapper System
+///
+/// `ParamMapper<T>` allows applying transformations during serialization and deserialization:
+/// - `load: Option<Mapper<T>>` - transformation during deserialization (applied in `load()`)
+/// - `save: Option<Mapper<T>>` - transformation during serialization (applied in `save()`)
+///
+/// These are commonly used for:
+/// - Quantization/dequantization
+/// - Precision conversion (e.g., FP32 ↔ FP16)
+/// - Custom parameter transformations
 pub struct ParamMapper<T: Parameter> {
     load: Option<Mapper<T>>,
     save: Option<Mapper<T>>,
@@ -135,14 +204,39 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
     fn set_require_grad(self, require_grad: bool) -> Self;
 }
 
+/// The deferred initialization state for lazy parameters.
+///
+/// # Uninitialized Struct
+///
+/// Contains all information needed to initialize a parameter on first access:
+/// ```rust,ignore
+/// struct Uninitialized<P> {
+///     init: Box<dyn FnOnce(&P::Device, bool) -> P>,  // initialization function
+///     device: P::Device,                              // target device
+///     is_require_grad: bool,                          // gradient requirement
+/// }
+/// ```
+///
+/// This struct is stored inside the `initialization` field of [Param] and is consumed
+/// when the parameter is first accessed, transferring ownership to the initialization function.
 #[allow(clippy::type_complexity)]
-struct Uninitialized<P: Parameter> {
+pub(crate) struct Uninitialized<P: Parameter> {
+    /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
+    /// This function is consumed during initialization via `FnOnce`.
     init: Box<dyn FnOnce(&P::Device, bool) -> P + Send>,
+    /// The target device on which the parameter should be initialized.
+    /// Used by `lazy_device()` to provide device information without triggering initialization.
     device: P::Device,
+    /// The gradient requirement for the parameter.
+    /// Used by `lazy_is_require_grad()` to provide gradient settings without triggering initialization.
     is_require_grad: bool,
 }
 
 impl<P: Parameter> Uninitialized<P> {
+    /// Consumes the uninitialized state and runs the initialization function.
+    ///
+    /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
+    /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
     fn initialize(self) -> P {
         let init = self.init;
         init(&self.device, self.is_require_grad)
@@ -177,7 +271,17 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// Gets the parameter value.
+    /// Gets the parameter value, initializing it lazily if needed.
+    ///
+    /// For initialized parameters, this returns a clone of the cached value.
+    /// For uninitialized parameters, this triggers initialization:
+    /// 1. Acquires write lock on the initialization state
+    /// 2. Takes the `Uninitialized` struct (replacing with `None`)
+    /// 3. Calls the initialization function
+    /// 4. Stores the result in the `OnceCell` for future access
+    ///
+    /// **Thread Safety:** OnceCell ensures initialization happens exactly once,
+    /// even with concurrent access.
     pub fn val(&self) -> T {
         self.state
             .get_or_init(|| {
@@ -241,14 +345,14 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// Runs a transformation on the parameter when loading a saved record.
+    /// Runs a transformation on the parameter when loading.
     pub fn load_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
         self.param_mapper.load = Some(new_mapper(func));
 
         self
     }
 
-    /// Runs a transformation on the parameter when saving the record.
+    /// Runs a transformation on the parameter when saving.
     pub fn save_mapper<F: Fn(T) -> T + Send + Sync + 'static>(mut self, func: F) -> Self {
         self.param_mapper.save = Some(new_mapper(func));
 
@@ -288,12 +392,18 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// The device on which the parameter is or will be initialized.
+    /// The device on which the parameter is or will be initialized, **without triggering initialization**.
     ///
-    /// This should be used instead of [crate::tensor::Tensor::device], since using the tensor
-    /// function requires a dereference, which triggers the initialization. This is only useful
-    /// when the device is used for updating the tensor value, which has potentially not been
-    /// initialized yet, like loading a record.
+    /// This is critical for the load optimization: when loading tensors into an uninitialized parameter,
+    /// we need to know the target device to move the loaded tensor appropriately, but we don't want to
+    /// trigger the initialization function (which would allocate an unnecessary tensor).
+    ///
+    /// **Returns:**
+    /// - For uninitialized params: the device from the `Uninitialized` struct
+    /// - For initialized params: the actual device from the tensor
+    ///
+    /// Use this instead of [crate::tensor::Tensor::device] when you need the device but want to
+    /// preserve lazy initialization.
     pub fn lazy_device(&self) -> T::Device {
         let initialization = match &self.initialization {
             Some(init) => init,
@@ -308,12 +418,15 @@ impl<T: Parameter> Param<T> {
         }
     }
 
-    /// The gradient requirement on which the parameter is or will be initialized.
+    /// The gradient requirement on which the parameter is or will be initialized, **without triggering initialization**.
     ///
-    /// This should be used instead of [crate::tensor::Tensor::is_require_grad], since using the tensor
-    /// function requires a dereference, which triggers the initialization. This is only useful
-    /// when the boolean is used for updating the tensor value, which has potentially not been
-    /// initialized yet, like loading a record.
+    /// Similar to [lazy_device](Self::lazy_device), this is critical for the load optimization.
+    /// When loading tensors into an uninitialized parameter, we need to apply the correct gradient
+    /// setting to the loaded tensor without triggering the initialization function.
+    ///
+    /// **Returns:**
+    /// - For uninitialized params: the gradient requirement from the `Uninitialized` struct
+    /// - For initialized params: the actual gradient requirement from the tensor
     ///
     /// # Notes
     ///
