@@ -1,7 +1,7 @@
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::store::BurnpackStore;
-use crate::{ModuleSnapshoter, PathFilter};
+use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
 use burn_core::module::{Module, Param};
 use burn_tensor::{Tensor, backend::Backend};
 
@@ -39,6 +39,47 @@ impl<B: Backend> TestModule<B> {
             nested: NestedModule {
                 gamma: Param::from_tensor(Tensor::zeros([2], device)),
                 beta: Param::from_tensor(Tensor::zeros([2], device)),
+            },
+        }
+    }
+
+    fn new_uninitialized(device: &B::Device) -> Self {
+        use burn_core::module::ParamId;
+        let device_clone = device.clone();
+        let device_clone2 = device.clone();
+        let device_clone3 = device.clone();
+        let device_clone4 = device.clone();
+
+        Self {
+            weight: Param::uninitialized(
+                ParamId::new(),
+                move |d, _| Tensor::zeros([2, 2], d),
+                device_clone,
+                true,
+                [2, 2].into(),
+            ),
+            bias: Param::uninitialized(
+                ParamId::new(),
+                move |d, _| Tensor::zeros([2], d),
+                device_clone2,
+                true,
+                [2].into(),
+            ),
+            nested: NestedModule {
+                gamma: Param::uninitialized(
+                    ParamId::new(),
+                    move |d, _| Tensor::zeros([2], d),
+                    device_clone3,
+                    true,
+                    [2].into(),
+                ),
+                beta: Param::uninitialized(
+                    ParamId::new(),
+                    move |d, _| Tensor::zeros([2], d),
+                    device_clone4,
+                    true,
+                    [2].into(),
+                ),
             },
         }
     }
@@ -620,4 +661,95 @@ fn test_store_auto_extension_disabled() {
     let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_partial_loading_preserves_lazy_initialization() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+
+    // Create and save a full module
+    let module = TestModule::<TestBackend>::new(&device);
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("model.burnpack");
+
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Create an uninitialized module (all params lazy)
+    let mut load_module = TestModule::<TestBackend>::new_uninitialized(&device);
+
+    // Before loading: verify ALL params are uninitialized (lazy)
+    assert!(
+        !load_module.weight.is_initialized(),
+        "weight should be uninitialized before loading"
+    );
+    assert!(
+        !load_module.bias.is_initialized(),
+        "bias should be uninitialized before loading"
+    );
+    assert!(
+        !load_module.nested.gamma.is_initialized(),
+        "nested.gamma should be uninitialized before loading"
+    );
+    assert!(
+        !load_module.nested.beta.is_initialized(),
+        "nested.beta should be uninitialized before loading"
+    );
+
+    // Partial load: only load weight and bias (skip nested.*)
+    let filter = PathFilter::new().with_regex("^(weight|bias)$");
+    let mut load_store = BurnpackStore::from_file(&path).filter(filter);
+    let result = load_module.apply_from(&mut load_store).unwrap();
+
+    // Verify only weight and bias were loaded
+    assert_eq!(result.applied.len(), 2);
+    assert!(result.applied.contains(&"weight".to_string()));
+    assert!(result.applied.contains(&"bias".to_string()));
+    assert_eq!(result.skipped.len(), 2);
+    assert!(result.skipped.contains(&"nested.gamma".to_string()));
+    assert!(result.skipped.contains(&"nested.beta".to_string()));
+
+    // After loading: verify loaded params are initialized, skipped remain lazy
+    assert!(
+        load_module.weight.is_initialized(),
+        "weight should be initialized after loading"
+    );
+    assert!(
+        load_module.bias.is_initialized(),
+        "bias should be initialized after loading"
+    );
+    assert!(
+        !load_module.nested.gamma.is_initialized(),
+        "nested.gamma should remain uninitialized (was skipped)"
+    );
+    assert!(
+        !load_module.nested.beta.is_initialized(),
+        "nested.beta should remain uninitialized (was skipped)"
+    );
+
+    // Verify the loaded values are correct
+    let weight_data = load_module.weight.val().to_data().to_vec::<f32>().unwrap();
+    assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
+
+    let bias_data = load_module.bias.val().to_data().to_vec::<f32>().unwrap();
+    assert_eq!(bias_data, vec![0.1, 0.2]);
+
+    // Now check that nested params can still be initialized on first access
+    let gamma_data = load_module
+        .nested
+        .gamma
+        .val()
+        .to_data()
+        .to_vec::<f32>()
+        .unwrap();
+    assert_eq!(gamma_data, vec![0.0, 0.0]); // Initialized to zeros via the init function
+
+    // After accessing, they should be initialized
+    assert!(
+        load_module.nested.gamma.is_initialized(),
+        "nested.gamma should be initialized after first access"
+    );
 }
