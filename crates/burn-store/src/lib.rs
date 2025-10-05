@@ -48,16 +48,15 @@
 //!
 //! ### Filtering and Remapping
 //!
-//! ```rust,ignore
-//! use burn_store::SafetensorsStore;
-//!
+//! ```rust,no_run
+//! # use burn_store::SafetensorsStore;
 //! // Save only specific layers with renaming
 //! let mut store = SafetensorsStore::from_file("encoder.safetensors")
 //!     .with_regex(r"^encoder\..*")                         // Filter: only encoder layers
 //!     .with_key_remapping(r"^encoder\.", "transformer.")   // Rename: encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
 //!
-//! model.collect_to(&mut store)?;
+//! // Use store with model.collect_to(&mut store)?;
 //! ```
 //!
 //! ## Core Components

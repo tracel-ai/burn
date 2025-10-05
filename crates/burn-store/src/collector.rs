@@ -15,26 +15,30 @@ use burn_core::module::{ModuleVisitor, Param, ParamId};
 /// # Examples
 ///
 /// ## Collect all tensors
-/// ```rust,ignore
-/// let collector = Collector::new();
-/// module.visit(&mut collector);
+/// ```rust,no_run
+/// # use burn_store::Collector;
+/// let collector = Collector::new(None, None);
+/// // Use with module.visit(&mut collector);
 /// let all_tensors = collector.tensors;
 /// ```
 ///
 /// ## Filter with single pattern
-/// ```rust,ignore
-/// let collector = Collector::with_filter(PathFilter::new().with_regex(r"^encoder\..*"));
-/// module.visit(&mut collector);
+/// ```rust,no_run
+/// # use burn_store::{Collector, PathFilter};
+/// let filter = PathFilter::new().with_regex(r"^encoder\..*");
+/// let collector = Collector::new(Some(filter), None);
+/// // Use with module.visit(&mut collector);
 /// // Only collects tensors starting with "encoder."
 /// ```
 ///
 /// ## Filter with multiple patterns (OR union)
-/// ```rust,ignore
+/// ```rust,no_run
+/// # use burn_store::{Collector, PathFilter};
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
 ///     .with_regex(r".*\.bias$");    // OR match any bias tensors
-/// let collector = Collector::with_filter(filter);
-/// module.visit(&mut collector);
+/// let collector = Collector::new(Some(filter), None);
+/// // Use with module.visit(&mut collector);
 /// // Collects tensors matching ANY of the patterns
 /// ```
 pub struct Collector {
@@ -64,17 +68,16 @@ impl Collector {
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// use burn_store::{Collector, PathFilter};
-    ///
+    /// ```rust,no_run
+    /// # use burn_store::{Collector, PathFilter};
     /// // Collect all tensors without adapter
     /// let collector = Collector::new(None, None);
     ///
-    /// // Use PathFilter builder with adapter
+    /// // Use PathFilter builder
     /// let filter = PathFilter::new()
     ///     .with_regex(r"^encoder\..*")
     ///     .with_full_path("decoder.weight");
-    /// let collector = Collector::new(Some(filter), Some(adapter));
+    /// let collector = Collector::new(Some(filter), None);
     /// ```
     pub fn new(filter: Option<PathFilter>, adapter: Option<Box<dyn ModuleAdapter>>) -> Self {
         Self {

@@ -83,8 +83,8 @@ impl PytorchStore {
     /// * `path` - Path to the PyTorch checkpoint file (.pt or .pth)
     ///
     /// # Example
-    /// ```rust,ignore
-    /// use burn_store::pytorch::PytorchStore;
+    /// ```rust,no_run
+    /// use burn_store::PytorchStore;
     ///
     /// let store = PytorchStore::from_file("model.pth");
     /// ```
@@ -105,7 +105,8 @@ impl PytorchStore {
     /// tensors from a specific top-level key like "state_dict" or "model_state_dict".
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
     /// let store = PytorchStore::from_file("checkpoint.pth")
     ///     .with_top_level_key("model_state_dict");
     /// ```
@@ -125,7 +126,8 @@ impl PytorchStore {
     /// Multiple patterns can be added and they work with OR logic.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
     /// let store = PytorchStore::from_file("model.pth")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
@@ -148,7 +150,8 @@ impl PytorchStore {
     /// Add an exact full path to match.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
     /// let store = PytorchStore::from_file("model.pth")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
@@ -173,7 +176,8 @@ impl PytorchStore {
     /// The predicate receives the tensor path and container path.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
     /// let store = PytorchStore::from_file("model.pth")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
@@ -206,7 +210,8 @@ impl PytorchStore {
     /// Add a regex pattern to remap tensor names during load.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
     /// let store = PytorchStore::from_file("model.pth")
     ///     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_remapping(r"\.gamma$", ".weight");               // X.gamma -> X.weight

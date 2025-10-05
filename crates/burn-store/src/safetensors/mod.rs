@@ -19,8 +19,7 @@
 //! ## Basic Save and Load
 //!
 //! ```rust,ignore
-//! use burn_store::safetensors::SafetensorsStore;
-//! use burn_store::ModuleSnapshot;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot};
 //!
 //! // Save a model to a file
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
@@ -35,8 +34,7 @@
 //! ## Memory-Based Operations
 //!
 //! ```rust,ignore
-//! use burn_store::safetensors::SafetensorsStore;
-//! use burn_store::ModuleSnapshot;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot};
 //!
 //! // Save to memory buffer
 //! let mut store = SafetensorsStore::from_bytes(None);
@@ -53,10 +51,8 @@
 //!
 //! ### Filter Configuration with Builder Pattern
 //!
-//! ```rust,ignore
-//! use burn_store::ModuleSnapshot;
-//! use burn_store::safetensors::SafetensorsStore;
-//!
+//! ```rust,no_run
+//! # use burn_store::SafetensorsStore;
 //! // Filter with regex patterns (OR logic - matches any pattern)
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")     // Match all encoder tensors
@@ -92,11 +88,9 @@
 //!
 //! Remap tensor names during load/save operations for compatibility between different frameworks:
 //!
-//! ```rust,ignore
-//! use burn_store::ModuleSnapshot;
-//! use burn_store::safetensors::SafetensorsStore;
-//! use burn_store::KeyRemapper;
-//!
+//! ```rust,no_run
+//! # use burn_store::{SafetensorsStore, KeyRemapper};
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Using builder pattern for common remapping patterns
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
@@ -111,6 +105,8 @@
 //!
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     .remap(remapper);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Framework Adapters
@@ -118,8 +114,7 @@
 //! Use adapters for automatic framework-specific transformations:
 //!
 //! ```rust,ignore
-//! use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, BurnToPyTorchAdapter};
-//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot, PyTorchToBurnAdapter, BurnToPyTorchAdapter};
 //!
 //! // Loading PyTorch model into Burn
 //! let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
@@ -139,8 +134,7 @@
 //! ### Additional Configuration Options
 //!
 //! ```rust,ignore
-//! use burn_store::ModuleSnapshot;
-//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot};
 //!
 //! let mut store = SafetensorsStore::from_file("model.safetensors")
 //!     // Add custom metadata
@@ -162,6 +156,8 @@
 //! SafeTensors provides efficient tensor loading through its zero-copy design:
 //!
 //! ```rust,ignore
+//! use burn_store::{SafetensorsStore, ModuleSnapshot};
+//!
 //! let mut store = SafetensorsStore::from_file("large_model.safetensors");
 //! // Uses memory mapping (when available) for zero-copy access
 //! // Falls back to buffered reading when mmap is not available
@@ -180,7 +176,7 @@
 //! zero-copy design and built-in metadata handling:
 //!
 //! ```rust,ignore
-//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::SafetensorsStore;
 //!
 //! // Open a file - uses safetensors' efficient header reading
 //! let store = SafetensorsStore::from_file("large_model.safetensors");
@@ -242,7 +238,9 @@
 //!
 //! All methods return `Self` for chaining:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! use burn_store::{SafetensorsStore, PyTorchToBurnAdapter};
+//!
 //! let store = SafetensorsStore::from_file("model.safetensors")
 //!     .with_regex(r"^encoder\..*")
 //!     .with_key_remapping(r"\.gamma$", ".weight")
@@ -256,8 +254,7 @@
 //! For direct byte operations without files:
 //!
 //! ```rust,ignore
-//! use burn_store::ModuleSnapshot;
-//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot};
 //!
 //! // Save to bytes with filtering and remapping
 //! let mut store = SafetensorsStore::from_bytes(None)
@@ -281,8 +278,7 @@
 //! Migrating a PyTorch model to Burn with filtering, remapping, and adapters:
 //!
 //! ```rust,ignore
-//! use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
-//! use burn_store::safetensors::SafetensorsStore;
+//! use burn_store::{SafetensorsStore, ModuleSnapshot, PyTorchToBurnAdapter};
 //!
 //! // Load PyTorch model with all transformations
 //! let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")

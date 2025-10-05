@@ -155,7 +155,8 @@ impl SafetensorsStore {
     /// Multiple patterns can be added and they work with OR logic.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
@@ -188,7 +189,8 @@ impl SafetensorsStore {
     /// Add an exact full path to match.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
@@ -221,7 +223,8 @@ impl SafetensorsStore {
     /// The predicate receives the tensor path and container path.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
@@ -270,7 +273,8 @@ impl SafetensorsStore {
     /// Add a regex pattern to remap tensor names during load/save.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_remapping(r"\.gamma$", ".weight");               // X.gamma -> X.weight
@@ -362,10 +366,11 @@ impl SafetensorsStore {
     /// This setting only applies to file-based stores.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let mut store = SafetensorsStore::from_file("model.safetensors")
     ///     .overwrite(true);
-    /// model.collect_to(&mut store)?;  // Will overwrite if file exists
+    /// // Will overwrite if file exists when saving
     /// ```
     #[cfg(feature = "std")]
     pub fn overwrite(mut self, overwrite: bool) -> Self {
@@ -401,10 +406,14 @@ impl SafetensorsStore {
     /// Get saved bytes from memory-based store.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut store = SafetensorsStore::from_bytes(None);
-    /// model.collect_to(&mut store)?;
+    /// // After saving model with collect_to()...
     /// let bytes = store.get_bytes()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsStoreError> {
         match self {
