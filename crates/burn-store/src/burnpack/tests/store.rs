@@ -753,3 +753,102 @@ fn test_partial_loading_preserves_lazy_initialization() {
         "nested.gamma should be initialized after first access"
     );
 }
+
+// Model with forward pass for testing weight preservation
+#[derive(Module, Debug)]
+struct ForwardTestModel<B: Backend> {
+    linear1: burn::nn::Linear<B>,
+    linear2: burn::nn::Linear<B>,
+}
+
+impl<B: Backend> ForwardTestModel<B> {
+    /// Forward pass: input -> linear1 -> gelu -> linear2
+    fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+        let x = self.linear1.forward(input);
+        let x = burn::tensor::activation::gelu(x);
+        self.linear2.forward(x)
+    }
+}
+
+#[derive(burn::config::Config, Debug)]
+struct ForwardTestModelConfig {
+    input_size: usize,
+    hidden_size: usize,
+    output_size: usize,
+}
+
+impl ForwardTestModelConfig {
+    fn init<B: Backend>(&self, device: &B::Device) -> ForwardTestModel<B> {
+        ForwardTestModel {
+            linear1: burn::nn::LinearConfig::new(self.input_size, self.hidden_size)
+                .with_bias(true)
+                .init(device),
+            linear2: burn::nn::LinearConfig::new(self.hidden_size, self.output_size)
+                .with_bias(true)
+                .init(device),
+        }
+    }
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_forward_pass_preservation_after_save_load() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+
+    // Create model config
+    let config = ForwardTestModelConfig {
+        input_size: 4,
+        hidden_size: 8,
+        output_size: 2,
+    };
+
+    // Initialize model1 with random weights
+    let model1 = config.init::<TestBackend>(&device);
+
+    // Create random input
+    let input = Tensor::<TestBackend, 2>::random(
+        [1, 4],
+        burn_tensor::Distribution::Uniform(-1.0, 1.0),
+        &device,
+    );
+
+    // Forward pass with model1 -> output1
+    let output1 = model1.forward(input.clone());
+
+    // Save model1 weights
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("forward_test_model.burnpack");
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&model1).unwrap();
+
+    // Initialize model2 with different random weights
+    let mut model2 = config.init::<TestBackend>(&device);
+
+    // Forward pass with model2 -> output2 (should differ from output1)
+    let output2 = model2.forward(input.clone());
+
+    // Verify output2 differs from output1 (different random weights)
+    assert!(
+        !output1
+            .clone()
+            .all_close(output2.clone(), Some(1e-6), Some(1e-6)),
+        "output2 should differ from output1 (different random initializations)"
+    );
+
+    // Load model1 weights into model2
+    let mut load_store = BurnpackStore::from_file(&path);
+    let result = load_store.apply_to(&mut model2).unwrap();
+    assert!(result.is_success());
+    assert_eq!(result.applied.len(), 4); // 2 weights + 2 biases
+
+    // Forward pass with model2 (now has model1 weights) -> output3
+    let output3 = model2.forward(input.clone());
+
+    // Verify output3 equals output1 (same weights)
+    assert!(
+        output1.all_close(output3, Some(1e-6), Some(1e-6)),
+        "output3 should equal output1 after loading weights"
+    );
+}
