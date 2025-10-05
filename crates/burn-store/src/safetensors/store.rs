@@ -119,6 +119,7 @@ impl SafetensorsStore {
             metadata: Self::default_metadata(),
             validate: true,
             allow_partial: false,
+            overwrite: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
         })
@@ -353,6 +354,30 @@ impl SafetensorsStore {
         self
     }
 
+    /// Set whether to overwrite existing files when saving (default: false).
+    ///
+    /// When set to `false`, attempting to save to an existing file will result in an error.
+    /// When set to `true`, existing files will be overwritten without warning.
+    ///
+    /// This setting only applies to file-based stores.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let mut store = SafetensorsStore::from_file("model.safetensors")
+    ///     .overwrite(true);
+    /// model.collect_to(&mut store)?;  // Will overwrite if file exists
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn overwrite(mut self, overwrite: bool) -> Self {
+        match &mut self {
+            Self::File(p) => p.overwrite = overwrite,
+            Self::Memory(_) => {
+                // Memory stores don't have overwrite semantics, ignore
+            }
+        }
+        self
+    }
+
     /// Set the adapter for loading tensors (converting from source format to Burn).
     pub fn with_from_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
         match &mut self {
@@ -404,6 +429,7 @@ pub struct FileStore {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
+    overwrite: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
 }
@@ -520,6 +546,14 @@ impl ModuleSnapshoter for SafetensorsStore {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
+                // Check if file exists and overwrite is disabled
+                if p.path.exists() && !p.overwrite {
+                    return Err(SafetensorsStoreError::Other(format!(
+                        "File already exists: {}. Use .overwrite(true) to overwrite.",
+                        p.path.display()
+                    )));
+                }
+
                 // Convert to safetensors format
                 let tensors = snapshots_to_safetensors(snapshots)?;
 
