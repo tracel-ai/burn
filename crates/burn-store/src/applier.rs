@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
-use burn_core::module::{ModuleMapper, Param};
+use burn_core::module::{ModuleMapper, Param, ParamId};
 use burn_tensor::{Bool, DType, Int, Tensor, backend::Backend};
 
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
@@ -222,7 +222,12 @@ impl<B: Backend> Applier<B> {
     }
 
     /// Apply a tensor snapshot to the current tensor (generic over tensor kind)
-    fn apply_tensor<const D: usize, K>(&mut self, tensor: Tensor<B, D, K>) -> Tensor<B, D, K>
+    /// If tensor is None (uninitialized parameter), skip shape and dtype validation
+    fn apply_tensor<const D: usize, K>(
+        &mut self,
+        tensor: Option<Tensor<B, D, K>>,
+        device: &B::Device,
+    ) -> Tensor<B, D, K>
     where
         K: burn_tensor::TensorKind<B>,
         K: burn_tensor::BasicOps<B>,
@@ -233,13 +238,21 @@ impl<B: Backend> Applier<B> {
         // Check if we have a snapshot for this path
         let snapshot = match self.snapshots.get(&path) {
             Some(s) => s,
-            None => return tensor,
+            None => {
+                return match tensor {
+                    Some(t) => t,
+                    None => panic!("Cannot create uninitialized tensor without snapshot"),
+                };
+            }
         };
 
         // Check if we should apply based on filter
         if !self.should_apply() {
             self.skipped.insert(path);
-            return tensor;
+            return match tensor {
+                Some(t) => t,
+                None => panic!("Cannot skip applying to uninitialized tensor"),
+            };
         }
 
         // Apply adapter with current container context
@@ -251,34 +264,38 @@ impl<B: Backend> Applier<B> {
                     path: path.clone(),
                     message: format!("Failed to load tensor data: {:?}", e),
                 });
-                return tensor;
+                return match tensor {
+                    Some(t) => t,
+                    None => panic!("Cannot recover from load error for uninitialized tensor"),
+                };
             }
         };
 
-        // Validate shape
-        let expected_shape = tensor.shape().dims;
-        if data.shape != expected_shape {
-            self.errors.push(ApplyError::ShapeMismatch {
-                path: path.clone(),
-                expected: expected_shape,
-                found: data.shape.clone(),
-            });
-            return tensor;
-        }
+        // Validate shape and dtype only if tensor is initialized
+        if let Some(ref t) = tensor {
+            let expected_shape = t.shape().dims;
+            if data.shape != expected_shape {
+                self.errors.push(ApplyError::ShapeMismatch {
+                    path: path.clone(),
+                    expected: expected_shape,
+                    found: data.shape.clone(),
+                });
+                return t.clone();
+            }
 
-        // Validate dtype
-        let expected_dtype = tensor.dtype();
-        if data.dtype != expected_dtype {
-            self.errors.push(ApplyError::DTypeMismatch {
-                path: path.clone(),
-                expected: expected_dtype,
-                found: data.dtype,
-            });
-            return tensor;
+            let expected_dtype = t.dtype();
+            if data.dtype != expected_dtype {
+                self.errors.push(ApplyError::DTypeMismatch {
+                    path: path.clone(),
+                    expected: expected_dtype,
+                    found: data.dtype,
+                });
+                return t.clone();
+            }
         }
 
         self.applied.push(path);
-        Tensor::from_data(data, &tensor.device())
+        Tensor::from_data(data, device)
     }
 }
 
@@ -294,38 +311,56 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
     }
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
-        let (id, tensor, mapper) = param.consume();
-        let tensor = if self.path_stack.is_empty() {
-            tensor
+        if self.path_stack.is_empty() {
+            return param;
+        }
+
+        let param_id = param.id;
+
+        let applied_tensor = if param.is_initialized() {
+            self.apply_tensor(Some(param.val()), &param.device())
         } else {
-            self.apply_tensor(tensor)
+            self.apply_tensor::<D, _>(None, &param.device())
         };
-        Param::into_initialized(id, tensor, mapper)
+
+        param.load(applied_tensor, param_id)
     }
 
     fn map_int<const D: usize>(
         &mut self,
         param: Param<Tensor<B, D, Int>>,
     ) -> Param<Tensor<B, D, Int>> {
-        let (id, tensor, mapper) = param.consume();
-        let tensor = if self.path_stack.is_empty() {
-            tensor
+        if self.path_stack.is_empty() {
+            return param;
+        }
+
+        let param_id = param.id;
+
+        let applied_tensor = if param.is_initialized() {
+            self.apply_tensor(Some(param.val()), &param.device())
         } else {
-            self.apply_tensor(tensor)
+            self.apply_tensor::<D, _>(None, &param.device())
         };
-        Param::into_initialized(id, tensor, mapper)
+
+        param.load(applied_tensor, param_id)
     }
 
     fn map_bool<const D: usize>(
         &mut self,
         param: Param<Tensor<B, D, Bool>>,
     ) -> Param<Tensor<B, D, Bool>> {
-        let (id, tensor, mapper) = param.consume();
-        let tensor = if self.path_stack.is_empty() {
-            tensor
+        if self.path_stack.is_empty() {
+            return param;
+        }
+
+        let param_id = param.id;
+
+        let applied_tensor = if param.is_initialized() {
+            self.apply_tensor(Some(param.val()), &param.device())
         } else {
-            self.apply_tensor(tensor)
+            self.apply_tensor::<D, _>(None, &param.device())
         };
-        Param::into_initialized(id, tensor, mapper)
+
+        param.load(applied_tensor, param_id)
     }
 }

@@ -54,7 +54,7 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
-    state: OnceCell<T>,
+    pub(crate) state: OnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
     /// Because of once cell, we have a guarantee that the initialization will only be called once,
@@ -193,6 +193,14 @@ impl<T: Parameter> Param<T> {
             .clone()
     }
 
+    /// Check if the parameter has been initialized.
+    ///
+    /// Returns `true` if the parameter's value has been computed and cached,
+    /// `false` if it's still lazy and will be initialized on first access.
+    pub fn is_initialized(&self) -> bool {
+        self.state.get().is_some()
+    }
+
     /// Gets the parameter's value while consuming the parameter.
     pub fn into_value(self) -> T {
         self.consume().1
@@ -286,13 +294,7 @@ impl<T: Parameter> Param<T> {
     /// function requires a dereference, which triggers the initialization. This is only useful
     /// when the device is used for updating the tensor value, which has potentially not been
     /// initialized yet, like loading a record.
-    ///
-    /// # Notes
-    ///
-    /// This is a crate-private function, since users are not expected to use the device of an
-    /// uninitialized module to then override its value. All low-level functions should be provided
-    /// by `burn` and should handle those details.
-    pub(crate) fn lazy_device(&self) -> T::Device {
+    pub fn lazy_device(&self) -> T::Device {
         let initialization = match &self.initialization {
             Some(init) => init,
             None => return self.device(),
