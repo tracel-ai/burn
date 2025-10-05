@@ -176,6 +176,7 @@ impl GlobalScalarExpand {
 
 impl LaunchArg for GlobalScalar {
     type RuntimeArg<'a, R: Runtime> = GlobalScalar;
+    type CompilationArg = GlobalScalarCompilationArg;
 
     fn compilation_arg<R: Runtime>(arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
         match arg {
@@ -217,17 +218,6 @@ impl LaunchArg for GlobalScalar {
             }
         }
     }
-}
-
-#[derive(new, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct GlobalScalarCompilationArg {
-    ty: StorageType,
-}
-
-impl CompilationArg for GlobalScalarCompilationArg {}
-
-impl LaunchArgExpand for GlobalScalar {
-    type CompilationArg = GlobalScalarCompilationArg;
 
     fn expand(
         arg: &Self::CompilationArg,
@@ -266,6 +256,13 @@ impl LaunchArgExpand for GlobalScalar {
     }
 }
 
+#[derive(new, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct GlobalScalarCompilationArg {
+    ty: StorageType,
+}
+
+impl CompilationArg for GlobalScalarCompilationArg {}
+
 impl<R: Runtime> ArgSettings<R> for GlobalScalar {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
         match self {
@@ -287,6 +284,7 @@ impl<R: Runtime> ArgSettings<R> for GlobalScalar {
 
 impl LaunchArg for GlobalTensor {
     type RuntimeArg<'a, R: Runtime> = GlobalTensorArg<'a, R>;
+    type CompilationArg = GlobalTensorCompilationArg;
 
     fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
         let tensor = <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::compilation_arg(
@@ -298,18 +296,6 @@ impl LaunchArg for GlobalTensor {
             broadcasted: runtime_arg.broadcasted,
         }
     }
-}
-
-impl<R: Runtime> ArgSettings<R> for GlobalTensorArg<'_, R> {
-    fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.register_tensor(&self.tensor)
-    }
-}
-
-impl CompilationArg for GlobalTensorCompilationArg {}
-
-impl LaunchArgExpand for GlobalTensor {
-    type CompilationArg = GlobalTensorCompilationArg;
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
         let tensor = builder.input_tensor(Type::scalar(arg.elem).line(arg.tensor.line_size));
@@ -335,3 +321,11 @@ impl LaunchArgExpand for GlobalTensor {
         }
     }
 }
+
+impl<R: Runtime> ArgSettings<R> for GlobalTensorArg<'_, R> {
+    fn register(&self, launcher: &mut KernelLauncher<R>) {
+        launcher.register_tensor(&self.tensor)
+    }
+}
+
+impl CompilationArg for GlobalTensorCompilationArg {}
