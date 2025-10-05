@@ -56,17 +56,19 @@ fn multi_layer_model_import() {
     // PyTorch stores as [out_features, in_features], Burn as [in_features, out_features]
     // Also, tensor names may differ (e.g., PyTorch uses different names for BatchNorm params)
     let mut store = SafetensorsStore::from_file(safetensors_path)
-        .validate(false) // Disable validation due to shape differences
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
 
     let result = model.apply_from(&mut store).unwrap();
 
-    // Since we have shape mismatches with PyTorch model (transposed weights),
-    // we expect some errors but should still load what we can
+    // With the adapter, weights should load correctly
     assert!(!result.applied.is_empty());
-    // fc1.weight will have errors due to shape mismatch
-    assert!(!result.errors.is_empty());
+    assert!(
+        result.errors.is_empty(),
+        "Should have no errors with adapter: {:?}",
+        result.errors
+    );
 
     // Test forward pass with the loaded weights
     // Note: Due to shape mismatches (PyTorch vs Burn conventions for linear layers),
@@ -94,12 +96,17 @@ fn safetensors_round_trip_with_pytorch_model() {
 
     // Load the model from PyTorch safetensors
     let mut load_store = SafetensorsStore::from_file(safetensors_path)
-        .validate(false) // Disable validation due to shape differences
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
     let load_result = model.apply_from(&mut load_store).unwrap();
-    // We expect some errors due to shape mismatch but some tensors should load
+    // With the adapter, weights should load correctly
     assert!(!load_result.applied.is_empty());
+    assert!(
+        load_result.errors.is_empty(),
+        "Should have no errors with adapter: {:?}",
+        load_result.errors
+    );
 
     // Save the model to memory
     // Note: format, producer and version are automatically added
