@@ -28,6 +28,7 @@ pub(crate) enum StorageBackend {
     Mmap(Rc<memmap2::Mmap>),
     /// File-based storage with buffered reading
     #[cfg(feature = "std")]
+    #[allow(dead_code)]
     FileBuffered { file: Rc<RefCell<File>> },
 }
 
@@ -136,8 +137,7 @@ impl BurnpackReader {
 
     /// Load from file with memory mapping (most efficient for large files)
     #[cfg(all(feature = "std", feature = "memmap"))]
-    #[allow(dead_code)]
-    pub fn from_file_mmap<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
+    pub(crate) fn from_file_mmap<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
         let file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
         // Memory map the file
@@ -201,7 +201,7 @@ impl BurnpackReader {
     /// This is less efficient than memory mapping but works everywhere
     #[cfg(feature = "std")]
     #[allow(dead_code)]
-    pub fn from_file_buffered<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
+    pub(crate) fn from_file_buffered<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
         let mut file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
         // Read header
@@ -294,9 +294,9 @@ impl BurnpackReader {
 
     // Legacy methods for test compatibility - will be removed
 
-    /// Get tensor as TensorSnapshot with lazy loading (DEPRECATED - use get_snapshots)
+    /// Get tensor as TensorSnapshot with lazy loading
     #[allow(dead_code)]
-    pub fn get_tensor_snapshot(&self, name: &str) -> Result<TensorSnapshot, BurnpackError> {
+    pub(crate) fn get_tensor_snapshot(&self, name: &str) -> Result<TensorSnapshot, BurnpackError> {
         let snapshots = self.get_snapshots();
         snapshots
             .into_iter()
@@ -304,9 +304,9 @@ impl BurnpackReader {
             .ok_or_else(|| BurnpackError::TensorNotFound(name.to_string()))
     }
 
-    /// Get list of tensor names (DEPRECATED - use get_snapshots)
+    /// Get list of tensor names
     #[allow(dead_code)]
-    pub fn tensor_names(&self) -> Vec<&str> {
+    pub(crate) fn tensor_names(&self) -> Vec<&str> {
         self.metadata
             .tensors
             .keys()
@@ -314,15 +314,15 @@ impl BurnpackReader {
             .collect()
     }
 
-    /// Get metadata (DEPRECATED - use get_snapshots)
+    /// Get metadata
     #[allow(dead_code)]
-    pub fn metadata(&self) -> &BurnpackMetadata {
+    pub(crate) fn metadata(&self) -> &BurnpackMetadata {
         &self.metadata
     }
 
-    /// Get tensor data as raw bytes (DEPRECATED - use get_snapshots)
+    /// Get tensor data as raw bytes
     #[allow(dead_code)]
-    pub fn get_tensor_data(&self, name: &str) -> Result<Vec<u8>, BurnpackError> {
+    pub(crate) fn get_tensor_data(&self, name: &str) -> Result<Vec<u8>, BurnpackError> {
         let descriptor = self
             .metadata
             .tensors
