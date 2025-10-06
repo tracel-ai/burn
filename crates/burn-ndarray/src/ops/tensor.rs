@@ -327,6 +327,10 @@ where
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
     }
 
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummax(tensor, dim))
+    }
+
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
     }

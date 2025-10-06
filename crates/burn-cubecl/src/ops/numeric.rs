@@ -406,3 +406,86 @@ pub fn cummin<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) 
 
     output
 }
+
+#[cube(launch)]
+fn cummax_kernel<C: Numeric>(
+    input: &Tensor<C>,
+    output: &mut Tensor<C>,
+    dim_stride: u32,
+    #[comptime] dim_size: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let idx = ABSOLUTE_POS;
+
+    // Compute components of the index
+    let before_dim = idx / dim_stride;
+    let after_dim = idx % dim_stride;
+
+    // Compute how many strides along dim we are
+    let dim_offset = (idx / dim_stride) % dim_size;
+
+    // Compute cumulative maximum
+    let first_read_idx = (before_dim / dim_size) * (dim_size * dim_stride) + after_dim;
+    let mut max_val = input[first_read_idx];
+
+    for i in 1..dim_size {
+        if i <= dim_offset {
+            let read_idx =
+                (before_dim / dim_size) * (dim_size * dim_stride) + i * dim_stride + after_dim;
+            let val = input[read_idx];
+            if val > max_val {
+                max_val = val;
+            }
+        }
+    }
+
+    output[idx] = max_val;
+}
+
+/// Compute the cumulative maximum along a dimension
+///
+/// # Limitations
+///
+/// This is a **naive sequential implementation** along the cummax dimension:
+/// - Each output element sequentially reads all previous elements along the dimension
+/// - Computational complexity: O(n²) memory reads where n is the size of the cummax dimension
+/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+///
+/// # TODO
+///
+/// Implement an efficient GPU-optimized parallel scan algorithm.
+pub fn cummax<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    let client = input.client.clone();
+    let device = input.device.clone();
+    let shape = input.shape.clone();
+    let dim_size = shape.dims[dim];
+
+    // Calculate stride for the cummax dimension
+    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
+
+    let output = empty_device::<R, E>(client.clone(), device, shape);
+
+    let num_elems = output.shape.num_elements();
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+
+    cummax_kernel::launch::<E, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        unsafe {
+            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
+        },
+        unsafe {
+            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
+        },
+        ScalarArg::new(dim_stride as u32),
+        dim_size as u32,
+    );
+
+    output
+}

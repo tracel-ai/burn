@@ -780,6 +780,19 @@ pub trait IntTensorOps<B: Backend> {
     /// of all elements up to and including that position along the dimension.
     fn int_cummin(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
 
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn int_cummax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
     /// Gets the indices of the maximum elements along a dimension.
     ///
     /// # Arguments

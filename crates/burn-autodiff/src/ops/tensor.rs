@@ -1674,6 +1674,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         );
     }
 
+    fn float_cummax(_tensor: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+        // Cummax backward pass requires scatter_add which is not yet implemented
+        // The gradient should only flow to the first occurrence of each maximum value
+        panic!(
+            "Cummax is not supported for autodiff backend. \
+             Proper implementation requires scatter_add operation."
+        );
+    }
+
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<B> {
         B::float_argmax(tensor.primitive, dim)
     }

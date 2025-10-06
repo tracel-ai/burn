@@ -515,6 +515,10 @@ where
         execute_with_dtype!(float(tensor.dtype), E, numeric::cummin::<R, E>(tensor, dim))
     }
 
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cummax::<R, E>(tensor, dim))
+    }
+
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),

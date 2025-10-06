@@ -463,6 +463,12 @@ impl TchOps {
         TchTensor::from_existing(values, tensor.storage)
     }
 
+    pub fn cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        // cummax returns (values, indices) tuple in PyTorch, we only need values
+        let (values, _indices) = tensor.tensor.cummax(dim as i64);
+        TchTensor::from_existing(values, tensor.storage)
+    }
+
     pub fn argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         let storage = tensor.storage.clone();
         let tensor = tensor.tensor.argmax(dim as i64, true);

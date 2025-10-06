@@ -121,6 +121,7 @@ mod tests {
     burn_tensor::testgen_expand!();
     burn_tensor::testgen_cumsum!();
     burn_tensor::testgen_cummin!();
+    burn_tensor::testgen_cummax!();
 
     // test stats
     burn_tensor::testgen_var!();

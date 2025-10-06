@@ -21,6 +21,7 @@ mod cosh;
 mod create_like;
 mod cross;
 mod cummin;
+mod cummax;
 mod cumsum;
 mod div;
 mod dot;
