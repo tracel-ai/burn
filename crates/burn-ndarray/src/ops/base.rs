@@ -33,7 +33,7 @@ use crate::ops::simd::{
 use crate::reshape;
 use crate::{
     IntNdArrayElement, ShapeOps,
-    ops::macros::{cummin_dim, cummax_dim, cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim},
+    ops::macros::{cummax_dim, cummin_dim, cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim},
 };
 use crate::{SharedArray, element::NdArrayElement};
 use burn_tensor::Shape;
