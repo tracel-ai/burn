@@ -383,15 +383,19 @@ pub fn mask_where_broadcasted(
 
     let mut tensor = tensor.tensor;
     let mut mask = mask.tensor;
+    let mut value = value.tensor;
 
     if shape != *tensor.shape() {
         tensor = tensor.broadcast_as(shape.clone()).unwrap();
     }
     if shape != *mask.shape() {
-        mask = mask.broadcast_as(shape).unwrap();
+        mask = mask.broadcast_as(shape.clone()).unwrap();
+    }
+    if shape != *value.shape() {
+        value = value.broadcast_as(shape).unwrap();
     }
 
-    CandleTensor::new(mask.where_cond(&value.tensor, &tensor).unwrap())
+    CandleTensor::new(mask.where_cond(&value, &tensor).unwrap())
 }
 
 pub fn cross(lhs: CandleTensor, rhs: CandleTensor, dim: usize) -> CandleTensor {

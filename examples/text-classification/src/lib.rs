@@ -1,10 +1,9 @@
 #[macro_use]
 extern crate derive_new;
 
-mod data;
-mod model;
-
+pub mod data;
 pub mod inference;
+pub mod model;
 pub mod training;
 
 pub use data::{AgNewsDataset, DbPediaDataset, TextClassificationDataset};
