@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -102,6 +102,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GemmNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Gemm(self)
+    }
+}
+
+impl OnnxIntoNode for GemmNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let a = TensorType::from(node.inputs.first().unwrap());
+        let b = TensorType::from(node.inputs.get(1).unwrap());
+        let c = node.inputs.get(2).map(Type::from);
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let (alpha, beta, trans_a, trans_b) = onnx_ir::node::gemm::gemm_config(&node);
+        Self::new(a, b, c, output, alpha, beta, trans_a, trans_b)
     }
 }
 

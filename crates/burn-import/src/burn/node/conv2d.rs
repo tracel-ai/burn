@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -124,6 +124,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Conv2d(self)
+    }
+}
+
+impl OnnxIntoNode for Conv2dNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::conv2d::conv2d_config(&node);
+        let has_bias = node.inputs.len() == 3;
+        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        let bias = if has_bias {
+            extract_node_data::<f32>(&node, 2)
+        } else {
+            None
+        };
+        let name = &node.name;
+        Self::new(name, input, output, weight, bias, config)
     }
 }
 

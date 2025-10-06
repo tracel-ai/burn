@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -40,6 +40,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BernoulliNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Bernoulli(self)
+    }
+}
+
+impl OnnxIntoNode for BernoulliNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        Self::new(input, output)
     }
 }
 

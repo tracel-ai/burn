@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -107,6 +107,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Squeeze(self)
+    }
+}
+
+impl OnnxIntoNode for SqueezeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let axes = onnx_ir::node::squeeze::squeeze_config(&node);
+        Self::new(input, output, axes)
     }
 }
 
