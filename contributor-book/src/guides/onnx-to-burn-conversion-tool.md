@@ -169,17 +169,15 @@ For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeez
 
 ### Step 3: Register in Module System
 
-Add the module declaration to `crates/burn-import/src/burn/mod.rs` in the `node` module:
+Add the module declaration to `crates/burn-import/src/burn/node/mod.rs`:
 
 ```rust
-pub(crate) mod node {
-    // ... other node modules
-    pub(crate) mod squeeze;
-    // ... more node modules
-}
+// ... other node modules
+pub(crate) mod squeeze;
+// ... more node modules
 ```
 
-The modules are automatically made visible through re-exports.
+The modules are automatically made visible through re-exports in the same file.
 
 ### Step 4: Register in Node Registry
 
