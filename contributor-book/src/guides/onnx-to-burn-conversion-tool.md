@@ -311,29 +311,6 @@ The `burn-import` crate is organized into several key modules:
 
 - **`onnx/model_gen.rs`**: Public API (`ModelGen`) for converting ONNX models to Burn code.
 
-### Node Registry Pattern
-
-The node registry uses a declarative macro to eliminate boilerplate. When you add an entry like:
-
-```rust
-Squeeze => squeeze as SqueezeNode,
-```
-
-The macro automatically generates:
-
-1. An import statement: `pub use super::node::squeeze::SqueezeNode;`
-2. A variant in the `Node` enum: `Squeeze(SqueezeNode)`
-3. A case in the `match_all!` macro for dispatching
-4. ONNX conversion logic that calls `SqueezeNode::from_onnx()`
-
-This means you only need to:
-
-1. Implement your node struct with `OnnxIntoNode` and `NodeCodegen` traits
-2. Add the module declaration in `burn/mod.rs`
-3. Add one line to the registry
-
-Everything else is handled automatically!
-
 ## Testing
 
 When implementing a new operator, there are several levels of testing to consider:
