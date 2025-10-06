@@ -20,7 +20,7 @@ enum StoreMode {
     Bytes(Option<Vec<u8>>),
 }
 
-/// BurnpackStore - A Burn-specific file format store using MessagePack for metadata
+/// BurnpackStore - A Burn-specific file format store using CBOR for metadata
 pub struct BurnpackStore {
     /// Store mode - either file path or bytes
     mode: StoreMode,

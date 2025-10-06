@@ -93,7 +93,7 @@ pub struct BurnpackHeader {
     pub magic: u32,
     /// Format version (2 bytes)
     pub version: u16,
-    /// Size of MessagePack metadata in bytes (4 bytes)
+    /// Size of CBOR metadata in bytes (4 bytes)
     pub metadata_size: u32,
 }
 
@@ -139,7 +139,7 @@ impl BurnpackHeader {
     }
 }
 
-/// Metadata structure serialized with MessagePack
+/// Metadata structure serialized with CBOR
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BurnpackMetadata {
     /// Tensor descriptors mapped by name for efficient lookup
