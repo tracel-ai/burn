@@ -52,7 +52,24 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BoolAndNode {
                 if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
                     panic!("and operation requires boolean tensors");
                 }
-                quote! { #lhs.bool_and(#rhs) }
+
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+
+                // Handle broadcasting for different ranks
+                if lhs_rank == rhs_rank {
+                    quote! { #lhs.bool_and(#rhs) }
+                } else if lhs_rank > rhs_rank {
+                    // Broadcast rhs to match lhs rank by adding leading dimensions
+                    let num_dims = lhs_rank - rhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs.bool_and(#rhs.unsqueeze_dims(&[#(#dims),*])) }
+                } else {
+                    // Broadcast lhs to match rhs rank by adding leading dimensions
+                    let num_dims = rhs_rank - lhs_rank;
+                    let dims: Vec<isize> = (0..num_dims).map(|i| i as isize).collect();
+                    quote! { #lhs.unsqueeze_dims(&[#(#dims),*]).bool_and(#rhs) }
+                }
             }
             (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
                 if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
@@ -124,6 +141,50 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4, Bool>, tensor2: Tensor<B, 4, Bool>) -> Tensor<B, 4, Bool> {
                     let tensor3 = tensor1.bool_and(tensor2);
+
+                    tensor3
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_bool_and_broadcast() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(BoolAndNode::new(
+            Type::Tensor(TensorType::new_bool("tensor1", 3)),
+            Type::Tensor(TensorType::new_bool("tensor2", 2)),
+            Type::Tensor(TensorType::new_bool("tensor3", 3)),
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::prelude::*;
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 3, Bool>, tensor2: Tensor<B, 2, Bool>) -> Tensor<B, 3, Bool> {
+                    let tensor3 = tensor1.bool_and(tensor2.unsqueeze_dims(&[0isize]));
 
                     tensor3
                 }
