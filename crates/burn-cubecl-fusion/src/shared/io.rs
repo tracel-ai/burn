@@ -4,12 +4,18 @@ use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
-    std::tensor::{
-        View,
-        layout::{linear::LinearLayout, plain::PlainLayout},
+    std::{
+        FastDivmod,
+        tensor::{
+            View,
+            layout::{linear::LinearLayout, plain::PlainLayout},
+        },
     },
 };
-use cubecl_quant::scheme::QuantLevel;
+use cubecl_quant::{
+    layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
+    scheme::QuantLevel,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -257,9 +263,37 @@ pub fn input_as_linear_view<C: CubePrimitive>(
 pub fn input_as_scales_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
     #[comptime] pos: u32,
+    #[comptime] tensor_pos: u32,
     #[comptime] level: QuantLevel,
+    #[comptime] config: &FuseBlockConfig,
 ) -> View<C, u32> {
-    todo!("Don't know how to set up the layout")
+    let tensor = inputs.tensors.index(tensor_pos);
+    let scales = inputs.tensors.index(pos);
+    let tensor_len = tensor.tensor.len();
+    let rank = config.rank;
+    let layout = match level {
+        QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
+        QuantLevel::Block(block_size) => {
+            let block_size = comptime![block_size.to_dim_vec(rank as usize)];
+            let mut tensor_shape = Sequence::new();
+            let mut scales_strides = Sequence::new();
+            #[unroll]
+            for i in 0..rank {
+                tensor_shape.push(FastDivmod::new_Fallback(tensor.tensor.shape(i)));
+                scales_strides.push(scales.tensor.stride(i));
+            }
+            let line_size = scales.tensor.line_size();
+            let layout = BlockScaledLayout::new(
+                tensor_shape,
+                tensor_len,
+                scales_strides,
+                block_size,
+                line_size,
+            );
+            ScalesLayout::new_BlockScaled(layout)
+        }
+    };
+    View::new::<Slice<C>, u32>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
 }
 
 #[cube]
