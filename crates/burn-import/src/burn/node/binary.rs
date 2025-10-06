@@ -685,7 +685,15 @@ impl BinaryNode {
                 if lhs_tensor.kind != TensorKind::Bool || rhs_tensor.kind != TensorKind::Bool {
                     panic!("and operation requires boolean tensors");
                 }
-                move |lhs, rhs| quote! { #lhs.bool_and(#rhs) }
+                let lhs_rank = lhs_tensor.rank;
+                let rhs_rank = rhs_tensor.rank;
+                return Self::new(
+                    lhs,
+                    rhs,
+                    output,
+                    BinaryType::And,
+                    Self::create_broadcast_function("bool_and", lhs_rank, rhs_rank),
+                );
             }
             (Type::Scalar(lhs_scalar), Type::Scalar(rhs_scalar)) => {
                 if lhs_scalar.kind != ScalarKind::Bool || rhs_scalar.kind != ScalarKind::Bool {
@@ -1140,6 +1148,31 @@ mod tests {
     }
 
     #[test]
+    fn test_broadcast_and_different_ranks() {
+        // Test 3D & 2D tensors
+        one_node_graph(
+            BinaryNode::bool_and(
+                Type::Tensor(TensorType::new_bool("tensor1", 3)),
+                Type::Tensor(TensorType::new_bool("tensor2", 2)),
+                Type::Tensor(TensorType::new_bool("tensor3", 3)),
+            ),
+            quote! {
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 3, Bool>,
+                    tensor2: Tensor<B, 2, Bool>
+                ) -> Tensor<B, 3, Bool> {
+                    let tensor3 = tensor1.bool_and(tensor2.unsqueeze_dims(&[0isize]));
+
+                    tensor3
+                }
+            },
+            vec!["tensor1".to_string(), "tensor2".to_string()],
+            vec!["tensor3".to_string()],
+        );
+    }
+
+    #[test]
     fn test_broadcast_sub_different_ranks() {
         // Test 2D - 3D tensors
         one_node_graph(
@@ -1256,8 +1289,9 @@ mod tests {
         assert_eq!(result.to_string(), expected.to_string());
     }
 
+    /// Tests operations that can be applied on float tensors
     #[test]
-    fn test_broadcast_all_operations() {
+    fn test_broadcast_operations_float() {
         // Test that all four operations support broadcasting
         type OpFn = fn(Type, Type, Type) -> BinaryNode;
         let ops: Vec<(&str, OpFn)> = vec![
@@ -1281,7 +1315,30 @@ mod tests {
                 BinaryType::Sub if op_name == "sub" => {}
                 BinaryType::Mul if op_name == "mul" => {}
                 BinaryType::Div if op_name == "div" => {}
-                _ => panic!("Unexpected binary type for {}", op_name),
+                typ => panic!("Unexpected binary type for {op_name}: {}", typ.as_str()),
+            }
+        }
+    }
+
+    /// Tests operations that can be applied on bool tensors
+    #[test]
+    fn test_broadcast_operations_bool() {
+        // Test that all four operations support broadcasting
+        type OpFn = fn(Type, Type, Type) -> BinaryNode;
+        let ops: Vec<(&str, OpFn)> = vec![("bool_and", BinaryNode::bool_and as OpFn)];
+
+        for (op_name, op_fn) in ops {
+            // Each operation should handle different rank tensors
+            let node = op_fn(
+                Type::Tensor(TensorType::new_bool("x", 3)),
+                Type::Tensor(TensorType::new_bool("y", 2)),
+                Type::Tensor(TensorType::new_bool("z", 3)),
+            );
+
+            // Should not panic - just verify it creates a valid node
+            match node.binary_type {
+                BinaryType::And if op_name == "bool_and" => {}
+                typ => panic!("Unexpected binary type for {op_name}: {}", typ.as_str()),
             }
         }
     }
