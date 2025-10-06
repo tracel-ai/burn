@@ -1,7 +1,7 @@
 use core::any::Any;
 
 use crate::collections::HashMap;
-use crate::graph::NodeID;
+use crate::graph::NodeId;
 use alloc::boxed::Box;
 
 /// In order to accept arbitrary node output in the same hashmap, we need to upcast them to any.
@@ -66,16 +66,16 @@ impl State {
 }
 
 #[derive(new, Default, Debug)]
-/// Links [NodeID]s to their current state
+/// Links [NodeId]s to their current state
 pub struct BackwardStates {
-    map: HashMap<NodeID, State>,
+    map: HashMap<NodeId, State>,
 }
 
 impl BackwardStates {
-    /// Returns the output in the state of the given [NodeID],
+    /// Returns the output in the state of the given [NodeId],
     /// and decrements the number of times this state is required.
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
-    pub fn get_state<T>(&mut self, node_id: &NodeID) -> T
+    pub fn get_state<T>(&mut self, node_id: &NodeId) -> T
     where
         T: Clone + Send + 'static,
     {
@@ -114,17 +114,17 @@ impl BackwardStates {
 
     /// Returns a reference to the [State] of the given node
     /// Useful when we need [State] information without needing the underlying tensor
-    pub(crate) fn get_state_ref(&self, node_id: &NodeID) -> Option<&State> {
+    pub(crate) fn get_state_ref(&self, node_id: &NodeId) -> Option<&State> {
         self.map.get(node_id)
     }
 
-    /// Associates a [State] to its [NodeID]
-    pub(crate) fn insert_state(&mut self, node_id: NodeID, state: State) {
+    /// Associates a [State] to its [NodeId]
+    pub(crate) fn insert_state(&mut self, node_id: NodeId, state: State) {
         self.map.insert(node_id, state);
     }
 
-    /// Saves the output to the state of the given [NodeID].
-    pub fn save<T>(&mut self, node_id: NodeID, saved_output: T)
+    /// Saves the output to the state of the given [NodeId].
+    pub fn save<T>(&mut self, node_id: NodeId, saved_output: T)
     where
         T: Clone + Send + 'static,
     {
