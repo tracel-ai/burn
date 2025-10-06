@@ -2,12 +2,14 @@
 extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
 
 [default.extend-identifiers]
+UE4M3 = "UE4M3"
 UE8M0 = "UE8M0"
 ue8m0 = "ue8m0"
 
 [files]
 extend-exclude = [
     "*.onnx",
+    "*.proto",
     "assets/ModuleSerialization.xml",
     "examples/image-classification-web/src/model/label.txt",
 ]

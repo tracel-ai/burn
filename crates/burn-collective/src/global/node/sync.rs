@@ -16,7 +16,7 @@ pub(crate) struct SyncService<P: Protocol> {
     node_state: Arc<RwLock<Option<NodeState>>>,
     /// The number of peers that have requested to sync with us since the last successful sync.
     syncing_peers: Mutex<Vec<NodeId>>,
-    /// Nofitication on each incoming sync request
+    /// Notification on each incoming sync request
     sync_notif: Notify,
 
     _p: PhantomData<P>,
