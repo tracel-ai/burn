@@ -1683,12 +1683,20 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     // Gradient of cumprod: grad_input[i] = sum(grad_output[j] * output[j] / input[i]) for all j >= i
-                    // This can be computed as: (grad * output).flip().cumsum().flip() / input
-                    let grad_times_output = B::float_mul(grad, output);
-                    let grad_reversed = B::float_flip(grad_times_output, &[dim]);
+                    // Use negative step slicing instead of flip for better performance
+                    let grad_times_output = B::float_mul(grad, output.clone());
+
+                    // Create slices to reverse along the specified dimension
+                    let shape = grad_times_output.shape();
+                    let mut slices = vec![burn_tensor::Slice::full(); shape.num_dims()];
+                    slices[dim] = burn_tensor::Slice::with_step(0, None, -1);
+
+                    // Reverse, cumsum, reverse back using negative step slicing
+                    let grad_reversed = B::float_slice(grad_times_output, &slices);
                     let grad_cumsum = B::float_cumsum(grad_reversed, dim);
-                    let grad_flipped = B::float_flip(grad_cumsum, &[dim]);
-                    B::float_div(grad_flipped, input)
+                    let grad_result = B::float_slice(grad_cumsum, &slices);
+
+                    B::float_div(grad_result, input)
                 });
             }
         }
