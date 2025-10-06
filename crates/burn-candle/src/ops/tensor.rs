@@ -331,57 +331,41 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        // Candle doesn't have cumprod yet, implement manually using iterative multiplication
-        let dim_size = tensor.tensor.dims()[dim];
-
-        let mut slices = Vec::with_capacity(dim_size);
-        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
-
-        for i in 1..dim_size {
-            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
-            let prod = slices[i - 1].broadcast_mul(&curr).unwrap();
-            slices.push(prod);
-        }
-
-        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_mul(curr).unwrap()
+            }
+        );
         CandleTensor::new(result)
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        // Candle doesn't have cummin, implement manually using slicing and min
-        let dim_size = tensor.tensor.dims()[dim];
-        let mut slices = Vec::with_capacity(dim_size);
-
-        // First slice is just the first element along dim
-        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
-
-        // For each subsequent position, take min of previous cummin and current element
-        for i in 1..dim_size {
-            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
-            let min_val = slices[i - 1].broadcast_minimum(&curr).unwrap();
-            slices.push(min_val);
-        }
-
-        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_minimum(curr).unwrap()
+            }
+        );
         CandleTensor::new(result)
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        // Candle doesn't have cummax, implement manually using slicing and max
-        let dim_size = tensor.tensor.dims()[dim];
-        let mut slices = Vec::with_capacity(dim_size);
-
-        // First slice is just the first element along dim
-        slices.push(tensor.tensor.narrow(dim, 0, 1).unwrap());
-
-        // For each subsequent position, take max of previous cummax and current element
-        for i in 1..dim_size {
-            let curr = tensor.tensor.narrow(dim, i, 1).unwrap();
-            let max_val = slices[i - 1].broadcast_maximum(&curr).unwrap();
-            slices.push(max_val);
-        }
-
-        let result = candle_core::Tensor::cat(&slices, dim).unwrap();
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_maximum(curr).unwrap()
+            }
+        );
         CandleTensor::new(result)
     }
 

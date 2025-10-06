@@ -3,6 +3,7 @@ mod base;
 mod bool_tensor;
 mod candle_utils;
 mod int_tensor;
+mod macros;
 mod module;
 mod qtensor;
 mod tensor;
