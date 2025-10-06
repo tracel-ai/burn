@@ -92,8 +92,8 @@ macro_rules! node_registry {
             node: onnx_ir::Node,
         ) -> Option<Node<PS>> {
             use onnx_ir::NodeType;
-            use super::node_codegen::NodeCodegen;
-            use super::node_codegen::OnnxIntoNode;
+            use super::node_traits::NodeCodegen;
+            use super::node_traits::OnnxIntoNode;
 
             match node.node_type {
                 // Single mappings
