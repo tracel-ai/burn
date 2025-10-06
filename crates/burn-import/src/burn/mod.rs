@@ -136,7 +136,9 @@ pub(crate) mod node {
 
     // Node registry, codegen traits, and utilities are in parent module
     // Re-export them here for backward compatibility
-    pub(crate) use super::node_codegen::{NodeCodegen, OnnxIntoNode, SerializationBackend};
+    pub(crate) use super::node_codegen::{
+        NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data,
+    };
     pub(crate) use super::node_registry::*;
 
     #[cfg(test)]

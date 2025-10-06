@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -128,27 +128,6 @@ impl OnnxIntoNode for InstanceNormNode {
         let name = &node.name;
         Self::new(name, input, output, gamma, beta, config)
     }
-}
-
-// Helper function to extract tensor data from a node input
-fn extract_node_data<E: burn::tensor::Element>(
-    node: &onnx_ir::Node,
-    input_index: usize,
-) -> Option<TensorData> {
-    let input = node.inputs.get(input_index)?;
-    let value = input.value.as_ref()?;
-
-    use onnx_ir::ir::Data;
-    let data = match &value.data {
-        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
-        _ => panic!("Unsupported tensor element type"),
-    };
-
-    Some(data)
 }
 
 #[cfg(test)]

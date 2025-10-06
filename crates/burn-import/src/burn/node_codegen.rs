@@ -127,6 +127,45 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
 }
 
 // ============================================================================
+// Node utilities
+// ============================================================================
+
+/// Helper function to extract tensor data from a node input.
+///
+/// This is commonly used by nodes that need to access constant tensor values
+/// (e.g., weights, biases, normalization parameters).
+///
+/// # Arguments
+///
+/// * `node` - The ONNX IR node
+/// * `input_index` - Index of the input to extract data from
+///
+/// # Returns
+///
+/// `Some(TensorData)` if the input has a constant value, `None` otherwise
+pub fn extract_node_data<E: burn::tensor::Element>(
+    node: &onnx_ir::Node,
+    input_index: usize,
+) -> Option<burn::tensor::TensorData> {
+    use burn::tensor::TensorData;
+
+    let input = node.inputs.get(input_index)?;
+    let value = input.value.as_ref()?;
+
+    use onnx_ir::ir::Data;
+    let data = match &value.data {
+        Data::Float16s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Float64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int32s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        Data::Int64s(val) => TensorData::new(val.clone(), value.shape.clone()).convert::<E>(),
+        _ => panic!("Unsupported tensor element type"),
+    };
+
+    Some(data)
+}
+
+// ============================================================================
 // Codegen utilities for converting types to TokenStream
 // ============================================================================
 
