@@ -12,7 +12,7 @@ use crate::{
         state::BackwardStates, strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     ops::{Backward, Ops, OpsKind, binary, broadcast_shape, unary},
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
@@ -264,7 +264,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_binary!(RetroMul, B::float_mul);
 
         impl<B: Backend> Backward<B, 2> for Mul {
-            type State = (Option<NodeID>, Option<NodeID>, BinaryOpsBroadcast);
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
 
             fn backward(
                 self,
@@ -356,7 +356,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_binary!(RetroDiv, B::float_div);
 
         impl<B: Backend> Backward<B, 2> for Div {
-            type State = (Option<NodeID>, Option<NodeID>, BinaryOpsBroadcast);
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
 
             fn backward(
                 self,
@@ -458,7 +458,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_binary!(RetroRem, B::float_remainder);
 
         impl<B: Backend> Backward<B, 2> for Rem {
-            type State = (Option<NodeID>, Option<NodeID>, BinaryOpsBroadcast);
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
 
             fn backward(
                 self,
@@ -549,7 +549,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Matmul;
 
         impl<B: Backend> Backward<B, 2> for Matmul {
-            type State = (Option<NodeID>, Option<NodeID>, BinaryOpsBroadcast);
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
 
             fn backward(
                 self,
@@ -611,7 +611,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct Cross;
 
         impl<B: Backend> Backward<B, 2> for Cross {
-            type State = (Option<NodeID>, Option<NodeID>, usize);
+            type State = (Option<NodeId>, Option<NodeId>, usize);
 
             fn backward(
                 self,
@@ -688,7 +688,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroRecip, B::float_recip);
 
         impl<B: Backend> Backward<B, 1> for Recip {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -727,14 +727,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroSwapDims<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             dim1: usize,
             dim2: usize,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroSwapDims<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_swap_dims(input, self.dim1, self.dim2);
                 states.save(out_node, out)
@@ -781,13 +781,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroPermuteDims<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             axes: Vec<usize>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroPermuteDims<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_permute(input, &self.axes);
                 states.save(out_node, out)
@@ -836,13 +836,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroFlipDims<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             axes: Vec<usize>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroFlipDims<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_flip(input, &self.axes);
                 states.save(out_node, out)
@@ -886,13 +886,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroReshape<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             shape: Shape,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroReshape<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_reshape(input, self.shape.clone());
                 states.save(out_node, out)
@@ -1058,13 +1058,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroSelect<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             dim: usize,
             indices: IntTensor<B>,
         }
 
         impl<B: Backend> RetroForward for RetroSelect<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_select(input, self.dim, self.indices.clone());
                 states.save(out_node, out)
@@ -1122,14 +1122,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroSelectAssign<B: Backend> {
-            tensor_id: NodeID,
+            tensor_id: NodeId,
             dim: usize,
             indices: IntTensor<B>,
-            value_id: NodeID,
+            value_id: NodeId,
         }
 
         impl<B: Backend> RetroForward for RetroSelectAssign<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
                 let out = B::float_select_assign(tensor, self.dim, self.indices.clone(), value);
@@ -1189,13 +1189,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroSlice<B: Backend> {
-            tensor_id: NodeID,
+            tensor_id: NodeId,
             slices: Vec<burn_tensor::Slice>,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroSlice<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let out = B::float_slice(tensor, &self.slices);
                 states.save(out_node, out)
@@ -1249,14 +1249,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroSliceAssign<B: Backend> {
-            tensor_id: NodeID,
+            tensor_id: NodeId,
             slices: Vec<burn_tensor::Slice>,
-            value_id: NodeID,
+            value_id: NodeId,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroSliceAssign<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let value = states.get_state::<B::FloatTensorPrimitive>(&self.value_id);
                 let out = B::float_slice_assign(tensor, &self.slices, value);
@@ -1689,7 +1689,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroExp, B::float_exp);
 
         impl<B: Backend> Backward<B, 1> for Exp {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1727,7 +1727,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroLog, B::float_log);
 
         impl<B: Backend> Backward<B, 1> for Log {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1765,7 +1765,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroLog1P, B::float_log1p);
 
         impl<B: Backend> Backward<B, 1> for Log1P {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1804,13 +1804,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroPowfScalar<B: Backend> {
-            lhs_id: NodeID,
+            lhs_id: NodeId,
             rhs: f32,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroPowfScalar<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
                 let out = B::float_powf_scalar(lhs, self.rhs);
                 states.save(out_node, out)
@@ -1818,7 +1818,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 1> for PowfScalar {
-            type State = (NodeID, f32);
+            type State = (NodeId, f32);
 
             fn backward(
                 self,
@@ -1860,7 +1860,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroSqrt, B::float_sqrt);
 
         impl<B: Backend> Backward<B, 1> for Sqrt {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1899,7 +1899,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroAbs, B::float_abs);
 
         impl<B: Backend> Backward<B, 1> for Abs {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1937,7 +1937,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroCos, B::float_cos);
 
         impl<B: Backend> Backward<B, 1> for Cos {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -1976,7 +1976,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroSin, B::float_sin);
 
         impl<B: Backend> Backward<B, 1> for Sin {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -2014,7 +2014,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroTanh, B::float_tanh);
 
         impl<B: Backend> Backward<B, 1> for Tanh {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -2164,7 +2164,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroErf, B::float_erf);
 
         impl<B: Backend> Backward<B, 1> for Erf {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
@@ -2209,6 +2209,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             output: NodeRef,
             phantom: PhantomData<B>,
             dim: usize,
+            parents: Vec<Parent>,
         }
 
         impl<B: Backend> Step for CatStep<B> {
@@ -2236,16 +2237,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     });
             }
 
-            fn node(&self) -> NodeID {
+            fn node(&self) -> NodeId {
                 self.output.id
             }
 
-            fn parents(&self) -> Vec<NodeID> {
-                self.nodes
-                    .iter()
-                    .filter_map(|node| node.clone())
-                    .map(|node| node.id)
-                    .collect()
+            fn parents(&self) -> &[Parent] {
+                &self.parents
             }
             fn depth(&self) -> usize {
                 self.output.order
@@ -2280,12 +2277,17 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         let output =
             AutodiffTensor::from_parents(output, &nodes, requirement, cat_computing_property);
+
+        let mut parents = Vec::new();
+
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
             .collect::<Vec<_>>();
-
-        let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim);
+        for node in nodes.iter().flatten() {
+            parents.push(Parent { id: node.id });
+        }
+        let ops = CatStep::<B>::new(nodes, dim_sizes, output.node.clone(), dim, parents);
         output.register_step(ops, checkpointer_builder)
     }
 
@@ -2378,7 +2380,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_binary!(RetroPowf, B::float_powf);
 
         impl<B: Backend> Backward<B, 2> for PowF {
-            type State = (NodeID, NodeID, BinaryOpsBroadcast);
+            type State = (NodeId, NodeId, BinaryOpsBroadcast);
 
             fn backward(
                 self,
@@ -2486,13 +2488,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroExpand<B: Backend> {
-            input_id: NodeID,
+            input_id: NodeId,
             shape: Shape,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroExpand<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = B::float_expand(input, self.shape.clone());
                 states.save(out_node, out)
@@ -2607,14 +2609,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
         #[derive(new, Debug)]
         struct RetroRepeat<B: Backend> {
-            tensor_id: NodeID,
+            tensor_id: NodeId,
             dim: usize,
             times: usize,
             _backend: PhantomData<B>,
         }
 
         impl<B: Backend> RetroForward for RetroRepeat<B> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive>(&self.tensor_id);
                 let out = B::float_repeat_dim(tensor, self.dim, self.times);
                 states.save(out_node, out)
