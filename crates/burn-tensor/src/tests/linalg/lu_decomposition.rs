@@ -1,7 +1,11 @@
 #[burn_tensor_testgen::testgen(lu_decomposition)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Shape, Tensor, cast::ToElement, linalg::lu_decomposition, s};
+    use burn_tensor::ops::FloatElem;
+    use burn_tensor::{
+        Distribution, Int, Shape, Tensor, TensorData, Tolerance, cast::ToElement,
+        linalg::lu_decomposition, s,
+    };
 
     #[test]
     fn test_lu_2x2_decomposition() {
@@ -9,11 +13,7 @@ mod tests {
         let tensor = TestTensor::<2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
         let (result, permutations) = lu_decomposition(tensor).unwrap();
         let expected = TestTensor::<2>::from_data([[6.0, 3.0], [2.0 / 3.0, 1.0]], &device);
-        assert_eq!(
-            result.to_data(),
-            expected.to_data(),
-            "LU decomposition result does not match expected value"
-        );
+        result.into_data().assert_eq(&expected.into_data(), true);
     }
 
     #[test]
@@ -32,16 +32,12 @@ mod tests {
             ],
             &device,
         );
-        assert_eq!(
-            permutations.to_data().to_vec::<i64>().unwrap(),
-            vec![1, 2, 0],
-            "LU decomposition permutations do not match expected value"
-        );
-        assert_eq!(
-            result.to_data(),
-            expected.to_data(),
-            "LU decomposition result does not match expected value"
-        );
+        let expected_permutations =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 2, 0]), &device);
+        permutations
+            .into_data()
+            .assert_eq(&expected_permutations.into_data(), true);
+        result.into_data().assert_eq(&expected.into_data(), true);
     }
 
     #[test]
@@ -72,11 +68,8 @@ mod tests {
         let tensor = TestTensor::<2>::from_data([[5.0]], &device);
         let (result, permutations) = lu_decomposition(tensor).unwrap();
         let expected = TestTensor::<2>::from_data([[5.0]], &device);
-        assert_eq!(
-            result.to_data(),
-            expected.to_data(),
-            "LU decomposition result does not match expected value for 1x1 matrix"
-        );
+
+        result.into_data().assert_eq(&expected.into_data(), true);
     }
 
     #[test]
@@ -86,11 +79,7 @@ mod tests {
         let tensor = TestTensor::<2>::eye(4, &device);
         let (result, permutations) = lu_decomposition(tensor).unwrap();
         let expected = TestTensor::<2>::eye(4, &device);
-        assert_eq!(
-            result.to_data(),
-            expected.to_data(),
-            "LU decomposition result does not match expected value for huge matrix"
-        );
+        result.into_data().assert_eq(&expected.into_data(), true);
     }
 
     #[test]
@@ -125,14 +114,11 @@ mod tests {
 
         // Verify that P * L * U reconstructs the original matrix
         let reconstructed = p.matmul(l).matmul(u);
-        let abs_difference = (reconstructed - tensor).abs();
-        let max_difference = abs_difference.max();
-        let tolerance = 1e-6;
-        assert!(
-            max_difference.clone().into_scalar().to_f32() < tolerance,
-            "Random LU decomposition reconstruction error exceeds tolerance: {} >= {}",
-            max_difference.into_scalar().to_f32(),
-            tolerance
-        );
+        reconstructed
+            .into_data()
+            .assert_approx_eq::<FloatElem<TestBackend>>(
+                &tensor.into_data(),
+                Tolerance::permissive(),
+            );
     }
 }
