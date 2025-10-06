@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::nonzero::NonZeroConfig;
@@ -49,6 +49,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for NonZeroNode {
 
     fn into_node(self) -> Node<PS> {
         Node::NonZero(self)
+    }
+}
+
+impl OnnxIntoNode for NonZeroNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::nonzero::nonzero_config(&node);
+        Self::new(input, output, config)
     }
 }
 

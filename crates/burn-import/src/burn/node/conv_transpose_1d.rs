@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -126,6 +126,32 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose1dNode {
 
     fn into_node(self) -> Node<PS> {
         Node::ConvTranspose1d(self)
+    }
+}
+
+impl OnnxIntoNode for ConvTranspose1dNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let onnx_config = onnx_ir::node::conv_transpose1d::conv_transpose1d_config(&node);
+        let config = burn::nn::conv::ConvTranspose1dConfig::new(
+            [onnx_config.channels_in, onnx_config.channels_out],
+            onnx_config.kernel_size,
+        )
+        .with_stride(onnx_config.stride)
+        .with_padding(onnx_config.padding)
+        .with_dilation(onnx_config.dilation)
+        .with_padding_out(onnx_config.padding_out)
+        .with_groups(onnx_config.groups);
+        let has_bias = node.inputs.len() == 3;
+        let weight = extract_node_data::<f32>(&node, 1).unwrap();
+        let bias = if has_bias {
+            extract_node_data::<f32>(&node, 2)
+        } else {
+            None
+        };
+        let name = &node.name;
+        Self::new(name, input, output, weight, bias, config)
     }
 }
 

@@ -1,5 +1,7 @@
-use super::{Node, NodeCodegen};
-use crate::burn::{ScalarKind, ScalarType, Scope, ShapeType, TensorType, ToTokens, Type};
+use super::{Node, NodeCodegen, OnnxIntoNode};
+use crate::burn::{
+    ScalarKind, ScalarType, Scope, ShapeType, TensorKind, TensorType, ToTokens, Type,
+};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
@@ -212,15 +214,142 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if let ConstantValue::Tensor(tensor_type, data) = &self.value {
             let data = match tensor_type.kind {
-                crate::burn::TensorKind::Int => data.clone().convert::<PS::IntElem>(),
-                crate::burn::TensorKind::Float => data.clone().convert::<PS::FloatElem>(),
-                crate::burn::TensorKind::Bool => data.clone(),
+                TensorKind::Int => data.clone().convert::<PS::IntElem>(),
+                TensorKind::Float => data.clone().convert::<PS::FloatElem>(),
+                TensorKind::Bool => data.clone(),
             };
             let data = ParamSerde::new(ParamId::new().to_string(), data);
             return data.serialize(serializer);
         }
 
         S::serialize_none(serializer)
+    }
+}
+
+impl OnnxIntoNode for ConstantNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        use onnx_ir::ir::{ArgType, Data, ElementType};
+
+        let output = node.outputs.first().unwrap();
+        let attr = onnx_ir::convert_constant_value(&node);
+
+        // Helper to map elem type to ConstantValue (single scalar)
+        fn scalar_from_data(elem: ElementType, data: Data) -> ConstantValue {
+            match elem {
+                ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
+                ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
+                ElementType::Int64 => ConstantValue::Int64(data.into_i64()),
+                ElementType::Int32 => ConstantValue::Int32(data.into_i32()),
+                ElementType::Bool => ConstantValue::Bool(data.into_bool()),
+                ElementType::Uint8 => ConstantValue::Int32(data.into_i32()),
+                ElementType::Int8 => ConstantValue::Int32(data.into_i32()),
+                _ => panic!("Unsupported scalar type: {elem:?}"),
+            }
+        }
+
+        // Helper to serialize data - hardcoded to f32
+        fn serialize_data(data: Data, shape: Vec<usize>) -> TensorData {
+            match data {
+                Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
+                Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
+                Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
+                Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
+                Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
+                _ => panic!("Unsupported tensor element type"),
+            }
+        }
+
+        fn serialize_bool_data(data: Data, shape: Vec<usize>) -> TensorData {
+            match data {
+                Data::Bools(val) => TensorData::new(val, shape),
+                _ => panic!("Expected boolean data for serialize_bool_data"),
+            }
+        }
+
+        let const_value = match &output.ty {
+            ArgType::Shape(rank) => {
+                let shape_data = attr.value.expect("Shape constant should have value");
+                let shape_values: Vec<usize> = shape_data
+                    .data
+                    .into_i64s()
+                    .into_iter()
+                    .map(|v| v as usize)
+                    .collect();
+                assert_eq!(shape_values.len(), *rank, "Shape constant rank mismatch");
+                ConstantValue::Shape(shape_values)
+            }
+
+            ArgType::Tensor(tensor) => {
+                if tensor.rank == 0 {
+                    let v = attr
+                        .value
+                        .as_ref()
+                        .expect("Scalar constant should have value");
+                    scalar_from_data(tensor.elem_type.clone(), v.data.clone())
+                } else {
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let rank = tensor.rank;
+                    let name = node.name.clone();
+                    let tensor_data = attr.value.expect("Constant tensor should have value");
+
+                    let tensor_data = match &tensor.elem_type {
+                        ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
+                            serialize_data(tensor_data.data, tensor_data.shape)
+                        }
+                        ElementType::Int32
+                        | ElementType::Int64
+                        | ElementType::Uint8
+                        | ElementType::Int8 => serialize_data(tensor_data.data, tensor_data.shape),
+                        ElementType::Bool => {
+                            serialize_bool_data(tensor_data.data, tensor_data.shape)
+                        }
+                        other => panic!("Unsupported constant tensor type: {:?} ", other),
+                    };
+
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
+                }
+            }
+
+            ArgType::Scalar(elem_type) => {
+                let v = attr.value.unwrap();
+                match elem_type {
+                    ElementType::Float64 => ConstantValue::Float64(v.data.into_f64()),
+                    ElementType::Float32 => ConstantValue::Float32(v.data.into_f32()),
+                    ElementType::Int32 => ConstantValue::Int32(v.data.into_i32()),
+                    ElementType::Int64 => ConstantValue::Int64(v.data.into_i64()),
+                    ElementType::Bool => ConstantValue::Bool(v.data.into_bool()),
+                    other => panic!("Unsupported constant scalar type: {other:?} "),
+                }
+            }
+        };
+
+        let out_ty = match (&output.ty, &const_value) {
+            (
+                ArgType::Tensor(t),
+                ConstantValue::Float32(_)
+                | ConstantValue::Float64(_)
+                | ConstantValue::Int32(_)
+                | ConstantValue::Int64(_)
+                | ConstantValue::Bool(_),
+            ) if t.rank == 0 => {
+                let scalar_kind = match t.elem_type {
+                    ElementType::Float32 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float32)
+                    }
+                    ElementType::Float64 => {
+                        ScalarType::new(output.name.clone(), ScalarKind::Float64)
+                    }
+                    ElementType::Int32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
+                    ElementType::Int64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
+                    ElementType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),
+                    _ => panic!("Unsupported scalar type for rank-0 tensor"),
+                };
+                Type::Scalar(scalar_kind)
+            }
+            _ => Type::from(output),
+        };
+
+        ConstantNode::new(node.name, const_value, out_ty)
     }
 }
 

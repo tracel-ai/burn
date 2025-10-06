@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -48,6 +48,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SpaceToDepthNode {
 
     fn into_node(self) -> Node<PS> {
         Node::SpaceToDepth(self)
+    }
+}
+
+impl OnnxIntoNode for SpaceToDepthNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let block_size = onnx_ir::node::space_to_depth::space_to_depth_config(&node);
+        Self::new(input, output, block_size)
     }
 }
 
