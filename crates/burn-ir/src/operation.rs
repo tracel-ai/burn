@@ -1539,7 +1539,8 @@ impl BaseOperationIr {
             BaseOperationIr::CumSum(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::CumProd(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::CumMin(repr) => vec![&repr.input, &repr.out],
-            BaseOperationIr::CumMax(repr) => vec![&repr.input, &repr.out],            BaseOperationIr::Empty(repr) => vec![repr],
+            BaseOperationIr::CumMax(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::Empty(repr) => vec![repr],
             BaseOperationIr::Unfold(repr) => {
                 vec![&repr.input, &repr.out]
             }
@@ -1596,10 +1597,13 @@ impl BaseOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::CumProd(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
             BaseOperationIr::CumMin(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
-            BaseOperationIr::CumMax(repr) => {                repr.input.mark_read_only(nodes, &mut output);
+            BaseOperationIr::CumMax(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Unfold(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);

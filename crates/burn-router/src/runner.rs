@@ -237,6 +237,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::CumProd(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::float_cumprod(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::CumMin(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::float_cummin(tensor, desc.axis);
@@ -244,7 +246,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 BaseOperationIr::CumMax(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_cummax(tensor, desc.axis);                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = B::float_cummax(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
@@ -331,6 +334,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::CumProd(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
                     let output = B::int_cumprod(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::CumMin(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
                     let output = B::int_cummin(tensor, desc.axis);
@@ -338,7 +343,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 BaseOperationIr::CumMax(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_cummax(tensor, desc.axis);                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    let output = B::int_cummax(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
@@ -426,7 +432,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unreachable!("cumprod not supported for bool tensors")
                 }
                 BaseOperationIr::CumMin(_) => unreachable!("cummin not supported for bool tensors"),
-                BaseOperationIr::CumMax(_) => unreachable!("cummax not supported for bool tensors"),                BaseOperationIr::Empty(desc) => {
+                BaseOperationIr::CumMax(_) => unreachable!("cummax not supported for bool tensors"),
+                BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
                     handles.register_bool_tensor::<B>(&desc.id, output);

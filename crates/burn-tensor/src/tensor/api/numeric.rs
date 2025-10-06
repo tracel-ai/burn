@@ -4126,6 +4126,9 @@ impl<B: Backend> Numeric<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumprod(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => B::q_cumprod(tensor, dim),
+        }
+    }
+
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
@@ -4136,7 +4139,8 @@ impl<B: Backend> Numeric<B> for Float {
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummax(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),        }
+            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),
+        }
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {

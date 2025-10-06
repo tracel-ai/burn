@@ -963,12 +963,17 @@ impl RelativeOps for BaseOperationIr {
                 axis: desc.axis,
             }),
             BaseOperationIr::CumProd(desc) => BaseOperationIr::CumProd(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
             BaseOperationIr::CumMin(desc) => BaseOperationIr::CumMin(DimOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis,
             }),
-            BaseOperationIr::CumMax(desc) => BaseOperationIr::CumMax(DimOpIr {                input: desc.input.to_relative(converter),
+            BaseOperationIr::CumMax(desc) => BaseOperationIr::CumMax(DimOpIr {
+                input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis,
             }),

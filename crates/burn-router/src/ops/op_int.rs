@@ -868,12 +868,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
-    fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        let client = tensor.client.clone();
-        let dtype = tensor.dtype;
         let shape = tensor.shape.clone();
         let out = client.register_empty_tensor(shape, dtype);
+
         let desc = DimOpIr {
             input: tensor.into_ir(),
             axis: dim,
@@ -881,6 +878,22 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::BaseInt(BaseOperationIr::CumProd(desc)));
+
+        out
+    }
+
+    fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
         client.register(OperationIr::BaseInt(BaseOperationIr::CumMin(desc)));
 
         out
