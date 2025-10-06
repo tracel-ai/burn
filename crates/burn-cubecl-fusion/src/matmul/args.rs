@@ -417,32 +417,20 @@ impl MatmulArgs for FusedMatmulArgs {
     /// Reinterpret lhs as tensor map
     fn as_tensor_map_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> TensorMap<Lhs> {
-        comptime! {
-            panic!("Unsupported yet");
-        };
-        #[allow(unreachable_code)]
-        TensorMap::dummy()
+    ) -> CubeOption<TensorMap<Lhs>> {
+        CubeOption::new_None()
     }
     /// Reinterpret rhs as tensor map
     fn as_tensor_map_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> TensorMap<Rhs> {
-        comptime! {
-            panic!("Unsupported yet");
-        };
-        #[allow(unreachable_code)]
-        TensorMap::dummy()
+    ) -> CubeOption<TensorMap<Rhs>> {
+        CubeOption::new_None()
     }
     /// Reinterpret rhs as tensor map
     fn as_tensor_map_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> TensorMap<EO> {
-        comptime! {
-            panic!("Unsupported yet");
-        };
-        #[allow(unreachable_code)]
-        TensorMap::dummy()
+    ) -> CubeOption<TensorMap<EO>> {
+        CubeOption::new_None()
     }
     fn line_size_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,

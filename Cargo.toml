@@ -157,22 +157,22 @@ serde = { version = "1.0.228", default-features = false, features = [
 serde_json = { version = "1.0.145", default-features = false }
 uuid = { version = "1.18.0", default-features = false }
 
+byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.175"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.36.1"
 systemstat = "0.2.5"
 tch = "0.19.0"
-torch-sys = "0.19.0"    # matches what tch is using, required for lib detection
-byteorder = { version = "1.5.0", default-features = false }
+torch-sys = "0.19.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
 portable-atomic = { version = "1.11.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "13ebbd5a403248d096c6180e682bb0f321f9a6d5" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "13ebbd5a403248d096c6180e682bb0f321f9a6d5" }
-cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "13ebbd5a403248d096c6180e682bb0f321f9a6d5" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb716c92d014d8718f2d09af7ba52c6e566f2342" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb716c92d014d8718f2d09af7ba52c6e566f2342" }
+cubecl-quant = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bb716c92d014d8718f2d09af7ba52c6e566f2342" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

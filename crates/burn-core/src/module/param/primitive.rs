@@ -286,7 +286,7 @@ where
 /// A macro for generating implementations for tuple modules of different sizes.
 /// For example: `impl_module_tuple!([L0, L1][0, 1])`.
 /// Would generate an implementation for a tuple of size 2.
-/// For this macro to work properly, please adhear to the convention:
+/// For this macro to work properly, please adhere to the convention:
 /// `impl_module_tuple!([L0, L1, ..., Ln][0, 1, ..., n])`.
 macro_rules! impl_module_tuple {
     // `$l` represents the generic modules.

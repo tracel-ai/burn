@@ -125,9 +125,9 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&lhs, &line_size),
-                linear_view_ref(&rhs, &lhs, &line_size),
-                linear_view_alias(&lhs, &line_size, 0),
+                linear_view(&lhs, line_size),
+                linear_view_ref(&rhs, &lhs, line_size),
+                linear_view_alias(&lhs, line_size, 0),
             );
 
             lhs
@@ -136,9 +136,9 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view_ref(&lhs, &rhs, &line_size),
-                linear_view(&rhs, &line_size),
-                linear_view_alias(&rhs, &line_size, 1),
+                linear_view_ref(&lhs, &rhs, line_size),
+                linear_view(&rhs, line_size),
+                linear_view_alias(&rhs, line_size, 1),
             );
 
             rhs
@@ -149,9 +149,9 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view_ref(&lhs, &output, &line_size),
-                linear_view_ref(&rhs, &output, &line_size),
-                linear_view(&output, &line_size),
+                linear_view_ref(&lhs, &output, line_size),
+                linear_view_ref(&rhs, &output, line_size),
+                linear_view(&output, line_size),
             );
 
             output
@@ -176,9 +176,9 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view_alias(&tensor, &line_size, 0),
+                linear_view_alias(&tensor, line_size, 0),
             );
 
             tensor
@@ -193,9 +193,9 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOp
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view(&output, &line_size),
+                linear_view(&output, line_size),
             );
 
             output

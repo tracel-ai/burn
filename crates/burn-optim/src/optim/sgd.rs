@@ -68,10 +68,10 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         mut grad: Tensor<B, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let mut state_momemtum = None;
+        let mut state_momentum = None;
 
         if let Some(state) = state {
-            state_momemtum = state.momentum;
+            state_momentum = state.momentum;
         }
 
         if let Some(weight_decay) = &self.weight_decay {
@@ -79,12 +79,12 @@ impl<B: Backend> SimpleOptimizer<B> for Sgd<B> {
         }
 
         if let Some(momentum) = &self.momentum {
-            let (grad_out, state) = momentum.transform(grad, state_momemtum);
-            state_momemtum = Some(state);
+            let (grad_out, state) = momentum.transform(grad, state_momentum);
+            state_momentum = Some(state);
             grad = grad_out;
         }
 
-        let state = SgdState::new(state_momemtum);
+        let state = SgdState::new(state_momentum);
         let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
