@@ -236,6 +236,16 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
     launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
 }
 
+// Kernels cannot be easily macro-generated due to #[cube(launch)] attribute expansion,
+// but they share a common structure documented here for maintainability.
+//
+// Common kernel structure:
+// 1. Bounds check: if ABSOLUTE_POS >= output.len() { terminate!(); }
+// 2. Index computation: idx, before_dim, after_dim, dim_offset (identical for all)
+// 3. Accumulator initialization (differs: sum=0, prod=1, min/max=first element)
+// 4. Loop with accumulation (differs: +=, *=, min, max)
+// 5. Write result: output[idx] = accumulator
+
 #[cube(launch)]
 fn cumsum_kernel<C: Numeric>(
     input: &Tensor<C>,
@@ -246,17 +256,11 @@ fn cumsum_kernel<C: Numeric>(
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
-
     let idx = ABSOLUTE_POS;
-
-    // Compute components of the index
     let before_dim = idx / dim_stride;
     let after_dim = idx % dim_stride;
-
-    // Compute how many strides along dim we are
     let dim_offset = (idx / dim_stride) % dim_size;
 
-    // Compute cumulative sum
     let mut sum = C::from_int(0);
     for i in 0..dim_size {
         if i <= dim_offset {
@@ -265,58 +269,7 @@ fn cumsum_kernel<C: Numeric>(
             sum += input[read_idx];
         }
     }
-
     output[idx] = sum;
-}
-
-/// Compute the cumulative sum along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the cumsum dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the cumsum dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm (cubecl-scan crate).
-/// See draft PR: https://github.com/tracel-ai/cubecl/pull/863
-///
-/// References:
-/// - https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
-/// - https://www.w3.org/TR/WGSL/#builtin-subgroupInclusiveAdd
-pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    let client = input.client.clone();
-    let device = input.device.clone();
-    let shape = input.shape.clone();
-    let dim_size = shape.dims[dim];
-
-    // Calculate stride for the cumsum dimension
-    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
-
-    let output = empty_device::<R, E>(client.clone(), device, shape);
-
-    let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
-
-    cumsum_kernel::launch::<E, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
-        },
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
-        },
-        ScalarArg::new(dim_stride as u32),
-        dim_size as u32,
-    );
-
-    output
 }
 
 #[cube(launch)]
@@ -329,17 +282,11 @@ fn cumprod_kernel<C: Numeric>(
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
-
     let idx = ABSOLUTE_POS;
-
-    // Compute components of the index
     let before_dim = idx / dim_stride;
     let after_dim = idx % dim_stride;
-
-    // Compute how many strides along dim we are
     let dim_offset = (idx / dim_stride) % dim_size;
 
-    // Compute cumulative product
     let mut prod = C::from_int(1);
     for i in 0..dim_size {
         if i <= dim_offset {
@@ -348,53 +295,7 @@ fn cumprod_kernel<C: Numeric>(
             prod *= input[read_idx];
         }
     }
-
     output[idx] = prod;
-}
-
-/// Compute the cumulative product along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the cumprod dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the cumprod dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
-pub fn cumprod<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    let client = input.client.clone();
-    let device = input.device.clone();
-    let shape = input.shape.clone();
-    let dim_size = shape.dims[dim];
-
-    // Calculate stride for the cumprod dimension
-    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
-
-    let output = empty_device::<R, E>(client.clone(), device, shape);
-
-    let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
-
-    cumprod_kernel::launch::<E, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
-        },
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
-        },
-        ScalarArg::new(dim_stride as u32),
-        dim_size as u32,
-    );
-
-    output
 }
 
 #[cube(launch)]
@@ -407,20 +308,13 @@ fn cummin_kernel<C: Numeric>(
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
-
     let idx = ABSOLUTE_POS;
-
-    // Compute components of the index
     let before_dim = idx / dim_stride;
     let after_dim = idx % dim_stride;
-
-    // Compute how many strides along dim we are
     let dim_offset = (idx / dim_stride) % dim_size;
 
-    // Compute cumulative minimum
     let read_idx_0 = (before_dim / dim_size) * (dim_size * dim_stride) + after_dim;
     let mut min_val = input[read_idx_0];
-
     for i in 1..dim_size {
         if i <= dim_offset {
             let read_idx =
@@ -431,53 +325,7 @@ fn cummin_kernel<C: Numeric>(
             }
         }
     }
-
     output[idx] = min_val;
-}
-
-/// Compute the cumulative minimum along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the cummin dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the cummin dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
-pub fn cummin<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    let client = input.client.clone();
-    let device = input.device.clone();
-    let shape = input.shape.clone();
-    let dim_size = shape.dims[dim];
-
-    // Calculate stride for the cummin dimension
-    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
-
-    let output = empty_device::<R, E>(client.clone(), device, shape);
-
-    let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
-
-    cummin_kernel::launch::<E, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
-        },
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
-        },
-        ScalarArg::new(dim_stride as u32),
-        dim_size as u32,
-    );
-
-    output
 }
 
 #[cube(launch)]
@@ -490,20 +338,13 @@ fn cummax_kernel<C: Numeric>(
     if ABSOLUTE_POS >= output.len() {
         terminate!();
     }
-
     let idx = ABSOLUTE_POS;
-
-    // Compute components of the index
     let before_dim = idx / dim_stride;
     let after_dim = idx % dim_stride;
-
-    // Compute how many strides along dim we are
     let dim_offset = (idx / dim_stride) % dim_size;
 
-    // Compute cumulative maximum
     let first_read_idx = (before_dim / dim_size) * (dim_size * dim_stride) + after_dim;
     let mut max_val = input[first_read_idx];
-
     for i in 1..dim_size {
         if i <= dim_offset {
             let read_idx =
@@ -514,51 +355,74 @@ fn cummax_kernel<C: Numeric>(
             }
         }
     }
-
     output[idx] = max_val;
 }
 
-/// Compute the cumulative maximum along a dimension
+/// Macro to generate cumulative operation wrapper functions
 ///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the cummax dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the cummax dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
-pub fn cummax<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
-    let client = input.client.clone();
-    let device = input.device.clone();
-    let shape = input.shape.clone();
-    let dim_size = shape.dims[dim];
+/// This reduces duplication across cumsum, cumprod, cummin, cummax implementations.
+macro_rules! cumulative_op {
+    ($fn_name:ident, $kernel:ident, $op_name:literal) => {
+        #[doc = concat!("Compute the cumulative ", $op_name, " along a dimension")]
+        ///
+        /// # Limitations
+        ///
+        #[doc = concat!("This is a **naive sequential implementation** along the ", $op_name, " dimension:")]
+        /// - Each output element sequentially reads all previous elements along the dimension
+        #[doc = concat!("- Computational complexity: O(n²) memory reads where n is the size of the ", $op_name, " dimension")]
+        /// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+        ///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+        ///
+        /// # TODO
+        ///
+        /// Implement an efficient GPU-optimized parallel scan algorithm.
+        pub fn $fn_name<R: CubeRuntime, E: CubeElement>(
+            input: CubeTensor<R>,
+            dim: usize,
+        ) -> CubeTensor<R> {
+            let client = input.client.clone();
+            let device = input.device.clone();
+            let shape = input.shape.clone();
+            let dim_size = shape.dims[dim];
 
-    // Calculate stride for the cummax dimension
-    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
+            let dim_stride: usize = shape.dims[dim + 1..].iter().product();
+            let output = empty_device::<R, E>(client.clone(), device, shape);
 
-    let output = empty_device::<R, E>(client.clone(), device, shape);
+            let num_elems = output.shape.num_elements();
+            let cube_dim = CubeDim::default();
+            let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+            $kernel::launch::<E, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                unsafe {
+                    TensorArg::from_raw_parts::<E>(
+                        &input.handle,
+                        &input.strides,
+                        &input.shape.dims,
+                        1,
+                    )
+                },
+                unsafe {
+                    TensorArg::from_raw_parts::<E>(
+                        &output.handle,
+                        &output.strides,
+                        &output.shape.dims,
+                        1,
+                    )
+                },
+                ScalarArg::new(dim_stride as u32),
+                dim_size as u32,
+            );
 
-    cummax_kernel::launch::<E, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
-        },
-        unsafe {
-            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
-        },
-        ScalarArg::new(dim_stride as u32),
-        dim_size as u32,
-    );
-
-    output
+            output
+        }
+    };
 }
+
+// Define all public functions
+cumulative_op!(cumsum, cumsum_kernel, "sum");
+cumulative_op!(cumprod, cumprod_kernel, "product");
+cumulative_op!(cummin, cummin_kernel, "minimum");
+cumulative_op!(cummax, cummax_kernel, "maximum");
