@@ -35,7 +35,7 @@ invalid_html_tags = "deny"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.5"
-bytemuck = "1.23.2"
+bytemuck = "1.24.0"
 bytes = "1"
 candle-core = { version = "0.9.1" }
 clap = { version = "4.5.48", features = ["derive"] }
