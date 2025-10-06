@@ -17,18 +17,19 @@ use std::path::PathBuf;
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
+#[allow(clippy::manual_range_contains)]
 fn main() {
     // Check if ResNet18 file exists
     let path = resnet18_path();
     if !path.exists() {
         eprintln!("❌ ResNet18 model not found!");
-        eprintln!("");
+        eprintln!();
         eprintln!("Please download it first by running:");
         eprintln!("  python benches/download_resnet18.py");
-        eprintln!("");
+        eprintln!();
         eprintln!("Or if you don't have Python/PyTorch installed:");
         eprintln!("  uv run benches/download_resnet18.py");
-        eprintln!("");
+        eprintln!();
         eprintln!("Expected location: {}", path.display());
         std::process::exit(1);
     }
@@ -59,12 +60,12 @@ fn resnet18_path() -> PathBuf {
     let temp_dir = std::env::temp_dir();
     let config_file = temp_dir.join("burn_resnet18_benchmark").join("path.txt");
 
-    if config_file.exists() {
-        if let Ok(path_str) = std::fs::read_to_string(&config_file) {
-            let path = PathBuf::from(path_str.trim());
-            if path.exists() {
-                return path;
-            }
+    if config_file.exists()
+        && let Ok(path_str) = std::fs::read_to_string(&config_file)
+    {
+        let path = PathBuf::from(path_str.trim());
+        if path.exists() {
+            return path;
         }
     }
 

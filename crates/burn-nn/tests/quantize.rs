@@ -62,7 +62,7 @@ fn should_quantize_transformer() {
     let signal = Tensor::random([2, 32, 128], Distribution::Default, &device);
     let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Block(32))
+        .with_level(QuantLevel::block([32]))
         .with_param(QuantParam::F32);
 
     should_quantize_module(
@@ -136,7 +136,7 @@ fn should_quantize_linear_blocks() {
     let signal = Tensor::<B, 2>::random([1, 32], Distribution::Default, &device);
     let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Block(16))
+        .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)
         .with_param(QuantParam::F32);
 
@@ -154,7 +154,7 @@ fn should_quantize_linear_weights_blocks() {
     let transformer: Linear<B> = LinearConfig::new(32, 32).with_bias(false).init(&device);
     let scheme = <QuantizedTensor<B> as QTensorPrimitive>::default_scheme()
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::Block(16))
+        .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)
         .with_param(QuantParam::F32);
 

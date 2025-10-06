@@ -8,7 +8,7 @@ use burn::tensor::{ElementConversion, Tensor};
 /// Configuration to create [momentum](Momentum).
 #[derive(Config, Debug)]
 pub struct MomentumConfig {
-    /// Momemtum factor
+    /// Momentum factor
     #[config(default = 0.9)]
     pub momentum: f64,
     /// Dampening factor.
@@ -26,7 +26,7 @@ pub struct MomentumState<B: Backend, const D: usize> {
     velocity: Tensor<B, D>,
 }
 
-/// Momemtum implementation that transforms gradients.
+/// Momentum implementation that transforms gradients.
 #[derive(Clone)]
 pub struct Momentum<B: Backend> {
     momentum: B::FloatElem,
