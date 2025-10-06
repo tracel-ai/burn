@@ -124,10 +124,10 @@ For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeez
      `quote!` macro to generate code and ensure it's syntactically correct Burn code
    - `into_node()` - Wraps the node into the general `Node<PS>` enum
 
-   Example implementation for a simple unary operation:
+   Example implementation:
 
    ```rust
-   impl<PS: PrecisionSettings> NodeCodegen<PS> for AbsNode {
+   impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
        fn input_types(&self) -> Vec<Type> {
            vec![self.input.clone()]
        }
@@ -137,27 +137,28 @@ For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeez
        }
 
        fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
-           // Get the input tensor name
-           let input = match &self.input {
-               Type::Tensor(tensor) => scope.tensor_use_owned(tensor, node_position),
-               Type::Scalar(scalar) => {
-                   let name = &scalar.name;
-                   quote! { #name }
-               }
-               _ => panic!("Abs input must be a tensor or scalar"),
-           };
-
-           // Get the output variable name
+           // Simplified example - actual implementation handles more cases
+           let input = scope.tensor_use_owned(&self.input, node_position);
            let output = &self.output.name();
 
-           // Generate the forward pass code
-           quote! {
-               let #output = #input.abs();
+           match &self.axes {
+               Some(axes) => {
+                   let axes_tokens = axes.to_tokens();
+                   quote! {
+                       let #output = #input.squeeze_dims(&#axes_tokens);
+                   }
+               }
+               None => {
+                   let output_rank = self.output.rank();
+                   quote! {
+                       let #output = #input.squeeze::<#output_rank>();
+                   }
+               }
            }
        }
 
        fn into_node(self) -> Node<PS> {
-           Node::Abs(self)
+           Node::Squeeze(self)
        }
    }
    ```
