@@ -1714,22 +1714,134 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_cummin(_tensor: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
-        // Cummin backward pass requires scatter_add which is not yet implemented
-        // The gradient should only flow to the first occurrence of each minimum value
-        panic!(
-            "Cummin is not supported for autodiff backend. \
-             Proper implementation requires scatter_add operation."
-        );
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumMin;
+
+        impl<B: Backend> Backward<B, 1> for CumMin {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cummin(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient flows to the input positions that produced each output
+                    // Use scatter to accumulate gradients (scatter does sum reduction)
+
+                    let shape = input.shape();
+                    let device = B::float_device(&input);
+                    let dim_size = shape.dims[dim] as i64;
+
+                    // Create indices [0, 1, 2, ...] along the dimension
+                    let arange_1d = B::int_arange(0..dim_size, &device);
+
+                    // Reshape to broadcast along the specified dimension
+                    let mut arange_shape = vec![1; shape.num_dims()];
+                    arange_shape[dim] = dim_size as usize;
+                    let arange = B::int_reshape(arange_1d, Shape::from(arange_shape));
+
+                    // Expand to match input shape
+                    let arange = B::int_expand(arange, shape.clone());
+
+                    // Find where cummin[i] == input[i] (these are source positions)
+                    let is_source = B::float_equal(output.clone(), input.clone());
+                    let is_source_int = B::bool_into_int(is_source);
+
+                    // Mask: where is_source, use index; else 0
+                    let masked_indices = B::int_mul(arange, is_source_int);
+
+                    // Cummax propagates the last valid (non-zero) index forward
+                    let source_indices = B::int_cummax(masked_indices, dim);
+
+                    // Scatter gradients to source positions (sum reduction)
+                    let zeros = B::float_zeros(shape, &device, grad.dtype().into());
+                    B::float_scatter(dim, zeros, source_indices, grad)
+                });
+            }
+        }
+
+        match CumMin
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cummin(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cummin(tensor.primitive, dim)),
+        }
     }
 
-    fn float_cummax(_tensor: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
-        // Cummax backward pass requires scatter_add which is not yet implemented
-        // The gradient should only flow to the first occurrence of each maximum value
-        panic!(
-            "Cummax is not supported for autodiff backend. \
-             Proper implementation requires scatter_add operation."
-        );
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumMax;
+
+        impl<B: Backend> Backward<B, 1> for CumMax {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cummax(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient flows to the input positions that produced each output
+                    // Use scatter to accumulate gradients (scatter does sum reduction)
+
+                    let shape = input.shape();
+                    let device = B::float_device(&input);
+                    let dim_size = shape.dims[dim] as i64;
+
+                    // Create indices [0, 1, 2, ...] along the dimension
+                    let arange_1d = B::int_arange(0..dim_size, &device);
+
+                    // Reshape to broadcast along the specified dimension
+                    let mut arange_shape = vec![1; shape.num_dims()];
+                    arange_shape[dim] = dim_size as usize;
+                    let arange = B::int_reshape(arange_1d, Shape::from(arange_shape));
+
+                    // Expand to match input shape
+                    let arange = B::int_expand(arange, shape.clone());
+
+                    // Find where cummax[i] == input[i] (these are source positions)
+                    let is_source = B::float_equal(output.clone(), input.clone());
+                    let is_source_int = B::bool_into_int(is_source);
+
+                    // Mask: where is_source, use index; else 0
+                    let masked_indices = B::int_mul(arange, is_source_int);
+
+                    // Cummax propagates the last valid (non-zero) index forward
+                    let source_indices = B::int_cummax(masked_indices, dim);
+
+                    // Scatter gradients to source positions (sum reduction)
+                    let zeros = B::float_zeros(shape, &device, grad.dtype().into());
+                    B::float_scatter(dim, zeros, source_indices, grad)
+                });
+            }
+        }
+
+        match CumMax
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cummax(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cummax(tensor.primitive, dim)),
+        }
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<B> {

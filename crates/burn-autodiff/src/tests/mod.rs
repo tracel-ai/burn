@@ -23,6 +23,8 @@ mod conv_transpose3d;
 mod cos;
 mod cross;
 mod cross_entropy;
+mod cummax;
+mod cummin;
 mod cumprod;
 mod cumsum;
 mod deform_conv2d;
@@ -196,6 +198,8 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
+        burn_autodiff::testgen_ad_cummax!();
+        burn_autodiff::testgen_ad_cummin!();
         burn_autodiff::testgen_ad_cumprod!();
         burn_autodiff::testgen_ad_cumsum!();
         burn_autodiff::testgen_ad_div!();
