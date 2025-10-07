@@ -1,4 +1,7 @@
-use crate::{logger::MetricLogger, metric::NumericEntry};
+use crate::{
+    logger::MetricLogger,
+    metric::{NumericEntry, store::Split},
+};
 use std::collections::HashMap;
 
 use super::{Aggregate, Direction};
@@ -13,6 +16,7 @@ pub(crate) struct NumericMetricsAggregate {
 struct Key {
     name: String,
     epoch: usize,
+    split: Split,
     aggregate: Aggregate,
 }
 
@@ -21,10 +25,11 @@ impl NumericMetricsAggregate {
         &mut self,
         name: &str,
         epoch: usize,
+        split: Split,
         aggregate: Aggregate,
         loggers: &mut [Box<dyn MetricLogger>],
     ) -> Option<f64> {
-        let key = Key::new(name.to_string(), epoch, aggregate);
+        let key = Key::new(name.to_string(), epoch, split, aggregate);
 
         if let Some(value) = self.value_for_each_epoch.get(&key) {
             return Some(*value);
@@ -33,7 +38,7 @@ impl NumericMetricsAggregate {
         let points = || {
             let mut errors = Vec::new();
             for logger in loggers {
-                match logger.read_numeric(name, epoch) {
+                match logger.read_numeric(name, epoch, split) {
                     Ok(points) => return Ok(points),
                     Err(err) => errors.push(err),
                 };
@@ -71,6 +76,7 @@ impl NumericMetricsAggregate {
     pub(crate) fn find_epoch(
         &mut self,
         name: &str,
+        split: Split,
         aggregate: Aggregate,
         direction: Direction,
         loggers: &mut [Box<dyn MetricLogger>],
@@ -78,7 +84,7 @@ impl NumericMetricsAggregate {
         let mut data = Vec::new();
         let mut current_epoch = 1;
 
-        while let Some(value) = self.aggregate(name, current_epoch, aggregate, loggers) {
+        while let Some(value) = self.aggregate(name, current_epoch, split, aggregate, loggers) {
             data.push(value);
             current_epoch += 1;
         }
@@ -138,14 +144,13 @@ mod tests {
             }
         }
         fn log(&mut self, num: f64) {
-            self.logger.log(&MetricEntry::new(
-                Arc::new(NAME.into()),
-                num.to_string(),
-                num.to_string(),
-            ));
+            self.logger.log(
+                &MetricEntry::new(Arc::new(NAME.into()), num.to_string(), num.to_string()),
+                self.epoch,
+                Split::Train,
+            );
         }
         fn new_epoch(&mut self) {
-            self.logger.end_epoch(self.epoch);
             self.epoch += 1;
         }
     }
@@ -166,6 +171,7 @@ mod tests {
         let value = aggregate
             .find_epoch(
                 NAME,
+                Split::Train,
                 Aggregate::Mean,
                 Direction::Lowest,
                 &mut [Box::new(logger.logger)],
@@ -189,7 +195,7 @@ mod tests {
             loss_1.to_string(),
             NumericEntry::Value(loss_1).serialize(),
         );
-        logger.log(&entry);
+        logger.log(&entry, 1, Split::Train);
         let entry = MetricEntry::new(
             metric_name.clone(),
             loss_2.to_string(),
@@ -200,12 +206,13 @@ mod tests {
             }
             .serialize(),
         );
-        logger.log(&entry);
+        logger.log(&entry, 1, Split::Train);
 
         let value = aggregate
             .aggregate(
                 metric_name.as_str(),
                 1,
+                Split::Train,
                 Aggregate::Mean,
                 &mut [Box::new(logger)],
             )

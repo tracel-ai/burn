@@ -63,7 +63,6 @@ where
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
-    num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
@@ -106,7 +105,6 @@ where
             tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
                 experiment_log_file,
             ))),
-            num_loggers: 0,
             checkpointer_strategy: Box::new(
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
@@ -131,14 +129,11 @@ where
     ///
     /// * `logger_train` - The training logger.
     /// * `logger_valid` - The validation logger.
-    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    pub fn with_metric_logger<ML, MV>(mut self, logger_train: ML) -> Self
     where
-        MT: MetricLogger + 'static,
-        MV: MetricLogger + 'static,
+        ML: MetricLogger + 'static,
     {
-        self.event_store.register_logger_train(logger_train);
-        self.event_store.register_logger_valid(logger_valid);
-        self.num_loggers += 1;
+        self.event_store.register_logger(logger_train);
         self
     }
 
@@ -356,11 +351,9 @@ where
             .renderer
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), self.checkpoint));
 
-        if self.num_loggers == 0 {
+        if !self.event_store.has_loggers() {
             self.event_store
-                .register_logger_train(FileMetricLogger::new_train(self.directory.join("train")));
-            self.event_store
-                .register_logger_valid(FileMetricLogger::new_train(self.directory.join("valid")));
+                .register_logger(FileMetricLogger::new_train(self.directory.clone()));
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));

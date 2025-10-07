@@ -84,25 +84,21 @@ impl LearnerSummary {
                 directory.display()
             ));
         }
-        let train_dir = directory.join("train");
-        let valid_dir = directory.join("valid");
-        if !train_dir.exists() & !valid_dir.exists() {
+
+        let mut event_store = LogEventStore::default();
+
+        let logger = FileMetricLogger::new_train(directory);
+        if !logger.split_exists(Split::Train) && !logger.split_exists(Split::Valid) {
             return Err(format!(
                 "No training or validation artifacts found at: {}",
                 directory.display()
             ));
         }
 
-        let mut event_store = LogEventStore::default();
-
-        let train_logger = FileMetricLogger::new_train(train_dir.to_str().unwrap());
-        let valid_logger = FileMetricLogger::new_train(valid_dir.to_str().unwrap());
-
         // Number of recorded epochs
-        let epochs = train_logger.epochs();
+        let epochs = logger.epochs();
 
-        event_store.register_logger_train(train_logger);
-        event_store.register_logger_valid(valid_logger);
+        event_store.register_logger(logger);
 
         let train_summary = metrics
             .iter()

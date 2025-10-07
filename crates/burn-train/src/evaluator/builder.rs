@@ -141,7 +141,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
 
         self.event_store
-            .register_logger_test(FileMetricLogger::new_eval(self.directory.join("test")));
+            .register_logger(FileMetricLogger::new_eval(self.directory));
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
 
         let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(

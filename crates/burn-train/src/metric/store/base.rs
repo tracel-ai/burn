@@ -64,7 +64,7 @@ pub enum Aggregate {
     Mean,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 /// The split to use.
 pub enum Split {
     /// The training split.
@@ -73,6 +73,16 @@ pub enum Split {
     Valid,
     /// The testing split.
     Test,
+}
+
+impl std::fmt::Display for Split {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Split::Train => write!(f, "train"),
+            Split::Valid => write!(f, "valid"),
+            Split::Test => write!(f, "test"),
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
