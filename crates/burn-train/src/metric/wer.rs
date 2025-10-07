@@ -134,6 +134,13 @@ impl<B: Backend> Numeric for WordErrorRate<B> {
     fn value(&self) -> NumericEntry {
         self.state.value()
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("%".to_string()),
+            higher_is_better: false,
+        }
+    }
 }
 
 #[cfg(test)]

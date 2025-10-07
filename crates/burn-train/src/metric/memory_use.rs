@@ -92,6 +92,13 @@ impl Numeric for CpuMemory {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("Gb".to_string()),
+            higher_is_better: false,
+        }
+    }
 }
 
 fn bytes2gb(bytes: u64) -> f64 {

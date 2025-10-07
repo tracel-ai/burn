@@ -74,4 +74,11 @@ impl<B: Backend> Numeric for LossMetric<B> {
     fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: None,
+            higher_is_better: false,
+        }
+    }
 }

@@ -79,12 +79,34 @@ impl<T> Adaptor<()> for T {
     fn adapt(&self) {}
 }
 
+/// Attributes that describe intrinsic properties of a numeric metric.
+#[derive(Clone, Debug)]
+pub struct NumericAttributes {
+    /// Optional unit (e.g. "%", "ms", "pixels")
+    pub unit: Option<String>,
+    /// Whether larger values are better (true) or smaller are better (false).
+    pub higher_is_better: bool,
+}
+
+impl Default for NumericAttributes {
+    fn default() -> Self {
+        Self {
+            unit: None,
+            higher_is_better: true,
+        }
+    }
+}
+
 /// Declare a metric to be numeric.
 ///
 /// This is useful to plot the values of a metric during training.
 pub trait Numeric {
     /// Returns the numeric value of the metric.
     fn value(&self) -> NumericEntry;
+    /// Returns the numeric attributes of the metric.
+    fn attributes(&self) -> NumericAttributes {
+        NumericAttributes::default()
+    }
 }
 
 /// Data type that contains the current state of a metric at a given time.

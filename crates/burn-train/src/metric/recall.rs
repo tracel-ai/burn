@@ -140,6 +140,12 @@ impl<B: Backend> Numeric for RecallMetric<B> {
     fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("%".to_string()),
+            higher_is_better: true,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -88,4 +88,11 @@ impl Numeric for CpuUse {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(self.current)
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("%".to_string()),
+            higher_is_better: false,
+        }
+    }
 }

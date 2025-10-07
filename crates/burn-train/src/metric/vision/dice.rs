@@ -178,6 +178,13 @@ impl<B: Backend, const D: usize> Numeric for DiceMetric<B, D> {
     fn value(&self) -> crate::metric::NumericEntry {
         self.state.value()
     }
+
+    fn attributes(&self) -> crate::metric::NumericAttributes {
+        crate::metric::NumericAttributes {
+            unit: None,
+            higher_is_better: true,
+        }
+    }
 }
 
 #[cfg(test)]

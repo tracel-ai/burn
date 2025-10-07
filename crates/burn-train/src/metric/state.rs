@@ -120,6 +120,13 @@ impl Numeric for NumericMetricState {
             current: self.current,
         }
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: None,
+            higher_is_better: true,
+        }
+    }
 }
 
 impl Default for NumericMetricState {

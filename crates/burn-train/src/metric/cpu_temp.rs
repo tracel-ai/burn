@@ -61,4 +61,11 @@ impl Numeric for CpuTemperature {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(self.temp_celsius as f64)
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("°C".to_string()),
+            higher_is_better: false,
+        }
+    }
 }

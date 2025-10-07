@@ -66,4 +66,11 @@ impl Numeric for IterationSpeedMetric {
     fn value(&self) -> super::NumericEntry {
         self.state.value()
     }
+
+    fn attributes(&self) -> super::NumericAttributes {
+        super::NumericAttributes {
+            unit: Some("iter/sec".to_string()),
+            higher_is_better: true,
+        }
+    }
 }
