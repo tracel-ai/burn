@@ -91,7 +91,7 @@ pub fn rank_inference(node: &mut Node) {
         NodeType::Neg => same_as_input(node),
         NodeType::NonZero => nonzero_update_output(node),
         NodeType::Not => same_as_input(node),
-        NodeType::And => same_as_input(node),
+        NodeType::And => same_as_input_broadcast(node),
         NodeType::Or => same_as_input(node),
         NodeType::Xor => same_as_input(node),
         NodeType::OneHot => one_hot_output_shape(node),

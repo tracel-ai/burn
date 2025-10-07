@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -62,6 +62,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
 
     fn into_node(self) -> Node<PS> {
         Node::OneHot(self)
+    }
+}
+
+impl OnnxIntoNode for OneHotNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let values_type = TensorType::from(node.inputs.get(2).unwrap());
+        let (num_classes, values, axis) = onnx_ir::node::one_hot::one_hot_config(&node);
+        Self::new(input, output, num_classes, values, values_type, axis)
     }
 }
 

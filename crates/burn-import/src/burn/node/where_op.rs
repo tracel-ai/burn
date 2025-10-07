@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{ScalarType, ShapeType, Type};
 
 use burn::record::PrecisionSettings;
@@ -61,6 +61,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
 
     fn into_node(self) -> super::Node<PS> {
         Node::Where(self)
+    }
+}
+
+impl OnnxIntoNode for WhereNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let condition = Type::from(node.inputs.first().unwrap());
+        let x = Type::from(node.inputs.get(1).unwrap());
+        let y = Type::from(node.inputs.get(2).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        Self::new(condition, x, y, output)
     }
 }
 

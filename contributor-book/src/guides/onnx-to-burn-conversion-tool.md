@@ -69,18 +69,7 @@ graphs, developers must go through a few systematic steps. Here, we detail the p
 implementation of the `Squeeze` operation to illustrate points as needed. All file/directory paths
 are relative to the root of the burn repository.
 
-### Step 1: Visibility
-
-To make a new operation accessible, there are two key modules to update:
-
-1. In `crates/onnx-ir/src/node/mod.rs`, add your new operation module to make it visible within the
-   IR
-2. In `crates/burn-import/src/burn/node/mod.rs`, make the corresponding node type visible within
-   burn-import
-
-### Step 2: Node Implementation
-
-#### Within onnx-ir
+### Step 1: Node Implementation in onnx-ir
 
 The `onnx-ir` crate handles the Intermediate Representation (IR) of ONNX models. For each operation:
 
@@ -88,11 +77,12 @@ The `onnx-ir` crate handles the Intermediate Representation (IR) of ONNX models.
 
 2. Create a new module file in `crates/onnx-ir/src/node/<operation_name>.rs`. This file should
    include:
-
    - A `<operation_name>_config` function to extract operation parameters
    - A `<operation_name>_update_output` function for dimension inference
 
-3. If the operation might work with constants, add it to the list of node types checked for
+3. Make the module visible in `crates/onnx-ir/src/node/mod.rs`.
+
+4. If the operation might work with constants, add it to the list of node types checked for
    constants in `crates/onnx-ir/src/from_onnx.rs`.
 
 For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeeze.rs` and contains:
@@ -100,102 +90,127 @@ For example, the squeeze operation is defined in `crates/onnx-ir/src/node/squeez
 - A `squeeze_config` function that extracts axes from node attributes
 - A `squeeze_update_output` function that updates output dimensions by reducing input rank
 
-#### Within burn-import
+### Step 2: Node Implementation in burn-import
 
 1. Create a new file named `<operation_name>.rs` in the `crates/burn-import/src/burn/node/`
    directory. This file will define the structure and functionality of your new operation. By
    convention, the necessary information for carrying out an operation is encapsulated within a
    struct named `<operation>Node`. For the `Squeeze` operation, we defined a struct called
    `SqueezeNode` that holds necessary information about the input tensor, output tensor, and axes
-   for the operation. **If implementing a unary or binary operation, please see note below.**
+   for the operation.
 
-2. The core of integrating a new operation involves implementing the `NodeCodegen` trait for your
+2. Implement the `OnnxIntoNode` trait for your node. This trait has a single method `from_onnx` that
+   converts an ONNX IR node into your Burn node type:
+
+   ```rust
+   impl OnnxIntoNode for SqueezeNode {
+       fn from_onnx(node: onnx_ir::Node) -> Self {
+           let input = TensorType::from(node.inputs.first().unwrap());
+           let output = TensorType::from(node.outputs.first().unwrap());
+           let axes = squeeze_config(&node);
+
+           SqueezeNode::new(input, output, axes)
+       }
+   }
+   ```
+
+3. The core of integrating a new operation involves implementing the `NodeCodegen` trait for your
    node. This trait defines how the node generates code during the graph compilation process. The
    implementation must provide methods to define input and output types, to generate the forward
    pass code, and to encapsulate the node into the more general `Node` structure. Specifically:
+   - `input_types()` - Returns the types of all input arguments
+   - `output_types()` - Returns the types of all output values
+   - `forward()` - Generates the Rust code that performs the operation during execution. Use the
+     `quote!` macro to generate code and ensure it's syntactically correct Burn code
+   - `into_node()` - Wraps the node into the general `Node<PS>` enum
 
-   - `output_types` and `input_types` return the tensor (or element) types for the output and inputs
-     of the node, respectively.
-   - `forward` generates the Rust code that performs the operation during the execution phase. The
-     `quote!` macro is used to generate rust code. Ensure that this is syntactically correct using
-     Burn code.
-   - `into_node` wraps the specific node in a general `Node` type, facilitating its inclusion in the
-     broader Burn graph structure.
+   Example implementation:
 
-3. This file is also where you would put `test_codegen_nodes()`, to make sure that the generated
-   code works within the Burn library.
+   ```rust
+   impl<PS: PrecisionSettings> NodeCodegen<PS> for SqueezeNode {
+       fn input_types(&self) -> Vec<Type> {
+           vec![self.input.clone()]
+       }
 
-**For unary and binary operations:** The implementation of `NodeCodegen` is mostly implemented in
-binary.rs and unary.rs, so each new operation only has to define a method to execute the function on
-the input(s) token stream.
+       fn output_types(&self) -> Vec<Type> {
+           vec![self.output.clone()]
+       }
 
-### Step 3: Registering New Operations
+       fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+           // Simplified example - actual implementation handles more cases
+           let input = scope.tensor_use_owned(&self.input, node_position);
+           let output = &self.output.name();
 
-1. In `crates/burn-import/src/onnx/to_burn.rs`, add the operation to the match statement in the
-   `into_burn()` method:
+           match &self.axes {
+               Some(axes) => {
+                   let axes_tokens = axes.to_tokens();
+                   quote! {
+                       let #output = #input.squeeze_dims(&#axes_tokens);
+                   }
+               }
+               None => {
+                   let output_rank = self.output.rank();
+                   quote! {
+                       let #output = #input.squeeze::<#output_rank>();
+                   }
+               }
+           }
+       }
+
+       fn into_node(self) -> Node<PS> {
+           Node::Squeeze(self)
+       }
+   }
+   ```
+
+4. Add unit tests in the same file to verify the generated code compiles and works correctly. These
+   tests typically call a helper function like `assert_tokens()` to validate the generated code
+   against expected output.
+
+### Step 3: Register in Module System
+
+Add the module declaration to `crates/burn-import/src/burn/node/mod.rs`:
 
 ```rust
-impl ParsedOnnxGraph {
-    pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
-        // ...
-        for node in self.0.nodes {
-            match node.node_type {
-                // ...
-                NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
-                // Add your new operation here
-            }
-        }
-    }
+// ... other node modules
+pub(crate) mod squeeze;
+// ... more node modules
+```
+
+The modules are automatically made visible through re-exports in the same file.
+
+### Step 4: Register in Node Registry
+
+Add your operation to the node registry in `crates/burn-import/src/burn/node_registry.rs`. This is
+the **single source of truth** for all ONNX node conversions.
+
+For a single ONNX operation mapping to a single node type:
+
+```rust
+node_registry! {
+    // ... other operations
+    Squeeze => squeeze as SqueezeNode,
+    // ... more operations
 }
 ```
 
-2. Create a conversion function that creates an instance of your Burn node:
+For multiple ONNX operations mapping to the same node type (e.g., various reduce operations):
 
 ```rust
-fn squeeze_conversion(node: Node) -> SqueezeNode {
-    let input = TensorType::from(node.inputs.first().unwrap());
-    let output = TensorType::from(node.outputs.first().unwrap());
-    let axes = squeeze_config(&node);
-
-    SqueezeNode::new(input, output, axes)
+node_registry! {
+    // ... other operations
+    [ReduceMax, ReduceMin, ReduceMean, ReduceProd, ReduceSum]
+        => ReduceMax: reduce as ReduceNode,
+    // ... more operations
 }
 ```
 
-This function extracts the necessary information from the ONNX node and passes it to your node's
-constructor.
+That's it! The registry automatically generates:
 
-### Step 4: Create a Config Function
-
-In `crates/onnx-ir/src/node/<operation_name>.rs`, create a config function that extracts
-operation-specific parameters from the ONNX node:
-
-```rust
-pub fn squeeze_config(curr: &Node) -> Vec<i64> {
-    let axes = curr
-        .attrs
-        .iter()
-        .filter_map(|(key, value)| {
-            if key == "axes" {
-                Some(value.clone().into_i64s())
-            } else {
-                None
-            }
-        })
-        .next()
-        .unwrap_or_else(Vec::new);
-
-    match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    axes
-}
-```
-
-This config function is responsible for parsing the ONNX node attributes and extracting
-operation-specific parameters. In this case, it extracts the "axes" attribute from the squeeze
-operation.
+- The `Node<PS>` enum with your operation as a variant
+- The `match_all!` macro for dispatching
+- The ONNX to Burn conversion logic
+- All necessary imports
 
 ### Step 5: Rank Inference
 
@@ -237,16 +252,7 @@ the graph.
 If the rank remains unchanged, you can use helper functions like `same_as_input()` or
 `same_as_input_broadcast()` instead of writing a custom update function.
 
-### Step 6: Integrate into the Graph Building Process
-
-When a new node type is introduced, it must be added to the `Node<PS: PrecisionSettings>` enum in
-`crates/burn-import/src/burn/node/base.rs` and the `match_all!` macro in the same file.
-
-The `Node` enum abstracts over different types of operations (nodes) within a network graph. Each
-variant of the enum corresponds to a specific type of operation and encapsulates the
-operation-specific data structures (like `SqueezeNode`) that were defined in step 2.
-
-### Step 7: Add Newly Supported Op!
+### Step 6: Add Newly Supported Op!
 
 As a reward, add an extra check to `crates/burn-import/SUPPORTED-ONNX-OPS.md`!
 
@@ -281,6 +287,28 @@ Without this, operations that need to extract configuration from constant inputs
 weights, or other parameters) would not work correctly because they wouldn't have direct access to
 those constant values.
 
+## Architecture Overview
+
+The `burn-import` crate is organized into several key modules:
+
+### Core Modules
+
+- **`burn/node_registry.rs`**: Master registry containing all ONNX node mappings. This is a
+  declarative macro that auto-generates the `Node` enum, conversion functions, and dispatch logic.
+
+- **`burn/node_codegen.rs`**: Contains the `NodeCodegen` and `OnnxIntoNode` traits that all nodes
+  must implement. Also includes code generation utilities.
+
+- **`burn/node/`**: Directory containing individual node implementations. Each file implements a
+  specific ONNX operation.
+
+- **`burn/graph.rs`**: Burn graph representation and code generation.
+
+- **`burn/ty.rs`**: Type system for tensors, scalars, and shapes, including conversions from ONNX
+  types.
+
+- **`onnx/model_gen.rs`**: Public API (`ModelGen`) for converting ONNX models to Burn code.
+
 ## Testing
 
 When implementing a new operator, there are several levels of testing to consider:
@@ -295,7 +323,7 @@ When implementing a new operator, there are several levels of testing to conside
   computes output ranks.
 
 - **Code Generation**: Test the Node implementation in `burn-import` to verify that it generates
-  correct Rust code.
+  correct Rust code. Each node file typically includes a `test_codegen_nodes()` function.
 
 ### Integration Testing
 

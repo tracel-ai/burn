@@ -794,24 +794,34 @@ fn dequantize<C: Float>(
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }]);
 
-    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
-        inputs, locals, write_pos, input, config, scheme,
-    );
+    let tensor_pos = comptime!(match input {
+        Arg::Input(pos, _, _) => pos,
+        _ => panic!("Not supported"),
+    });
     let pos = comptime!(match scales {
         Arg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
+    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>>(
+        inputs, locals, write_pos, input, config, scheme,
+    );
 
-    let scales =
-        input_as_scales_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(inputs, pos, scheme.level);
+    let line_size = input.line_size();
+    let num_quants = comptime!(scheme.num_quants() as u32);
+
+    let scales = input_as_scales_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(
+        inputs,
+        pos,
+        tensor_pos,
+        scheme.level,
+        config,
+    );
     let result = dequantize_symmetric_packed_value_at::<
         C,
         ElemExpand<Q_PARAM_DYN_ELEM_ID>,
         ElemExpand<Q_STORE_DYN_ELEM_ID>,
-    >(write_pos, input, &scales, scheme);
+    >(write_pos * num_quants, input, &scales, scheme);
 
-    let line_size = input.line_size();
-    let num_quants = comptime!(scheme.num_quants() as u32);
     let line_size_result = comptime!(num_quants * line_size);
 
     let line = if comptime!(line_size == 1) {

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{OtherType, Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -268,6 +268,39 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Resize(self)
+    }
+}
+
+impl OnnxIntoNode for ResizeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let name = &node.name;
+
+        let input = TensorType::from(&node.inputs[0]);
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::resize::resize_config(&node);
+
+        // Convert from onnx-ir types to burn types
+        let mode = match config.mode {
+            onnx_ir::node::resize::ResizeMode::Nearest => ResizeMode::Nearest,
+            onnx_ir::node::resize::ResizeMode::Linear => ResizeMode::Linear,
+            onnx_ir::node::resize::ResizeMode::Cubic => ResizeMode::Cubic,
+        };
+
+        let scales = config.scales.map(|s| match s {
+            onnx_ir::node::resize::ResizeScales::Static(s) => ResizeScales::Static(s),
+            onnx_ir::node::resize::ResizeScales::Runtime(arg) => {
+                ResizeScales::Runtime(Type::from(&arg))
+            }
+        });
+
+        let sizes = config.sizes.map(|s| match s {
+            onnx_ir::node::resize::ResizeSizes::Static(s) => ResizeSizes::Static(s),
+            onnx_ir::node::resize::ResizeSizes::Runtime(arg) => {
+                ResizeSizes::Runtime(Type::from(&arg))
+            }
+        });
+
+        ResizeNode::new(name, input, output, mode, scales, sizes)
     }
 }
 

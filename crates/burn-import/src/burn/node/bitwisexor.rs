@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -70,6 +70,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseXorNode {
             _ => panic!("BitwiseXorNode only supports tensor and scalar outputs"),
         }
         Node::BitwiseXor(self)
+    }
+}
+
+impl OnnxIntoNode for BitwiseXorNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+        Self::new(inputs, output)
     }
 }
 
