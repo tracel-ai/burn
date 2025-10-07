@@ -15,11 +15,11 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 autotune = []
+autotune-checks = ["cubecl/autotune-checks"]
+default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 doc = ["default"]
 std = ["cubecl/std", "burn-tensor/std", "burn-fusion/std"]
-autotune-checks = ["cubecl/autotune-checks"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.19.0" }
@@ -31,9 +31,9 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
 cubecl = { workspace = true, features = ["matmul", "convolution", "reduce"] }
 cubecl-quant = { workspace = true, features = ["kernels"] }
 
+derive-new = { workspace = true }
 half = { workspace = true }
 serde = { workspace = true }
-derive-new = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
