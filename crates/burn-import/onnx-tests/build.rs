@@ -219,6 +219,7 @@ fn main() {
         .input("tests/one_hot/one_hot.onnx")
         .input("tests/or/or.onnx")
         .input("tests/or/or_scalar.onnx")
+        .input("tests/or/or_broadcast.onnx")
         .input("tests/pad/pad.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
