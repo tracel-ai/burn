@@ -318,6 +318,7 @@ fn main() {
         .input("tests/split/split.onnx")
         .input("tests/xor/xor.onnx")
         .input("tests/xor/xor_scalar.onnx")
+        .input("tests/xor/xor_broadcast.onnx")
         .out_dir("model/")
         .run_from_script();
 
