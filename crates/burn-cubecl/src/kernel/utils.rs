@@ -1,5 +1,4 @@
 use burn_tensor::Shape;
-use cubecl::prelude::SequenceArg;
 use cubecl::{
     prelude::ArrayArg,
     std::{
@@ -7,6 +6,7 @@ use cubecl::{
         tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
     },
 };
+use cubecl::{prelude::SequenceArg, std::tensor::layout::linear::LinearLayout};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
@@ -53,7 +53,7 @@ pub fn linear_view<'a, R: CubeRuntime>(
     let buffer = unsafe {
         ArrayArg::from_raw_parts_and_size(&tensor.handle, len, line_size, tensor.elem_size())
     };
-    LinearViewLaunch::new(buffer, layout)
+    LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
 pub fn linear_view_ref<'a, R: CubeRuntime>(
@@ -66,7 +66,7 @@ pub fn linear_view_ref<'a, R: CubeRuntime>(
     let buffer = unsafe {
         ArrayArg::from_raw_parts_and_size(&tensor.handle, len, line_size, tensor.elem_size())
     };
-    LinearViewLaunch::new(buffer, layout)
+    LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
 pub fn linear_view_alias<'a, R: CubeRuntime>(
@@ -76,7 +76,7 @@ pub fn linear_view_alias<'a, R: CubeRuntime>(
 ) -> LinearViewLaunch<'a, R> {
     let layout = linear_layout(tensor, line_size);
     let buffer = ArrayArg::Alias { input_pos: pos };
-    LinearViewLaunch::new(buffer, layout)
+    LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
 pub fn split_dim<R: CubeRuntime>(
