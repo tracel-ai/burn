@@ -108,16 +108,6 @@ pub trait Metric: Send + Sync + Clone {
     fn clear(&mut self);
 }
 
-/// Extension trait for metrics to provide additional information.
-pub trait MetricExt {
-    /// Attributes of the metric.
-    ///
-    /// By default, metrics have no attributes.
-    fn attributes(&self) -> MetricAttributes {
-        MetricAttributes::None
-    }
-}
-
 /// Type used to store metric names efficiently.
 pub type MetricName = Arc<String>;
 
