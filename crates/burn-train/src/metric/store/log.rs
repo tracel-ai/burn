@@ -1,24 +1,19 @@
+use std::collections::HashMap;
+
 use super::{Aggregate, Direction, Event, EventStore, Split, aggregate::NumericMetricsAggregate};
 use crate::logger::MetricLogger;
 
+#[derive(Default)]
 pub(crate) struct LogEventStore {
     loggers: Vec<Box<dyn MetricLogger>>,
     aggregate: NumericMetricsAggregate,
-    epoch: usize,
-}
-
-impl Default for LogEventStore {
-    fn default() -> Self {
-        Self {
-            loggers: vec![],
-            aggregate: NumericMetricsAggregate::default(),
-            epoch: 1,
-        }
-    }
+    epochs: HashMap<Split, usize>,
 }
 
 impl EventStore for LogEventStore {
     fn add_event(&mut self, event: Event, split: Split) {
+        let epoch = *self.epochs.entry(split).or_insert(1);
+
         match event {
             Event::MetricsUpdate(update) => {
                 update
@@ -28,11 +23,11 @@ impl EventStore for LogEventStore {
                     .for_each(|entry| {
                         self.loggers
                             .iter_mut()
-                            .for_each(|logger| logger.log(entry, self.epoch, split));
+                            .for_each(|logger| logger.log(entry, epoch, split));
                     });
             }
             Event::EndEpoch(epoch) => {
-                self.epoch = epoch + 1;
+                self.epochs.insert(split, epoch + 1);
             }
         }
     }

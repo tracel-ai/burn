@@ -193,7 +193,7 @@ impl FileMetricLogger {
             None => {
                 self.create_directory(tags, epoch, split);
 
-                let file_path = self.file_path(tags, &key, epoch, split);
+                let file_path = self.file_path(tags, &item.name, epoch, split);
                 let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
