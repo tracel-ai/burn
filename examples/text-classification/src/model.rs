@@ -147,6 +147,7 @@ impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, Classific
         // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();
+        B::sync(&item.loss.device());
 
         TrainOutput::new(self, grads, item)
     }

@@ -36,7 +36,7 @@ pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
     // #[config(default = "SeqLengthOption::Fixed(512)")]
-    #[config(default = "SeqLengthOption::Max(512)")]
+    #[config(default = "SeqLengthOption::Max(128)")]
     pub seq_length: SeqLengthOption,
     #[config(default = 32)]
     pub batch_size: usize,
