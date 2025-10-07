@@ -12,7 +12,6 @@ use cubecl::{
         },
     },
 };
-use cubecl_quant::scheme::QuantLevel;
 use cubecl_quant::{
     layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
     scheme::QuantLevel,
