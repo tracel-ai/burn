@@ -291,11 +291,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor_first.dtype;
 
         // Calculate the output shape
-        let mut shape = tensor_first.shape.clone();
-        shape[dim] = 0;
-        for tensor in tensors.iter() {
-            shape[dim] += tensor.shape[dim];
-        }
+        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = CatOpIr {

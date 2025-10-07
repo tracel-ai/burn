@@ -212,9 +212,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim1] = tensor.shape.dims[dim2];
-        shape.dims[dim2] = tensor.shape.dims[dim1];
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
 
         let mut out = tensor.client.tensor_uninitialized(shape, dtype);
 
@@ -253,14 +251,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes
-            .iter()
-            .map(|x| tensor.shape.dims[*x])
-            .collect::<Vec<_>>();
+        let shape = tensor.shape.clone().permute(axes).unwrap();
 
-        let out = tensor
-            .client
-            .tensor_uninitialized(Shape::from(shape), tensor.dtype);
+        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
@@ -385,7 +378,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = indices.shape.dims[0];
+        shape[dim] = indices.shape[0];
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SelectOpIr {
             tensor: tensor.into_ir(),

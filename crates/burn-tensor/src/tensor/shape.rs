@@ -27,6 +27,10 @@ pub enum ShapeError {
     },
     /// Invalid dimension specified for the rank.
     OutOfBounds { dim: usize, rank: usize },
+    /// A pair of shapes are incompatible for the operation.
+    IncompatibleShapes { left: Shape, right: Shape },
+    /// Invalid empty shape.
+    Empty,
 }
 
 impl Shape {
@@ -216,6 +220,45 @@ impl Shape {
     pub fn repeat(mut self, dim: usize, times: usize) -> Self {
         self.dims[dim] *= times;
         self
+    }
+
+    /// Concatenates all shapes into a new one along the given dimension.
+    pub fn cat<'a, I>(shapes: I, dim: usize) -> Result<Self, ShapeError>
+    where
+        I: IntoIterator<Item = &'a Shape>,
+    {
+        let mut iter = shapes.into_iter();
+
+        let first = iter.next().ok_or(ShapeError::Empty)?;
+
+        if dim >= first.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim,
+                rank: first.rank(),
+            });
+        }
+
+        let mut shape = first.clone();
+
+        for s in iter {
+            if s.rank() != shape.rank() {
+                return Err(ShapeError::RankMismatch {
+                    left: shape.rank(),
+                    right: s.rank(),
+                });
+            }
+
+            if s[..dim] != shape[..dim] || s[dim + 1..] != shape[dim + 1..] {
+                return Err(ShapeError::IncompatibleShapes {
+                    left: shape.clone(),
+                    right: s.clone(),
+                });
+            }
+
+            shape[dim] += s[dim];
+        }
+
+        Ok(shape)
     }
 
     /// Compute the output shape for binary operations with broadcasting support.
@@ -598,6 +641,60 @@ mod tests {
                 left: 2,
                 right: 6,
                 dim: 1
+            })
+        );
+    }
+
+    #[test]
+    fn test_shape_cat() {
+        let s1 = Shape::new([2, 3, 4, 5]);
+        let s2 = Shape::new([1, 3, 4, 5]);
+        let s3 = Shape::new([4, 3, 4, 5]);
+
+        let out = Shape::cat(&[s1, s2, s3], 0).unwrap();
+        assert_eq!(out, Shape::new([7, 3, 4, 5]));
+
+        let s1 = Shape::new([2, 3, 4, 5]);
+        let s2 = Shape::new([2, 3, 2, 5]);
+        let s3 = Shape::new([2, 3, 1, 5]);
+
+        let out = Shape::cat(&[s1, s2, s3], 2).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 7, 5]));
+    }
+
+    #[test]
+    fn test_shape_cat_empty() {
+        let out = Shape::cat(&[], 0);
+        assert_eq!(out, Err(ShapeError::Empty));
+    }
+
+    #[test]
+    fn test_shape_cat_dim_out_of_bounds() {
+        let s1 = Shape::new([2, 3, 4, 5]);
+        let s2 = Shape::new([2, 3, 4, 5]);
+        let out = Shape::cat(&[s1, s2], 4);
+        assert_eq!(out, Err(ShapeError::OutOfBounds { dim: 4, rank: 4 }));
+    }
+
+    #[test]
+    fn test_shape_cat_rank_mismatch() {
+        let s1 = Shape::new([2, 3, 4, 5]);
+        let s2 = Shape::new([2, 3, 4, 5, 6]);
+        let out = Shape::cat(&[s1, s2], 0);
+        assert_eq!(out, Err(ShapeError::RankMismatch { left: 4, right: 5 }));
+    }
+
+    #[test]
+    fn test_shape_cat_incompatible_shapes() {
+        let s1 = Shape::new([2, 3, 4, 5]);
+        let s2 = Shape::new([1, 3, 4, 5]);
+        let out = Shape::cat(&[s1.clone(), s2.clone()], 1);
+
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleShapes {
+                left: s1,
+                right: s2
             })
         );
     }

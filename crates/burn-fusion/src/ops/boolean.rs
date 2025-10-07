@@ -12,7 +12,7 @@ use burn_ir::{
 use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Device, Element, Shape, Slice, TensorData, TensorMetadata,
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor, binary_ops_shape},
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
 };
 use std::marker::PhantomData;
 
@@ -369,17 +369,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let tensor_first = tensors.first().unwrap();
         let client = tensor_first.client.clone();
 
-        // TODO: more operations on `Shape` type so we can leave the logic to the shape
-
         // Calculate the output shape
-        let mut shape = tensor_first.shape.clone();
+        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
         let mut streams = OperationStreams::default();
         tensors.iter().for_each(|t| streams.tensor(t));
-
-        shape.dims[dim] = 0;
-        for tensor in tensors.iter() {
-            shape.dims[dim] += tensor.shape.dims[dim];
-        }
 
         let out = client.tensor_uninitialized(shape, B::BoolElem::dtype());
 
@@ -418,7 +411,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            Shape::from(binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims)),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -493,7 +486,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            Shape::from(binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims)),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -532,7 +525,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
 
         let out = lhs.client.tensor_uninitialized(
-            Shape::from(binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims)),
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
             B::BoolElem::dtype(),
         );
 
@@ -568,10 +561,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim1] = tensor.shape.dims[dim2];
-        shape.dims[dim2] = tensor.shape.dims[dim1];
-
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());
@@ -610,14 +600,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes
-            .iter()
-            .map(|x| tensor.shape.dims[*x])
-            .collect::<Vec<_>>();
-
+        let shape = tensor.shape.clone().permute(axes).unwrap();
         let out = tensor
             .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+            .tensor_uninitialized(shape, B::BoolElem::dtype());
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
@@ -729,8 +715,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim] *= times;
+        let shape = tensor.shape.clone().repeat(dim, times);
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::BoolElem::dtype());

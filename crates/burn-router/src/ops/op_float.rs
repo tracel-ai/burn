@@ -1161,11 +1161,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor_first.client.clone();
 
         // Calculate the output shape
-        let mut shape = tensor_first.shape.clone();
-        shape[dim] = 0;
-        for tensor in tensors.iter() {
-            shape[dim] += tensor.shape[dim];
-        }
+        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
         let out = client.register_empty_tensor(shape, tensor_first.dtype);
 
         let desc = CatOpIr {

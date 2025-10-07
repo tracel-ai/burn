@@ -968,8 +968,8 @@ impl RelativeOps for TensorIr {
         let relative_id = self.id.to_relative(converter);
 
         // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
-        let mut relative_shape = Vec::with_capacity(self.shape.dims.len());
-        for dim in self.shape.dims.iter() {
+        let mut relative_shape = Vec::with_capacity(self.shape.rank());
+        for dim in self.shape.iter() {
             if let Some(dim_id) = converter.shapes_global2relative.get(dim) {
                 // We already saw that dim value before, so we retrieve its ID.
                 relative_shape.push(*dim_id);

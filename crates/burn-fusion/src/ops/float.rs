@@ -12,7 +12,7 @@ use burn_ir::*;
 use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::{
     Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor, binary_ops_shape},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
 };
 use std::marker::PhantomData;
 
@@ -272,10 +272,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
         let out = lhs
             .client
-            .tensor_uninitialized(Shape::from(shape), lhs.dtype);
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), lhs.dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -363,10 +362,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
         let out = lhs
             .client
-            .tensor_uninitialized(Shape::from(shape), lhs.dtype);
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), lhs.dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -411,10 +409,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
         let out = lhs
             .client
-            .tensor_uninitialized(Shape::from(shape), lhs.dtype);
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), lhs.dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -459,10 +456,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
         let out = lhs
             .client
-            .tensor_uninitialized(Shape::from(shape), lhs.dtype);
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), lhs.dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -506,11 +502,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&lhs);
         streams.tensor(&rhs);
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
         let dtype = lhs.dtype;
         let out = lhs
             .client
-            .tensor_uninitialized(Shape::from(shape), lhs.dtype);
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), lhs.dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -555,13 +550,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let mut shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
+        let mut shape = lhs.shape.broadcast(&rhs.shape).unwrap();
         let ndims = lhs.shape.num_dims();
 
-        shape[ndims - 2] = lhs.shape.dims[ndims - 2];
-        shape[ndims - 1] = rhs.shape.dims[ndims - 1];
+        shape[ndims - 2] = lhs.shape[ndims - 2];
+        shape[ndims - 1] = rhs.shape[ndims - 1];
 
-        let out = lhs.client.tensor_uninitialized(Shape::from(shape), dtype);
+        let out = lhs.client.tensor_uninitialized(shape, dtype);
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
             rhs: rhs.into_ir(),
@@ -601,8 +596,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs.client.tensor_uninitialized(Shape::from(shape), dtype);
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
         let desc = CrossOpIr {
             lhs: lhs.into_ir(),
             rhs: rhs.into_ir(),
@@ -638,10 +634,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim1] = tensor.shape.dims[dim2];
-        shape.dims[dim2] = tensor.shape.dims[dim1];
-
+        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
         let mut out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SwapDimsOpIr {
@@ -820,7 +813,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = indices.shape.dims[0];
+        shape[dim] = indices.shape[0];
         let out = tensor.client.tensor_uninitialized(shape, dtype);
         let desc = SelectOpIr {
             tensor: tensor.into_ir(),
@@ -1003,10 +996,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&value);
 
         let dtype = tensor.dtype;
-        let shape = binary_ops_shape(&tensor.shape.dims, &mask.shape.dims);
         let out = tensor
             .client
-            .tensor_uninitialized(Shape::from(shape), dtype);
+            .tensor_uninitialized(tensor.shape.broadcast(&mask.shape).unwrap(), dtype);
 
         let desc = MaskWhereOpIr {
             tensor: tensor.into_ir(),
@@ -1075,10 +1067,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&lhs);
         streams.tensor(&rhs);
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs
-            .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+        let out = lhs.client.tensor_uninitialized(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1125,10 +1117,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs
-            .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+        let out = lhs.client.tensor_uninitialized(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1175,10 +1167,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs
-            .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+        let out = lhs.client.tensor_uninitialized(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1225,10 +1217,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs
-            .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+        let out = lhs.client.tensor_uninitialized(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1275,10 +1267,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs
-            .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+        let out = lhs.client.tensor_uninitialized(
+            lhs.shape.broadcast(&rhs.shape).unwrap(),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -1346,7 +1338,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[axis] = 1;
+        shape[axis] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1391,7 +1383,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1437,7 +1429,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1733,11 +1725,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensors.iter().for_each(|tensor| streams.tensor(tensor));
 
         // Calculate the output shape
-        let mut shape = tensor_first.shape.clone();
-        shape.dims[dim] = 0;
-        for tensor in tensors.iter() {
-            shape.dims[dim] += tensor.shape.dims[dim];
-        }
+        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
 
         let out = client.tensor_uninitialized(shape, dtype);
 
@@ -1765,7 +1753,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());
@@ -1803,8 +1791,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        let mut shape = tensor.shape.clone();
-        shape.dims[dim] *= times;
+        let shape = tensor.shape.clone().repeat(dim, times);
         let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
 
         let desc = RepeatDimOpIr {
@@ -1828,7 +1815,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let dtype = tensor.dtype;
         let out = tensor
             .client
@@ -1876,7 +1863,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let mut shape = tensor.shape.clone();
         let dtype = tensor.dtype;
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -1917,7 +1904,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let dtype = tensor.dtype;
         let client = tensor.client.clone();
         let out = client.tensor_uninitialized(shape.clone(), dtype);
@@ -1966,7 +1953,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -2007,7 +1994,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let client = tensor.client.clone();
         let out = client.tensor_uninitialized(shape.clone(), dtype);
         let out_indices = client.tensor_uninitialized(shape, B::IntElem::dtype());
@@ -2055,7 +2042,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
         let mut shape = tensor.shape.clone();
         let dtype = tensor.dtype;
-        shape.dims[dim] = 1;
+        shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = ReduceDimOpIr {
@@ -2079,8 +2066,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
 
-        let shape = binary_ops_shape(&lhs.shape.dims, &rhs.shape.dims);
-        let out = lhs.client.tensor_uninitialized(Shape::from(shape), dtype);
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -2115,14 +2103,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&tensor);
 
         // Change the shape of the tensor to match the new axes
-        let shape = axes
-            .iter()
-            .map(|x| tensor.shape.dims[*x])
-            .collect::<Vec<_>>();
-
-        let out = tensor
-            .client
-            .tensor_uninitialized(Shape::from(shape), tensor.dtype);
+        let shape = tensor.shape.clone().permute(axes).unwrap();
+        let out = tensor.client.tensor_uninitialized(shape, tensor.dtype);
 
         let desc = PermuteOpIr {
             input: tensor.into_ir(),
