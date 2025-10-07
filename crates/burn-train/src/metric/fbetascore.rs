@@ -1,7 +1,7 @@
-use crate::metric::MetricName;
+use crate::metric::{MetricName, Numeric};
 
 use super::{
-    Metric, MetricEntry, MetricMetadata, Numeric,
+    Metric, MetricAttributes, MetricEntry, MetricMetadata, NumericAttributes, NumericEntry,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
@@ -157,18 +157,19 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
-}
 
-impl<B: Backend> Numeric for FBetaScoreMetric<B> {
-    fn value(&self) -> super::NumericEntry {
-        self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
         }
+        .into()
+    }
+}
+
+impl<B: Backend> Numeric for FBetaScoreMetric<B> {
+    fn value(&self) -> NumericEntry {
+        self.state.value()
     }
 }
 
@@ -176,8 +177,9 @@ impl<B: Backend> Numeric for FBetaScoreMetric<B> {
 mod tests {
     use super::{
         ClassReduction::{self, *},
-        FBetaScoreMetric, Metric, MetricMetadata, Numeric,
+        FBetaScoreMetric, Metric, MetricMetadata,
     };
+    use crate::metric::Numeric;
     use crate::{
         TestBackend,
         tests::{ClassificationType, THRESHOLD, dummy_classification_input},

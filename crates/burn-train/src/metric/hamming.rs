@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricName, Numeric};
+use crate::metric::{
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+};
 use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid, backend::Backend};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
@@ -100,18 +102,19 @@ impl<B: Backend> Metric for HammingScore<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
-}
 
-impl<B: Backend> Numeric for HammingScore<B> {
-    fn value(&self) -> super::NumericEntry {
-        self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
         }
+        .into()
+    }
+}
+
+impl<B: Backend> Numeric for HammingScore<B> {
+    fn value(&self) -> NumericEntry {
+        self.state.value()
     }
 }
 

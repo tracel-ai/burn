@@ -1,7 +1,9 @@
 use super::cer::edit_distance;
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricName, Numeric, NumericEntry};
+use crate::metric::{
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
@@ -127,19 +129,19 @@ impl<B: Backend> Metric for WordErrorRate<B> {
     fn clear(&mut self) {
         self.state.reset();
     }
-}
 
-/// The [word error rate metric](WordErrorRate) implementation.
-impl<B: Backend> Numeric for WordErrorRate<B> {
-    fn value(&self) -> NumericEntry {
-        self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: false,
         }
+        .into()
+    }
+}
+
+impl<B: Backend> Numeric for WordErrorRate<B> {
+    fn value(&self) -> NumericEntry {
+        self.state.value()
     }
 }
 

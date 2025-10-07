@@ -5,7 +5,8 @@ use super::MetricMetadata;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use crate::metric::MetricName;
-use crate::metric::{Metric, Numeric};
+use crate::metric::Numeric;
+use crate::metric::{Metric, MetricAttributes, NumericAttributes, NumericEntry};
 
 /// The loss metric.
 #[derive(Clone)]
@@ -60,17 +61,18 @@ impl Metric for IterationSpeedMetric {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
-}
 
-impl Numeric for IterationSpeedMetric {
-    fn value(&self) -> super::NumericEntry {
-        self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
             unit: Some("iter/sec".to_string()),
             higher_is_better: true,
         }
+        .into()
+    }
+}
+
+impl Numeric for IterationSpeedMetric {
+    fn value(&self) -> NumericEntry {
+        self.state.value()
     }
 }

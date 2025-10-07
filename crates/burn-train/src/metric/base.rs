@@ -38,6 +38,38 @@ impl MetricMetadata {
     }
 }
 
+/// Metric attributes define the properties intrinsic to different types of metric.
+#[derive(Clone, Debug)]
+pub enum MetricAttributes {
+    /// Numeric attributes.
+    Numeric(NumericAttributes),
+    /// No attributes.
+    None,
+}
+
+/// Definition of a metric.
+///
+/// This is used to register a metric with the [learner builder](crate::learner::LearnerBuilder).
+#[derive(Clone, Debug)]
+pub struct MetricDefinition {
+    /// The name of the metric.
+    pub name: String,
+    /// The description of the metric.
+    pub description: Option<String>,
+    /// The attributes of the metric.
+    pub attributes: MetricAttributes,
+}
+
+impl<Me: Metric> From<&Me> for MetricDefinition {
+    fn from(metric: &Me) -> Self {
+        Self {
+            name: metric.name().to_string(),
+            description: metric.description(),
+            attributes: metric.attributes(),
+        }
+    }
+}
+
 /// Metric trait.
 ///
 /// # Notes
@@ -57,10 +89,33 @@ pub trait Metric: Send + Sync + Clone {
     /// values of k), the name should be unique for each instance.
     fn name(&self) -> MetricName;
 
+    /// A short description of the metric.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    /// Attributes of the metric.
+    ///
+    /// By default, metrics have no attributes.
+    fn attributes(&self) -> MetricAttributes {
+        MetricAttributes::None
+    }
+
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
+
     /// Clear the metric state.
     fn clear(&mut self);
+}
+
+/// Extension trait for metrics to provide additional information.
+pub trait MetricExt {
+    /// Attributes of the metric.
+    ///
+    /// By default, metrics have no attributes.
+    fn attributes(&self) -> MetricAttributes {
+        MetricAttributes::None
+    }
 }
 
 /// Type used to store metric names efficiently.
@@ -88,6 +143,12 @@ pub struct NumericAttributes {
     pub higher_is_better: bool,
 }
 
+impl From<NumericAttributes> for MetricAttributes {
+    fn from(attr: NumericAttributes) -> Self {
+        MetricAttributes::Numeric(attr)
+    }
+}
+
 impl Default for NumericAttributes {
     fn default() -> Self {
         Self {
@@ -103,10 +164,6 @@ impl Default for NumericAttributes {
 pub trait Numeric {
     /// Returns the numeric value of the metric.
     fn value(&self) -> NumericEntry;
-    /// Returns the numeric attributes of the metric.
-    fn attributes(&self) -> NumericAttributes {
-        NumericAttributes::default()
-    }
 }
 
 /// Data type that contains the current state of a metric at a given time.

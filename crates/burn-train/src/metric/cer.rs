@@ -1,6 +1,6 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricName, Numeric, NumericEntry};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
@@ -147,19 +147,19 @@ impl<B: Backend> Metric for CharErrorRate<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
-}
 
-/// The [character error rate metric](CharErrorRate) implementation.
-impl<B: Backend> Numeric for CharErrorRate<B> {
-    fn value(&self) -> NumericEntry {
-        self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
         super::NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: false,
         }
+        .into()
+    }
+}
+
+impl<B: Backend> Numeric for CharErrorRate<B> {
+    fn value(&self) -> NumericEntry {
+        self.state.value()
     }
 }
 

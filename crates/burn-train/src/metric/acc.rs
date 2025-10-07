@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, MetricName, Numeric};
+use crate::metric::{Metric, MetricAttributes, MetricName, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
@@ -92,18 +92,19 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        super::NumericAttributes {
+            unit: None,
+            higher_is_better: true,
+        }
+        .into()
+    }
 }
 
 impl<B: Backend> Numeric for AccuracyMetric<B> {
     fn value(&self) -> super::NumericEntry {
         self.state.value()
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
-            unit: None,
-            higher_is_better: true,
-        }
     }
 }
 

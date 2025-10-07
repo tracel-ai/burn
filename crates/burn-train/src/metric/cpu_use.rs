@@ -1,5 +1,5 @@
-use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry, MetricName, NumericEntry};
+use super::MetricMetadata;
+use crate::metric::{Metric, MetricAttributes, MetricEntry, MetricName, Numeric, NumericEntry};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -82,17 +82,18 @@ impl Metric for CpuUse {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
-}
 
-impl Numeric for CpuUse {
-    fn value(&self) -> NumericEntry {
-        NumericEntry::Value(self.current)
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
+    fn attributes(&self) -> MetricAttributes {
         super::NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: false,
         }
+        .into()
+    }
+}
+
+impl Numeric for CpuUse {
+    fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.current as f64)
     }
 }

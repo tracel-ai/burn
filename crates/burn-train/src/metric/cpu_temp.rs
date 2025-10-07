@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 /// CPU Temperature metric
-use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry, MetricName, NumericEntry};
+use super::MetricMetadata;
+use crate::metric::{Metric, MetricAttributes, MetricEntry, MetricName, Numeric, NumericEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees
@@ -55,17 +55,18 @@ impl Metric for CpuTemperature {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        super::NumericAttributes {
+            unit: Some("°C".to_string()),
+            higher_is_better: false,
+        }
+        .into()
+    }
 }
 
 impl Numeric for CpuTemperature {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(self.temp_celsius as f64)
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
-            unit: Some("°C".to_string()),
-            higher_is_better: false,
-        }
     }
 }

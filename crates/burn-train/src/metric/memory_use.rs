@@ -1,6 +1,6 @@
 /// RAM use metric
-use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry, NumericEntry};
+use super::{MetricAttributes, MetricMetadata, NumericAttributes};
+use crate::metric::{Metric, MetricEntry, Numeric, NumericEntry};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -86,18 +86,19 @@ impl Metric for CpuMemory {
     fn name(&self) -> Arc<String> {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: Some("Gb".to_string()),
+            higher_is_better: false,
+        }
+        .into()
+    }
 }
 
 impl Numeric for CpuMemory {
     fn value(&self) -> NumericEntry {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
-    }
-
-    fn attributes(&self) -> super::NumericAttributes {
-        super::NumericAttributes {
-            unit: Some("Gb".to_string()),
-            higher_is_better: false,
-        }
     }
 }
 

@@ -113,11 +113,10 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 
     /// Register a numeric validation metric.
-    pub(crate) fn register_valid_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_valid_metric_numeric<Me>(&mut self, metric: Me)
+    where
         V::ItemSync: Adaptor<Me::Input> + 'static,
+        Me: Metric + Numeric + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.valid_numeric.push(Box::new(metric))

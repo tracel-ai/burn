@@ -16,7 +16,7 @@ use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric};
+use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
@@ -208,7 +208,7 @@ where
     /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
-        Me: Metric + crate::metric::Numeric + 'static,
+        Me: Metric + Numeric + 'static,
         <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
@@ -217,10 +217,7 @@ where
     }
 
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
-    pub fn metric_valid_numeric<Me: Metric + crate::metric::Numeric + 'static>(
-        mut self,
-        metric: Me,
-    ) -> Self
+    pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
         <VO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
@@ -488,7 +485,7 @@ macro_rules! gen_tuple {
             VO: ItemLazy + 'static,
             $(TO::ItemSync: Adaptor<$M::Input>,)*
             $(VO::ItemSync: Adaptor<$M::Input>,)*
-            $($M: Metric + $crate::metric::Numeric + 'static,)*
+            $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
