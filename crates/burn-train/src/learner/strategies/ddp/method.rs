@@ -8,7 +8,6 @@ use burn_core::prelude::Backend;
 use crate::learner::strategies::ddp::DdpWorker;
 use crate::{LearnerComponents, LearningMethod, TrainLoader, ValidLoader};
 use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::module::Module;
 
 use crate::components::LearnerComponentTypes;
 
@@ -48,8 +47,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
     }
 
     fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        let main_device = self.devices.first().unwrap();
-        model.fork(main_device)
+        model
     }
 
     fn learn(
@@ -97,7 +95,7 @@ impl<LC: LearnerComponentTypes + Send + 'static> LearningMethod<LC> for DdpLearn
             let handle = DdpWorker::<LC>::start(
                 peer_id.into(),
                 device.clone(),
-                model.clone().fork(device),
+                model.clone(),
                 components.optim.clone(),
                 components.early_stopping.clone(),
                 event_processor.clone(),

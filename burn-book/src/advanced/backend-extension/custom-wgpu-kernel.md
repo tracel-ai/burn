@@ -321,7 +321,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B>, Shape);
+            type State = (NodeId, NodeId, FloatTensor<B>, Shape);
 
             fn backward(
                 self,

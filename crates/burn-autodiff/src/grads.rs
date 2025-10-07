@@ -1,7 +1,7 @@
 use burn_tensor::{TensorMetadata, backend::Backend, container::TensorContainer, ops::FloatTensor};
 
 use crate::{
-    NodeID,
+    NodeId,
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
 };
@@ -68,7 +68,7 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
-    pub fn register<B: Backend>(&mut self, node_id: NodeID, value: FloatTensor<B>) {
+    pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
         if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
             self.container.register::<B>(
                 node_id.value,

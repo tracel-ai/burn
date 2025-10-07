@@ -26,3 +26,4 @@ burn = { path = "../../crates/burn", features = [
     "train",
     "std",
 ], default-features = false }
+text-classification = { path = "../text-classification" }

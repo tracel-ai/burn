@@ -108,6 +108,7 @@ where
     pub fn change_server_float<B>(
         &mut self,
         tensor: &TensorIr,
+        stream_tensor: StreamId,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> TensorId
@@ -115,8 +116,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         let tensor_float = self.handles.get_float_tensor::<B>(tensor);
-        self.streams
-            .mark_read(StreamId::current(), tensor, &self.handles);
+        self.streams.mark_read(stream_tensor, tensor, &self.handles);
 
         let tensor = B::float_to_device(tensor_float, device);
         let id = server_device.create_empty_handle();
@@ -152,6 +152,7 @@ where
     pub fn change_server_int<B>(
         &mut self,
         tensor: &TensorIr,
+        stream_tensor: StreamId,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> TensorId
@@ -159,8 +160,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         let tensor_int = self.handles.get_int_tensor::<B>(tensor);
-        self.streams
-            .mark_read(StreamId::current(), tensor, &self.handles);
+        self.streams.mark_read(stream_tensor, tensor, &self.handles);
         let tensor = B::int_to_device(tensor_int, device);
         let id = server_device.create_empty_handle();
 
@@ -174,6 +174,7 @@ where
     pub fn change_server_bool<B>(
         &mut self,
         tensor: &TensorIr,
+        stream_tensor: StreamId,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> TensorId
@@ -181,8 +182,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         let tensor_bool = self.handles.get_bool_tensor::<B>(tensor);
-        self.streams
-            .mark_read(StreamId::current(), tensor, &self.handles);
+        self.streams.mark_read(stream_tensor, tensor, &self.handles);
         let tensor = B::bool_to_device(tensor_bool, device);
         let id = server_device.create_empty_handle();
 
