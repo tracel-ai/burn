@@ -178,7 +178,14 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
         pos: ExpandElementTyped<u32>,
         value: <Line<E> as CubeType>::ExpandType,
     ) {
-        self.__expand_write_method(scope, pos, value);
+        let in_bounds = ViewOperationsExpand::<Line<E>, Coords1d>::__expand_is_in_bounds_method(
+            self,
+            scope,
+            pos.clone(),
+        );
+        if_expand(scope, in_bounds.into(), |scope| {
+            self.__expand_write_method(scope, pos, value);
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
