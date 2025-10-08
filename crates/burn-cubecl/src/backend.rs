@@ -66,10 +66,7 @@ where
         func: Func,
     ) -> Output {
         let client = R::client(device);
-        let output = client.memory_static_allocation(input, func);
-        let memory = client.memory_usage();
-        log::info!("{memory}");
-        output
+        client.memory_persistent_allocation(input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {
