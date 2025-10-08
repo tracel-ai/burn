@@ -401,13 +401,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             streams.tensor(bias)
         }
 
-        let shape = vec![
-            x.shape[0],
-            weight.shape[0],
-            size_0,
-            size_1,
-            size_2,
-        ];
+        let shape = vec![x.shape[0], weight.shape[0], size_0, size_1, size_2];
         let out = x
             .client
             .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
@@ -539,12 +533,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             streams.tensor(bias)
         }
 
-        let shape = vec![
-            x.shape[0],
-            weight.shape[1] * options.groups,
-            size_0,
-            size_1,
-        ];
+        let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
         let out = x
             .client
             .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
@@ -884,8 +873,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
-        let size =
-            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
@@ -1004,8 +992,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
 
-        let size =
-            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x
             .client
@@ -1270,12 +1257,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
 
-        let shape = vec![
-            x.shape[0],
-            x.shape[1],
-            output_size[0],
-            output_size[1],
-        ];
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
         let out = x
             .client
             .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
@@ -1388,12 +1370,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let mut streams = OperationStreams::default();
         streams.tensor(&x);
 
-        let shape = vec![
-            x.shape[0],
-            x.shape[1],
-            output_size[0],
-            output_size[1],
-        ];
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
         let out = x
             .client
             .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
