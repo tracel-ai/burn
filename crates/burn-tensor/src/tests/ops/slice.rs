@@ -197,6 +197,28 @@ mod tests {
     }
 
     #[test]
+    fn should_support_slice_fill_cast_f32() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device).cast(burn_tensor::DType::F32);
+
+        tensor.slice_fill(s![0..2], 1.0)
+            .into_data()
+            .assert_eq(&TensorData::from([1.0, 1.0, 2.0]), false);
+    }
+
+    #[test]
+    fn should_support_slice_fill_cast_f64() {
+        let data = TensorData::from([0.0, 1.0, 2.0]);
+        let device = Default::default();
+        let tensor = TestTensor::<1>::from_data(data, &device).cast(burn_tensor::DType::F64);
+
+        tensor.slice_fill(s![0..2], 1.0)
+            .into_data()
+            .assert_eq(&TensorData::from([1.0, 1.0, 2.0]), false);
+    }
+
+    #[test]
     fn should_support_slice_fill_1d_neg() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
 
