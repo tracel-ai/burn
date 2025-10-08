@@ -299,7 +299,7 @@ mod tests {
         );
 
         tensor
-            .sum_and_squeeze_dims::<1, _>(&[0, 1])
+            .sum_dims_squeeze::<1, _>(&[0, 1])
             .to_data()
             .assert_eq(&TensorData::from([20., 16., 21.]), false);
     }

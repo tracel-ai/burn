@@ -606,12 +606,12 @@ where
     ///         [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
     ///         [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
     ///     ], &device);
-    ///     let tensor = tensor.clone().sum_and_squeeze_dims(&[0, 1]);
+    ///     let tensor = tensor.clone().sum_dims_squeeze(&[0, 1]);
     ///     println!("{tensor}");
     ///     // [20.0, 16.0, 21.0]
     /// }
     /// ```
-    pub fn sum_and_squeeze_dims<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<B, D2, K> {
+    pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<B, D2, K> {
         // TODO: remove idims when squeeze_dims uses AsIndex.
         let idims = dims
             .iter()
