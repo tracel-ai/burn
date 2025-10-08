@@ -361,7 +361,7 @@ where
         })
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_fallback(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
             if value == 2.0 {
                 // Happens often and is faster.

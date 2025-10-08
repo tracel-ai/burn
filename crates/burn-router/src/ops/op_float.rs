@@ -1007,7 +1007,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_fallback(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
