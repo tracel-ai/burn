@@ -57,8 +57,6 @@ where
 
     fn sync(device: &Self::Device) {
         let client = R::client(device);
-        let memory = client.memory_usage();
-        log::info!("{memory}");
         futures_lite::future::block_on(client.sync());
     }
 

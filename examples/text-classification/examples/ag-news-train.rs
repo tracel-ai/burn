@@ -30,7 +30,7 @@ pub fn launch_multi<B: AutodiffBackend>() {
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(2048, 4096, 16, 8)
+        TransformerEncoderConfig::new(1024, 2048, 8, 4)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
