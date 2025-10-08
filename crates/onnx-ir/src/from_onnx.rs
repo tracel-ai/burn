@@ -98,13 +98,19 @@ impl GraphData {
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
+        base_dir: Option<&Path>,
     ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
 
         let constants = initializers
             .iter()
-            .map(|x| (x.name.clone(), Argument::from_initializer(x)))
+            .map(|x| {
+                (
+                    x.name.clone(),
+                    Argument::from_initializer_with_base_dir(x, base_dir),
+                )
+            })
             .collect::<HashMap<String, Argument>>();
         let outputs = outputs
             .iter()
@@ -239,13 +245,14 @@ pub(crate) struct OnnxGraphBuilder {
 }
 
 impl OnnxGraphBuilder {
-    pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
+    pub(crate) fn build(mut self, model_proto: &ModelProto, base_dir: Option<&Path>) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
+            base_dir,
         );
         for t in &model_proto.graph.initializer {
             log::debug!(
@@ -1119,6 +1126,9 @@ impl OnnxGraphBuilder {
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
+    // Extract the base directory for external data files
+    let base_dir = onnx_path.parent();
+
     // Open the file
     let mut file = File::open(onnx_path)
         .unwrap_or_else(|_| panic!("Unable to open file: {}", onnx_path.display()));
@@ -1164,7 +1174,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     }
 
     let builder = OnnxGraphBuilder::default();
-    let graph = builder.build(&onnx_model);
+    let graph = builder.build(&onnx_model, base_dir);
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
