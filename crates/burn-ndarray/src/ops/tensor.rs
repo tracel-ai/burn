@@ -363,18 +363,7 @@ where
 
     fn float_powf_scalar_fallback(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            if value == 2.0 {
-                // Happens often and is faster.
-                tensor.mapv_into(|a| a * a).into_shared()
-            } else if value.floor() == value {
-                // Is faster then powf
-                tensor
-                    .mapv_into(|a| a.powi_elem(value as i32))
-                    .into_shared()
-            } else {
-                // Default
-                tensor.mapv_into(|a| a.powf_elem(value)).into_shared()
-            }
+            tensor.mapv_into(|a| a.powf_elem(value)).into_shared()
         })
     }
 
