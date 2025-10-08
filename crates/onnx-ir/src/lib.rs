@@ -9,7 +9,6 @@ mod node_remap;
 pub mod processor;
 mod proto_conversion;
 mod protos;
-mod rank_inference;
 pub mod util;
 
 pub use from_onnx::convert_constant_value;

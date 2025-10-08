@@ -10,14 +10,23 @@ use crate::util::verify_opsets;
 use super::{
     coalesce::coalesce,
     ir::{Data, ElementType, OnnxGraph, TensorData, TensorType},
+    processor::{ProcessorContext, ProcessorRegistry},
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::ir::{ArgType, Argument, Node, NodeType};
-use super::rank_inference::rank_inference;
 
 use protobuf::Message;
+
+// Lazily initialized processor registry
+use std::sync::OnceLock;
+
+static PROCESSOR_REGISTRY: OnceLock<ProcessorRegistry> = OnceLock::new();
+
+fn get_processor_registry() -> &'static ProcessorRegistry {
+    PROCESSOR_REGISTRY.get_or_init(ProcessorRegistry::with_standard_processors)
+}
 
 const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 30] = [
     NodeType::BatchNormalization,
@@ -279,7 +288,18 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            rank_inference(&mut node);
+            // Infer output types using processor registry
+            log::debug!("Inferring rank for node: {}", node.name);
+            let registry = get_processor_registry();
+            let processor = registry.get(&node.node_type);
+            let context = ProcessorContext::new(16);
+            processor.infer_outputs(&mut node, &context);
+            log::debug!(
+                "Rank inference result for {}: {:?}",
+                node.name,
+                node.outputs
+            );
+
             graph_data.add_node(node);
         }
 
@@ -585,7 +605,12 @@ impl OnnxGraphBuilder {
         changed_outputs: &mut HashSet<String>,
     ) -> bool {
         let old_output_type = node.outputs.first().map(|o| o.ty.clone());
-        rank_inference(node);
+
+        // Infer output types using processor registry
+        let registry = get_processor_registry();
+        let processor = registry.get(&node.node_type);
+        let context = ProcessorContext::new(16);
+        processor.infer_outputs(node, &context);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());
