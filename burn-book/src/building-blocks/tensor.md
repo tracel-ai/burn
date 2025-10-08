@@ -277,7 +277,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                         |
-| -------------------------------------------- | ------------------------------------------ |
+|----------------------------------------------|--------------------------------------------|
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
@@ -304,6 +304,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                             | `tensor.round()`                           |
 | `tensor.sin()`                               | `tensor.sin()`                             |
 | `tensor.sinh()`                              | `tensor.sinh()`                            |
+| `tensor.square()`                            | `tensor.square()`                          |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                            |
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
