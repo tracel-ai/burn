@@ -13,9 +13,6 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
-// TODO: move `Shape` to `burn-ir`, use `Shape` instead of `Vec<usize>` across
-// and fix tch
-
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 pub struct FusionTensor<R: FusionRuntime> {
     /// Tensor id.
