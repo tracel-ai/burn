@@ -84,8 +84,61 @@ pub fn tensor_proto_to_data(
         return Ok(TensorData { shape, data });
     }
 
-    // Fallback to standard TryFrom conversion for non-external data
-    TensorData::try_from(tensor)
+    // Non-external data: use inline conversion logic
+    convert_tensor_proto_inline(tensor)
+}
+
+/// Internal helper to convert TensorProto with inline data (non-external)
+/// This is used by both tensor_proto_to_data and TryFrom to avoid infinite recursion
+fn convert_tensor_proto_inline(tensor: TensorProto) -> Result<TensorData, ParseError> {
+    let shape = convert_shape(tensor.dims);
+    let data = if !tensor.raw_data.is_empty() {
+        // Data stored in raw_data field
+        let elem =
+            element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
+        match elem {
+            ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Uint8 => Data::Uint8s(tensor.raw_data),
+            ElementType::Int8 => {
+                Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
+            }
+            ElementType::Bool => Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect()),
+            ElementType::String => {
+                return Err(ParseError::VariantNotFound(
+                    "String data in raw_data not supported".to_string(),
+                ));
+            }
+        }
+    } else {
+        // Data stored in type-specific fields
+        if !tensor.float_data.is_empty() {
+            Data::Float32s(tensor.float_data)
+        } else if !tensor.int32_data.is_empty() {
+            Data::Int32s(tensor.int32_data)
+        } else if !tensor.int64_data.is_empty() {
+            Data::Int64s(tensor.int64_data)
+        } else if !tensor.double_data.is_empty() {
+            Data::Float64s(tensor.double_data)
+        } else if !tensor.string_data.is_empty() {
+            Data::Strings(
+                tensor
+                    .string_data
+                    .iter()
+                    .map(|s| String::from_utf8_lossy(s).to_string())
+                    .collect(),
+            )
+        } else {
+            return Err(ParseError::VariantNotFound(
+                "No data found in tensor".to_string(),
+            ));
+        }
+    };
+    Ok(TensorData { shape, data })
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
@@ -93,9 +146,9 @@ impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
 
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
-        // When using TryFrom, we don't have access to base_dir, so external data is not supported
-        // This is mainly for backward compatibility and attribute tensors
-        tensor_proto_to_data(tensor, None)
+        // Use inline conversion for backward compatibility
+        // External data not supported through TryFrom (requires base_dir)
+        convert_tensor_proto_inline(tensor)
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {
