@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
-use burn_tensor::{Shape, quantization::params_shape};
+use burn_tensor::quantization::params_shape;
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -80,7 +80,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let precision = tensor_relative.dtype.into();
                     let precision_scales = params.dtype.into();
 
-                    let global_shape: Shape = tensor_global.shape.clone().into();
+                    let global_shape = tensor_global.shape.clone();
                     let shape_params = params_shape(&global_shape, scheme.level);
                     plan.handle_inputs
                         .push(HandleInput::QuantValues(QuantValuesHandleInput {
