@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_tensor::ops::FloatTensor;
+use burn_tensor::ops::{BoolTensor, FloatTensor};
 use burn_tensor::{
     DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
     backend::Backend,
@@ -311,6 +311,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::mean_dim(tensor, dim)
     }
 
+    fn float_cumsum(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cumsum(tensor, dim)
+    }
+
     fn float_prod(tensor: TchTensor) -> TchTensor {
         TchOps::prod(tensor)
     }
@@ -486,5 +490,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         step: usize,
     ) -> FloatTensor<Self> {
         TchOps::unfold(tensor, dim, size, step)
+    }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        TchTensor::new(tensor.tensor.isnan())
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        TchTensor::new(tensor.tensor.isinf())
     }
 }

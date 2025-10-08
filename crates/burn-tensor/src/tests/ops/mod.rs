@@ -20,6 +20,7 @@ mod cos;
 mod cosh;
 mod create_like;
 mod cross;
+mod cumsum;
 mod div;
 mod dot;
 mod erf;

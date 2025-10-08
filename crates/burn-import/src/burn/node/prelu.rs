@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -97,6 +97,48 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PReluNode {
 
     fn into_node(self) -> Node<PS> {
         Node::PRelu(self)
+    }
+}
+
+impl OnnxIntoNode for PReluNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let mut weight = extract_node_data::<f32>(&node, 1).expect("PRelu weight is required");
+        let name = &node.name;
+
+        // Determine weight shape and flatten if necessary
+        let weight_shape = if weight.shape.len() > 1 {
+            let trailing_dims_product: usize = weight.shape[1..].iter().product();
+            if trailing_dims_product == 1 {
+                // Flatten to rank 1 as Burn expects
+                weight.shape = vec![weight.shape[0]];
+                weight.shape[0]
+            } else {
+                panic!(
+                    "PRelu weight shape {:?} is invalid. Expected shape [C] or [C, 1, ...] where trailing dimensions are 1",
+                    weight.shape
+                );
+            }
+        } else if weight.shape.is_empty() {
+            // Scalar weight
+            1
+        } else {
+            // Already rank 1
+            weight.shape[0]
+        };
+
+        let alpha_value = if weight_shape == 1 {
+            weight.clone().to_vec::<f32>().unwrap()[0] as f64
+        } else {
+            0.01 // Default value if vectorized
+        };
+
+        let config = PReluConfig::new()
+            .with_num_parameters(weight_shape)
+            .with_alpha(alpha_value);
+
+        Self::new(name, input, output, weight, config)
     }
 }
 

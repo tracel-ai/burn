@@ -50,6 +50,9 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     dtype: DType::I8,
                     qparams: None,
                 },
+                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    unimplemented!("Not yet supported")
+                }
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     panic!("Can't store native sub-byte values")
                 }

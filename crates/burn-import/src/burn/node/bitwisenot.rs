@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -38,6 +38,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitwiseNotNode {
             panic!("BitwiseNotNode only supports Int TensorType outputs");
         }
         Node::BitwiseNot(self)
+    }
+}
+
+impl OnnxIntoNode for BitwiseNotNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let output = crate::burn::TensorType::from(node.outputs.first().unwrap());
+        Self::new(input, output)
     }
 }
 

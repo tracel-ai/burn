@@ -1,18 +1,21 @@
+//! Applier that correctly applies tensor snapshots with adapter support
+
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use core::fmt;
+
 use hashbrown::{HashMap, HashSet};
 
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
-
-use crate::{PathFilter, TensorSnapshot};
 use burn_core::module::{ModuleMapper, ParamId};
+use burn_tensor::{Bool, DType, Int, Tensor, backend::Backend};
 
-/// Error types for apply operations
-#[derive(Debug)]
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
+
+/// Error types that can occur during tensor application
+#[derive(Debug, Clone)]
 pub enum ApplyError {
-    /// Shape mismatch between source and target tensor
+    /// Shape mismatch between expected and actual tensor
     ShapeMismatch {
         /// Path of the tensor
         path: String,
@@ -21,178 +24,139 @@ pub enum ApplyError {
         /// Found shape
         found: Vec<usize>,
     },
-    /// Data type mismatch
-    TypeMismatch {
+    /// Data type mismatch between expected and actual tensor
+    DTypeMismatch {
+        /// Path of the tensor
+        path: String,
+        /// Expected data type
+        expected: DType,
+        /// Found data type
+        found: DType,
+    },
+    /// Error from adapter transformation
+    AdapterError {
         /// Path of the tensor
         path: String,
         /// Error message
         message: String,
     },
-    /// Tensor path not found in target module
-    PathNotFound {
+    /// Error loading tensor data
+    LoadError {
         /// Path of the tensor
         path: String,
+        /// Error message
+        message: String,
     },
-    /// Invalid tensor data
-    InvalidData {
-        /// Path of the tensor
-        path: String,
-        /// Reason for invalidity
-        reason: String,
-    },
-    /// Regex pattern error
-    #[cfg(feature = "std")]
-    RegexError(regex::Error),
-    /// Generic error
-    Other(String),
 }
 
-impl fmt::Display for ApplyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl core::fmt::Display for ApplyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            ApplyError::ShapeMismatch {
+            Self::ShapeMismatch {
                 path,
                 expected,
                 found,
-            } => write!(
-                f,
-                "Shape mismatch for tensor '{}': expected {:?}, found {:?}",
-                path, expected, found
-            ),
-            ApplyError::TypeMismatch { path, message } => {
-                write!(f, "Type mismatch for tensor '{}': {}", path, message)
+            } => {
+                write!(
+                    f,
+                    "Shape mismatch for '{}': expected {:?}, found {:?}",
+                    path, expected, found
+                )
             }
-            ApplyError::PathNotFound { path } => {
-                write!(f, "Tensor path '{}' not found in module", path)
+            Self::DTypeMismatch {
+                path,
+                expected,
+                found,
+            } => {
+                write!(
+                    f,
+                    "DType mismatch for '{}': expected {:?}, found {:?}",
+                    path, expected, found
+                )
             }
-            ApplyError::InvalidData { path, reason } => {
-                write!(f, "Invalid data for tensor '{}': {}", path, reason)
+            Self::AdapterError { path, message } => {
+                write!(f, "Adapter error for '{}': {}", path, message)
             }
-            #[cfg(feature = "std")]
-            ApplyError::RegexError(e) => write!(f, "Regex error: {}", e),
-            ApplyError::Other(msg) => write!(f, "{}", msg),
+            Self::LoadError { path, message } => {
+                write!(f, "Load error for '{}': {}", path, message)
+            }
         }
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ApplyError {}
-
-#[cfg(feature = "std")]
-impl From<regex::Error> for ApplyError {
-    fn from(err: regex::Error) -> Self {
-        ApplyError::RegexError(err)
-    }
-}
-
-/// Result of an apply operation
+/// Result of applying tensor snapshots to a module
 #[derive(Debug, Clone)]
 pub struct ApplyResult {
     /// Successfully applied tensor paths
     pub applied: Vec<String>,
-    /// Paths that were filtered out (not attempted)
+    /// Skipped tensor paths (due to filter)
     pub skipped: Vec<String>,
-    /// Paths in module but not in sources
+    /// Missing tensor paths (in module but not in snapshots)
     pub missing: Vec<String>,
-    /// Paths in sources but not found in module
+    /// Unused tensor paths (in snapshots but not in module)
     pub unused: Vec<String>,
-    /// Errors encountered during apply
-    pub errors: Vec<String>,
+    /// Errors encountered during application
+    pub errors: Vec<ApplyError>,
 }
 
 impl ApplyResult {
-    /// Check if the apply was successful (no errors)
+    /// Check if the apply operation was successful (no errors)
+    /// Note: Missing tensors are not considered errors when allow_partial is true
     pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
-
-    /// Get the total number of tensors processed
-    pub fn total_processed(&self) -> usize {
-        self.applied.len() + self.errors.len()
-    }
 }
 
-impl fmt::Display for ApplyResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Apply Result:")?;
-        writeln!(f, "  Applied: {} tensors", self.applied.len())?;
-        if !self.skipped.is_empty() {
-            writeln!(f, "  Skipped: {} tensors (filtered)", self.skipped.len())?;
-        }
-        if !self.missing.is_empty() {
-            writeln!(f, "  Missing: {} tensors", self.missing.len())?;
-        }
-        if !self.unused.is_empty() {
-            writeln!(f, "  Unused: {} tensors", self.unused.len())?;
-        }
-        if !self.errors.is_empty() {
-            writeln!(f, "  Errors: {} tensors", self.errors.len())?;
-            for error in &self.errors {
-                writeln!(f, "    - {}", error)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Applies tensor views to a module using the ModuleMapper trait.
-///
-/// This applier traverses the module hierarchy and applies tensor data
-/// from TensorSnapshots to the corresponding tensors in the module.
+/// Applier that applies tensor snapshots to module parameters
+/// with proper adapter support using container type information
 pub struct Applier<B: Backend> {
-    /// Map of tensor paths to their views for O(1) lookup
-    views: HashMap<String, TensorSnapshot>,
+    /// Map of tensor paths to their snapshots
+    snapshots: HashMap<String, TensorSnapshot>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
     /// Current container type stack in the module hierarchy
     container_stack: Vec<String>,
-    /// Path filter for selective apply
+    /// Optional filter for selective application
     filter: Option<PathFilter>,
-    /// Successfully applied tensor paths (Vec for ordered output)
+    /// Optional adapter to transform tensors based on container types
+    adapter: Option<Box<dyn ModuleAdapter>>,
+    /// Successfully applied tensor paths
     applied: Vec<String>,
-    /// Skipped tensor paths (HashSet for O(1) lookup in into_result)
+    /// Skipped tensor paths
     skipped: HashSet<String>,
-    /// Errors encountered during application (Vec for ordered output)
-    errors: Vec<String>,
-    /// Track visited paths to find missing tensors (HashSet for O(1) lookup)
+    /// Errors encountered during application
+    errors: Vec<ApplyError>,
+    /// Track visited paths to find missing tensors
     visited_paths: HashSet<String>,
     /// Phantom data for backend type
     _backend: core::marker::PhantomData<B>,
 }
 
 impl<B: Backend> Applier<B> {
-    /// Create a new tensor applier with all views
-    pub fn new(views: Vec<TensorSnapshot>) -> Self {
+    /// Create a new applier with snapshots, optional filter, and optional adapter
+    ///
+    /// # Arguments
+    ///
+    /// * `views` - A vector of TensorSnapshot objects to apply
+    /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
+    ///   When `None`, all available tensors are applied.
+    /// * `adapter` - Optional adapter to transform tensors based on container types
+    pub fn new(
+        views: Vec<TensorSnapshot>,
+        filter: Option<PathFilter>,
+        adapter: Option<Box<dyn ModuleAdapter>>,
+    ) -> Self {
         let views_map: HashMap<String, TensorSnapshot> = views
             .into_iter()
             .map(|view| (view.full_path(), view))
             .collect();
 
         Self {
-            views: views_map,
+            snapshots: views_map,
             path_stack: Vec::new(),
             container_stack: Vec::new(),
-            filter: None,
-            applied: Vec::new(),
-            skipped: HashSet::new(),
-            errors: Vec::new(),
-            visited_paths: HashSet::new(),
-            _backend: core::marker::PhantomData,
-        }
-    }
-
-    /// Create a new tensor applier with a PathFilter
-    pub fn with_filter(views: Vec<TensorSnapshot>, filter: PathFilter) -> Self {
-        let views_map: HashMap<String, TensorSnapshot> = views
-            .into_iter()
-            .map(|view| (view.full_path(), view))
-            .collect();
-
-        Self {
-            views: views_map,
-            path_stack: Vec::new(),
-            container_stack: Vec::new(),
-            filter: Some(filter),
+            filter,
+            adapter,
             applied: Vec::new(),
             skipped: HashSet::new(),
             errors: Vec::new(),
@@ -206,46 +170,118 @@ impl<B: Backend> Applier<B> {
         self.path_stack.join(".")
     }
 
-    /// Check if a tensor at the given path should be applied
-    fn should_apply(&self, path: &[String], container_stack: &[String]) -> bool {
-        // If filter is present, use it; otherwise apply all
+    /// Check if a tensor should be applied based on filter
+    fn should_apply(&self) -> bool {
         match &self.filter {
             None => true,
-            Some(f) => f.matches_with_container_path(path, container_stack),
+            Some(f) => f.matches_with_container_path(&self.path_stack, &self.container_stack),
         }
     }
 
-    /// Convert the applier into an ApplyResult
+    /// Apply adapter to a snapshot using current container information
+    fn adapt_snapshot(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+        if let Some(ref adapter) = self.adapter {
+            // Create a snapshot with proper container information from module traversal
+            let snapshot_with_context = TensorSnapshot::from_closure(
+                snapshot.clone_data_fn(),
+                snapshot.dtype,
+                snapshot.shape.clone(),
+                self.path_stack.clone(), // Use current path from traversal
+                self.container_stack.clone(), // Use current container types!
+                snapshot.tensor_id.unwrap_or_default(),
+            );
+
+            // Apply adapter with full context
+            return adapter.adapt(&snapshot_with_context);
+        }
+        snapshot.clone()
+    }
+
+    /// Convert the applier into a result
     pub fn into_result(self) -> ApplyResult {
-        // Find unused tensors (in views but not visited)
         let unused: Vec<String> = self
-            .views
+            .snapshots
             .keys()
             .filter(|path| !self.visited_paths.contains(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
 
-        // Find missing tensors (visited but not in views)
         let missing: Vec<String> = self
             .visited_paths
             .into_iter()
-            .filter(|p| !self.views.contains_key(p) && !self.skipped.contains(p))
+            .filter(|p| !self.snapshots.contains_key(p) && !self.skipped.contains(p))
             .collect();
-
-        // Convert skipped HashSet to Vec for the result
-        let skipped: Vec<String> = self.skipped.into_iter().collect();
 
         ApplyResult {
             applied: self.applied,
-            skipped,
+            skipped: self.skipped.into_iter().collect(),
             missing,
             unused,
             errors: self.errors,
         }
     }
+
+    /// Apply a tensor snapshot to the current tensor (generic over tensor kind)
+    fn apply_tensor<const D: usize, K>(&mut self, tensor: Tensor<B, D, K>) -> Tensor<B, D, K>
+    where
+        K: burn_tensor::TensorKind<B>,
+        K: burn_tensor::BasicOps<B>,
+    {
+        let path = self.current_path();
+        self.visited_paths.insert(path.clone());
+
+        // Check if we have a snapshot for this path
+        let snapshot = match self.snapshots.get(&path) {
+            Some(s) => s,
+            None => return tensor,
+        };
+
+        // Check if we should apply based on filter
+        if !self.should_apply() {
+            self.skipped.insert(path);
+            return tensor;
+        }
+
+        // Apply adapter with current container context
+        let adapted_snapshot = self.adapt_snapshot(snapshot);
+        let data = match adapted_snapshot.to_data() {
+            Ok(data) => data,
+            Err(e) => {
+                self.errors.push(ApplyError::LoadError {
+                    path: path.clone(),
+                    message: format!("Failed to load tensor data: {:?}", e),
+                });
+                return tensor;
+            }
+        };
+
+        // Validate shape
+        let expected_shape = tensor.shape().dims;
+        if data.shape != expected_shape {
+            self.errors.push(ApplyError::ShapeMismatch {
+                path: path.clone(),
+                expected: expected_shape,
+                found: data.shape.clone(),
+            });
+            return tensor;
+        }
+
+        // Validate dtype
+        let expected_dtype = tensor.dtype();
+        if data.dtype != expected_dtype {
+            self.errors.push(ApplyError::DTypeMismatch {
+                path: path.clone(),
+                expected: expected_dtype,
+                found: data.dtype,
+            });
+            return tensor;
+        }
+
+        self.applied.push(path);
+        Tensor::from_data(data, &tensor.device())
+    }
 }
 
-// Implement ModuleMapper for applying the tensors
 impl<B: Backend> ModuleMapper<B> for Applier<B> {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.path_stack.push(name.to_string());
@@ -261,36 +297,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         if self.path_stack.is_empty() {
             return tensor;
         }
-
-        let path = self.current_path();
-        self.visited_paths.insert(path.clone());
-
-        if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&self.path_stack, &self.container_stack) {
-                self.skipped.insert(path);
-                return tensor;
-            }
-
-            let data = view.to_data();
-
-            // Validate shape
-            let expected_shape = tensor.shape().dims;
-            if data.shape != expected_shape {
-                self.errors.push(format!(
-                    "Shape mismatch for '{}': expected {:?}, found {:?}",
-                    path, expected_shape, data.shape
-                ));
-                return tensor;
-            }
-
-            // Apply the tensor using the device from the existing tensor
-            let device = tensor.device();
-            let new_tensor = Tensor::from_data(data.convert::<B::FloatElem>(), &device);
-            self.applied.push(path);
-            new_tensor
-        } else {
-            tensor
-        }
+        self.apply_tensor(tensor)
     }
 
     fn map_int<const D: usize>(
@@ -301,36 +308,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         if self.path_stack.is_empty() {
             return tensor;
         }
-
-        let path = self.current_path();
-        self.visited_paths.insert(path.clone());
-
-        if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&self.path_stack, &self.container_stack) {
-                self.skipped.insert(path);
-                return tensor;
-            }
-
-            let data = view.to_data();
-
-            // Validate shape
-            let expected_shape = tensor.shape().dims;
-            if data.shape != expected_shape {
-                self.errors.push(format!(
-                    "Shape mismatch for '{}': expected {:?}, found {:?}",
-                    path, expected_shape, data.shape
-                ));
-                return tensor;
-            }
-
-            // Apply the tensor using the device from the existing tensor
-            let device = tensor.device();
-            let new_tensor = Tensor::from_data(data.convert::<B::IntElem>(), &device);
-            self.applied.push(path);
-            new_tensor
-        } else {
-            tensor
-        }
+        self.apply_tensor(tensor)
     }
 
     fn map_bool<const D: usize>(
@@ -341,464 +319,6 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         if self.path_stack.is_empty() {
             return tensor;
         }
-
-        let path = self.current_path();
-        self.visited_paths.insert(path.clone());
-
-        if let Some(view) = self.views.get(&path) {
-            if !self.should_apply(&self.path_stack, &self.container_stack) {
-                self.skipped.insert(path);
-                return tensor;
-            }
-
-            let data = view.to_data();
-
-            // Validate shape
-            let expected_shape = tensor.shape().dims;
-            if data.shape != expected_shape {
-                self.errors.push(format!(
-                    "Shape mismatch for '{}': expected {:?}, found {:?}",
-                    path, expected_shape, data.shape
-                ));
-                return tensor;
-            }
-
-            // Apply the tensor using the device from the existing tensor
-            let device = tensor.device();
-            let new_tensor = Tensor::from_data(data.convert::<bool>(), &device);
-            self.applied.push(path);
-            new_tensor
-        } else {
-            tensor
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tensor_snapshot::TensorSnapshot;
-    use burn_core::module::{Module, Param};
-    use burn_tensor::Tensor;
-
-    type TestBackend = burn_ndarray::NdArray;
-
-    #[test]
-    fn apply_error_display() {
-        let err = ApplyError::ShapeMismatch {
-            path: "model.weight".to_string(),
-            expected: vec![2, 3],
-            found: vec![3, 2],
-        };
-        let display = format!("{}", err);
-        assert!(display.contains("Shape mismatch"));
-        assert!(display.contains("model.weight"));
-        assert!(display.contains("[2, 3]"));
-        assert!(display.contains("[3, 2]"));
-
-        let err = ApplyError::TypeMismatch {
-            path: "model.bias".to_string(),
-            message: "Expected Float, got Int".to_string(),
-        };
-        let display = format!("{}", err);
-        assert!(display.contains("Type mismatch"));
-        assert!(display.contains("model.bias"));
-        assert!(display.contains("Expected Float, got Int"));
-
-        let err = ApplyError::PathNotFound {
-            path: "missing.tensor".to_string(),
-        };
-        let display = format!("{}", err);
-        assert!(display.contains("not found"));
-        assert!(display.contains("missing.tensor"));
-
-        let err = ApplyError::InvalidData {
-            path: "corrupted.tensor".to_string(),
-            reason: "Data corruption detected".to_string(),
-        };
-        let display = format!("{}", err);
-        assert!(display.contains("Invalid data"));
-        assert!(display.contains("corrupted.tensor"));
-        assert!(display.contains("Data corruption detected"));
-    }
-
-    #[test]
-    fn apply_result_is_success() {
-        let result = ApplyResult {
-            applied: vec!["tensor1".to_string(), "tensor2".to_string()],
-            skipped: vec![],
-            missing: vec![],
-            unused: vec![],
-            errors: vec![],
-        };
-        assert!(result.is_success());
-        assert_eq!(result.total_processed(), 2);
-
-        let result_with_errors = ApplyResult {
-            applied: vec!["tensor1".to_string()],
-            skipped: vec![],
-            missing: vec![],
-            unused: vec![],
-            errors: vec!["Error applying tensor2".to_string()],
-        };
-        assert!(!result_with_errors.is_success());
-        assert_eq!(result_with_errors.total_processed(), 2);
-    }
-
-    #[test]
-    fn apply_result_display() {
-        let result = ApplyResult {
-            applied: vec!["tensor1".to_string(), "tensor2".to_string()],
-            skipped: vec!["filtered1".to_string()],
-            missing: vec!["missing1".to_string()],
-            unused: vec!["unused1".to_string()],
-            errors: vec!["Error: shape mismatch".to_string()],
-        };
-
-        let display = format!("{}", result);
-        assert!(display.contains("Applied: 2 tensors"));
-        assert!(display.contains("Skipped: 1 tensors"));
-        assert!(display.contains("Missing: 1 tensors"));
-        assert!(display.contains("Unused: 1 tensors"));
-        assert!(display.contains("Errors: 1 tensors"));
-        assert!(display.contains("Error: shape mismatch"));
-    }
-
-    #[derive(Module, Debug)]
-    struct SimpleModule<B: Backend> {
-        weight: Param<Tensor<B, 2>>,
-        bias: Param<Tensor<B, 1>>,
-    }
-
-    impl<B: Backend> SimpleModule<B> {
-        fn new(device: &B::Device) -> Self {
-            Self {
-                weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
-                bias: Param::from_data([0.1, 0.2], device),
-            }
-        }
-
-        fn zeros(device: &B::Device) -> Self {
-            Self {
-                weight: Param::from_tensor(Tensor::zeros([2, 2], device)),
-                bias: Param::from_tensor(Tensor::zeros([2], device)),
-            }
-        }
-    }
-
-    #[test]
-    fn tensor_applier_basic() {
-        let device = Default::default();
-
-        // Create source module and extract views
-        let source = SimpleModule::<TestBackend>::new(&device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.weight.val(),
-                vec!["weight".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.bias.val(),
-                vec!["bias".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-        ];
-
-        // Create target module (zeros) and apply views
-        let mut target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::new(views);
-        target = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success());
-        assert_eq!(result.applied.len(), 2);
-        assert!(result.applied.contains(&"weight".to_string()));
-        assert!(result.applied.contains(&"bias".to_string()));
-        assert_eq!(result.errors.len(), 0);
-        assert_eq!(result.missing.len(), 0);
-        assert_eq!(result.unused.len(), 0);
-
-        // Verify data was actually applied
-        let weight_data = target.weight.val().to_data();
-        assert_eq!(
-            weight_data.to_vec::<f32>().unwrap(),
-            vec![1.0, 2.0, 3.0, 4.0]
-        );
-        let bias_data = target.bias.val().to_data();
-        assert_eq!(bias_data.to_vec::<f32>().unwrap(), vec![0.1, 0.2]);
-    }
-
-    #[test]
-    #[cfg(target_has_atomic = "ptr")]
-    fn tensor_applier_with_filter() {
-        let device = Default::default();
-
-        // Create source module and extract views
-        let source = SimpleModule::<TestBackend>::new(&device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.weight.val(),
-                vec!["weight".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.bias.val(),
-                vec!["bias".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-        ];
-
-        // Apply with filter that only accepts "weight"
-        let filter = PathFilter::new().with_full_path("weight");
-        let mut target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::with_filter(views, filter);
-        target = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success());
-        assert_eq!(result.applied.len(), 1);
-        assert!(result.applied.contains(&"weight".to_string()));
-        assert_eq!(result.skipped.len(), 1);
-        assert!(result.skipped.contains(&"bias".to_string()));
-
-        // Verify only weight was applied
-        let weight_data = target.weight.val().to_data();
-        assert_eq!(
-            weight_data.to_vec::<f32>().unwrap(),
-            vec![1.0, 2.0, 3.0, 4.0]
-        );
-        let bias_data = target.bias.val().to_data();
-        assert_eq!(bias_data.to_vec::<f32>().unwrap(), vec![0.0, 0.0]); // Still zeros
-    }
-
-    #[test]
-    fn tensor_applier_shape_mismatch() {
-        let device = Default::default();
-
-        // Create a view with wrong shape
-        let wrong_tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0]], &device);
-        let views = vec![TensorSnapshot::from_float(
-            &wrong_tensor,
-            vec!["weight".to_string()],
-            vec!["SimpleModule".to_string()],
-            ParamId::new(),
-        )];
-
-        // Try to apply to module with different shape
-        let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::new(views);
-        let _ = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(!result.is_success());
-        assert_eq!(result.applied.len(), 0);
-        assert_eq!(result.errors.len(), 1);
-        assert!(result.errors[0].contains("Shape mismatch"));
-        assert!(result.errors[0].contains("weight"));
-    }
-
-    #[test]
-    fn tensor_applier_missing_tensors() {
-        let device = Default::default();
-
-        // Create views with only partial tensors
-        let source = SimpleModule::<TestBackend>::new(&device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.weight.val(),
-                vec!["weight".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            // bias is missing
-        ];
-
-        // Apply to module that expects both tensors
-        let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::new(views);
-        let _ = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success()); // No errors, just missing
-        assert_eq!(result.applied.len(), 1);
-        assert_eq!(result.missing.len(), 1);
-        assert!(result.missing.contains(&"bias".to_string()));
-    }
-
-    #[test]
-    fn tensor_applier_unused_tensors() {
-        let device = Default::default();
-
-        // Create views with extra tensors
-        let source = SimpleModule::<TestBackend>::new(&device);
-        let extra_tensor = Tensor::<TestBackend, 2>::from_data([[5.0, 6.0], [7.0, 8.0]], &device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.weight.val(),
-                vec!["weight".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.bias.val(),
-                vec!["bias".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &extra_tensor,
-                vec!["extra".to_string()],
-                vec!["SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-        ];
-
-        // Apply to module that doesn't have "extra"
-        let target = SimpleModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::new(views);
-        let _ = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success());
-        assert_eq!(result.applied.len(), 2);
-        assert_eq!(result.unused.len(), 1);
-        assert!(result.unused.contains(&"extra".to_string()));
-    }
-
-    #[derive(Module, Debug)]
-    struct NestedModule<B: Backend> {
-        layer1: SimpleModule<B>,
-        layer2: SimpleModule<B>,
-    }
-
-    impl<B: Backend> NestedModule<B> {
-        fn new(device: &B::Device) -> Self {
-            Self {
-                layer1: SimpleModule::new(device),
-                layer2: SimpleModule::new(device),
-            }
-        }
-
-        fn zeros(device: &B::Device) -> Self {
-            Self {
-                layer1: SimpleModule::zeros(device),
-                layer2: SimpleModule::zeros(device),
-            }
-        }
-    }
-
-    #[test]
-    fn tensor_applier_nested_modules() {
-        let device = Default::default();
-
-        // Create source with nested structure
-        let source = NestedModule::<TestBackend>::new(&device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.layer1.weight.val(),
-                vec!["layer1".to_string(), "weight".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer1.bias.val(),
-                vec!["layer1".to_string(), "bias".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer2.weight.val(),
-                vec!["layer2".to_string(), "weight".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer2.bias.val(),
-                vec!["layer2".to_string(), "bias".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-        ];
-
-        // Apply to nested target
-        let target = NestedModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::new(views);
-        let _ = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success());
-        assert_eq!(result.applied.len(), 4);
-        assert!(result.applied.contains(&"layer1.weight".to_string()));
-        assert!(result.applied.contains(&"layer1.bias".to_string()));
-        assert!(result.applied.contains(&"layer2.weight".to_string()));
-        assert!(result.applied.contains(&"layer2.bias".to_string()));
-    }
-
-    #[test]
-    #[cfg(target_has_atomic = "ptr")]
-    fn tensor_applier_regex_filter() {
-        let device = Default::default();
-
-        let source = NestedModule::<TestBackend>::new(&device);
-        let views = vec![
-            TensorSnapshot::from_float(
-                &source.layer1.weight.val(),
-                vec!["layer1".to_string(), "weight".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer1.bias.val(),
-                vec!["layer1".to_string(), "bias".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer2.weight.val(),
-                vec!["layer2".to_string(), "weight".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-            TensorSnapshot::from_float(
-                &source.layer2.bias.val(),
-                vec!["layer2".to_string(), "bias".to_string()],
-                vec!["NestedModule".to_string(), "SimpleModule".to_string()],
-                ParamId::new(),
-            ),
-        ];
-
-        // Filter to only apply layer1 tensors
-        let filter = PathFilter::new().with_regex(r"^layer1\..*");
-        let target = NestedModule::<TestBackend>::zeros(&device);
-        let mut applier = Applier::<TestBackend>::with_filter(views, filter);
-
-        let _ = target.map(&mut applier);
-
-        let result = applier.into_result();
-        assert!(result.is_success());
-        assert_eq!(result.applied.len(), 2);
-        assert!(result.applied.contains(&"layer1.weight".to_string()));
-        assert!(result.applied.contains(&"layer1.bias".to_string()));
-        assert_eq!(result.skipped.len(), 2);
-        assert!(result.skipped.contains(&"layer2.weight".to_string()));
-        assert!(result.skipped.contains(&"layer2.bias".to_string()));
-    }
-
-    #[test]
-    #[cfg(feature = "std")]
-    fn regex_error_conversion() {
-        // Test that regex errors convert properly
-        #[allow(clippy::invalid_regex)]
-        let regex_err = regex::Regex::new("[invalid").unwrap_err();
-        let apply_err: ApplyError = regex_err.into();
-        match apply_err {
-            ApplyError::RegexError(_) => (),
-            _ => panic!("Expected RegexError variant"),
-        }
+        self.apply_tensor(tensor)
     }
 }

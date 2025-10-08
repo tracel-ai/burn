@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{ScalarKind, Scope, TensorKind, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::ir::ElementType;
@@ -182,6 +182,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Cast(self)
+    }
+}
+
+impl OnnxIntoNode for CastNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::Type::from(node.inputs.first().unwrap());
+        let output = crate::burn::Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::cast::cast_config(&node);
+        Self::new(input, output, config.to)
     }
 }
 

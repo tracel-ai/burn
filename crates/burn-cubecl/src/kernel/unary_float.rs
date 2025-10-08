@@ -55,8 +55,8 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&tensor, &line_size),
-                linear_view_alias(&tensor, &line_size, 0),
+                linear_view(&tensor, line_size),
+                linear_view_alias(&tensor, line_size, 0),
                 args(&()),
             );
 
@@ -72,8 +72,8 @@ where
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_view(&tensor, &line_size),
-                linear_view(&output, &line_size),
+                linear_view(&tensor, line_size),
+                linear_view(&output, line_size),
                 args(&()),
             );
             output
@@ -91,7 +91,7 @@ pub(crate) mod unary_basic {
     pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
         R: CubeRuntime,
-        for<'a> Args: FnOnce(&'a ()) -> &'a BasicFloatUnaryKind,
+        for<'a> Args: FnOnce(&'a ()) -> BasicFloatUnaryKind,
     {
         execute_with_dtype!(
             float(tensor.dtype),

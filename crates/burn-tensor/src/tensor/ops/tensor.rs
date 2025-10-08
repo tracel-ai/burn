@@ -788,6 +788,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the mean of all elements in `tensor` along `dim`.
     fn float_mean_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cumsum(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
     /// Converts a tensor to another floating point data type.
     ///
     /// # Arguments
@@ -1417,4 +1430,24 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
     -> FloatTensor<B>;
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    fn float_is_nan(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        B::float_not_equal(tensor.clone(), tensor)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is infinite
+    fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.elem())
+    }
 }

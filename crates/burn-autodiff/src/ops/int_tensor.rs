@@ -153,6 +153,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_mean_dim(tensor, dim)
     }
 
+    fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cumsum(tensor, dim)
+    }
+
     fn int_repeat_dim(tensor: IntTensor<B>, dim: usize, times: usize) -> IntTensor<B> {
         B::int_repeat_dim(tensor, dim, times)
     }

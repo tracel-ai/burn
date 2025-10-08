@@ -45,6 +45,7 @@ pub(crate) fn to_device<R: CubeRuntime>(
         return tensor;
     }
 
+    let tensor = kernel::into_contiguous_aligned(tensor);
     let client = R::client(device);
     tensor.to_client(client, device.clone())
 }

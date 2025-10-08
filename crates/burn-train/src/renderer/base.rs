@@ -53,7 +53,7 @@ pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {
 #[derive(Clone)]
 /// The name of an evaluation.
 ///
-/// This is going to group matrics together for easier analysis.
+/// This is going to group metrics together for easier analysis.
 pub struct EvaluationName {
     pub(crate) name: Arc<String>,
 }

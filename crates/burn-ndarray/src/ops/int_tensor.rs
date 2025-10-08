@@ -208,6 +208,10 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
     }
 
+    fn int_cumsum(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
+    }
+
     fn int_gather(dim: usize, tensor: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, E, |tensor: SharedArray<E>| -> NdArrayTensor {
             execute_with_int_dtype!(indices, |indices| NdArrayMathOps::gather(

@@ -1,4 +1,5 @@
 use burn_core as burn;
+use burn_core::config::Config;
 
 use alloc::vec::Vec;
 use burn::tensor::ops::IntElem;
@@ -26,41 +27,71 @@ pub struct GeneratePaddingMask<B: Backend> {
     pub mask: Tensor<B, 2, Bool>,
 }
 
-/// Generation padding attention mask.
+/// Defines an enumeration to specify sequence length options for padding
+#[derive(Config, Debug, Copy)]
+pub enum SeqLengthOption {
+    /// No maximum length; use the longest sequence
+    NoMax,
+    /// Maximum length specified, truncate if necessary
+    Max(usize),
+    /// Fixed length, pad or truncate to this exact length
+    Fixed(usize),
+}
+
+impl From<Option<usize>> for SeqLengthOption {
+    fn from(val: Option<usize>) -> Self {
+        match val {
+            Some(max) => SeqLengthOption::Max(max),
+            None => SeqLengthOption::NoMax,
+        }
+    }
+}
+
+/// Generates a padding attention mask for a batch of token sequences.
+///
+/// # Arguments
+///
+/// * `pad_token` - The token ID used for padding
+/// * `tokens_list` - Vector of token sequences (each sequence is a vector of token IDs)
+/// * `seq_length` - Sequence length option (NoMax, Max, or Fixed)
+/// * `device` - The device for tensor operations
+///
+/// # Returns
+///
+/// A `GeneratePaddingMask` containing the padded tensor and corresponding mask
 pub fn generate_padding_mask<B: Backend>(
     pad_token: usize,
     tokens_list: Vec<Vec<usize>>,
-    max_seq_length: Option<usize>,
+    seq_length: impl Into<SeqLengthOption>,
     device: &B::Device,
 ) -> GeneratePaddingMask<B> {
-    let mut max_size = 0;
+    let tokens_max = || {
+        tokens_list
+            .iter()
+            .map(|tokens| tokens.len())
+            .max()
+            .unwrap_or(1)
+    };
+
+    let size = match seq_length.into() {
+        SeqLengthOption::NoMax => tokens_max(),
+        SeqLengthOption::Max(max) => usize::min(tokens_max(), max),
+        SeqLengthOption::Fixed(limit) => limit,
+    };
     let batch_size = tokens_list.len();
 
-    for tokens in tokens_list.iter() {
-        if tokens.len() > max_size {
-            max_size = tokens.len();
-        }
-
-        if let Some(max_seq_length) = max_seq_length
-            && tokens.len() >= max_seq_length
-        {
-            max_size = max_seq_length;
-            break;
-        }
-    }
-
-    let mut tensor = Tensor::zeros([batch_size, max_size], device);
+    let mut tensor = Tensor::zeros([batch_size, size], device);
     tensor = tensor.add_scalar(pad_token as i64);
 
     for (index, tokens) in tokens_list.into_iter().enumerate() {
-        let seq_length = tokens.len().min(max_size);
+        let seq_length = tokens.len().min(size);
         tensor = tensor.slice_assign(
             [index..index + 1, 0..seq_length],
             Tensor::from_data(
                 TensorData::new(
                     tokens
                         .into_iter()
-                        .take(max_size)
+                        .take(size)
                         .map(|e| (e as i64).elem::<IntElem<B>>())
                         .collect(),
                     Shape::new([1, seq_length]),

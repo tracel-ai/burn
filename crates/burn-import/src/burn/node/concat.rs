@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
@@ -70,6 +70,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConcatNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Concat(self)
+    }
+}
+
+impl OnnxIntoNode for ConcatNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let inputs: Vec<Type> = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+        let dim = onnx_ir::node::concat::concat_config(&node);
+        Self::new(inputs, output, dim)
     }
 }
 

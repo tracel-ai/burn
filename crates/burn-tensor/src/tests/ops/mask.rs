@@ -96,6 +96,19 @@ mod tests {
     }
 
     #[test]
+    fn should_support_mask_where_broadcast_value_small() {
+        let device = Default::default();
+        let tensor = TestTensorInt::<1>::arange(2..4, &device);
+        let mask = TestTensorBool::<1>::from_bool(TensorData::from([true, false]), &device);
+        let value = TestTensor::<1>::ones([1], &device);
+
+        let output = tensor.float().mask_where(mask, value);
+        let expected = TensorData::from([1., 3.]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_handle_mask_where_nans() {
         let device = Default::default();
         let tensor = TestTensor::from_data(

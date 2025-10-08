@@ -7,10 +7,10 @@ use crate::{
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::boxed::Box;
 use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
 use core::marker::PhantomData;
 
@@ -207,7 +207,7 @@ where
     }
 
     /// Checkpoints the tensor
-    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeID {
+    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeId {
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
@@ -257,12 +257,12 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.clone()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
 
     fn depth(&self) -> usize {
@@ -280,12 +280,12 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.clone()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
     fn depth(&self) -> usize {
         self.ops.node.order

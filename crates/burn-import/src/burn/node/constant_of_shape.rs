@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
@@ -180,6 +180,34 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
     fn into_node(self) -> Node<PS> {
         Node::ConstantOfShape(self)
+    }
+}
+
+impl OnnxIntoNode for ConstantOfShapeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        use onnx_ir::ir::Data;
+        // Get the shape configuration from onnx-ir
+        let shape = onnx_ir::node::constant_of_shape::constant_of_shape_config(&node);
+
+        let output = Type::from(node.outputs.first().unwrap());
+
+        // The value of the output elements. Should be a one-element tensor.
+        // If not specified, it defaults to a tensor of value 0 and datatype float32
+        let value = node
+            .attrs
+            .get("value")
+            .map(|val| val.clone().into_tensor().data)
+            .map(|val_data| match val_data {
+                Data::Float32s(vals) => ConstantValue::from_vec(vals),
+                Data::Float64s(vals) => ConstantValue::from_vec(vals),
+                Data::Int32s(vals) => ConstantValue::from_vec(vals),
+                Data::Int64s(vals) => ConstantValue::from_vec(vals),
+                Data::Bools(vals) => ConstantValue::from_vec(vals),
+                ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
+            })
+            .unwrap_or(ConstantValue::Float32(0.0f32));
+
+        ConstantOfShapeNode::new(shape, output, value)
     }
 }
 

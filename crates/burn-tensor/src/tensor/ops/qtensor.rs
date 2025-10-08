@@ -671,6 +671,25 @@ pub trait QTensorOps<B: Backend> {
         )
     }
 
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn q_cumsum(tensor: QuantizedTensor<B>, dim: usize) -> TensorPrimitive<B> {
+        dequant_op_flow!(
+            ty Self,
+            float_op |tensor| B::float_cumsum(tensor, dim),
+            tensor
+        )
+    }
+
     /// Returns a new tensor with exponential values.
     ///
     /// # Arguments

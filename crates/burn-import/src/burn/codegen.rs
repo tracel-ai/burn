@@ -1,6 +1,11 @@
-use onnx_ir::node::padding::{PaddingConfig1d, PaddingConfig2d, PaddingConfig3d};
 use proc_macro2::TokenStream;
 use quote::quote;
+
+use onnx_ir::node::padding::{PaddingConfig1d, PaddingConfig2d, PaddingConfig3d};
+
+// ============================================================================
+// Codegen utilities for converting types to TokenStream
+// ============================================================================
 
 fn convert_primitive<T: core::fmt::Debug>(primitive: T) -> TokenStream {
     let value = format!("{primitive:?}");

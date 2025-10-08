@@ -3,7 +3,7 @@ use burn_tensor::{
     ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
-        QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
 use cubecl::{
@@ -54,7 +54,6 @@ fn new_quantized<R: CubeRuntime>(
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
 
-    let scales_shape: Shape;
     let rank = shape.rank();
     let shape_last = shape[rank - 1];
     let num_quants = scheme.num_quants();
@@ -68,8 +67,14 @@ fn new_quantized<R: CubeRuntime>(
             size_of::<u32>()
         }
         QuantStore::Native => match scheme.value {
-            QuantValue::Q8F | QuantValue::Q8S => size_of::<i8>(),
-            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+            QuantValue::Q8F | QuantValue::Q8S | QuantValue::E4M3 | QuantValue::E5M2 => {
+                size_of::<i8>()
+            }
+            QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S
+            | QuantValue::E2M1 => {
                 panic!("Can't store native sub-byte values")
             }
         },
@@ -79,56 +84,22 @@ fn new_quantized<R: CubeRuntime>(
         QuantParam::F32 => DType::F32,
         QuantParam::F16 => DType::F16,
         QuantParam::BF16 => DType::BF16,
+        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("dtype not yet supported"),
     };
-    let (data_desc, scale_desc) = match scheme {
-        // Just to ensure we get and error if more modes are added and unhandled
-        QuantScheme {
-            level: QuantLevel::Tensor,
-            mode: QuantMode::Symmetric,
-            value:
-                QuantValue::Q8F
-                | QuantValue::Q8S
-                | QuantValue::Q4F
-                | QuantValue::Q4S
-                | QuantValue::Q2F
-                | QuantValue::Q2S,
-            ..
-        } => {
-            let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
-            let scale_desc = AllocationDescriptor::contiguous(&[1], scales_dtype.size());
-            scales_shape = Shape::new([1]);
-            (data_desc, scale_desc)
-        }
-        QuantScheme {
-            level: QuantLevel::Block(block_size),
-            mode: QuantMode::Symmetric,
-            value:
-                QuantValue::Q8F
-                | QuantValue::Q8S
-                | QuantValue::Q4F
-                | QuantValue::Q4S
-                | QuantValue::Q2F
-                | QuantValue::Q2S,
-            ..
-        } => {
-            let num_blocks = shape.num_elements() / block_size;
-            scales_shape = Shape::new([num_blocks]);
-            let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
-            let scales_desc =
-                AllocationDescriptor::contiguous(&scales_shape.dims, scales_dtype.size());
-            (data_desc, scales_desc)
-        }
-    };
+
+    let scales_shape = params_shape(&shape, scheme.level);
+    let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
+    let scales_desc = AllocationDescriptor::contiguous(&scales_shape.dims, scales_dtype.size());
 
     let mut tensors = match data {
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
             client.create_tensors(vec![
                 (data_desc, &data[..num_bytes]),
-                (scale_desc, &data[num_bytes..]),
+                (scales_desc, &data[num_bytes..]),
             ])
         }
-        None => client.empty_tensors(vec![data_desc, scale_desc]),
+        None => client.empty_tensors(vec![data_desc, scales_desc]),
     };
     let Allocation {
         handle: scales_handle,
@@ -182,6 +153,10 @@ where
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
+                QuantScheme {
+                    value: QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
+                    ..
+                } => unimplemented!("Not yet supported"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -231,6 +206,9 @@ where
         let mut data_values = match scheme.store {
             QuantStore::Native => match scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => into_data::<R, i8>(values).await,
+                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    unimplemented!("Not yet supported")
+                }
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     panic!("Can't store native sub-byte values")
                 }
@@ -238,6 +216,7 @@ where
             QuantStore::U32 => into_data::<R, u32>(values).await,
         };
         let data_params = match scheme.param {
+            QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
             QuantParam::F16 => into_data::<R, half::f16>(params).await,
             QuantParam::BF16 => into_data::<R, half::bf16>(params).await,
             QuantParam::F32 => into_data::<R, f32>(params).await,
