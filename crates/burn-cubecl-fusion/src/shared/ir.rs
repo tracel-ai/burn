@@ -179,12 +179,18 @@ impl FuseOp {
     }
 }
 
-#[derive(CubeType, CubeLaunch, Default)]
+#[derive(CubeType, CubeLaunch, Default, Clone)]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<GlobalScalar>,
     pub reshapes: Sequence<u32>,
+}
+
+impl GlobalArgsExpand {
+    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
+        self.clone()
+    }
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -293,12 +299,12 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         match arg {
             Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            _ => panic!("Arg not found"),
+            other => panic!("Arg not found: {other:?}"),
         }
     }
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone)]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -346,6 +352,12 @@ impl LocalArgs {
             ref_strides,
             ref_line_size,
         }
+    }
+}
+
+impl LocalArgsExpand {
+    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
+        self.clone()
     }
 }
 

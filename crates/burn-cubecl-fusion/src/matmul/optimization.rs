@@ -382,6 +382,7 @@ impl FusedMatmul {
     ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);
+        let out_shape = outputs.shape_ref(&config.ref_layout, config.rank as usize);
 
         let lhs_strides = inputs.strides(&self.lhs);
         let rhs_strides = inputs.strides(&self.rhs);
@@ -431,6 +432,7 @@ impl FusedMatmul {
             k: k as usize,
             lhs_batches: lhs_shape[..lhs_shape.len() - 2].to_vec(),
             rhs_batches: rhs_shape[..rhs_shape.len() - 2].to_vec(),
+            out_batches: out_shape[..out_shape.len() - 2].to_vec(),
             lhs_layout: match lhs_transposed {
                 true => components::MatrixLayout::ColMajor,
                 false => components::MatrixLayout::RowMajor,
