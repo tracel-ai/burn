@@ -148,12 +148,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
-        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape.dims);
 
         let dtype = tensor.dtype;
-        let out = tensor
-            .client
-            .tensor_uninitialized(Shape::from(shape), dtype);
+        let shape = tensor.shape.clone().slice(slices).unwrap();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),

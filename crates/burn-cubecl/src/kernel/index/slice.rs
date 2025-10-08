@@ -5,7 +5,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, Slice};
+use burn_tensor::Slice;
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -183,8 +183,7 @@ pub fn slice_with_steps<R: CubeRuntime, E: CubeElement>(
     }
 
     // Calculate output shape
-    let output_dims = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape.dims);
-    let shape_output = Shape::from(output_dims);
+    let shape_output = tensor.shape.clone().slice(slices).unwrap();
 
     // Create output tensor
     let output = empty_device::<R, E>(

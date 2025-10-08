@@ -2854,12 +2854,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
     /// which is more high-level and designed for public use.
     fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
-        use crate::tensor::api::slice::calculate_slice_output_shape;
-
-        let tensor_shape = tensor.shape();
-        let slice_shape_vec = calculate_slice_output_shape(slices, &tensor_shape.dims);
-        let slice_shape = Shape::from(slice_shape_vec);
-
+        let slice_shape = tensor.shape().slice(slices).unwrap();
         let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
         let value = Self::expand(value, slice_shape);
         Self::slice_assign(tensor, slices, value)

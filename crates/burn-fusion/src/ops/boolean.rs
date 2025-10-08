@@ -274,14 +274,14 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape = burn_tensor::calculate_slice_output_shape(slices, &tensor.shape.dims);
+        let shape = tensor.shape.clone().slice(slices).unwrap();
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
 
         let out = tensor
             .client
-            .tensor_uninitialized(Shape::from(shape), B::BoolElem::dtype());
+            .tensor_uninitialized(shape, B::BoolElem::dtype());
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),

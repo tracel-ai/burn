@@ -8,9 +8,7 @@ use burn_ir::{
 };
 use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{
-    Device, Element, Shape, Slice, TensorData, TensorMetadata, calculate_slice_output_shape,
-};
+use burn_tensor::{Device, Element, Shape, Slice, TensorData, TensorMetadata};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -116,9 +114,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let shape = calculate_slice_output_shape(slices, &tensor.shape.dims);
+        let shape = tensor.shape.clone().slice(slices).unwrap();
 
-        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
+        let out = client.register_empty_tensor(shape, tensor.dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),

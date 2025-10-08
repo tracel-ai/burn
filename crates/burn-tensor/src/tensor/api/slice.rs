@@ -50,27 +50,6 @@ where
     }
 }
 
-/// Calculates the output shape for a slice operation with steps
-///
-/// # Arguments
-/// * `slices` - The slice specifications for each dimension
-/// * `original_shape` - The original tensor shape
-///
-/// # Returns
-/// The output shape after applying the slice operation
-pub fn calculate_slice_output_shape(slices: &[Slice], original_shape: &[usize]) -> Vec<usize> {
-    let mut shape: Vec<usize> = slices
-        .iter()
-        .zip(original_shape.iter())
-        .map(|(slice, &dim_size)| slice.output_size(dim_size))
-        .collect();
-
-    // Add remaining dimensions from original shape
-    shape.extend_from_slice(&original_shape[shape.len()..]);
-
-    shape
-}
-
 /// Slice argument constructor for tensor indexing.
 ///
 /// The `s![]` macro is used to create multi-dimensional slice specifications for tensors.
@@ -531,81 +510,6 @@ impl From<i32> for Slice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
-
-    #[test]
-    fn test_calculate_slice_output_shape_basic() {
-        // Test basic slicing with step=1
-        let slices = vec![
-            Slice::new(0, Some(5), 1), // 5 elements
-            Slice::new(2, Some(8), 1), // 6 elements
-        ];
-        let original_shape = vec![10, 10, 10];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![5, 6, 10]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_with_positive_steps() {
-        // Test slicing with various positive steps
-        let slices = vec![
-            Slice::new(0, Some(10), 2), // [0,2,4,6,8] -> 5 elements
-            Slice::new(1, Some(9), 3),  // [1,4,7] -> 3 elements
-            Slice::new(0, Some(7), 4),  // [0,4] -> 2 elements
-        ];
-        let original_shape = vec![20, 20, 20, 30];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![5, 3, 2, 30]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_with_negative_steps() {
-        // Test slicing with negative steps (backward iteration)
-        let slices = vec![
-            Slice::new(0, Some(10), -1), // 10 elements traversed backward
-            Slice::new(2, Some(8), -2),  // [7,5,3] -> 3 elements
-        ];
-        let original_shape = vec![20, 20, 20];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![10, 3, 20]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_mixed_steps() {
-        // Test with a mix of positive, negative, and unit steps
-        let slices = vec![
-            Slice::from_range_stepped(1..6, 1),   // 5 elements
-            Slice::from_range_stepped(0..10, -3), // [9,6,3,0] -> 4 elements
-            Slice::from_range_stepped(2..14, 4),  // [2,6,10] -> 3 elements
-        ];
-        let original_shape = vec![20, 20, 20];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![5, 4, 3]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_partial_dims() {
-        // Test when slices has fewer dimensions than original shape
-        let slices = vec![
-            Slice::from_range_stepped(2..7, 2), // [2,4,6] -> 3 elements
-        ];
-        let original_shape = vec![10, 20, 30, 40];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![3, 20, 30, 40]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_edge_cases() {
-        // Test edge cases with small ranges and large steps
-        let slices = vec![
-            Slice::from_range_stepped(0..1, 1),    // Single element
-            Slice::from_range_stepped(0..10, 100), // Step larger than range -> 1 element
-            Slice::from_range_stepped(5..5, 1),    // Empty range -> 0 elements
-        ];
-        let original_shape = vec![10, 20, 30];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![1, 1, 0]);
-    }
 
     #[test]
     fn test_slice_output_size() {
@@ -617,27 +521,5 @@ mod tests {
         assert_eq!(Slice::new(0, Some(10), -2).output_size(10), 5);
         assert_eq!(Slice::new(2, Some(8), -3).output_size(10), 2); // ceil(6/3)
         assert_eq!(Slice::new(5, Some(5), 1).output_size(10), 0); // empty range
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_empty() {
-        // Test with no slice infos (should return original shape)
-        let slices = vec![];
-        let original_shape = vec![10, 20, 30];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![10, 20, 30]);
-    }
-
-    #[test]
-    fn test_calculate_slice_output_shape_uneven_division() {
-        // Test cases where range size doesn't divide evenly by step
-        let slices = vec![
-            Slice::from_range_stepped(0..7, 3), // ceil(7/3) = 3 elements: [0,3,6]
-            Slice::from_range_stepped(0..11, 4), // ceil(11/4) = 3 elements: [0,4,8]
-            Slice::from_range_stepped(1..10, 5), // ceil(9/5) = 2 elements: [1,6]
-        ];
-        let original_shape = vec![20, 20, 20];
-        let result = calculate_slice_output_shape(&slices, &original_shape);
-        assert_eq!(result, vec![3, 3, 2]);
     }
 }

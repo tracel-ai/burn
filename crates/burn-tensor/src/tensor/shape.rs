@@ -261,6 +261,34 @@ impl Shape {
         Ok(shape)
     }
 
+    /*
+    let mut shape: Vec<usize> = slices
+        .iter()
+        .zip(original_shape.iter())
+        .map(|(slice, &dim_size)| slice.output_size(dim_size))
+        .collect();
+
+    // Add remaining dimensions from original shape
+    shape.extend_from_slice(&original_shape[shape.len()..]);
+    */
+
+    /// Compute the output shape from the given slices.
+    pub fn slice(mut self, slices: &[Slice]) -> Result<Self, ShapeError> {
+        if slices.len() > self.rank() {
+            return Err(ShapeError::RankMismatch {
+                left: self.rank(),
+                right: slices.len(),
+            });
+        }
+
+        slices
+            .iter()
+            .zip(self.iter_mut())
+            .for_each(|(slice, dim_size)| *dim_size = slice.output_size(*dim_size));
+
+        Ok(self)
+    }
+
     /// Compute the output shape for binary operations with broadcasting support.
     ///
     /// - Shapes must be of the same rank (missing dimensions are not handled automatically).
@@ -270,24 +298,40 @@ impl Shape {
     /// because its axes are either equal or 1. On the other hand, a shape `[2, 2]`
     /// can *not* be broadcast into `[2, 4]`.
     pub fn broadcast(&self, other: &Self) -> Result<Self, ShapeError> {
-        if self.rank() != other.rank() {
-            return Err(ShapeError::RankMismatch {
-                left: self.rank(),
-                right: other.rank(),
-            });
-        }
+        Self::broadcast_many([self, other])
+    }
 
-        let mut broadcasted = self.clone();
-        for (dim, (lhs, &rhs)) in broadcasted.iter_mut().zip(other.iter()).enumerate() {
-            if *lhs != rhs {
-                if *lhs == 1 {
-                    *lhs = rhs;
-                } else if rhs != 1 {
-                    return Err(ShapeError::IncompatibleDims {
-                        left: *lhs,
-                        right: rhs,
-                        dim,
-                    });
+    /// Compute the broadcasted output shape across multiple input shapes.
+    ///
+    /// See also [broadcast](Self::broadcast).
+    pub fn broadcast_many<'a, I>(shapes: I) -> Result<Self, ShapeError>
+    where
+        I: IntoIterator<Item = &'a Shape>,
+    {
+        let mut iter = shapes.into_iter();
+        let mut broadcasted = iter.next().ok_or(ShapeError::Empty)?.clone();
+        let rank = broadcasted.rank();
+
+        for shape in iter {
+            if shape.rank() != rank {
+                return Err(ShapeError::RankMismatch {
+                    left: rank,
+                    right: shape.rank(),
+                });
+            }
+
+            for (dim, (d_lhs, &d_rhs)) in broadcasted.iter_mut().zip(shape.iter()).enumerate() {
+                match (*d_lhs, d_rhs) {
+                    (a, b) if a == b => {} // same
+                    (1, b) => *d_lhs = b,  // broadcast to rhs
+                    (_a, 1) => {}          // keep existing dimension
+                    _ => {
+                        return Err(ShapeError::IncompatibleDims {
+                            left: *d_lhs,
+                            right: d_rhs,
+                            dim,
+                        });
+                    }
                 }
             }
         }
@@ -568,11 +612,11 @@ mod tests {
         let size = 6;
         shape.insert(1, size);
 
-        assert_eq!(&shape.dims, &[2, 6, 3, 4, 5]);
+        assert_eq!(shape, Shape::new([2, 6, 3, 4, 5]));
 
         let removed = shape.remove(1);
         assert_eq!(removed, size);
-        assert_eq!(&shape.dims, &dims);
+        assert_eq!(shape, Shape::new(dims));
     }
 
     #[test]
@@ -584,7 +628,7 @@ mod tests {
         assert_eq!(&shape.dims, &[2, 4, 3, 5]);
 
         let shape = shape.permute(&[0, 2, 1, 3]).unwrap();
-        assert_eq!(&shape.dims, &dims);
+        assert_eq!(shape, Shape::new(dims));
     }
 
     #[test]
@@ -608,16 +652,16 @@ mod tests {
         let shape = Shape::new([2, 3, 4, 5]);
 
         let shape = shape.repeat(2, 3);
-        assert_eq!(&shape.dims, &[2, 3, 12, 5]);
+        assert_eq!(shape, Shape::new([2, 3, 12, 5]));
     }
 
     #[test]
-    fn test_shape_broadcast_elemwise() {
+    fn test_shape_broadcast_binary() {
         let lhs = Shape::new([1, 1, 2, 4]);
         let rhs = Shape::new([7, 6, 2, 1]);
 
         let out = lhs.broadcast(&rhs).unwrap();
-        assert_eq!(&out.dims, &[7, 6, 2, 4]);
+        assert_eq!(out, Shape::new([7, 6, 2, 4]));
     }
 
     #[test]
@@ -643,6 +687,49 @@ mod tests {
                 dim: 1
             })
         );
+    }
+
+    #[test]
+    fn test_shape_broadcast_many() {
+        let s1 = Shape::new([1, 1, 2, 4]);
+        let s2 = Shape::new([7, 1, 2, 1]);
+        let s3 = Shape::new([7, 6, 1, 1]);
+
+        let out = Shape::broadcast_many([&s1, &s2, &s3]).unwrap();
+        assert_eq!(out, Shape::new([7, 6, 2, 4]));
+    }
+
+    #[test]
+    fn test_shape_broadcast_many_rank_mismatch() {
+        let s1 = Shape::new([1, 1, 2, 4]);
+        let s2 = Shape::new([7, 1, 2, 1]);
+        let s3 = Shape::new([1, 6, 1]);
+
+        let out = Shape::broadcast_many([&s1, &s2, &s3]);
+        assert_eq!(out, Err(ShapeError::RankMismatch { left: 4, right: 3 }));
+    }
+
+    #[test]
+    fn test_shape_broadcast_many_incompatible_dims() {
+        let s1 = Shape::new([1, 1, 2, 4]);
+        let s2 = Shape::new([7, 1, 2, 1]);
+        let s3 = Shape::new([4, 6, 1, 1]);
+
+        let out = Shape::broadcast_many([&s1, &s2, &s3]);
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleDims {
+                left: 7,
+                right: 4,
+                dim: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_shape_broadcast_many_empty() {
+        let out = Shape::broadcast_many(&[]);
+        assert_eq!(out, Err(ShapeError::Empty));
     }
 
     #[test]
@@ -697,5 +784,101 @@ mod tests {
                 right: s2
             })
         );
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_basic() {
+        // Test basic slicing with step=1
+        let slices = [
+            Slice::new(0, Some(5), 1), // 5 elements
+            Slice::new(2, Some(8), 1), // 6 elements
+        ];
+        let original_shape = Shape::new([10, 10, 10]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([5, 6, 10]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_with_positive_steps() {
+        // Test slicing with various positive steps
+        let slices = [
+            Slice::new(0, Some(10), 2), // [0,2,4,6,8] -> 5 elements
+            Slice::new(1, Some(9), 3),  // [1,4,7] -> 3 elements
+            Slice::new(0, Some(7), 4),  // [0,4] -> 2 elements
+        ];
+        let original_shape = Shape::new([20, 20, 20, 30]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([5, 3, 2, 30]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_with_negative_steps() {
+        // Test slicing with negative steps (backward iteration)
+        let slices = [
+            Slice::new(0, Some(10), -1), // 10 elements traversed backward
+            Slice::new(2, Some(8), -2),  // [7,5,3] -> 3 elements
+        ];
+        let original_shape = Shape::new([20, 20, 20]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([10, 3, 20]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_mixed_steps() {
+        // Test with a mix of positive, negative, and unit steps
+        let slices = [
+            Slice::from_range_stepped(1..6, 1),   // 5 elements
+            Slice::from_range_stepped(0..10, -3), // [9,6,3,0] -> 4 elements
+            Slice::from_range_stepped(2..14, 4),  // [2,6,10] -> 3 elements
+        ];
+        let original_shape = Shape::new([20, 20, 20]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([5, 4, 3]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_partial_dims() {
+        // Test when slices has fewer dimensions than original shape
+        let slices = [
+            Slice::from_range_stepped(2..7, 2), // [2,4,6] -> 3 elements
+        ];
+        let original_shape = Shape::new([10, 20, 30, 40]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([3, 20, 30, 40]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_edge_cases() {
+        // Test edge cases with small ranges and large steps
+        let slices = [
+            Slice::from_range_stepped(0..1, 1),    // Single element
+            Slice::from_range_stepped(0..10, 100), // Step larger than range -> 1 element
+            Slice::from_range_stepped(5..5, 1),    // Empty range -> 0 elements
+        ];
+        let original_shape = Shape::new([10, 20, 30]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([1, 1, 0]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_empty() {
+        // Test with no slice infos (should return original shape)
+        let slices = [];
+        let original_shape = Shape::new([10, 20, 30]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([10, 20, 30]));
+    }
+
+    #[test]
+    fn test_shape_slice_output_shape_uneven_division() {
+        // Test cases where range size doesn't divide evenly by step
+        let slices = [
+            Slice::from_range_stepped(0..7, 3), // ceil(7/3) = 3 elements: [0,3,6]
+            Slice::from_range_stepped(0..11, 4), // ceil(11/4) = 3 elements: [0,4,8]
+            Slice::from_range_stepped(1..10, 5), // ceil(9/5) = 2 elements: [1,6]
+        ];
+        let original_shape = Shape::new([20, 20, 20]);
+        let result = original_shape.slice(&slices).unwrap();
+        assert_eq!(result, Shape::new([3, 3, 2]));
     }
 }

@@ -13,7 +13,6 @@ use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps};
 use burn_tensor::{
     Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
-    calculate_slice_output_shape,
 };
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -78,9 +77,8 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
 
-        let shape = calculate_slice_output_shape(slices, &tensor.shape.dims);
-
-        let out = client.register_empty_tensor(Shape::from(shape), dtype);
+        let shape = tensor.shape.clone().slice(slices).unwrap();
+        let out = client.register_empty_tensor(shape, dtype);
 
         let desc = SliceOpIr {
             tensor: tensor.into_ir(),
