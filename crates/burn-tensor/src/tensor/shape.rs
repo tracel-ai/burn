@@ -184,6 +184,11 @@ impl Shape {
         self.dims.remove(index)
     }
 
+    /// Extend the shape with the content of another shape or iterator.
+    pub fn extend(&mut self, iter: impl IntoIterator<Item = usize>) {
+        self.dims.extend(iter)
+    }
+
     /// Swap two dimensions in the shape.
     pub fn swap(mut self, dim1: usize, dim2: usize) -> Result<Self, ShapeError> {
         if dim1 > self.rank() {
@@ -326,6 +331,37 @@ impl Shape {
         }
 
         Ok(broadcasted)
+    }
+
+    /// Compute the output shape for matrix multiplication with broadcasting support.
+    ///
+    /// The last two dimensions are treated as matrices, while preceding dimensions
+    /// follow broadcast semantics similar to elementwise operations.
+    pub fn matmul(lhs: &Self, rhs: &Self) -> Result<Self, ShapeError> {
+        let rank = lhs.rank();
+        if rank != rhs.rank() {
+            return Err(ShapeError::RankMismatch {
+                left: rank,
+                right: rhs.rank(),
+            });
+        }
+
+        if lhs[rank - 1] != rhs[rank - 2] {
+            return Err(ShapeError::IncompatibleShapes {
+                left: lhs.clone(),
+                right: rhs.clone(),
+            });
+        }
+
+        let mut shape = if rank > 2 {
+            // Broadcast leading dims
+            Shape::from(&lhs[..rank - 2]).broadcast(&Shape::from(&rhs[..rank - 2]))?
+        } else {
+            Shape::new([])
+        };
+        shape.extend([lhs[rank - 2], rhs[rank - 1]]);
+
+        Ok(shape)
     }
 }
 
@@ -719,6 +755,59 @@ mod tests {
     fn test_shape_broadcast_many_empty() {
         let out = Shape::broadcast_many(&[]);
         assert_eq!(out, Err(ShapeError::Empty));
+    }
+
+    #[test]
+    fn test_shape_matmul_2d() {
+        let lhs = Shape::new([2, 4]);
+        let rhs = Shape::new([4, 2]);
+        let out = Shape::matmul(&lhs, &rhs).unwrap();
+        assert_eq!(out, Shape::new([2, 2]));
+    }
+
+    #[test]
+    fn test_shape_matmul_4d_broadcasted() {
+        let lhs = Shape::new([1, 3, 2, 4]);
+        let rhs = Shape::new([2, 1, 4, 2]);
+        let out = Shape::matmul(&lhs, &rhs).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 2, 2]));
+    }
+
+    #[test]
+    fn test_shape_matmul_invalid_rank() {
+        let lhs = Shape::new([3, 2, 4]);
+        let rhs = Shape::new([2, 1, 4, 2]);
+        let out = Shape::matmul(&lhs, &rhs);
+        assert_eq!(out, Err(ShapeError::RankMismatch { left: 3, right: 4 }));
+    }
+
+    #[test]
+    fn test_shape_matmul_invalid_shape() {
+        let lhs = Shape::new([1, 3, 2, 4]);
+        let rhs = Shape::new([2, 1, 3, 2]);
+        let out = Shape::matmul(&lhs, &rhs);
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleShapes {
+                left: lhs,
+                right: rhs
+            })
+        );
+    }
+
+    #[test]
+    fn test_shape_matmul_invalid_broadcast() {
+        let lhs = Shape::new([1, 3, 2, 4]);
+        let rhs = Shape::new([2, 2, 4, 2]);
+        let out = Shape::matmul(&lhs, &rhs);
+        assert_eq!(
+            out,
+            Err(ShapeError::IncompatibleDims {
+                left: 3,
+                right: 2,
+                dim: 1
+            })
+        );
     }
 
     #[test]

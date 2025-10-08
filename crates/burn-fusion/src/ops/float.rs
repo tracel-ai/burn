@@ -550,11 +550,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         streams.tensor(&lhs);
         streams.tensor(&rhs);
         let dtype = lhs.dtype;
-        let mut shape = lhs.shape.broadcast(&rhs.shape).unwrap();
-        let ndims = lhs.shape.num_dims();
-
-        shape[ndims - 2] = lhs.shape[ndims - 2];
-        shape[ndims - 1] = rhs.shape[ndims - 1];
+        let shape = Shape::matmul(&lhs.shape, &rhs.shape).unwrap();
 
         let out = lhs.client.tensor_uninitialized(shape, dtype);
         let desc = BinaryOpIr {

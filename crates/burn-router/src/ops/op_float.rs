@@ -359,12 +359,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-
-        let mut shape = lhs.shape.broadcast(&rhs.shape).unwrap();
-        let ndims = lhs.shape.num_dims();
-
-        shape[ndims - 2] = lhs.shape[ndims - 2];
-        shape[ndims - 1] = rhs.shape[ndims - 1];
+        let shape = Shape::matmul(&lhs.shape, &rhs.shape).unwrap();
         let out = client.register_empty_tensor(shape, dtype);
 
         let desc = BinaryOpIr {
