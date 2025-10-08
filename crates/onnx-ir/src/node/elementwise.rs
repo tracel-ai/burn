@@ -13,7 +13,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         (7, None) // Most element-wise ops use opset 7+ for broadcasting
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         same_as_input_broadcast(node);
     }
 }
@@ -27,7 +27,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         (6, None) // Unary ops generally stable from opset 6+
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::util::same_as_input(node);
     }
 }
@@ -77,7 +77,7 @@ mod tests {
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.infer_outputs(&mut node, &ctx);
+        processor.process(&mut node, &ctx);
 
         // Output should be rank 2
         match &node.outputs[0].ty {
@@ -114,7 +114,7 @@ mod tests {
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.infer_outputs(&mut node, &ctx);
+        processor.process(&mut node, &ctx);
 
         // Output should match input
         match &node.outputs[0].ty {

@@ -52,7 +52,7 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// * `node` - The node to process (mutable to update outputs)
     /// * `context` - Processing context with opset version and other metadata
-    fn infer_outputs(&self, node: &mut Node, context: &ProcessorContext);
+    fn process(&self, node: &mut Node, context: &ProcessorContext);
 }
 
 /// Registry for node processors.
@@ -614,7 +614,7 @@ impl ProcessorRegistry {
 struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         // Default: preserve input type
         crate::util::same_as_input(node);
     }
@@ -632,7 +632,7 @@ mod tests {
             (13, Some(18))
         }
 
-        fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        fn process(&self, node: &mut Node, _context: &ProcessorContext) {
             // Simple test: copy input type to output
             if !node.inputs.is_empty() && !node.outputs.is_empty() {
                 node.outputs[0].ty = node.inputs[0].ty.clone();
@@ -680,7 +680,7 @@ mod tests {
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.infer_outputs(&mut node, &ctx);
+        processor.process(&mut node, &ctx);
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -736,7 +736,7 @@ mod tests {
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.infer_outputs(&mut node, &ctx);
+        processor.process(&mut node, &ctx);
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {

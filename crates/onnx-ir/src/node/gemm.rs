@@ -61,7 +61,7 @@ impl NodeProcessor for GemmProcessor {
         (6, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::node::gemm::gemm_output_shape(node);
     }
 }

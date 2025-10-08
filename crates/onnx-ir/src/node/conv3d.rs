@@ -131,7 +131,7 @@ impl NodeProcessor for Conv3dProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         same_as_input(node);
     }
 }

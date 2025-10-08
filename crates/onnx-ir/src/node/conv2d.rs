@@ -121,7 +121,7 @@ impl NodeProcessor for Conv2dProcessor {
         (1, None) // Conv2d supported from opset 1+
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         // Conv2d preserves rank (same as input)
         same_as_input(node);
     }

@@ -42,7 +42,7 @@ impl NodeProcessor for LogSoftmaxProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::util::same_as_input(node);
     }
 }

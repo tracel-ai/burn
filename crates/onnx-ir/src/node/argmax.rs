@@ -62,52 +62,6 @@ pub fn argmax_config(node: &Node) -> ArgMaxConfig {
     ArgMaxConfig::new(axis as usize, keepdims)
 }
 
-/// Update output rank for ArgMax based on keepdims parameter.
-pub fn argmax_update_outputs(node: &mut Node) {
-    log::debug!("ArgMax rank inference for node {}", node.name);
-
-    if node.inputs.len() != 1 {
-        panic!("ArgMax: multiple inputs are not supported");
-    }
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
-
-    // Get config to determine output rank
-    let config = argmax_config(node);
-
-    // For burn compatibility, argmax always outputs a tensor
-    // When keepdims=false, we still output a tensor but with adjusted rank
-    if config.keepdims {
-        // keepdims=true: output rank same as input rank (dimension becomes 1)
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            rank: tensor.rank,
-            static_shape: None,
-        });
-    } else if tensor.rank == 1 {
-        // keepdims=false on 1D tensor: output is scalar
-        node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
-    } else {
-        // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: ElementType::Int64,
-            rank: tensor.rank - 1,
-            static_shape: None,
-        });
-    }
-
-    log::debug!(
-        "ArgMax output for {} (keepdims={}): {:?}",
-        node.name,
-        config.keepdims,
-        node.outputs[0].ty
-    );
-}
-
 pub struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
@@ -115,7 +69,7 @@ impl NodeProcessor for ArgMaxProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("ArgMax rank inference for node {}", node.name);
 
         if node.inputs.len() != 1 {
@@ -246,10 +200,12 @@ mod tests {
             .attr_int("axis", 1)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 2, None) // 2D input
-            .output_tensor_i64("output", 2, None) // Will be updated by argmax_update_outputs
+            .output_tensor_i64("output", 2, None) // Will be updated by processor
             .build();
 
-        argmax_update_outputs(&mut node);
+        let processor = ArgMaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
         match &node.outputs[0].ty {
@@ -268,10 +224,12 @@ mod tests {
             .attr_int("axis", 0)
             .attr_int("keepdims", 1)
             .input_tensor_f32("data", 3, None) // 3D input
-            .output_tensor_i64("output", 3, None) // Will be updated by argmax_update_outputs
+            .output_tensor_i64("output", 3, None) // Will be updated by processor
             .build();
 
-        argmax_update_outputs(&mut node);
+        let processor = ArgMaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // Should output tensor with same rank as input (3)
         match &node.outputs[0].ty {
@@ -290,10 +248,12 @@ mod tests {
             .attr_int("axis", 0)
             .attr_int("keepdims", 0)
             .input_tensor_f32("data", 1, None) // 1D input
-            .output_tensor_i64("output", 1, None) // Will be updated by argmax_update_outputs
+            .output_tensor_i64("output", 1, None) // Will be updated by processor
             .build();
 
-        argmax_update_outputs(&mut node);
+        let processor = ArgMaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {

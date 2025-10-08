@@ -4,120 +4,6 @@ use crate::{
     ir::{ArgType, Data, Node, TensorType},
 };
 
-/// Updates the output rank and shape for the Expand operation based on the provided shape input.
-/// If the shape is a constant, the rank and static shape of the output are set accordingly.
-/// If the shape is dynamic, the rank is inferred from the static shape of the shape input.
-pub fn expand_update_outputs(node: &mut Node) {
-    log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
-    if node.inputs.len() >= 2 {
-        log::debug!(
-            "Expand node {} input[0]: {:?}",
-            node.name,
-            node.inputs[0].ty
-        );
-        log::debug!(
-            "Expand node {} input[1]: {:?}",
-            node.name,
-            node.inputs[1].ty
-        );
-    }
-
-    let shape = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(shape) => Some(shape.clone()),
-                _ => panic!("Expand operation encountered invalid input types"),
-            },
-            None => None,
-        }
-    } else {
-        panic!("Expand operation requires exactly two inputs");
-    };
-
-    // Get input element type - Expand should preserve the input's element type
-    let input_elem_type = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
-        _ => panic!("Expand operation requires first input to be a tensor"),
-    };
-
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Expand operation encountered invalid output types"),
-    };
-
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: input_elem_type.clone(),
-            rank: shape.len(),
-            static_shape: Some(shape.into_iter().map(|dim| dim as usize).collect()),
-        });
-    } else {
-        // When the shape cannot be determined statically (i.e., the second argument 'shape' is passed dynamically),
-        // infer the rank from the shape input.
-        let output_rank = match &node.inputs[1].ty {
-            ArgType::Shape(rank) => {
-                // Shape type directly gives us the output rank
-                *rank
-            }
-            ArgType::Tensor(tensor) => {
-                // For tensor inputs representing shapes, the rank should be 1
-                // and the output rank is determined by the number of elements
-                if tensor.rank == 1 {
-                    // If we have a static shape, use it to get the exact output rank
-                    if let Some(static_shape) = &tensor.static_shape {
-                        static_shape
-                            .first()
-                            .copied()
-                            .expect("Static shape must contain at least one element")
-                    } else {
-                        // For dynamic rank-1 tensors without static shape, we need to make an assumption
-                        // or get the information from elsewhere.
-                        // Check if we have a value that can tell us the rank
-                        if let Some(value) = &node.inputs[1].value {
-                            if let Data::Int64s(shape_data) = &value.data {
-                                // We have the actual shape values, so the output rank is the number of elements
-                                shape_data.len()
-                            } else {
-                                panic!(
-                                    "Expand shape tensor has unexpected data type: {:?}",
-                                    value.data
-                                )
-                            }
-                        } else {
-                            // No static shape and no value - this is truly dynamic
-                            // We need to look at the output type if it's been set
-                            log::warn!(
-                                "Expand node {} has dynamic shape tensor without static shape info. Using output rank if available.",
-                                node.name
-                            );
-                            // Use the current output rank if it's already a tensor
-                            match &output {
-                                TensorType { rank, .. } if *rank > 0 => *rank,
-                                _ => panic!(
-                                    "Cannot determine output rank for Expand node {} with fully dynamic shape tensor. Please provide static shape or use Shape type.",
-                                    node.name
-                                ),
-                            }
-                        }
-                    }
-                } else {
-                    panic!(
-                        "Shape tensor for Expand must be 1-dimensional, got rank {}",
-                        tensor.rank
-                    )
-                }
-            }
-            _ => panic!("Shape input must be of tensor or shape type"),
-        };
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: input_elem_type,
-            rank: output_rank,
-            static_shape: None, // The exact shape cannot be determined statically
-        });
-    }
-}
-
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
 pub enum ExpandShape {
@@ -169,7 +55,7 @@ impl NodeProcessor for ExpandProcessor {
         (8, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
         if node.inputs.len() >= 2 {
             log::debug!(
@@ -313,7 +199,9 @@ mod tests {
     fn test_expand_with_constant_shape() {
         let mut node = create_test_node(2, Some(vec![2, 3, 4]), None);
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -329,7 +217,9 @@ mod tests {
     fn test_expand_with_dynamic_shape() {
         let mut node = create_test_node(2, None, None);
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -347,7 +237,9 @@ mod tests {
         let mut node = create_test_node(2, Some(vec![2, 3, 4]), None);
         node.inputs.pop(); // Remove one input
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     // Tests for expand_config function
@@ -456,7 +348,9 @@ mod tests {
         // Test Expand with Shape type as shape input
         let mut node = create_test_node(2, None, Some(ArgType::Shape(4)));
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -479,7 +373,9 @@ mod tests {
             data: Data::Int64s(vec![5, 10, 15]),
         });
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -510,7 +406,9 @@ mod tests {
                 static_shape: None,
             });
 
-            expand_update_outputs(&mut node);
+            let processor = ExpandProcessor;
+            let context = ProcessorContext::new(16);
+            processor.process(&mut node, &context);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -540,7 +438,9 @@ mod tests {
                 static_shape: None,
             });
 
-            expand_update_outputs(&mut node);
+            let processor = ExpandProcessor;
+            let context = ProcessorContext::new(16);
+            processor.process(&mut node, &context);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -570,7 +470,9 @@ mod tests {
                 static_shape: None,
             });
 
-            expand_update_outputs(&mut node);
+            let processor = ExpandProcessor;
+            let context = ProcessorContext::new(16);
+            processor.process(&mut node, &context);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -596,7 +498,9 @@ mod tests {
             .output_tensor_f32("output", 0, None) // Output incorrectly set to Float32
             .build();
 
-        expand_update_outputs(&mut node);
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

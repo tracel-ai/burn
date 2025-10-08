@@ -1,54 +1,6 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, TensorType, ir::Node};
 
-/// Update output type for DepthToSpace operation (rank 4).
-pub fn depth_to_space_update_outputs(node: &mut Node) {
-    log::debug!("DepthToSpace rank inference for node {}", &node.name);
-
-    // Extract the input tensor type to determine rank and shape
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("DepthToSpace: only tensor input is valid"),
-    };
-    assert_eq!(
-        tensor.rank, 4,
-        "DepthToSpace: only rank 4 tensors are supported"
-    );
-
-    // Get the block size from attribute
-    let block_size = node
-        .attrs
-        .get("blocksize")
-        .cloned()
-        .expect("DepthToSpace: blocksize attribute not found")
-        .into_i64() as usize;
-
-    log::debug!(
-        "DepthToSpace blocksize from attribute for {}: {:?}",
-        &node.name,
-        block_size
-    );
-
-    // Infer static shape based on rank and block size
-    let static_shape = tensor.static_shape.clone().map(|shape| {
-        let [b, c, h, w] = shape
-            .try_into()
-            .expect("DepthToSpace: input tensor rank is not 4");
-        vec![
-            b,
-            c / (block_size * block_size),
-            h * block_size,
-            w * block_size,
-        ]
-    });
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: tensor.rank,
-        static_shape,
-    });
-}
-
 /// Mode for DepthToSpace operation
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DepthToSpaceMode {
@@ -109,8 +61,51 @@ impl NodeProcessor for DepthToSpaceProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::depth_to_space::depth_to_space_update_outputs(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("DepthToSpace rank inference for node {}", &node.name);
+
+        // Extract the input tensor type to determine rank and shape
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("DepthToSpace: only tensor input is valid"),
+        };
+        assert_eq!(
+            tensor.rank, 4,
+            "DepthToSpace: only rank 4 tensors are supported"
+        );
+
+        // Get the block size from attribute
+        let block_size = node
+            .attrs
+            .get("blocksize")
+            .cloned()
+            .expect("DepthToSpace: blocksize attribute not found")
+            .into_i64() as usize;
+
+        log::debug!(
+            "DepthToSpace blocksize from attribute for {}: {:?}",
+            &node.name,
+            block_size
+        );
+
+        // Infer static shape based on rank and block size
+        let static_shape = tensor.static_shape.clone().map(|shape| {
+            let [b, c, h, w] = shape
+                .try_into()
+                .expect("DepthToSpace: input tensor rank is not 4");
+            vec![
+                b,
+                c / (block_size * block_size),
+                h * block_size,
+                w * block_size,
+            ]
+        });
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape,
+        });
     }
 }
 
@@ -171,7 +166,9 @@ mod tests {
     #[test]
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
-        depth_to_space_update_outputs(&mut node);
+        let processor = DepthToSpaceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

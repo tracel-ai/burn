@@ -51,7 +51,7 @@ impl NodeProcessor for InstanceNormProcessor {
         (6, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         same_as_input(node);
     }
 }

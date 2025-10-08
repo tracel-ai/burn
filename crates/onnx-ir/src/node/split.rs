@@ -1,31 +1,6 @@
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
 
-/// Update output rank for Split (same as input).
-pub fn split_update_outputs(node: &mut Node) {
-    log::debug!("Split rank inference for node {}", node.name);
-
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Split: Input must be a tensor"),
-    };
-    log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
-    log::debug!(
-        "Split will generate {} outputs for {}",
-        node.outputs.len(),
-        node.name
-    );
-
-    for (i, output_arg) in node.outputs.iter_mut().enumerate() {
-        output_arg.ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: tensor.rank,
-            static_shape: None,
-        });
-        log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
-    }
-}
-
 /// Configuration for the Split operation.
 #[derive(Clone, Debug)]
 pub struct SplitConfig {
@@ -162,7 +137,7 @@ impl NodeProcessor for SplitProcessor {
         (2, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Split rank inference for node {}", node.name);
 
         let tensor = match &node.inputs[0].ty {
@@ -235,7 +210,10 @@ mod tests {
     #[test]
     fn test_split_single_output() {
         let mut node = create_test_node(3, 1, None, None, None);
-        split_update_outputs(&mut node);
+
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         assert_eq!(node.outputs.len(), 1);
         match &node.outputs[0].ty {
@@ -250,7 +228,10 @@ mod tests {
     #[test]
     fn test_split_multiple_outputs() {
         let mut node = create_test_node(4, 3, None, None, None);
-        split_update_outputs(&mut node);
+
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         assert_eq!(node.outputs.len(), 3);
         for output in &node.outputs {
@@ -269,7 +250,10 @@ mod tests {
     fn test_split_invalid_input() {
         let mut node = create_test_node(3, 2, None, None, None);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        split_update_outputs(&mut node);
+
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     // Tests for split_config function

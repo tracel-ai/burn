@@ -3,43 +3,6 @@ use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-/// Update output rank for Bernoulli operation.
-pub fn bernoulli_update_output(node: &mut Node) {
-    log::debug!("Bernoulli rank inference for node {}", node.name);
-
-    // Get the tensor type and its rank
-    let tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Bernoulli: only tensor input is valid"),
-    };
-    let rank = tensor.rank;
-    let static_shape = tensor.static_shape.clone();
-
-    // Infer elem type based on the dtype of the input tensor
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap());
-
-    log::debug!("Bernoulli: dtype for {}: {:?}", node.name, dtype);
-
-    let elem_type = dtype.map_or(tensor.elem_type, |dtype| match dtype {
-        DataType::FLOAT => ElementType::Float32,
-        DataType::INT32 => ElementType::Int32,
-        DataType::INT64 => ElementType::Int64,
-        DataType::DOUBLE => ElementType::Float64,
-        DataType::BOOL => ElementType::Bool,
-        _ => panic!("Bernoulli: tensor with type {dtype:?} not supported for random output"),
-    });
-    log::debug!("Bernoulli: elem type for {}: {:?}", node.name, elem_type);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type,
-        rank,
-        static_shape,
-    });
-}
-
 pub struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
@@ -47,8 +10,40 @@ impl NodeProcessor for BernoulliProcessor {
         (15, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::bernoulli::bernoulli_update_output(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("Bernoulli rank inference for node {}", node.name);
+
+        // Get the tensor type and its rank
+        let tensor = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Bernoulli: only tensor input is valid"),
+        };
+        let rank = tensor.rank;
+        let static_shape = tensor.static_shape.clone();
+
+        // Infer elem type based on the dtype of the input tensor
+        let dtype = node
+            .attrs
+            .get("dtype")
+            .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap());
+
+        log::debug!("Bernoulli: dtype for {}: {:?}", node.name, dtype);
+
+        let elem_type = dtype.map_or(tensor.elem_type, |dtype| match dtype {
+            DataType::FLOAT => ElementType::Float32,
+            DataType::INT32 => ElementType::Int32,
+            DataType::INT64 => ElementType::Int64,
+            DataType::DOUBLE => ElementType::Float64,
+            DataType::BOOL => ElementType::Bool,
+            _ => panic!("Bernoulli: tensor with type {dtype:?} not supported for random output"),
+        });
+        log::debug!("Bernoulli: elem type for {}: {:?}", node.name, elem_type);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type,
+            rank,
+            static_shape,
+        });
     }
 }
 
@@ -74,7 +69,9 @@ mod tests {
     #[test]
     fn test_bernoulli_int() {
         let mut node = create_test_node(Some(DataType::INT32.value()), Some(vec![3, 4, 2]));
-        bernoulli_update_output(&mut node);
+        let processor = BernoulliProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -89,7 +86,9 @@ mod tests {
     #[test]
     fn test_bernoulli_no_cast() {
         let mut node = create_test_node(None, Some(vec![3, 4, 2]));
-        bernoulli_update_output(&mut node);
+        let processor = BernoulliProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -103,7 +102,9 @@ mod tests {
     #[test]
     fn test_bernoulli_no_static_shape() {
         let mut node = create_test_node(None, None);
-        bernoulli_update_output(&mut node);
+        let processor = BernoulliProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -119,6 +120,8 @@ mod tests {
     fn test_bernoulli_invalid_input() {
         let mut node = create_test_node(Some(DataType::FLOAT.value()), None);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        bernoulli_update_output(&mut node);
+        let processor = BernoulliProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 }

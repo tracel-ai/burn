@@ -33,7 +33,7 @@ impl NodeProcessor for ModuloProcessor {
         (10, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::util::same_as_input_broadcast(node);
     }
 }

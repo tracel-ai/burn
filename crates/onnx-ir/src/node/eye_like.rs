@@ -36,29 +36,6 @@ pub fn eye_like_config(node: &Node) -> EyeLikeConfig {
     EyeLikeConfig { dtype, k }
 }
 
-/// Update output for EyeLike - output has same shape as input, but may have different dtype
-pub fn eye_like_update_output(node: &mut Node) {
-    log::debug!("EyeLike rank inference for node {}", node.name);
-
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
-
-            let config = eye_like_config(node);
-            // Output type is either specified dtype or input type
-            let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: output_type,
-                rank: tensor.rank,
-                static_shape: tensor.static_shape.clone(),
-            });
-            log::debug!("EyeLike output tensor rank: {}", tensor.rank);
-        }
-        _ => panic!("EyeLike operation requires 2D tensor input"),
-    }
-}
-
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
@@ -66,8 +43,26 @@ impl NodeProcessor for EyeLikeProcessor {
         (9, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::eye_like::eye_like_update_output(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("EyeLike rank inference for node {}", node.name);
+
+        match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
+
+                let config = eye_like_config(node);
+                // Output type is either specified dtype or input type
+                let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: output_type,
+                    rank: tensor.rank,
+                    static_shape: tensor.static_shape.clone(),
+                });
+                log::debug!("EyeLike output tensor rank: {}", tensor.rank);
+            }
+            _ => panic!("EyeLike operation requires 2D tensor input"),
+        }
     }
 }
 
@@ -86,7 +81,9 @@ mod tests {
             .output_tensor_f32("output", 2, None) // rank will be updated
             .build();
 
-        eye_like_update_output(&mut node);
+        let processor = EyeLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -132,7 +129,9 @@ mod tests {
             .attr_int("dtype", DataType::INT32.value() as i64)
             .build();
 
-        eye_like_update_output(&mut node);
+        let processor = EyeLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

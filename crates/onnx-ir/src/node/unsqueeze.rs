@@ -11,111 +11,6 @@ use crate::{
     ir::{ArgType, Data, Node, TensorType},
 };
 
-/// Update output rank for Unsqueeze based on axes.
-/// Update the output tensor dimension based on the "axes" attribute or the second input
-pub fn unsqueeze_update_output(node: &mut Node) {
-    log::debug!("Unsqueeze rank inference for node {}", node.name);
-
-    let axes = if node.inputs.len() == 2 {
-        match &node.inputs[1].value {
-            Some(value) => match &value.data {
-                Data::Int64s(a) => Some(a.clone()),
-                _ => panic!("Unsqueeze: invalid input types"),
-            },
-            None => None,
-        }
-    } else {
-        node.attrs.get("axes").cloned().map(|v| {
-            let axes = v.into_i64s();
-            log::debug!(
-                "Unsqueeze axes from attribute for {}: {:?}",
-                node.name,
-                axes
-            );
-            axes
-        })
-    };
-
-    let input_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        ArgType::Scalar(_) => {
-            0 // treat scalar as 0-dim tensor
-        }
-        _ => panic!("Unsqueeze: invalid input type"),
-    };
-
-    let output_rank = if let Some(axes) = axes {
-        input_rank + axes.len()
-    } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
-        if let Some(static_shape) = &tensor.static_shape {
-            input_rank + *static_shape.first().expect("Empty shape")
-        } else {
-            panic!("Unsqueeze: should have static shape")
-        }
-    } else {
-        panic!("Unsqueeze: missing axes information")
-    };
-
-    // Determine the output type based on input type and output rank.
-    //
-    // Special case: Int scalar -> Shape[1] conversion
-    // ================================================
-    // When an Int scalar is unsqueezed to rank 1, we produce a Shape type instead of a Tensor.
-    // This is the reverse operation of squeeze(Shape[1]) -> Scalar.
-    //
-    // Why this optimization matters:
-    // 1. Performance: Many reshape operations in ONNX models follow this pattern where shape
-    //    information flows through squeeze/unsqueeze operations. Keeping them as Shape types
-    //    avoids unnecessary tensor allocations.
-    //
-    // 2. Memory efficiency: Both scalars and Shape types are stored on CPU, so this conversion
-    //    is essentially free - no device transfers are needed.
-    //
-    // 3. Type consistency: This maintains type symmetry with the squeeze operation, allowing
-    //    shape information to flow naturally through the graph.
-    //
-    // 4. Flexibility: If a downstream operation requires a GPU tensor, the Shape can be
-    //    converted to a Tensor at that point. This lazy conversion strategy ensures we only
-    //    pay the cost when necessary.
-    //
-    // This optimization is particularly important for dynamic shape scenarios where reshape
-    // operations compute their output shapes at runtime using these squeeze/unsqueeze patterns.
-    match &node.inputs[0].ty {
-        ArgType::Scalar(elem_type) if output_rank == 1 => {
-            match elem_type {
-                crate::ir::ElementType::Int32 | crate::ir::ElementType::Int64 => {
-                    // Unsqueeze Int scalar to Shape[1] (reverse of squeeze operation)
-                    node.outputs[0].ty = ArgType::Shape(1);
-                }
-                _ => {
-                    // Other scalar types unsqueeze to tensor
-                    node.outputs[0].ty = ArgType::Tensor(TensorType {
-                        rank: output_rank,
-                        static_shape: None,
-                        elem_type: elem_type.clone(),
-                    });
-                }
-            }
-        }
-        _ => {
-            // Regular tensor or scalar to tensor conversion
-            let output_elem = match &node.outputs[0].ty {
-                ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
-                ArgType::Scalar(elem_type) => elem_type.clone(),
-                ArgType::Shape(_) => crate::ir::ElementType::Int64, // Shape elements are always i64
-            };
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                rank: output_rank,
-                static_shape: None, // shape is tracked and calculated at runtime
-                elem_type: output_elem,
-            });
-        }
-    }
-
-    log::debug!("Unsqueeze output rank for {}: {}", node.name, output_rank);
-}
-
 /// Axes specification for the Unsqueeze operation.
 #[derive(Debug, Clone)]
 pub enum UnsqueezeConfig {
@@ -168,8 +63,107 @@ impl NodeProcessor for UnsqueezeProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::unsqueeze::unsqueeze_update_output(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("Unsqueeze rank inference for node {}", node.name);
+
+        let axes = if node.inputs.len() == 2 {
+            match &node.inputs[1].value {
+                Some(value) => match &value.data {
+                    Data::Int64s(a) => Some(a.clone()),
+                    _ => panic!("Unsqueeze: invalid input types"),
+                },
+                None => None,
+            }
+        } else {
+            node.attrs.get("axes").cloned().map(|v| {
+                let axes = v.into_i64s();
+                log::debug!(
+                    "Unsqueeze axes from attribute for {}: {:?}",
+                    node.name,
+                    axes
+                );
+                axes
+            })
+        };
+
+        let input_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            ArgType::Scalar(_) => {
+                0 // treat scalar as 0-dim tensor
+            }
+            _ => panic!("Unsqueeze: invalid input type"),
+        };
+
+        let output_rank = if let Some(axes) = axes {
+            input_rank + axes.len()
+        } else if let ArgType::Tensor(tensor) = &node.inputs[1].ty {
+            if let Some(static_shape) = &tensor.static_shape {
+                input_rank + *static_shape.first().expect("Empty shape")
+            } else {
+                panic!("Unsqueeze: should have static shape")
+            }
+        } else {
+            panic!("Unsqueeze: missing axes information")
+        };
+
+        // Determine the output type based on input type and output rank.
+        //
+        // Special case: Int scalar -> Shape[1] conversion
+        // ================================================
+        // When an Int scalar is unsqueezed to rank 1, we produce a Shape type instead of a Tensor.
+        // This is the reverse operation of squeeze(Shape[1]) -> Scalar.
+        //
+        // Why this optimization matters:
+        // 1. Performance: Many reshape operations in ONNX models follow this pattern where shape
+        //    information flows through squeeze/unsqueeze operations. Keeping them as Shape types
+        //    avoids unnecessary tensor allocations.
+        //
+        // 2. Memory efficiency: Both scalars and Shape types are stored on CPU, so this conversion
+        //    is essentially free - no device transfers are needed.
+        //
+        // 3. Type consistency: This maintains type symmetry with the squeeze operation, allowing
+        //    shape information to flow naturally through the graph.
+        //
+        // 4. Flexibility: If a downstream operation requires a GPU tensor, the Shape can be
+        //    converted to a Tensor at that point. This lazy conversion strategy ensures we only
+        //    pay the cost when necessary.
+        //
+        // This optimization is particularly important for dynamic shape scenarios where reshape
+        // operations compute their output shapes at runtime using these squeeze/unsqueeze patterns.
+        match &node.inputs[0].ty {
+            ArgType::Scalar(elem_type) if output_rank == 1 => {
+                match elem_type {
+                    crate::ir::ElementType::Int32 | crate::ir::ElementType::Int64 => {
+                        // Unsqueeze Int scalar to Shape[1] (reverse of squeeze operation)
+                        node.outputs[0].ty = ArgType::Shape(1);
+                    }
+                    _ => {
+                        // Other scalar types unsqueeze to tensor
+                        node.outputs[0].ty = ArgType::Tensor(TensorType {
+                            rank: output_rank,
+                            static_shape: None,
+                            elem_type: elem_type.clone(),
+                        });
+                    }
+                }
+            }
+            _ => {
+                // Regular tensor or scalar to tensor conversion
+                let output_elem = match &node.outputs[0].ty {
+                    ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
+                    ArgType::Scalar(elem_type) => elem_type.clone(),
+                    ArgType::Shape(_) => crate::ir::ElementType::Int64, // Shape elements are always i64
+                };
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    rank: output_rank,
+                    static_shape: None, // shape is tracked and calculated at runtime
+                    elem_type: output_elem,
+                });
+            }
+        }
+
+        log::debug!("Unsqueeze output rank for {}: {}", node.name, output_rank);
     }
 }
 
@@ -221,7 +215,9 @@ mod tests {
     #[test]
     fn test_unsqueeze_with_attr() {
         let mut node = create_test_node_with_attr(2, vec![0, 3]);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -235,7 +231,9 @@ mod tests {
     #[test]
     fn test_unsqueeze_with_input() {
         let mut node = create_test_node_with_input(3, vec![1, 2, 4], true);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -250,7 +248,9 @@ mod tests {
     fn test_unsqueeze_scalar_float() {
         let mut node = create_test_node_with_attr(0, vec![0]);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -265,7 +265,9 @@ mod tests {
     fn test_unsqueeze_scalar_int_to_shape() {
         let mut node = create_test_node_with_attr(0, vec![0]);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -279,7 +281,9 @@ mod tests {
     fn test_unsqueeze_scalar_int32_to_shape() {
         let mut node = create_test_node_with_attr(0, vec![0]);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -294,7 +298,9 @@ mod tests {
         // Test that Int scalar with multiple axes produces a tensor, not shape
         let mut node = create_test_node_with_attr(0, vec![0, 1]);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -310,7 +316,9 @@ mod tests {
     fn test_unsqueeze_invalid_input() {
         let mut node = create_test_node_with_attr(2, vec![0]);
         node.inputs[0].ty = ArgType::Shape(1);
-        unsqueeze_update_output(&mut node);
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     // Tests for unsqueeze_config function

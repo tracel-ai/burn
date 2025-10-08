@@ -4,115 +4,6 @@ use crate::{
     ir::{ArgType, Data, ElementType, Node, TensorType},
 };
 
-/// Updates the output rank for a ConstantOfShape node based on the rank of its input.
-pub fn constant_of_shape_update_output(node: &mut Node) {
-    log::debug!("ConstantOfShape rank inference for node {}", node.name);
-
-    let value_type = node
-        .attrs
-        .get("value")
-        .map(|v| v.clone().into_tensor().elem_type())
-        .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
-    log::debug!(
-        "ConstantOfShape value type for {}: {:?}",
-        node.name,
-        value_type
-    );
-
-    let rank = match &node.inputs[0].ty {
-        ArgType::Shape(rank) => {
-            log::debug!(
-                "ConstantOfShape input is Shape with rank {} for {}",
-                rank,
-                node.name
-            );
-            *rank
-        }
-        ArgType::Tensor(tensor_type) => {
-            log::debug!("ConstantOfShape input is Tensor for {}", node.name);
-
-            // First check if we have a lifted constant value (most reliable)
-            if let Some(tensor_data) = &node.inputs[0].value {
-                // We have the actual constant values that were lifted
-                log::debug!(
-                    "ConstantOfShape extracting rank from lifted constant value for {}",
-                    node.name
-                );
-
-                // The tensor data contains the shape values
-                // For a shape tensor, the length of the data is the output rank
-                match &tensor_data.data {
-                    crate::ir::Data::Int64s(vals) => {
-                        let r = vals.len();
-                        log::debug!(
-                            "ConstantOfShape derived rank from Int64s constant data: {} for {}",
-                            r,
-                            node.name
-                        );
-                        r
-                    }
-                    _ => panic!(
-                        "ConstantOfShape node {} requires Int64 shape input, found {:?}",
-                        node.name, tensor_data.data
-                    ),
-                }
-            } else if let Some(shape) = &tensor_type.static_shape {
-                // Fall back to static shape if no constant value
-                let r = shape
-                    .first()
-                    .copied()
-                    .expect("ConstantOfShape node must have a non-empty static shape value");
-                log::debug!(
-                    "ConstantOfShape derived rank from static shape: {} for {}",
-                    r,
-                    node.name
-                );
-                r
-            } else {
-                panic!(
-                    "ConstantOfShape node {} must have either a constant value or a static shape",
-                    node.name
-                );
-            }
-        }
-        _ => panic!("ConstantOfShape node requires a Tensor or Shape type as input"),
-    };
-
-    // Update the input type to be a shape
-    node.inputs[0].ty = ArgType::Shape(rank);
-    log::debug!(
-        "ConstantOfShape updated input to Shape({}) for {}",
-        rank,
-        node.name
-    );
-
-    // Optimization: When input is Shape(1) and value type is Int64,
-    // output Shape(1) directly instead of a tensor. This is a common pattern
-    // in ONNX models where ConstantOfShape is used to create shape arrays.
-    // Downstream operations can cast to tensor if needed.
-    // This optimization improves performance by keeping shape operations in the Shape domain.
-    if rank == 1 && value_type == ElementType::Int64 {
-        // Special optimization for Shape(1) with Int64 values
-        node.outputs[0].ty = ArgType::Shape(1);
-        log::debug!(
-            "ConstantOfShape optimization: Shape(1) -> Shape(1) with Int64 value for {}",
-            node.name
-        );
-    } else if rank == 0 {
-        // When rank is 0, output should be a scalar
-        node.outputs[0].ty = ArgType::Scalar(value_type);
-        log::debug!("ConstantOfShape output is Scalar for {}", node.name);
-    } else {
-        // General case: output is a tensor
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: value_type,
-            rank,
-            static_shape: None,
-        });
-        log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
-    }
-}
-
 /// Shape information for the ConstantOfShape operation.
 #[derive(Debug, Clone)]
 pub enum ConstantOfShapeShape {
@@ -167,7 +58,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         (9, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("ConstantOfShape rank inference for node {}", node.name);
 
         let value_type = node
@@ -292,8 +183,9 @@ mod tests {
     #[test]
     fn test_shape_input() {
         let mut node = create_test_node(ArgType::Shape(3));
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -311,8 +203,9 @@ mod tests {
             rank: 1,
             static_shape: Some(vec![4]),
         }));
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -333,8 +226,9 @@ mod tests {
                 data: Data::Int64s(vec![7]), // Int64 value
             }),
         );
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -349,7 +243,9 @@ mod tests {
     #[should_panic(expected = "ConstantOfShape node requires a Tensor or Shape type as input")]
     fn test_invalid_input_type() {
         let mut node = create_test_node(ArgType::Scalar(ElementType::Float32));
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     #[test]
@@ -373,7 +269,9 @@ mod tests {
             shape: vec![3],                    // 1D tensor with 3 elements
         });
 
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // Verify the output has the correct rank
         match &node.outputs[0].ty {
@@ -389,8 +287,9 @@ mod tests {
     fn test_scalar_output_with_shape_0() {
         // Test when input is Shape(0), output should be Scalar
         let mut node = create_test_node(ArgType::Shape(0));
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -408,8 +307,9 @@ mod tests {
             rank: 1,
             static_shape: Some(vec![0]), // Shape is [0], meaning rank-0 output
         }));
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -430,8 +330,9 @@ mod tests {
                 data: Data::Int64s(vec![42]), // Custom Int64 value
             }),
         );
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -452,8 +353,9 @@ mod tests {
                 data: Data::Int64s(vec![5]), // Int64 value
             }),
         );
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -474,8 +376,9 @@ mod tests {
                 data: Data::Float32s(vec![1.5]), // Float32 value
             }),
         );
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -491,8 +394,9 @@ mod tests {
         // Test that Shape(1) with default value (Float32) does NOT get optimized
         let mut node = create_test_node(ArgType::Shape(1));
         // No value attribute means default Float32
-
-        constant_of_shape_update_output(&mut node);
+        let processor = ConstantOfShapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

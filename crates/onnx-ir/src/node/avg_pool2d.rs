@@ -79,7 +79,7 @@ impl NodeProcessor for AvgPool2dProcessor {
         (7, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         same_as_input(node);
     }
 }

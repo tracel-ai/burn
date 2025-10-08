@@ -3,39 +3,6 @@ use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
-/// Update output rank for RandomLike operations based on input rank.
-pub fn random_like_update_output(node: &mut Node) {
-    log::debug!("RandomLike rank inference for node {}", node.name);
-
-    let dtype = node
-        .attrs
-        .get("dtype")
-        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
-        .unwrap_or(DataType::FLOAT);
-    log::debug!("RandomLike dtype for {}: {:?}", node.name, dtype);
-
-    let elem_type = match dtype {
-        DataType::FLOAT => ElementType::Float32,
-        DataType::FLOAT16 => ElementType::Float16,
-        DataType::DOUBLE => ElementType::Float64,
-        _ => panic!("Tensor with type {dtype:?} not supported for random output"),
-    };
-
-    if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
-        log::debug!("RandomLike input rank for {}: {}", node.name, tensor.rank);
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type,
-            rank: tensor.rank,
-            static_shape: tensor.static_shape.clone(),
-        });
-
-        log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
-    } else {
-        panic!("Only tensor input is valid");
-    }
-}
-
 pub struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
@@ -43,8 +10,36 @@ impl NodeProcessor for RandomLikeProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::random_like::random_like_update_output(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("RandomLike rank inference for node {}", node.name);
+
+        let dtype = node
+            .attrs
+            .get("dtype")
+            .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+            .unwrap_or(DataType::FLOAT);
+        log::debug!("RandomLike dtype for {}: {:?}", node.name, dtype);
+
+        let elem_type = match dtype {
+            DataType::FLOAT => ElementType::Float32,
+            DataType::FLOAT16 => ElementType::Float16,
+            DataType::DOUBLE => ElementType::Float64,
+            _ => panic!("Tensor with type {dtype:?} not supported for random output"),
+        };
+
+        if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
+            log::debug!("RandomLike input rank for {}: {}", node.name, tensor.rank);
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                rank: tensor.rank,
+                static_shape: tensor.static_shape.clone(),
+            });
+
+            log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
+        } else {
+            panic!("Only tensor input is valid");
+        }
     }
 }
 
@@ -66,7 +61,9 @@ mod tests {
     #[test]
     fn test_random_like_float() {
         let mut node = create_test_node(DataType::FLOAT.value(), 3, None);
-        random_like_update_output(&mut node);
+        let processor = RandomLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -80,7 +77,9 @@ mod tests {
     #[test]
     fn test_random_like_double() {
         let mut node = create_test_node(DataType::DOUBLE.value(), 2, Some(vec![5, 10]));
-        random_like_update_output(&mut node);
+        let processor = RandomLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -97,13 +96,17 @@ mod tests {
     fn test_random_like_invalid_input() {
         let mut node = create_test_node(DataType::FLOAT.value(), 2, None);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        random_like_update_output(&mut node);
+        let processor = RandomLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     #[test]
     #[should_panic(expected = "Tensor with type INT32 not supported for random output")]
     fn test_random_like_unsupported_type() {
         let mut node = create_test_node(DataType::INT32.value(), 2, None);
-        random_like_update_output(&mut node);
+        let processor = RandomLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 }

@@ -244,7 +244,7 @@ impl NodeProcessor for ReshapeProcessor {
         (5, None) // Reshape supported from opset 5+
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         // Extract input information
         let input_info = extract_input_info(&node.inputs[0]);
 

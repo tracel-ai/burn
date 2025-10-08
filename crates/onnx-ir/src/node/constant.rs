@@ -1,72 +1,6 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
 
-/// Update output type for constant nodes based on attribute values, focusing on rank only.
-pub fn constant_update_outputs(node: &mut Node) {
-    log::debug!("Constant rank inference for node {}", node.name);
-
-    let keys = [
-        "value",
-        "value_float",
-        "value_floats",
-        "value_int",
-        "value_ints",
-        "value_string",
-        "value_strings",
-        "sparse_value",
-    ];
-
-    let matched_value = keys.iter().find_map(|&key| node.attrs.get(key).cloned());
-    log::debug!("Constant found attribute: {}", matched_value.is_some());
-
-    node.outputs[0].ty = match matched_value {
-        Some(value) => match &value {
-            AttributeValue::Tensor(tensor) if tensor.shape.is_empty() => {
-                log::debug!("Constant as scalar for {}", node.name);
-                ArgType::Scalar(tensor.elem_type())
-            }
-            AttributeValue::Tensor(tensor) => {
-                log::debug!(
-                    "Constant tensor with rank {} for {}",
-                    tensor.shape.len(),
-                    node.name
-                );
-                ArgType::Tensor(TensorType {
-                    elem_type: tensor.elem_type(),
-                    rank: tensor.shape.len(),
-                    static_shape: Some(tensor.shape.clone()),
-                })
-            }
-            AttributeValue::Float32(_) => {
-                log::debug!("Constant Float32 scalar for {}", node.name);
-                ArgType::Scalar(ElementType::Float32)
-            }
-            AttributeValue::Float32s(values) => {
-                log::debug!("Constant Float32s tensor with rank 1 for {}", node.name);
-                ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Float32,
-                    rank: 1,
-                    static_shape: Some(vec![values.len()]),
-                })
-            }
-            AttributeValue::Int64(_) => {
-                log::debug!("Constant Int64 scalar for {}", node.name);
-                ArgType::Scalar(ElementType::Int64)
-            }
-            AttributeValue::Int64s(values) => {
-                log::debug!("Constant Int64s tensor with rank 1 for {}", node.name);
-                ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 1,
-                    static_shape: Some(vec![values.len()]),
-                })
-            }
-            ty => panic!("Constant value of {ty:?} is not supported"),
-        },
-        None => panic!("Constant node must have a value attribute"),
-    };
-}
-
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
@@ -74,7 +8,7 @@ impl NodeProcessor for ConstantProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Constant rank inference for node {}", node.name);
 
         let keys = [
@@ -158,7 +92,9 @@ mod tests {
         node.attrs
             .insert("value_float".to_string(), AttributeValue::Float32(6.14));
 
-        constant_update_outputs(&mut node);
+        let processor = ConstantProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -179,7 +115,9 @@ mod tests {
             }),
         );
 
-        constant_update_outputs(&mut node);
+        let processor = ConstantProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -194,6 +132,9 @@ mod tests {
     #[should_panic(expected = "Constant node must have a value attribute")]
     fn test_constant_missing_value() {
         let mut node = create_test_node();
-        constant_update_outputs(&mut node);
+
+        let processor = ConstantProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 }

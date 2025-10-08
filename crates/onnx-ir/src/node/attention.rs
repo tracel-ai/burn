@@ -118,40 +118,6 @@ pub fn attention_config(node: &Node) -> AttentionConfig {
     )
 }
 
-pub fn attention_update_output(node: &mut Node) {
-    let q = extract_tensor(node.inputs.first(), "Q").unwrap();
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
-        rank: q.rank,
-        static_shape: None,
-    });
-
-    if let Some(present_key) = node.outputs.get_mut(1) {
-        present_key.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[4].ty.elem_type().clone(),
-            rank: 4,
-            static_shape: None,
-        });
-    }
-
-    if let Some(present_value) = node.outputs.get_mut(2) {
-        present_value.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[5].ty.elem_type().clone(),
-            rank: 4,
-            static_shape: None,
-        });
-    }
-
-    if let Some(qk_matmul_output) = node.outputs.get_mut(3) {
-        qk_matmul_output.ty = ArgType::Tensor(TensorType {
-            elem_type: node.inputs[0].ty.elem_type().clone(),
-            rank: 4,
-            static_shape: None,
-        });
-    }
-}
-
 fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a TensorType> {
     match &arg?.ty {
         ArgType::Tensor(v) => Some(v),
@@ -166,7 +132,7 @@ impl NodeProcessor for AttentionProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         let q = extract_tensor(node.inputs.first(), "Q").unwrap();
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {

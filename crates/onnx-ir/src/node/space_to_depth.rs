@@ -1,54 +1,6 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, TensorType, ir::Node};
 
-/// Update output type for SpaceToDepth operation (rank 4).
-pub fn space_to_depth_update_outputs(node: &mut Node) {
-    log::debug!("SpaceToDepth rank inference for node {}", &node.name);
-
-    // Extract the input tensor type to determine rank and shape
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("SpaceToDepth: only tensor input is valid"),
-    };
-    assert_eq!(
-        tensor.rank, 4,
-        "SpaceToDepth: only rank 4 tensors are supported"
-    );
-
-    // Get the block size from attribute
-    let block_size = node
-        .attrs
-        .get("blocksize")
-        .cloned()
-        .expect("SpaceToDepth: blocksize attribute not found")
-        .into_i64() as usize;
-
-    log::debug!(
-        "SpaceToDepth blocksize from attribute for {}: {:?}",
-        &node.name,
-        block_size
-    );
-
-    // Infer static shape based on rank and block size
-    let static_shape = tensor.static_shape.clone().map(|shape| {
-        let [b, c, h, w] = shape
-            .try_into()
-            .expect("SpaceToDepth: input tensor rank is not 4");
-        vec![
-            b,
-            c * block_size * block_size,
-            h / block_size,
-            w / block_size,
-        ]
-    });
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: tensor.elem_type.clone(),
-        rank: tensor.rank,
-        static_shape,
-    });
-}
-
 /// Get the configuration from the attributes of the node
 pub fn space_to_depth_config(node: &Node) -> usize {
     let mut block_size: Option<usize> = None;
@@ -76,8 +28,51 @@ impl NodeProcessor for SpaceToDepthProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::space_to_depth::space_to_depth_update_outputs(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("SpaceToDepth rank inference for node {}", &node.name);
+
+        // Extract the input tensor type to determine rank and shape
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("SpaceToDepth: only tensor input is valid"),
+        };
+        assert_eq!(
+            tensor.rank, 4,
+            "SpaceToDepth: only rank 4 tensors are supported"
+        );
+
+        // Get the block size from attribute
+        let block_size = node
+            .attrs
+            .get("blocksize")
+            .cloned()
+            .expect("SpaceToDepth: blocksize attribute not found")
+            .into_i64() as usize;
+
+        log::debug!(
+            "SpaceToDepth blocksize from attribute for {}: {:?}",
+            &node.name,
+            block_size
+        );
+
+        // Infer static shape based on rank and block size
+        let static_shape = tensor.static_shape.clone().map(|shape| {
+            let [b, c, h, w] = shape
+                .try_into()
+                .expect("SpaceToDepth: input tensor rank is not 4");
+            vec![
+                b,
+                c * block_size * block_size,
+                h / block_size,
+                w / block_size,
+            ]
+        });
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape,
+        });
     }
 }
 
@@ -108,7 +103,9 @@ mod tests {
     #[test]
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
-        space_to_depth_update_outputs(&mut node);
+        let processor = SpaceToDepthProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

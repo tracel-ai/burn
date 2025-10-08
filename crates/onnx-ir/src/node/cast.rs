@@ -25,65 +25,6 @@ pub fn cast_config(node: &Node) -> CastConfig {
     };
     CastConfig::new(elem_type)
 }
-
-/// Update output type for Cast operations, preserving rank.
-pub fn cast_update_outputs(node: &mut Node) {
-    if node.inputs.len() != 1 {
-        panic!("Cast: multiple inputs are not supported");
-    }
-
-    // Get the cast configuration with the target element type first, before mutable borrows
-    let config = cast_config(node);
-    let elem_type = config.to;
-
-    let input = &mut node.inputs[0];
-    let output = &mut node.outputs[0];
-
-    match input.ty.clone() {
-        ArgType::Tensor(tensor) => {
-            if tensor.rank == 0 {
-                // treat 0-dim tensor as scalar
-                output.ty = ArgType::Scalar(elem_type);
-                input.ty = ArgType::Scalar(tensor.elem_type);
-            } else {
-                // Cast input and output are the same shape, but possibly different types
-                output.ty = ArgType::Tensor(TensorType {
-                    elem_type,
-                    rank: tensor.rank,
-                    static_shape: tensor.static_shape, // keep it
-                });
-            }
-        }
-        ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),
-        ArgType::Shape(rank) => {
-            // When casting Shape to float or bool types, convert to 1D tensor
-            // This allows Shape values to be used in tensor operations
-            match elem_type {
-                ElementType::Float32
-                | ElementType::Float64
-                | ElementType::Float16
-                | ElementType::Bool => {
-                    output.ty = ArgType::Tensor(TensorType {
-                        elem_type: elem_type.clone(),
-                        rank: 1,
-                        static_shape: Some(vec![rank]),
-                    });
-                    log::debug!(
-                        "Cast converting Shape({}) to rank-1 tensor of {:?}",
-                        rank,
-                        elem_type
-                    );
-                }
-                _ => {
-                    // For int types, keep as Shape
-                    // This matches Burn's representation where shapes are always [i64; N]
-                    output.ty = ArgType::Shape(rank);
-                }
-            }
-        }
-    }
-}
-
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
@@ -91,7 +32,7 @@ impl NodeProcessor for CastProcessor {
         (6, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         if node.inputs.len() != 1 {
             panic!("Cast: multiple inputs are not supported");
         }
@@ -191,7 +132,10 @@ mod tests {
     #[test]
     fn test_cast_float_to_int64() {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
-        cast_update_outputs(&mut node);
+
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -205,7 +149,10 @@ mod tests {
     #[test]
     fn test_cast_scalar_handling() {
         let mut node = create_test_node(0, DataType::BOOL.value() as i64);
-        cast_update_outputs(&mut node);
+
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -236,13 +183,19 @@ mod tests {
             value: None,
             passed: true,
         });
-        cast_update_outputs(&mut node);
+
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     #[test]
     fn test_cast_scalar_to_bool() {
         let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
-        cast_update_outputs(&mut node);
+
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -260,7 +213,9 @@ mod tests {
             .attr_int("to", DataType::FLOAT.value() as i64)
             .build();
 
-        cast_update_outputs(&mut node);
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -280,7 +235,9 @@ mod tests {
             .attr_int("to", DataType::INT64.value() as i64)
             .build();
 
-        cast_update_outputs(&mut node);
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -298,7 +255,9 @@ mod tests {
             .attr_int("to", DataType::BOOL.value() as i64)
             .build();
 
-        cast_update_outputs(&mut node);
+        let processor = CastProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

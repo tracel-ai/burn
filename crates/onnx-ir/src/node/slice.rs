@@ -149,68 +149,6 @@ fn calculate_shape_slice_output_len(
     output_len
 }
 
-/// Update output type for Slice operation.
-/// If the input is a Tensor, the output type remains the same.
-/// If the input is a Shape, the output becomes a rank-1 Int64 Tensor representing the sliced dimension.
-pub fn slice_update_output_rank(node: &mut Node) {
-    log::debug!("Slice rank inference for node {}", node.name);
-
-    match &node.inputs[0].ty {
-        ArgType::Tensor(_) => {
-            // Slicing a tensor preserves its type and rank during rank inference.
-            // Shape inference pass will handle the actual shape changes.
-            log::debug!("Slice input for {} is Tensor, preserving type", node.name);
-            node.outputs[0].ty = node.inputs[0].ty.clone();
-        }
-        ArgType::Shape(shape_rank) => {
-            // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
-            log::debug!("Slice input for {} is Shape", node.name);
-            let config = slice_config(node);
-
-            // Only static slicing is supported for Shape inputs
-            let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
-                (SliceInput::Static(s), SliceInput::Static(e), steps_opt) => {
-                    let step_values = match steps_opt {
-                        Some(SliceInput::Static(st)) => st.clone(),
-                        _ => vec![1], // Default step is 1
-                    };
-                    (s, e, step_values)
-                }
-                _ => panic!(
-                    "Runtime slice on Shape input is not supported for node {}",
-                    node.name
-                ),
-            };
-
-            // Require exactly one dimension for Shape slicing
-            if starts.len() != 1 || ends.len() != 1 {
-                panic!(
-                    "Slice on Shape input requires exactly one dimension slice config for node {}",
-                    node.name
-                );
-            }
-
-            let step = if steps.is_empty() { 1 } else { steps[0] };
-            let output_len =
-                calculate_shape_slice_output_len(starts[0], ends[0], step, *shape_rank, &node.name);
-            node.outputs[0].ty = ArgType::Shape(output_len);
-        }
-        // Handle unsupported input types
-        unsupported_type => {
-            panic!(
-                "Slice: Only Tensor and Shape inputs are supported for node {}, got {:?}",
-                node.name, unsupported_type
-            )
-        }
-    }
-
-    log::debug!(
-        "Slice output type determined for {}: {:?}",
-        node.name,
-        node.outputs[0].ty
-    );
-}
-
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
@@ -218,8 +156,68 @@ impl NodeProcessor for SliceProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::slice::slice_update_output_rank(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("Slice rank inference for node {}", node.name);
+
+        match &node.inputs[0].ty {
+            ArgType::Tensor(_) => {
+                // Slicing a tensor preserves its type and rank during rank inference.
+                // Shape inference pass will handle the actual shape changes.
+                log::debug!("Slice input for {} is Tensor, preserving type", node.name);
+                node.outputs[0].ty = node.inputs[0].ty.clone();
+            }
+            ArgType::Shape(shape_rank) => {
+                // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
+                log::debug!("Slice input for {} is Shape", node.name);
+                let config = slice_config(node);
+
+                // Only static slicing is supported for Shape inputs
+                let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
+                    (SliceInput::Static(s), SliceInput::Static(e), steps_opt) => {
+                        let step_values = match steps_opt {
+                            Some(SliceInput::Static(st)) => st.clone(),
+                            _ => vec![1], // Default step is 1
+                        };
+                        (s, e, step_values)
+                    }
+                    _ => panic!(
+                        "Runtime slice on Shape input is not supported for node {}",
+                        node.name
+                    ),
+                };
+
+                // Require exactly one dimension for Shape slicing
+                if starts.len() != 1 || ends.len() != 1 {
+                    panic!(
+                        "Slice on Shape input requires exactly one dimension slice config for node {}",
+                        node.name
+                    );
+                }
+
+                let step = if steps.is_empty() { 1 } else { steps[0] };
+                let output_len = calculate_shape_slice_output_len(
+                    starts[0],
+                    ends[0],
+                    step,
+                    *shape_rank,
+                    &node.name,
+                );
+                node.outputs[0].ty = ArgType::Shape(output_len);
+            }
+            // Handle unsupported input types
+            unsupported_type => {
+                panic!(
+                    "Slice: Only Tensor and Shape inputs are supported for node {}, got {:?}",
+                    node.name, unsupported_type
+                )
+            }
+        }
+
+        log::debug!(
+            "Slice output type determined for {}: {:?}",
+            node.name,
+            node.outputs[0].ty
+        );
     }
 }
 
@@ -385,7 +383,9 @@ mod tests {
         assert!(matches!(node.inputs[0].ty, ArgType::Tensor(_)));
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(_)));
 
-        slice_update_output_rank(&mut node);
+        let processor = SliceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // After calling, output should be the same type as input
         assert!(
@@ -403,7 +403,9 @@ mod tests {
         // Default output type is Tensor with rank 0
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(ref t) if t.rank == 0));
 
-        slice_update_output_rank(&mut node);
+        let processor = SliceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         // After calling, output should be ArgType::Shape with the calculated length
         // start = 1, end = 3 => output_len = 3 - 1 = 2

@@ -1,34 +1,6 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
 
-/// Update output rank for TopK (same as input rank).
-pub fn top_k_update_output(node: &mut Node) {
-    log::debug!("TopK rank inference for node {}", node.name);
-
-    let rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        _ => panic!("TopK: invalid input type"),
-    };
-    log::debug!("TopK input rank for {}: {}", node.name, rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: node.inputs[0].ty.elem_type().clone(),
-        rank,
-        static_shape: None,
-    });
-    node.outputs[1].ty = ArgType::Tensor(TensorType {
-        elem_type: ElementType::Int64,
-        rank,
-        static_shape: None,
-    });
-
-    log::debug!(
-        "TopK output rank for {}: {} (both outputs)",
-        node.name,
-        rank
-    );
-}
-
 /// Configuration for the TopK operation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TopKConfig {
@@ -100,7 +72,7 @@ impl NodeProcessor for TopKProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("TopK rank inference for node {}", node.name);
 
         let rank = match &node.inputs[0].ty {
@@ -174,7 +146,9 @@ mod tests {
         // Add K attribute since we didn't provide K input
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
 
-        top_k_update_output(&mut node);
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         assert_eq!(node.outputs.len(), 2);
 
@@ -203,7 +177,9 @@ mod tests {
         let mut node = create_test_node(3, None, None);
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        top_k_update_output(&mut node);
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 
     // Tests for top_k_config function

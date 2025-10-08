@@ -1,20 +1,6 @@
 use crate::ir::{ArgType, ElementType, Node};
 use crate::processor::{NodeProcessor, ProcessorContext};
 
-/// Update output type for Size (always scalar).
-pub fn size_update_outputs(node: &mut Node) {
-    log::debug!("Size rank inference for node {}", node.name);
-
-    assert_eq!(
-        node.inputs.len(),
-        1,
-        "Size: expected 1 input, found {}",
-        node.inputs.len()
-    );
-
-    node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
-}
-
 pub struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
@@ -22,7 +8,7 @@ impl NodeProcessor for SizeProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Size rank inference for node {}", node.name);
 
         assert_eq!(
@@ -53,7 +39,11 @@ mod tests {
     #[test]
     fn test_size_update_outputs() {
         let mut node = create_test_node(4);
-        size_update_outputs(&mut node);
+
+        let processor = SizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
+
         assert!(matches!(
             &node.outputs[0].ty,
             ArgType::Scalar(ElementType::Int64)

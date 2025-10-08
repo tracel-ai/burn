@@ -58,110 +58,6 @@ pub fn reduce_config(node: &Node) -> ReduceConfig {
     ReduceConfig::new(dims, keepdims == 1)
 }
 
-/// Update output rank for Reduce based on config.
-pub fn reduce_update_outputs(node: &mut Node) {
-    log::debug!("{} rank inference for node {}", node.node_type, node.name);
-
-    let tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("{}: Only tensor input is valid", node.node_type),
-    };
-    log::debug!(
-        "{} input rank for {}: {}",
-        node.node_type,
-        node.name,
-        tensor.rank
-    );
-
-    let config = reduce_config(node);
-
-    log::debug!(
-        "{} config for {}: keepdims={}, dims={:?}",
-        node.node_type,
-        node.name,
-        config.keepdims,
-        config.dims
-    );
-    log::debug!(
-        "{} static_shape for {}: {:?}",
-        node.node_type,
-        node.name,
-        tensor.static_shape
-    );
-
-    // Determine if the output should be a scalar
-    let should_be_scalar =
-        !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
-
-    if should_be_scalar {
-        // Output is a scalar
-        log::debug!("{} output is scalar for node {}", node.node_type, node.name);
-        node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
-    } else {
-        // Output is a tensor
-        let output_rank = if config.keepdims {
-            tensor.rank
-        } else {
-            tensor.rank - config.dims.len()
-        };
-
-        // Infer static shape based if given
-        let output_shape = tensor.static_shape.clone().and_then(|mut shape| {
-            log::debug!(
-                "{} processing static_shape for {}: shape.len()={}, dims={:?}",
-                node.node_type,
-                node.name,
-                shape.len(),
-                config.dims
-            );
-
-            // Only process static shape if it's complete (matches tensor rank)
-            if shape.len() != tensor.rank {
-                log::debug!(
-                    "{} skipping static_shape for {}: shape.len()={} != rank={}",
-                    node.node_type,
-                    node.name,
-                    shape.len(),
-                    tensor.rank
-                );
-                return None;
-            }
-
-            if config.keepdims {
-                for dim in config.dims {
-                    log::debug!(
-                        "{} setting shape[{}] = 1 for {} (shape.len()={})",
-                        node.node_type,
-                        dim,
-                        node.name,
-                        shape.len()
-                    );
-                    shape[dim] = 1;
-                }
-                Some(shape)
-            } else {
-                for dim in config.dims.iter().rev() {
-                    shape.remove(*dim);
-                }
-                Some(shape)
-            }
-        });
-
-        log::debug!(
-            "{} output rank for {}: {}",
-            node.node_type,
-            node.name,
-            output_rank
-        );
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type: tensor.elem_type.clone(),
-            rank: output_rank,
-            static_shape: output_shape,
-        });
-    }
-}
-
 pub struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
@@ -169,8 +65,107 @@ impl NodeProcessor for ReduceProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::reduce::reduce_update_outputs(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("{} rank inference for node {}", node.node_type, node.name);
+
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("{}: Only tensor input is valid", node.node_type),
+        };
+        log::debug!(
+            "{} input rank for {}: {}",
+            node.node_type,
+            node.name,
+            tensor.rank
+        );
+
+        let config = reduce_config(node);
+
+        log::debug!(
+            "{} config for {}: keepdims={}, dims={:?}",
+            node.node_type,
+            node.name,
+            config.keepdims,
+            config.dims
+        );
+        log::debug!(
+            "{} static_shape for {}: {:?}",
+            node.node_type,
+            node.name,
+            tensor.static_shape
+        );
+
+        // Determine if the output should be a scalar
+        let should_be_scalar =
+            !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
+
+        if should_be_scalar {
+            // Output is a scalar
+            log::debug!("{} output is scalar for node {}", node.node_type, node.name);
+            node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
+        } else {
+            // Output is a tensor
+            let output_rank = if config.keepdims {
+                tensor.rank
+            } else {
+                tensor.rank - config.dims.len()
+            };
+
+            // Infer static shape based if given
+            let output_shape = tensor.static_shape.clone().and_then(|mut shape| {
+                log::debug!(
+                    "{} processing static_shape for {}: shape.len()={}, dims={:?}",
+                    node.node_type,
+                    node.name,
+                    shape.len(),
+                    config.dims
+                );
+
+                // Only process static shape if it's complete (matches tensor rank)
+                if shape.len() != tensor.rank {
+                    log::debug!(
+                        "{} skipping static_shape for {}: shape.len()={} != rank={}",
+                        node.node_type,
+                        node.name,
+                        shape.len(),
+                        tensor.rank
+                    );
+                    return None;
+                }
+
+                if config.keepdims {
+                    for dim in config.dims {
+                        log::debug!(
+                            "{} setting shape[{}] = 1 for {} (shape.len()={})",
+                            node.node_type,
+                            dim,
+                            node.name,
+                            shape.len()
+                        );
+                        shape[dim] = 1;
+                    }
+                    Some(shape)
+                } else {
+                    for dim in config.dims.iter().rev() {
+                        shape.remove(*dim);
+                    }
+                    Some(shape)
+                }
+            });
+
+            log::debug!(
+                "{} output rank for {}: {}",
+                node.node_type,
+                node.name,
+                output_rank
+            );
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: tensor.elem_type.clone(),
+                rank: output_rank,
+                static_shape: output_shape,
+            });
+        }
     }
 }
 
@@ -246,7 +241,9 @@ mod tests {
     fn test_reduce_update_outputs_scalar_no_axes_no_keepdims() {
         // Test that reduce with no axes and keepdims=false produces a scalar output
         let mut node = create_test_node(None, Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -265,7 +262,9 @@ mod tests {
     fn test_reduce_update_outputs_scalar_all_dims_no_keepdims() {
         // Test that reduce with all dimensions and keepdims=false produces a scalar output
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -284,7 +283,9 @@ mod tests {
     fn test_reduce_update_outputs_tensor_partial_dims_no_keepdims() {
         // Test that reduce with partial dimensions and keepdims=false produces a tensor output
         let mut node = create_test_node(Some(vec![1]), Some(0));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -304,7 +305,9 @@ mod tests {
     fn test_reduce_update_outputs_tensor_with_keepdims() {
         // Test that reduce with keepdims=true always produces a tensor output
         let mut node = create_test_node(None, Some(1));
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -332,7 +335,9 @@ mod tests {
             .build();
 
         // This should not panic
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -358,7 +363,9 @@ mod tests {
             .build();
 
         // This should not panic
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -383,7 +390,9 @@ mod tests {
             .attr_int("keepdims", 1)
             .build();
 
-        reduce_update_outputs(&mut node);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

@@ -54,27 +54,6 @@ pub fn range_config(node: &Node) -> RangeConfig {
     }
 }
 
-/// Update output rank for Range (always rank 1).
-pub fn range_update_outputs(node: &mut Node) {
-    log::debug!("Range rank inference for node {}", node.name);
-
-    if node.inputs.len() != 3 {
-        panic!("Range: expected 3 inputs, found {}", node.inputs.len());
-    }
-    log::debug!(
-        "Range operation always produces rank 1 tensor for {}",
-        node.name
-    );
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        elem_type: ElementType::Int64,
-        rank: 1,
-        static_shape: None,
-    });
-
-    log::debug!("Range output rank for {}: 1", node.name);
-}
-
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
@@ -82,8 +61,24 @@ impl NodeProcessor for RangeProcessor {
         (11, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::range::range_update_outputs(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("Range rank inference for node {}", node.name);
+
+        if node.inputs.len() != 3 {
+            panic!("Range: expected 3 inputs, found {}", node.inputs.len());
+        }
+        log::debug!(
+            "Range operation always produces rank 1 tensor for {}",
+            node.name
+        );
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            rank: 1,
+            static_shape: None,
+        });
+
+        log::debug!("Range output rank for {}: 1", node.name);
     }
 }
 
@@ -105,7 +100,9 @@ mod tests {
     #[test]
     fn test_range_output() {
         let mut node = create_test_node();
-        range_update_outputs(&mut node);
+        let processor = RangeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -121,6 +118,8 @@ mod tests {
     fn test_range_missing_inputs() {
         let mut node = create_test_node();
         node.inputs.pop();
-        range_update_outputs(&mut node);
+        let processor = RangeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
     }
 }

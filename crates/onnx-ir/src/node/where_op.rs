@@ -37,84 +37,6 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 
 /// Update output type for Where operation.
 ///
-/// The Where operation selects elements from x or y based on condition.
-/// Output shape is the broadcasted shape of all three inputs.
-/// Output element type is taken from x and y (which must match).
-pub fn where_update_outputs(node: &mut Node) {
-    log::debug!("Where rank inference for node {}", node.name);
-
-    let condition = &node.inputs[0].ty;
-    let x = &node.inputs[1].ty;
-    let y = &node.inputs[2].ty;
-
-    // Get element types, handling Shape types specially
-    let x_elem_type = get_elem_type(x);
-    let y_elem_type = get_elem_type(y);
-    let condition_elem_type = get_elem_type(condition);
-
-    if !matches!(condition, ArgType::Shape(_)) {
-        assert_eq!(
-            condition_elem_type,
-            ElementType::Bool,
-            "Where condition must be boolean!"
-        );
-    }
-
-    let elem_type = if x_elem_type == y_elem_type {
-        x_elem_type
-    } else if matches!(x, ArgType::Shape(_)) {
-        y_elem_type
-    } else if matches!(y, ArgType::Shape(_)) {
-        x_elem_type
-    } else {
-        panic!(
-            "Where x and y have different element types! ({:?} vs {:?})",
-            x_elem_type, y_elem_type
-        );
-    };
-
-    log::debug!(
-        "Where input ranks for {}: condition={}, x={}, y={}",
-        node.name,
-        condition.rank(),
-        x.rank(),
-        y.rank()
-    );
-
-    let output_rank = compute_broadcast_rank(&node.inputs);
-    log::debug!("Where output rank for {}: {}", node.name, output_rank);
-
-    // Determine output type
-    if output_rank == 0 {
-        node.outputs[0].ty = ArgType::Scalar(elem_type);
-        log::debug!("Where result for {} is scalar", node.name);
-    } else if should_output_shape(x, y, output_rank, &elem_type) {
-        // If both inputs are Shape types and output is 1D int64, preserve Shape type
-        let shape_size = get_shape_size(x).max(get_shape_size(y));
-        node.outputs[0].ty = ArgType::Shape(shape_size);
-        log::debug!(
-            "Where result for {} is Shape({}) type",
-            node.name,
-            shape_size
-        );
-    } else {
-        // Try to propagate static shape using the shared broadcast helper
-        let static_shape = compute_broadcast_static_shape(&node.inputs);
-
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            elem_type,
-            rank: output_rank,
-            static_shape,
-        });
-        log::debug!(
-            "Where result for {} is tensor with rank {}, static_shape: {:?}",
-            node.name,
-            output_rank,
-            node.outputs[0].ty.static_shape()
-        );
-    }
-}
-
 pub struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
@@ -122,8 +44,79 @@ impl NodeProcessor for WhereProcessor {
         (9, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::where_op::where_update_outputs(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("Where rank inference for node {}", node.name);
+
+        let condition = &node.inputs[0].ty;
+        let x = &node.inputs[1].ty;
+        let y = &node.inputs[2].ty;
+
+        // Get element types, handling Shape types specially
+        let x_elem_type = get_elem_type(x);
+        let y_elem_type = get_elem_type(y);
+        let condition_elem_type = get_elem_type(condition);
+
+        if !matches!(condition, ArgType::Shape(_)) {
+            assert_eq!(
+                condition_elem_type,
+                ElementType::Bool,
+                "Where condition must be boolean!"
+            );
+        }
+
+        let elem_type = if x_elem_type == y_elem_type {
+            x_elem_type
+        } else if matches!(x, ArgType::Shape(_)) {
+            y_elem_type
+        } else if matches!(y, ArgType::Shape(_)) {
+            x_elem_type
+        } else {
+            panic!(
+                "Where x and y have different element types! ({:?} vs {:?})",
+                x_elem_type, y_elem_type
+            );
+        };
+
+        log::debug!(
+            "Where input ranks for {}: condition={}, x={}, y={}",
+            node.name,
+            condition.rank(),
+            x.rank(),
+            y.rank()
+        );
+
+        let output_rank = compute_broadcast_rank(&node.inputs);
+        log::debug!("Where output rank for {}: {}", node.name, output_rank);
+
+        // Determine output type
+        if output_rank == 0 {
+            node.outputs[0].ty = ArgType::Scalar(elem_type);
+            log::debug!("Where result for {} is scalar", node.name);
+        } else if should_output_shape(x, y, output_rank, &elem_type) {
+            // If both inputs are Shape types and output is 1D int64, preserve Shape type
+            let shape_size = get_shape_size(x).max(get_shape_size(y));
+            node.outputs[0].ty = ArgType::Shape(shape_size);
+            log::debug!(
+                "Where result for {} is Shape({}) type",
+                node.name,
+                shape_size
+            );
+        } else {
+            // Try to propagate static shape using the shared broadcast helper
+            let static_shape = compute_broadcast_static_shape(&node.inputs);
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                rank: output_rank,
+                static_shape,
+            });
+            log::debug!(
+                "Where result for {} is tensor with rank {}, static_shape: {:?}",
+                node.name,
+                output_rank,
+                node.outputs[0].ty.static_shape()
+            );
+        }
     }
 }
 
@@ -145,7 +138,11 @@ mod tests {
     #[test]
     fn test_where_basic() {
         let mut node = create_test_node(2, 3, 2);
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -159,7 +156,11 @@ mod tests {
     #[test]
     fn test_where_scalar_result() {
         let mut node = create_test_node(0, 0, 0);
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -183,7 +184,11 @@ mod tests {
             .unwrap();
 
         node.inputs[0] = non_bool_input;
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
     }
 
     #[test]
@@ -200,7 +205,11 @@ mod tests {
             .unwrap();
 
         node.inputs[2] = int64_input;
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
     }
 
     #[test]
@@ -211,7 +220,11 @@ mod tests {
         node.inputs[1].ty = ArgType::Shape(3);
         node.inputs[2].ty = ArgType::Shape(3);
 
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(size) => {
@@ -231,7 +244,11 @@ mod tests {
             .output_tensor_f32("output", 0, None)
             .build();
 
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -253,7 +270,11 @@ mod tests {
             .output_tensor_f32("output", 0, None)
             .build();
 
-        where_update_outputs(&mut node);
+        let processor = WhereProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

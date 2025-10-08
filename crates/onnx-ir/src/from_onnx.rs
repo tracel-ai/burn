@@ -293,7 +293,7 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
             let context = ProcessorContext::new(16);
-            processor.infer_outputs(&mut node, &context);
+            processor.process(&mut node, &context);
             log::debug!(
                 "Rank inference result for {}: {:?}",
                 node.name,
@@ -610,7 +610,7 @@ impl OnnxGraphBuilder {
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
         let context = ProcessorContext::new(16);
-        processor.infer_outputs(node, &context);
+        processor.process(node, &context);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());

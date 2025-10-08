@@ -17,83 +17,6 @@ pub enum GatherInput {
     /// Runtime argument determined during execution.
     Runtime(Argument),
 }
-
-/// Update output rank for Gather based on input and indices ranks.
-pub fn gather_update_outputs(node: &mut Node) {
-    log::debug!("Gather rank inference for node {}", node.name);
-
-    if node.inputs.len() != 2 {
-        panic!("Gather requires two inputs: data and indices");
-    }
-
-    let indices_rank = match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        ArgType::Scalar(_) => 0,
-        ArgType::Shape(shape_rank) => {
-            // Shape is always a 1D array, but when used as indices for Gather,
-            // we treat it as rank 1 for the ONNX gather formula
-            log::debug!("Gather indices are Shape({}) for {}", shape_rank, node.name);
-            1 // Shape indices are always treated as rank 1 for gather
-        }
-    };
-    log::debug!("Gather indices rank for {}: {}", node.name, indices_rank);
-
-    match &node.inputs[0].ty {
-        ArgType::Tensor(input_tensor) => {
-            log::debug!(
-                "Gather input tensor rank for {}: {}",
-                node.name,
-                input_tensor.rank
-            );
-            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
-            let output_rank = indices_rank + input_tensor.rank - 1;
-            log::debug!("Gather output rank for {}: {}", node.name, output_rank);
-
-            if output_rank == 0 {
-                // Output is scalar when gathering a single element
-                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
-                log::debug!("Gather result for {} is scalar", node.name);
-            } else {
-                // Output is tensor
-                node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: input_tensor.elem_type.clone(),
-                    rank: output_rank,
-                    static_shape: None,
-                });
-                log::debug!(
-                    "Gather result for {} is tensor with rank {}",
-                    node.name,
-                    output_rank
-                );
-            }
-        }
-        ArgType::Shape(_shape_rank) => {
-            log::debug!("Gather input is shape for {}", node.name);
-            // When gathering from a shape:
-            // - If indices are scalar (rank 0), output is a scalar (single dimension value)
-            // - Otherwise, output is a shape with same dimension as indices
-            if indices_rank == 0 {
-                node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
-                log::debug!("Gather result for {} is scalar (from shape)", node.name);
-            } else {
-                // For Shape indices, use the actual shape rank (number of elements)
-                let output_shape_rank = match &node.inputs[1].ty {
-                    ArgType::Shape(shape_rank) => *shape_rank,
-                    ArgType::Tensor(_) => indices_rank, // For tensor indices, use computed rank
-                    _ => indices_rank,
-                };
-                node.outputs[0].ty = ArgType::Shape(output_shape_rank);
-                log::debug!(
-                    "Gather result for {} is shape with rank {} (from shape)",
-                    node.name,
-                    output_shape_rank
-                );
-            }
-        }
-        ty => panic!("Only tensor/shape input is valid, got {ty:?}"),
-    }
-}
-
 /// Create a GatherConfig from the attributes of the node
 pub fn gather_config(curr: &Node) -> GatherConfig {
     // Default: 0 per ONNX spec
@@ -169,7 +92,7 @@ impl NodeProcessor for GatherProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Gather rank inference for node {}", node.name);
 
         if node.inputs.len() != 2 {
@@ -354,7 +277,11 @@ mod tests {
             .output_tensor_f32("output", 1, None)
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output scalar, not tensor
         match &node.outputs[0].ty {
@@ -375,7 +302,11 @@ mod tests {
             .output_tensor_f32("output", 2, None)
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output tensor with rank 2 (1 + 2 - 1)
         match &node.outputs[0].ty {
@@ -399,7 +330,11 @@ mod tests {
             .build();
 
         // This should not panic - it was panicking before the fix
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
         match &node.outputs[0].ty {
@@ -420,7 +355,11 @@ mod tests {
             .output_tensor_i64("output", 0, None) // Will be updated by gather_update_outputs
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output scalar when gathering from shape with scalar indices
         match &node.outputs[0].ty {
@@ -442,7 +381,11 @@ mod tests {
             .output_shape("output", 1) // Initial output, will be updated
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output Shape(2) since indices are Shape(2)
         match &node.outputs[0].ty {
@@ -463,7 +406,11 @@ mod tests {
             .output_shape("output", 1) // Initial output, will be updated
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output Shape(3) since indices are Shape(3)
         match &node.outputs[0].ty {
@@ -484,7 +431,11 @@ mod tests {
             .output_shape("output", 1) // Initial output, will be updated
             .build();
 
-        gather_update_outputs(&mut node);
+        let processor = GatherProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         // Should output Shape(1) for 1D tensor indices (indices_rank = 1)
         match &node.outputs[0].ty {

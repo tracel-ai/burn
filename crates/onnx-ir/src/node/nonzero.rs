@@ -13,27 +13,6 @@ pub fn nonzero_config(_node: &Node) -> NonZeroConfig {
     NonZeroConfig::new()
 }
 
-/// Update output for NonZero - output is 2D int64 tensor with shape [input_rank, num_nonzero]
-pub fn nonzero_update_output(node: &mut Node) {
-    log::debug!("NonZero rank inference for node {}", node.name);
-
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            // Output is always a 2D Int64 tensor
-            // Shape: [input_tensor_rank, num_nonzero_elements]
-            // First dimension equals input tensor rank
-            // Second dimension is dynamic (depends on data)
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 2,
-                static_shape: None, // Dynamic shape - second dimension depends on number of nonzero elements
-            });
-            log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
-        }
-        _ => panic!("NonZero operation requires tensor input"),
-    }
-}
-
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
@@ -41,8 +20,24 @@ impl NodeProcessor for NonZeroProcessor {
         (9, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::nonzero::nonzero_update_output(node);
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        log::debug!("NonZero rank inference for node {}", node.name);
+
+        match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // Output is always a 2D Int64 tensor
+                // Shape: [input_tensor_rank, num_nonzero_elements]
+                // First dimension equals input tensor rank
+                // Second dimension is dynamic (depends on data)
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Int64,
+                    rank: 2,
+                    static_shape: None, // Dynamic shape - second dimension depends on number of nonzero elements
+                });
+                log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
+            }
+            _ => panic!("NonZero operation requires tensor input"),
+        }
     }
 }
 
@@ -59,7 +54,9 @@ mod tests {
             .output_tensor_i64("output", 2, None) // rank will be updated
             .build();
 
-        nonzero_update_output(&mut node);
+        let processor = NonZeroProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -90,7 +87,9 @@ mod tests {
             .output_tensor_i64("output", 2, None)
             .build();
 
-        nonzero_update_output(&mut node);
+        let processor = NonZeroProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -109,7 +108,9 @@ mod tests {
             .output_tensor_i64("output", 2, None)
             .build();
 
-        nonzero_update_output(&mut node);
+        let processor = NonZeroProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

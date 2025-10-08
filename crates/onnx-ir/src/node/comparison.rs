@@ -52,7 +52,7 @@ impl NodeProcessor for ComparisonProcessor {
         (7, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("Elementwise comparison for node {}", node.name);
 
         // Check if both inputs are Shape types
@@ -113,7 +113,10 @@ mod tests {
     #[test]
     fn test_comparison_rank_broadcasting() {
         let mut node = create_test_node(2, 3);
-        elementwise_comparison_outputs(&mut node);
+
+        let processor = ComparisonProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -132,7 +135,9 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         node.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
 
-        elementwise_comparison_outputs(&mut node);
+        let processor = ComparisonProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -147,7 +152,10 @@ mod tests {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Shape(3);
         // node.inputs[1] remains as Tensor with rank 2
-        elementwise_comparison_outputs(&mut node);
+
+        let processor = ComparisonProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -163,7 +171,10 @@ mod tests {
         let mut node = create_test_node(0, 0);
         node.inputs[0].ty = ArgType::Shape(3);
         node.inputs[1].ty = ArgType::Shape(3);
-        elementwise_comparison_outputs(&mut node);
+
+        let processor = ComparisonProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Shape(dim) => {

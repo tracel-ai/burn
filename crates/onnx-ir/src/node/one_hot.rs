@@ -52,7 +52,7 @@ impl NodeProcessor for OneHotProcessor {
         (9, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::node::one_hot::one_hot_output_shape(node);
     }
 }

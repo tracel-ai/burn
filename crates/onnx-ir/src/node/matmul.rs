@@ -2,40 +2,6 @@ use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use core::cmp::max;
 
-/// Update output rank for MatMul based on input ranks.
-pub fn matmul_update_outputs(node: &mut Node) {
-    log::debug!("MatMul rank inference for node {}", node.name);
-
-    match (&node.inputs[0].ty, &node.inputs[1].ty) {
-        (ArgType::Tensor(a), ArgType::Tensor(b)) => {
-            log::debug!(
-                "MatMul input ranks for {}: a.rank={}, b.rank={}",
-                node.name,
-                a.rank,
-                b.rank
-            );
-
-            let mut out_rank = max(a.rank, b.rank);
-            if (a.rank >= 2 && b.rank == 1) || (a.rank == 1 && b.rank >= 2) {
-                out_rank -= 1;
-                log::debug!(
-                    "MatMul special case for node {}: reducing output rank",
-                    node.name
-                );
-            }
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: a.elem_type.clone(),
-                rank: out_rank,
-                static_shape: None,
-            });
-
-            log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
-        }
-        _ => panic!("Only tensor inputs are valid"),
-    }
-}
-
 pub struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
@@ -43,7 +9,7 @@ impl NodeProcessor for MatMulProcessor {
         (1, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         log::debug!("MatMul rank inference for node {}", node.name);
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
@@ -94,7 +60,11 @@ mod tests {
     #[test]
     fn test_matmul_standard_case() {
         let mut node = create_test_node(2, 2);
-        matmul_update_outputs(&mut node);
+        let processor = MatMulProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -108,7 +78,11 @@ mod tests {
     #[test]
     fn test_matmul_broadcasting() {
         let mut node = create_test_node(3, 2);
-        matmul_update_outputs(&mut node);
+        let processor = MatMulProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -124,7 +98,11 @@ mod tests {
         // When multiplying a vector (rank 1) by a matrix (rank 2)
         // the result should have rank 1 (vector)
         let mut node = create_test_node(1, 2);
-        matmul_update_outputs(&mut node);
+        let processor = MatMulProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -140,6 +118,10 @@ mod tests {
     fn test_matmul_invalid_input() {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        matmul_update_outputs(&mut node);
+        let processor = MatMulProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process(&mut node, &context);
     }
 }

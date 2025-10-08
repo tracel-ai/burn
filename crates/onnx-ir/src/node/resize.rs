@@ -241,7 +241,7 @@ impl NodeProcessor for ResizeProcessor {
         (10, None)
     }
 
-    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
         crate::util::same_as_input(node);
     }
 }
