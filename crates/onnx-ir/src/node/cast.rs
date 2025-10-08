@@ -92,7 +92,60 @@ impl NodeProcessor for CastProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::cast::cast_update_outputs(node);
+        if node.inputs.len() != 1 {
+            panic!("Cast: multiple inputs are not supported");
+        }
+
+        // Get the cast configuration with the target element type first, before mutable borrows
+        let config = cast_config(node);
+        let elem_type = config.to;
+
+        let input = &mut node.inputs[0];
+        let output = &mut node.outputs[0];
+
+        match input.ty.clone() {
+            ArgType::Tensor(tensor) => {
+                if tensor.rank == 0 {
+                    // treat 0-dim tensor as scalar
+                    output.ty = ArgType::Scalar(elem_type);
+                    input.ty = ArgType::Scalar(tensor.elem_type);
+                } else {
+                    // Cast input and output are the same shape, but possibly different types
+                    output.ty = ArgType::Tensor(TensorType {
+                        elem_type,
+                        rank: tensor.rank,
+                        static_shape: tensor.static_shape, // keep it
+                    });
+                }
+            }
+            ArgType::Scalar(_) => output.ty = ArgType::Scalar(elem_type),
+            ArgType::Shape(rank) => {
+                // When casting Shape to float or bool types, convert to 1D tensor
+                // This allows Shape values to be used in tensor operations
+                match elem_type {
+                    ElementType::Float32
+                    | ElementType::Float64
+                    | ElementType::Float16
+                    | ElementType::Bool => {
+                        output.ty = ArgType::Tensor(TensorType {
+                            elem_type: elem_type.clone(),
+                            rank: 1,
+                            static_shape: Some(vec![rank]),
+                        });
+                        log::debug!(
+                            "Cast converting Shape({}) to rank-1 tensor of {:?}",
+                            rank,
+                            elem_type
+                        );
+                    }
+                    _ => {
+                        // For int types, keep as Shape
+                        // This matches Burn's representation where shapes are always [i64; N]
+                        output.ty = ArgType::Shape(rank);
+                    }
+                }
+            }
+        }
     }
 }
 

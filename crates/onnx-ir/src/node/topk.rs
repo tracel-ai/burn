@@ -101,7 +101,30 @@ impl NodeProcessor for TopKProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::topk::top_k_update_output(node);
+        log::debug!("TopK rank inference for node {}", node.name);
+
+        let rank = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            _ => panic!("TopK: invalid input type"),
+        };
+        log::debug!("TopK input rank for {}: {}", node.name, rank);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: node.inputs[0].ty.elem_type().clone(),
+            rank,
+            static_shape: None,
+        });
+        node.outputs[1].ty = ArgType::Tensor(TensorType {
+            elem_type: ElementType::Int64,
+            rank,
+            static_shape: None,
+        });
+
+        log::debug!(
+            "TopK output rank for {}: {} (both outputs)",
+            node.name,
+            rank
+        );
     }
 }
 

@@ -116,7 +116,48 @@ impl NodeProcessor for ArgMinProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::argmin::argmin_update_outputs(node);
+        log::debug!("ArgMin rank inference for node {}", node.name);
+
+        if node.inputs.len() != 1 {
+            panic!("ArgMin: multiple inputs are not supported");
+        }
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Only tensor input is valid"),
+        };
+
+        log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
+
+        // Get config to determine output rank
+        let config = argmin_config(node);
+
+        // For burn compatibility, argmin always outputs a tensor
+        // When keepdims=false, we still output a tensor but with adjusted rank
+        if config.keepdims {
+            // keepdims=true: output rank same as input rank (dimension becomes 1)
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                rank: tensor.rank,
+                static_shape: None,
+            });
+        } else if tensor.rank == 1 {
+            // keepdims=false on 1D tensor: output is scalar
+            node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+        } else {
+            // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                rank: tensor.rank - 1,
+                static_shape: None,
+            });
+        }
+
+        log::debug!(
+            "ArgMin output for {} (keepdims={}): {:?}",
+            node.name,
+            config.keepdims,
+            node.outputs[0].ty
+        );
     }
 }
 

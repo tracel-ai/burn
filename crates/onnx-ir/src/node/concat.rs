@@ -146,7 +146,98 @@ impl NodeProcessor for ConcatProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::concat::concat_update_outputs(node);
+        log::debug!("Concat rank inference for node {}", node.name);
+
+        // Check if we have mixed Shape and rank-1 tensor inputs
+        let has_shape = node
+            .inputs
+            .iter()
+            .any(|i| matches!(i.ty, ArgType::Shape(_)));
+        let has_rank1_tensor = node
+            .inputs
+            .iter()
+            .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
+
+        if has_shape && has_rank1_tensor {
+            // Mixed inputs that will be unified after constant conversion
+            // Calculate provisional rank by summing Shape ranks and estimating tensor contributions
+            let mut provisional_rank: usize = 0;
+
+            for input in &node.inputs {
+                match &input.ty {
+                    ArgType::Shape(rank) => {
+                        provisional_rank += rank;
+                    }
+                    ArgType::Tensor(t) if t.rank == 1 => {
+                        // For constant tensors, use their actual dimension count
+                        // For dynamic tensors, assume 1 element (will be corrected after conversion)
+                        let contribution = input.value.as_ref().map(|v| v.shape[0]).unwrap_or(1);
+                        provisional_rank += contribution;
+
+                        log::debug!(
+                            "Concat {}: rank-1 tensor {} contributes {} to provisional rank",
+                            node.name,
+                            input.name,
+                            contribution
+                        );
+                    }
+                    _ => panic!("Concat with mixed inputs only supports Shape and rank-1 Tensor"),
+                }
+            }
+
+            // Output as Shape type since we have Shape inputs
+            // The rank is provisional and will be corrected after constant conversion
+            node.outputs[0].ty = ArgType::Shape(provisional_rank);
+            log::debug!(
+                "Concat {} has mixed Shape/Tensor inputs, using provisional Shape({}) output",
+                node.name,
+                provisional_rank
+            );
+            return;
+        }
+
+        // Get the first input type - it determines the output type
+        let first_input_type = &node.inputs[0].ty;
+
+        match first_input_type {
+            ArgType::Tensor(tensor) => {
+                log::debug!(
+                    "Concat using tensor input rank for {}: {}",
+                    node.name,
+                    tensor.rank
+                );
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: tensor.elem_type.clone(),
+                    rank: tensor.rank,
+                    static_shape: None,
+                });
+
+                log::debug!("Concat output rank for {}: {}", node.name, tensor.rank);
+            }
+            ArgType::Shape(shape_rank) => {
+                log::debug!(
+                    "Concat using shape input rank for {}: {}",
+                    node.name,
+                    shape_rank
+                );
+
+                // When concatenating shapes, we sum up their ranks
+                let total_rank: usize = node
+                    .inputs
+                    .iter()
+                    .map(|input| match &input.ty {
+                        ArgType::Shape(rank) => *rank,
+                        _ => panic!("All inputs to Concat must be of the same type (Shape)"),
+                    })
+                    .sum();
+
+                node.outputs[0].ty = ArgType::Shape(total_rank);
+
+                log::debug!("Concat output shape rank for {}: {}", node.name, total_rank);
+            }
+            _ => panic!("Concat only supports Tensor or Shape inputs"),
+        }
     }
 }
 

@@ -87,7 +87,34 @@ impl NodeProcessor for ShapeProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::shape::shape_update_outputs(node);
+        if node.inputs.len() != 1 {
+            panic!("Shape: multiple inputs are not supported: {node:?}");
+        }
+
+        // Special case: Shape of Shape returns a 1D tensor with single element (the rank)
+        if let ArgType::Shape(rank) = &node.inputs[0].ty {
+            // The shape of a shape is always a 1D tensor with one element
+            // containing the rank/number of dimensions
+            // Since Shape types are [i64; N], getting their shape gives us [N] which is Shape(1)
+            log::debug!(
+                "Shape operation on Shape({}) input for node {}: output is Shape(1)",
+                rank,
+                node.name
+            );
+            node.outputs[0].ty = ArgType::Shape(1);
+            return;
+        }
+
+        let (start, end) = shape_config(node);
+        let dim = end - start;
+        log::debug!(
+            "Shape operation for node {}: start={}, end={}, dim={}",
+            node.name,
+            start,
+            end,
+            dim
+        );
+        node.outputs[0].ty = ArgType::Shape(dim);
     }
 }
 

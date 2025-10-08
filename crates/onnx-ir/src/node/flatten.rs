@@ -73,7 +73,23 @@ impl NodeProcessor for FlattenProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::flatten::flatten_update_outputs(node);
+        if node.inputs.len() != 1 {
+            panic!("Flatten: multiple inputs are not supported");
+        }
+        let tensor = node
+            .inputs
+            .iter()
+            .find_map(|input| match &input.ty {
+                ArgType::Tensor(tensor) => Some(tensor),
+                _ => None,
+            })
+            .unwrap();
+
+        // Flatten to a 2D tensor
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            rank: 2,
+            ..tensor.clone()
+        });
     }
 }
 

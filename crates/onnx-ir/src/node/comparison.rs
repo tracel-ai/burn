@@ -53,7 +53,46 @@ impl NodeProcessor for ComparisonProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::comparison::elementwise_comparison_outputs(node);
+        log::debug!("Elementwise comparison for node {}", node.name);
+
+        // Check if both inputs are Shape types
+        let both_shapes = node.inputs.len() == 2
+            && matches!(&node.inputs[0].ty, ArgType::Shape(_))
+            && matches!(&node.inputs[1].ty, ArgType::Shape(_));
+
+        if both_shapes {
+            // For Shape-to-Shape comparison, output should be a Shape type
+            // Get the dimension from the first Shape input
+            if let ArgType::Shape(dim) = &node.inputs[0].ty {
+                node.outputs[0].ty = ArgType::Shape(*dim);
+                log::debug!("Shape result for node {} with dimension {}", node.name, dim);
+                return;
+            }
+        }
+
+        let max_rank = node.inputs.iter().fold(0, |acc, input| match &input.ty {
+            ArgType::Tensor(tensor) => acc.max(tensor.rank),
+            ArgType::Scalar(_) => acc,
+            ArgType::Shape(_) => acc.max(1), // Shape types are always rank 1
+        });
+
+        log::debug!("Max rank for comparison node {}: {}", node.name, max_rank);
+
+        if max_rank == 0 {
+            node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
+            log::debug!("Scalar boolean result for node {}", node.name);
+        } else {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Bool,
+                rank: max_rank,
+                static_shape: None,
+            });
+            log::debug!(
+                "Tensor boolean result for node {} with rank {}",
+                node.name,
+                max_rank
+            );
+        }
     }
 }
 

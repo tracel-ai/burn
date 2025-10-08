@@ -44,7 +44,36 @@ impl NodeProcessor for MatMulProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::matmul::matmul_update_outputs(node);
+        log::debug!("MatMul rank inference for node {}", node.name);
+
+        match (&node.inputs[0].ty, &node.inputs[1].ty) {
+            (ArgType::Tensor(a), ArgType::Tensor(b)) => {
+                log::debug!(
+                    "MatMul input ranks for {}: a.rank={}, b.rank={}",
+                    node.name,
+                    a.rank,
+                    b.rank
+                );
+
+                let mut out_rank = max(a.rank, b.rank);
+                if (a.rank >= 2 && b.rank == 1) || (a.rank == 1 && b.rank >= 2) {
+                    out_rank -= 1;
+                    log::debug!(
+                        "MatMul special case for node {}: reducing output rank",
+                        node.name
+                    );
+                }
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: a.elem_type.clone(),
+                    rank: out_rank,
+                    static_shape: None,
+                });
+
+                log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
+            }
+            _ => panic!("Only tensor inputs are valid"),
+        }
     }
 }
 

@@ -168,7 +168,111 @@ impl NodeProcessor for ConstantOfShapeProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::constant_of_shape::constant_of_shape_update_output(node);
+        log::debug!("ConstantOfShape rank inference for node {}", node.name);
+
+        let value_type = node
+            .attrs
+            .get("value")
+            .map(|v| v.clone().into_tensor().elem_type())
+            .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
+        log::debug!(
+            "ConstantOfShape value type for {}: {:?}",
+            node.name,
+            value_type
+        );
+
+        let rank = match &node.inputs[0].ty {
+            ArgType::Shape(rank) => {
+                log::debug!(
+                    "ConstantOfShape input is Shape with rank {} for {}",
+                    rank,
+                    node.name
+                );
+                *rank
+            }
+            ArgType::Tensor(tensor_type) => {
+                log::debug!("ConstantOfShape input is Tensor for {}", node.name);
+
+                // First check if we have a lifted constant value (most reliable)
+                if let Some(tensor_data) = &node.inputs[0].value {
+                    // We have the actual constant values that were lifted
+                    log::debug!(
+                        "ConstantOfShape extracting rank from lifted constant value for {}",
+                        node.name
+                    );
+
+                    // The tensor data contains the shape values
+                    // For a shape tensor, the length of the data is the output rank
+                    match &tensor_data.data {
+                        crate::ir::Data::Int64s(vals) => {
+                            let r = vals.len();
+                            log::debug!(
+                                "ConstantOfShape derived rank from Int64s constant data: {} for {}",
+                                r,
+                                node.name
+                            );
+                            r
+                        }
+                        _ => panic!(
+                            "ConstantOfShape node {} requires Int64 shape input, found {:?}",
+                            node.name, tensor_data.data
+                        ),
+                    }
+                } else if let Some(shape) = &tensor_type.static_shape {
+                    // Fall back to static shape if no constant value
+                    let r = shape
+                        .first()
+                        .copied()
+                        .expect("ConstantOfShape node must have a non-empty static shape value");
+                    log::debug!(
+                        "ConstantOfShape derived rank from static shape: {} for {}",
+                        r,
+                        node.name
+                    );
+                    r
+                } else {
+                    panic!(
+                        "ConstantOfShape node {} must have either a constant value or a static shape",
+                        node.name
+                    );
+                }
+            }
+            _ => panic!("ConstantOfShape node requires a Tensor or Shape type as input"),
+        };
+
+        // Update the input type to be a shape
+        node.inputs[0].ty = ArgType::Shape(rank);
+        log::debug!(
+            "ConstantOfShape updated input to Shape({}) for {}",
+            rank,
+            node.name
+        );
+
+        // Optimization: When input is Shape(1) and value type is Int64,
+        // output Shape(1) directly instead of a tensor. This is a common pattern
+        // in ONNX models where ConstantOfShape is used to create shape arrays.
+        // Downstream operations can cast to tensor if needed.
+        // This optimization improves performance by keeping shape operations in the Shape domain.
+        if rank == 1 && value_type == ElementType::Int64 {
+            // Special optimization for Shape(1) with Int64 values
+            node.outputs[0].ty = ArgType::Shape(1);
+            log::debug!(
+                "ConstantOfShape optimization: Shape(1) -> Shape(1) with Int64 value for {}",
+                node.name
+            );
+        } else if rank == 0 {
+            // When rank is 0, output should be a scalar
+            node.outputs[0].ty = ArgType::Scalar(value_type);
+            log::debug!("ConstantOfShape output is Scalar for {}", node.name);
+        } else {
+            // General case: output is a tensor
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: value_type,
+                rank,
+                static_shape: None,
+            });
+            log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
+        }
     }
 }
 

@@ -245,7 +245,20 @@ impl NodeProcessor for ReshapeProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        reshape_update_outputs(node);
+        // Extract input information
+        let input_info = extract_input_info(&node.inputs[0]);
+
+        // Determine output rank
+        let output_rank = infer_reshape_output_rank(node);
+
+        // Get static shape if available
+        let static_shape = match &node.outputs[0].ty {
+            ArgType::Tensor(t) => t.static_shape.clone(),
+            _ => None,
+        };
+
+        // Set output type based on rank and input type
+        node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
     }
 }
 

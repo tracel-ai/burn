@@ -163,7 +163,27 @@ impl NodeProcessor for SplitProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::split::split_update_outputs(node);
+        log::debug!("Split rank inference for node {}", node.name);
+
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Split: Input must be a tensor"),
+        };
+        log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
+        log::debug!(
+            "Split will generate {} outputs for {}",
+            node.outputs.len(),
+            node.name
+        );
+
+        for (i, output_arg) in node.outputs.iter_mut().enumerate() {
+            output_arg.ty = ArgType::Tensor(TensorType {
+                elem_type: tensor.elem_type.clone(),
+                rank: tensor.rank,
+                static_shape: None,
+            });
+            log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
+        }
     }
 }
 

@@ -23,7 +23,16 @@ impl NodeProcessor for SizeProcessor {
     }
 
     fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
-        crate::node::size::size_update_outputs(node);
+        log::debug!("Size rank inference for node {}", node.name);
+
+        assert_eq!(
+            node.inputs.len(),
+            1,
+            "Size: expected 1 input, found {}",
+            node.inputs.len()
+        );
+
+        node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
     }
 }
 
