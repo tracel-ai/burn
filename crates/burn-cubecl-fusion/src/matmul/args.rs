@@ -89,7 +89,7 @@ impl MatmulArgs for FusedMatmulArgs {
         #[unroll]
         for i in 0..rank - 2 {
             let shape = lhs.tensor.shape(i);
-            let stride = select(shape == 1, 0, lhs.tensor.shape(i));
+            let stride = select(shape == 1, 0, lhs.tensor.stride(i));
             batch_strides.push(stride);
         }
 
@@ -127,7 +127,7 @@ impl MatmulArgs for FusedMatmulArgs {
         #[unroll]
         for i in 0..rank - 2 {
             let shape = rhs.tensor.shape(i);
-            let stride = select(shape == 1, 0, rhs.tensor.shape(i));
+            let stride = select(shape == 1, 0, rhs.tensor.stride(i));
             batch_strides.push(stride);
         }
 
@@ -167,7 +167,7 @@ impl MatmulArgs for FusedMatmulArgs {
                 #[unroll]
                 for i in 0..rank - 2 {
                     let shape = acc.tensor.shape(i);
-                    let stride = select(shape == 1, 0, acc.tensor.shape(i));
+                    let stride = select(shape == 1, 0, acc.tensor.stride(i));
                     batch_strides.push(stride);
                 }
 
