@@ -261,17 +261,6 @@ impl Shape {
         Ok(shape)
     }
 
-    /*
-    let mut shape: Vec<usize> = slices
-        .iter()
-        .zip(original_shape.iter())
-        .map(|(slice, &dim_size)| slice.output_size(dim_size))
-        .collect();
-
-    // Add remaining dimensions from original shape
-    shape.extend_from_slice(&original_shape[shape.len()..]);
-    */
-
     /// Compute the output shape from the given slices.
     pub fn slice(mut self, slices: &[Slice]) -> Result<Self, ShapeError> {
         if slices.len() > self.rank() {
