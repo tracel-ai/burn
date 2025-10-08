@@ -202,7 +202,8 @@ mod tests {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_data(data, &device).cast(burn_tensor::DType::F32);
 
-        tensor.slice_fill(s![0..2], 1.0)
+        tensor
+            .slice_fill(s![0..2], 1.0)
             .into_data()
             .assert_eq(&TensorData::from([1.0, 1.0, 2.0]), false);
     }
@@ -213,7 +214,8 @@ mod tests {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_data(data, &device).cast(burn_tensor::DType::F64);
 
-        tensor.slice_fill(s![0..2], 1.0)
+        tensor
+            .slice_fill(s![0..2], 1.0)
             .into_data()
             .assert_eq(&TensorData::from([1.0, 1.0, 2.0]), false);
     }
