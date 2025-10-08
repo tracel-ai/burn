@@ -1,5 +1,7 @@
 use crate::ir::Node;
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for MaxPool2d operations
 #[derive(Debug, Clone)]
@@ -80,6 +82,18 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
+}
+
+pub struct MaxPool2dProcessor;
+
+impl NodeProcessor for MaxPool2dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (8, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

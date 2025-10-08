@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use core::cmp::max;
 
 /// Update output rank and type for MatMulInteger based on input ranks.
@@ -21,6 +22,18 @@ pub fn matmulinteger_update_outputs(node: &mut Node) {
             });
         }
         _ => panic!("MatMulInteger expects tensor inputs"),
+    }
+}
+
+pub struct MatMulIntegerProcessor;
+
+impl NodeProcessor for MatMulIntegerProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (10, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        matmulinteger_update_outputs(node);
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
@@ -35,6 +36,18 @@ pub fn random_update_output(node: &mut Node) {
         rank,
         static_shape: None,
     });
+}
+
+pub struct RandomProcessor;
+
+impl NodeProcessor for RandomProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::random::random_update_output(node);
+    }
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for NonZero operations
 #[derive(Debug, Clone, new)]
@@ -30,6 +31,18 @@ pub fn nonzero_update_output(node: &mut Node) {
             log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
         }
         _ => panic!("NonZero operation requires tensor input"),
+    }
+}
+
+pub struct NonZeroProcessor;
+
+impl NodeProcessor for NonZeroProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (9, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::nonzero::nonzero_update_output(node);
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, TensorType, ir::Node};
 
 /// Update output type for DepthToSpace operation (rank 4).
@@ -99,6 +100,18 @@ pub fn depth_to_space_config(node: &Node) -> DepthToSpaceConfig {
     );
 
     DepthToSpaceConfig { mode, block_size }
+}
+
+pub struct DepthToSpaceProcessor;
+
+impl NodeProcessor for DepthToSpaceProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::depth_to_space::depth_to_space_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

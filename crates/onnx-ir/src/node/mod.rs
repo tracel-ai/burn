@@ -3,12 +3,15 @@
 //! Each submodule implements a specific ONNX operation, providing:
 //! - Operation configuration and parameters
 //! - Rank inference functionality
+//! - NodeProcessor implementation for node-centric processing
 //!
 //! This modular structure allows for clean separation of operation implementations
 //! and facilitates easier maintenance and extension of the ONNX operation set.
 
 #[cfg(test)]
 pub mod test_utils;
+
+pub mod elementwise;
 
 pub mod argmax;
 pub mod argmin;

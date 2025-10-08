@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
     ir::{ArgType, ElementType, Node, TensorType},
     util::{compute_broadcast_rank, compute_broadcast_static_shape},
@@ -111,6 +112,18 @@ pub fn where_update_outputs(node: &mut Node) {
             output_rank,
             node.outputs[0].ty.static_shape()
         );
+    }
+}
+
+pub struct WhereProcessor;
+
+impl NodeProcessor for WhereProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (9, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::where_op::where_update_outputs(node);
     }
 }
 

@@ -1,4 +1,6 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for ConvTranspose2d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +123,18 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
         group,
         bias,
     )
+}
+
+pub struct Convtranspose2dProcessor;
+
+impl NodeProcessor for Convtranspose2dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

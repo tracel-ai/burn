@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
     Argument, TensorData,
     ir::{ArgType, Data, ElementType, Node, TensorType},
@@ -156,6 +157,18 @@ pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
             "ConstantOfShape node {} requires Int64 shape data, found {:?}",
             node.name, &node.inputs[0].value
         ),
+    }
+}
+
+pub struct ConstantOfShapeProcessor;
+
+impl NodeProcessor for ConstantOfShapeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (9, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::constant_of_shape::constant_of_shape_update_output(node);
     }
 }
 

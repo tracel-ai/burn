@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output rank for TopK (same as input rank).
 pub fn top_k_update_output(node: &mut Node) {
@@ -90,6 +91,18 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
     };
 
     TopKConfig::new(axis as usize, k as usize)
+}
+
+pub struct TopKProcessor;
+
+impl NodeProcessor for TopKProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::topk::top_k_update_output(node);
+    }
 }
 
 #[cfg(test)]

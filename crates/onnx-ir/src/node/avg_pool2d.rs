@@ -1,5 +1,7 @@
 use crate::ir::Node;
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for AvgPool2d operations
 #[derive(Debug, Clone)]
@@ -68,6 +70,18 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         padding,
         count_include_pad == 1,
     )
+}
+
+pub struct AvgPool2dProcessor;
+
+impl NodeProcessor for AvgPool2dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (7, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

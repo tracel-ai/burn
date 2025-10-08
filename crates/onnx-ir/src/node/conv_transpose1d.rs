@@ -1,4 +1,6 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -123,6 +125,18 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
         padding_out: output_padding[0] as usize,
         groups: group,
         bias,
+    }
+}
+
+pub struct Convtranspose1dProcessor;
+
+impl NodeProcessor for Convtranspose1dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
     }
 }
 

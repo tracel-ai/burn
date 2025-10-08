@@ -1,5 +1,7 @@
 use crate::ir::Node;
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for Conv2d operations
 #[derive(Debug, Clone)]
@@ -109,6 +111,20 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         group,
         bias,
     )
+}
+
+/// Node processor for Conv2d operation
+pub struct Conv2dProcessor;
+
+impl NodeProcessor for Conv2dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None) // Conv2d supported from opset 1+
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        // Conv2d preserves rank (same as input)
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

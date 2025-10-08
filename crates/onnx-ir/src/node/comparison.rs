@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
@@ -41,6 +42,18 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
             node.name,
             max_rank
         );
+    }
+}
+
+pub struct ComparisonProcessor;
+
+impl NodeProcessor for ComparisonProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (7, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::comparison::elementwise_comparison_outputs(node);
     }
 }
 

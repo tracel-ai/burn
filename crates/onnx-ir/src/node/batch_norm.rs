@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::Node;
 
 /// Configuration for BatchNorm operations
@@ -45,6 +48,18 @@ pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
     }
 
     BatchNormConfig::new(num_features, epsilon as f64, momentum as f64)
+}
+
+pub struct BatchNormProcessor;
+
+impl NodeProcessor for BatchNormProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

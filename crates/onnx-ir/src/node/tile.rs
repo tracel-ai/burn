@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{Node, TensorData};
 
 /// Configuration for the Tile operation.
@@ -31,6 +32,18 @@ pub fn tile_config(node: &Node) -> TileConfig {
         })
         .unwrap_or_default();
     TileConfig::new(repeat)
+}
+
+pub struct TileProcessor;
+
+impl NodeProcessor for TileProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
+    }
 }
 
 #[cfg(test)]

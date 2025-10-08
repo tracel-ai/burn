@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for ArgMax operations
 #[derive(Debug, Clone, new)]
@@ -105,6 +106,18 @@ pub fn argmax_update_outputs(node: &mut Node) {
         config.keepdims,
         node.outputs[0].ty
     );
+}
+
+pub struct ArgMaxProcessor;
+
+impl NodeProcessor for ArgMaxProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::argmax::argmax_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

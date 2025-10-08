@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
     Argument, ElementType, TensorData,
     ir::{ArgType, Data, Node, TensorType},
@@ -158,6 +159,18 @@ pub fn expand_config(node: &Node) -> ExpandShape {
             "Shape data type must be int64, is {:?}",
             &node.inputs[1].value
         ),
+    }
+}
+
+pub struct ExpandProcessor;
+
+impl NodeProcessor for ExpandProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (8, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::expand::expand_update_outputs(node);
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
 pub struct CastConfig {
@@ -80,6 +81,18 @@ pub fn cast_update_outputs(node: &mut Node) {
                 }
             }
         }
+    }
+}
+
+pub struct CastProcessor;
+
+impl NodeProcessor for CastProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::cast::cast_update_outputs(node);
     }
 }
 

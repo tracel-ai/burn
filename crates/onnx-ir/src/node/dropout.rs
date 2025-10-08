@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::{Data, Node};
 
 /// Configuration for Dropout operations
@@ -41,6 +44,18 @@ pub fn dropout_config(node: &Node) -> DropoutConfig {
     };
 
     DropoutConfig::new(prob)
+}
+
+pub struct DropoutProcessor;
+
+impl NodeProcessor for DropoutProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (7, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

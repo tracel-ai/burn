@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
@@ -32,6 +33,18 @@ pub fn random_like_update_output(node: &mut Node) {
         log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
     } else {
         panic!("Only tensor input is valid");
+    }
+}
+
+pub struct RandomLikeProcessor;
+
+impl NodeProcessor for RandomLikeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::random_like::random_like_update_output(node);
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsInfConfig {
@@ -28,6 +29,18 @@ pub fn is_inf_config(curr: &Node) -> IsInfConfig {
     }
 
     IsInfConfig::new(detect_negative, detect_positive)
+}
+
+pub struct IsInfProcessor;
+
+impl NodeProcessor for IsInfProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (10, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::comparison::elementwise_comparison_outputs(node);
+    }
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Create log_softmax config from the attributes of the node
 pub fn log_softmax_config(node: &Node) -> usize {
@@ -32,6 +33,18 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     axis as usize
+}
+
+pub struct LogSoftmaxProcessor;
+
+impl NodeProcessor for LogSoftmaxProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
+    }
 }
 
 #[cfg(test)]

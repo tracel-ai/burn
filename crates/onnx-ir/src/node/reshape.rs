@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Argument, Data, Node, TensorData, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for the Reshape operation.
 #[derive(Debug, Clone)]
@@ -232,6 +233,19 @@ pub fn reshape_config_vec(node: &Node) -> Vec<i64> {
         ReshapeInput::Runtime(_) => {
             panic!("reshape_config_vec cannot be used with runtime shape inputs")
         }
+    }
+}
+
+/// Node processor for Reshape operation
+pub struct ReshapeProcessor;
+
+impl NodeProcessor for ReshapeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (5, None) // Reshape supported from opset 5+
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        reshape_update_outputs(node);
     }
 }
 

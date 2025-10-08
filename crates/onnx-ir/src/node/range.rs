@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Argument, Data, ElementType, Node, TensorData, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for the Range operation.
 #[derive(Debug, Clone)]
@@ -72,6 +73,18 @@ pub fn range_update_outputs(node: &mut Node) {
     });
 
     log::debug!("Range output rank for {}: 1", node.name);
+}
+
+pub struct RangeProcessor;
+
+impl NodeProcessor for RangeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (11, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::range::range_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

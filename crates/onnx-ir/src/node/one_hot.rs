@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
     let depth = curr.inputs[1]
@@ -42,6 +43,18 @@ pub fn one_hot_output_shape(node: &mut Node) {
         rank: output_rank,
         static_shape: None,
     });
+}
+
+pub struct OneHotProcessor;
+
+impl NodeProcessor for OneHotProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (9, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::one_hot::one_hot_output_shape(node);
+    }
 }
 
 #[cfg(test)]

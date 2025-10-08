@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output type for constant nodes based on attribute values, focusing on rank only.
 pub fn constant_update_outputs(node: &mut Node) {
@@ -64,6 +65,18 @@ pub fn constant_update_outputs(node: &mut Node) {
         },
         None => panic!("Constant node must have a value attribute"),
     };
+}
+
+pub struct ConstantProcessor;
+
+impl NodeProcessor for ConstantProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::constant::constant_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

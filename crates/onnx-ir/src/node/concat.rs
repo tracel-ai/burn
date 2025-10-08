@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output rank for Concat (same as first input).
 pub fn concat_update_outputs(node: &mut Node) {
@@ -135,6 +136,18 @@ pub fn concat_config(node: &Node) -> usize {
     }
 
     normalized_axis as usize
+}
+
+pub struct ConcatProcessor;
+
+impl NodeProcessor for ConcatProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (4, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::concat::concat_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

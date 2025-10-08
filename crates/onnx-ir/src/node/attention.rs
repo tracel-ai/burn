@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, Argument, Node, TensorType};
 
 #[derive(Debug, Clone)]
@@ -155,6 +156,18 @@ fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a Tenso
     match &arg?.ty {
         ArgType::Tensor(v) => Some(v),
         _ => panic!("Attention: {name} input must be a tensor"),
+    }
+}
+
+pub struct AttentionProcessor;
+
+impl NodeProcessor for AttentionProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::attention::attention_update_output(node);
     }
 }
 

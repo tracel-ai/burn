@@ -1,5 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for EyeLike operations
 #[derive(Debug, Clone, new)]
@@ -55,6 +56,18 @@ pub fn eye_like_update_output(node: &mut Node) {
             log::debug!("EyeLike output tensor rank: {}", tensor.rank);
         }
         _ => panic!("EyeLike operation requires 2D tensor input"),
+    }
+}
+
+pub struct EyeLikeProcessor;
+
+impl NodeProcessor for EyeLikeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (9, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::eye_like::eye_like_update_output(node);
     }
 }
 

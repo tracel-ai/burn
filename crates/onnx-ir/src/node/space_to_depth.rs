@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, TensorType, ir::Node};
 
 /// Update output type for SpaceToDepth operation (rank 4).
@@ -66,6 +67,18 @@ pub fn space_to_depth_config(node: &Node) -> usize {
     );
 
     block_size
+}
+
+pub struct SpaceToDepthProcessor;
+
+impl NodeProcessor for SpaceToDepthProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::space_to_depth::space_to_depth_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

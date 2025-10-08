@@ -1,4 +1,5 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 pub use self::Direction as BitShiftDirection;
 
@@ -29,6 +30,18 @@ pub fn bitshift_config(node: &Node) -> Direction {
 
     Direction::from_str(&direction_str)
         .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"))
+}
+
+pub struct BitShiftProcessor;
+
+impl NodeProcessor for BitShiftProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (11, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input_broadcast(node);
+    }
 }
 
 #[cfg(test)]

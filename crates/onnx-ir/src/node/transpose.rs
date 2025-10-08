@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::{ArgType, Node};
 
 pub fn transpose_config(curr: &Node) -> Vec<i64> {
@@ -22,6 +25,18 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
     }
 
     perm
+}
+
+pub struct TransposeProcessor;
+
+impl NodeProcessor for TransposeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

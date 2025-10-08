@@ -1,5 +1,7 @@
 use crate::ir::Node;
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 /// Configuration for Conv3d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,6 +122,18 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
         bias,
         padding,
     )
+}
+
+pub struct Conv3dProcessor;
+
+impl NodeProcessor for Conv3dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

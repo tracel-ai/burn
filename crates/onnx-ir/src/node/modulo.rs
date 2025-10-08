@@ -1,4 +1,5 @@
-use crate::ir::AttributeValue;
+use crate::ir::{AttributeValue, Node};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for Mod operations
 #[derive(Debug, Clone)]
@@ -23,6 +24,18 @@ pub fn mod_config(node: &crate::ir::Node) -> ModConfig {
         _ => false, // Default value as per ONNX spec
     };
     ModConfig::new(fmod)
+}
+
+pub struct ModuloProcessor;
+
+impl NodeProcessor for ModuloProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (10, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input_broadcast(node);
+    }
 }
 
 #[cfg(test)]

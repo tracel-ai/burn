@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::{Data, Node};
 
 pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
@@ -59,6 +62,18 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     }
 
     (min_result, max_result)
+}
+
+pub struct ClipProcessor;
+
+impl NodeProcessor for ClipProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

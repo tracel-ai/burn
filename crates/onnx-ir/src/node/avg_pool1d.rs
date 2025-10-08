@@ -1,3 +1,5 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 use crate::{ir::Node, node::padding::padding_config_1d};
 
 use super::padding::PaddingConfig1d;
@@ -75,6 +77,18 @@ pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
         stride: strides[0] as usize,
         padding,
         count_include_pad: count_include_pad == 1,
+    }
+}
+
+pub struct AvgPool1dProcessor;
+
+impl NodeProcessor for AvgPool1dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (7, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
     }
 }
 

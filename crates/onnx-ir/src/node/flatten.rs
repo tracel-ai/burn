@@ -1,3 +1,5 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+
 use crate::ir::{ArgType, Node, TensorType};
 
 /// Update output type for Flatten operation (rank 2).
@@ -61,6 +63,18 @@ pub fn flatten_config(curr: &Node) -> usize {
     }
 
     axis as usize
+}
+
+pub struct FlattenProcessor;
+
+impl NodeProcessor for FlattenProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::flatten::flatten_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

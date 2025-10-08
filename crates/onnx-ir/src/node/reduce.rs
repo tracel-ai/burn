@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, Node, TensorType};
 
 #[derive(Debug, Clone)]
@@ -158,6 +159,18 @@ pub fn reduce_update_outputs(node: &mut Node) {
             rank: output_rank,
             static_shape: output_shape,
         });
+    }
+}
+
+pub struct ReduceProcessor;
+
+impl NodeProcessor for ReduceProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::reduce::reduce_update_outputs(node);
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::Argument;
 use crate::ir::{ArgType, Data, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for the Gather operation.
 #[derive(Debug, Clone)]
@@ -158,6 +159,18 @@ pub fn gather_config(curr: &Node) -> GatherConfig {
     GatherConfig {
         indices,
         axis: dim as usize,
+    }
+}
+
+pub struct GatherProcessor;
+
+impl NodeProcessor for GatherProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::gather::gather_update_outputs(node);
     }
 }
 

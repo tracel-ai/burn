@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::{ArgType, AttributeValue, Data, Node, TensorData};
 
 /// Configuration for the Pad operation.
@@ -141,6 +144,18 @@ pub fn pad_config(node: &Node) -> PadConfig {
     let constant_value = get_constant_value(node);
 
     PadConfig::new(pads, constant_value)
+}
+
+pub struct PadProcessor;
+
+impl NodeProcessor for PadProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (2, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

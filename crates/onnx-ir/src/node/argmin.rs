@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for ArgMin operations
 #[derive(Debug, Clone, new)]
@@ -105,6 +106,18 @@ pub fn argmin_update_outputs(node: &mut Node) {
         config.keepdims,
         node.outputs[0].ty
     );
+}
+
+pub struct ArgMinProcessor;
+
+impl NodeProcessor for ArgMinProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::argmin::argmin_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

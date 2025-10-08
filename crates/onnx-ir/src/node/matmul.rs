@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use core::cmp::max;
 
 /// Update output rank for MatMul based on input ranks.
@@ -32,6 +33,18 @@ pub fn matmul_update_outputs(node: &mut Node) {
             log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
         }
         _ => panic!("Only tensor inputs are valid"),
+    }
+}
+
+pub struct MatMulProcessor;
+
+impl NodeProcessor for MatMulProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::matmul::matmul_update_outputs(node);
     }
 }
 

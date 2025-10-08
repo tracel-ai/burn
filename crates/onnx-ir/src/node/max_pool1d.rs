@@ -1,3 +1,5 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 use crate::{ir::Node, node::padding::padding_config_1d};
 
 use super::padding::PaddingConfig1d;
@@ -90,6 +92,18 @@ pub fn max_pool1d_config(curr: &Node) -> MaxPool1dConfig {
         stride: stride[0] as usize,
         dilation: dilation[0] as usize,
         padding,
+    }
+}
+
+pub struct MaxPool1dProcessor;
+
+impl NodeProcessor for MaxPool1dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (8, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use core::cmp::max;
 
 /// Update output shape for Gemm operation based on input ranks.
@@ -51,6 +52,18 @@ pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
     }
 
     (alpha, beta, trans_a, trans_b)
+}
+
+pub struct GemmProcessor;
+
+impl NodeProcessor for GemmProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::gemm::gemm_output_shape(node);
+    }
 }
 
 #[cfg(test)]

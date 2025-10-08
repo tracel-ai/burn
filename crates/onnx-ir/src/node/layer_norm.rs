@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::Node;
 
 /// Configuration for LayerNorm operations
@@ -59,6 +62,18 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
         stash_type == 1,
     )
+}
+
+pub struct LayerNormProcessor;
+
+impl NodeProcessor for LayerNormProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (17, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::Node;
 
 /// Configuration for GroupNorm operations
@@ -54,6 +57,18 @@ pub fn group_norm_config(node: &Node) -> (GroupNormConfig, bool) {
         GroupNormConfig::new(num_features, num_groups, epsilon as f64),
         stash_type == 1,
     )
+}
+
+pub struct GroupNormProcessor;
+
+impl NodeProcessor for GroupNormProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (18, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

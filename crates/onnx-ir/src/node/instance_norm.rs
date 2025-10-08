@@ -1,3 +1,6 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
+
 use crate::ir::Node;
 
 /// Configuration for InstanceNorm operations
@@ -39,6 +42,18 @@ pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
     }
 
     InstanceNormConfig::new(num_features, epsilon as f64)
+}
+
+pub struct InstanceNormProcessor;
+
+impl NodeProcessor for InstanceNormProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
+    }
 }
 
 #[cfg(test)]

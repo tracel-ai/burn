@@ -1,4 +1,5 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Create a HardSigmoidConfig from the alpha and beta attributes of the node
 pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
@@ -14,6 +15,18 @@ pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
     }
 
     (alpha, beta)
+}
+
+pub struct HardSigmoidProcessor;
+
+impl NodeProcessor for HardSigmoidProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
+    }
 }
 
 #[cfg(test)]

@@ -5,6 +5,7 @@
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in
 //! ONNX models.
 
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
     Argument, TensorData,
     ir::{ArgType, Data, Node, TensorType},
@@ -157,6 +158,18 @@ pub fn unsqueeze_config(node: &Node) -> UnsqueezeConfig {
             }
         }
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),
+    }
+}
+
+pub struct UnsqueezeProcessor;
+
+impl NodeProcessor for UnsqueezeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::unsqueeze::unsqueeze_update_output(node);
     }
 }
 

@@ -1,4 +1,6 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::util::same_as_input;
 
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
@@ -114,6 +116,18 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
         groups: group,
         bias,
         padding,
+    }
+}
+
+pub struct Conv1dProcessor;
+
+impl NodeProcessor for Conv1dProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        same_as_input(node);
     }
 }
 

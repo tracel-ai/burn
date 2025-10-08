@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output type for Size (always scalar).
 pub fn size_update_outputs(node: &mut Node) {
@@ -12,6 +13,18 @@ pub fn size_update_outputs(node: &mut Node) {
     );
 
     node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+}
+
+pub struct SizeProcessor;
+
+impl NodeProcessor for SizeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::size::size_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

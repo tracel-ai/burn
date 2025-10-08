@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
@@ -37,6 +38,18 @@ pub fn bernoulli_update_output(node: &mut Node) {
         rank,
         static_shape,
     });
+}
+
+pub struct BernoulliProcessor;
+
+impl NodeProcessor for BernoulliProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (15, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::bernoulli::bernoulli_update_output(node);
+    }
 }
 
 #[cfg(test)]

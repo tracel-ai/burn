@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Update output rank for Split (same as input).
 pub fn split_update_outputs(node: &mut Node) {
@@ -151,6 +152,18 @@ pub fn split_config(node: &Node) -> SplitConfig {
         axis: axis as usize,
         split_size,
         split_sizes,
+    }
+}
+
+pub struct SplitProcessor;
+
+impl NodeProcessor for SplitProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (2, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::split::split_update_outputs(node);
     }
 }
 

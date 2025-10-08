@@ -1,3 +1,5 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
+
 use crate::ir::{ArgType, Data, Node, TensorType};
 
 pub fn squeeze_config(curr: &Node) -> Option<Vec<i64>> {
@@ -97,6 +99,18 @@ pub fn squeeze_update_output(node: &mut Node) {
             node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
             log::debug!("Squeeze Scalar unchanged for {}", node.name);
         }
+    }
+}
+
+pub struct SqueezeProcessor;
+
+impl NodeProcessor for SqueezeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::squeeze::squeeze_update_output(node);
     }
 }
 

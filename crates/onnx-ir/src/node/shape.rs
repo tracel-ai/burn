@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 pub fn shape_config(curr: &Node) -> (usize, usize) {
     if curr.inputs.len() != 1 {
@@ -76,6 +77,18 @@ pub fn shape_update_outputs(node: &mut Node) {
         dim
     );
     node.outputs[0].ty = ArgType::Shape(dim);
+}
+
+pub struct ShapeProcessor;
+
+impl NodeProcessor for ShapeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::shape::shape_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{Data, Node, TensorData};
 
 /// Configuration for the Trilu operation.
@@ -35,6 +36,18 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
         diagonal = *diagonal_val;
     }
     TriluConfig::new(upper, diagonal)
+}
+
+pub struct TriluProcessor;
+
+impl NodeProcessor for TriluProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (14, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
+    }
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Argument, Node, TensorData};
+use crate::processor::{NodeProcessor, ProcessorContext};
 use std::str::FromStr;
 
 /// Interpolation mode for resize operation
@@ -230,6 +231,18 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
             }
         }
         None => None,
+    }
+}
+
+pub struct ResizeProcessor;
+
+impl NodeProcessor for ResizeProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (10, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
     }
 }
 

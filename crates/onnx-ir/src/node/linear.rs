@@ -1,4 +1,5 @@
 use crate::ir::{ArgType, Node, TensorType};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for Linear operations
 #[derive(Debug, Clone)]
@@ -74,6 +75,18 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     let bias = node.inputs.len() == 3 && node.inputs[2].value.is_some();
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
+}
+
+pub struct LinearProcessor;
+
+impl NodeProcessor for LinearProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::linear::linear_update_outputs(node);
+    }
 }
 
 #[cfg(test)]

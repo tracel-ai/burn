@@ -1,5 +1,6 @@
 use crate::Argument;
 use crate::ir::{ArgType, Data, Node, TensorData};
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Configuration for the Slice operation.
 #[derive(Debug, Clone)]
@@ -208,6 +209,18 @@ pub fn slice_update_output_rank(node: &mut Node) {
         node.name,
         node.outputs[0].ty
     );
+}
+
+pub struct SliceProcessor;
+
+impl NodeProcessor for SliceProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (1, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::node::slice::slice_update_output_rank(node);
+    }
 }
 
 #[cfg(test)]

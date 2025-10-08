@@ -1,4 +1,5 @@
 use crate::ir::Node;
+use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Create a LeakyReluConfig from the alpha attribute of the node
 pub fn leaky_relu_config(node: &Node) -> f64 {
@@ -11,6 +12,18 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     }
 
     alpha
+}
+
+pub struct LeakyReluProcessor;
+
+impl NodeProcessor for LeakyReluProcessor {
+    fn supported_opset_range(&self) -> (i64, Option<i64>) {
+        (6, None)
+    }
+
+    fn infer_outputs(&self, node: &mut Node, _context: &ProcessorContext) {
+        crate::util::same_as_input(node);
+    }
 }
 
 #[cfg(test)]
