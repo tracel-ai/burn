@@ -11,7 +11,7 @@ mod tests {
     fn test_lu_2x2_decomposition() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
-        let (result, permutations) = lu_decomposition(tensor).unwrap();
+        let (result, permutations) = lu_decomposition(tensor);
         let expected = TestTensor::<2>::from_data([[6.0, 3.0], [2.0 / 3.0, 1.0]], &device);
         result.into_data().assert_eq(&expected.into_data(), true);
     }
@@ -23,7 +23,7 @@ mod tests {
             [[0.0, 5.0, 22.0 / 3.0], [4.0, 2.0, 1.0], [2.0, 7.0, 9.0]],
             &device,
         );
-        let (result, permutations) = lu_decomposition(tensor).unwrap();
+        let (result, permutations) = lu_decomposition(tensor);
         let expected = TestTensor::<2>::from_data(
             [
                 [4.0, 2.0, 1.0],
@@ -41,32 +41,26 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_lu_singular_matrix() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [2.0, 4.0]], &device);
         let result = lu_decomposition(tensor);
-        assert!(
-            result.is_err(),
-            "LU decomposition should fail for singular matrices"
-        );
     }
 
     #[test]
+    #[should_panic]
     fn test_lu_non_square_matrix() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let result = lu_decomposition(tensor);
-        assert!(
-            result.is_err(),
-            "LU decomposition should fail for non-square matrices"
-        );
     }
 
     #[test]
     fn test_lu_1x1_element_matrix() {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_data([[5.0]], &device);
-        let (result, permutations) = lu_decomposition(tensor).unwrap();
+        let (result, permutations) = lu_decomposition(tensor);
         let expected = TestTensor::<2>::from_data([[5.0]], &device);
 
         result.into_data().assert_eq(&expected.into_data(), true);
@@ -77,7 +71,7 @@ mod tests {
         let device = Default::default();
 
         let tensor = TestTensor::<2>::eye(4, &device);
-        let (result, permutations) = lu_decomposition(tensor).unwrap();
+        let (result, permutations) = lu_decomposition(tensor);
         let expected = TestTensor::<2>::eye(4, &device);
         result.into_data().assert_eq(&expected.into_data(), true);
     }
@@ -88,7 +82,7 @@ mod tests {
         let size = 50;
         let distribution = Distribution::Uniform(0.0, 1.0);
         let tensor = TestTensor::<2>::random(Shape::new([size, size]), distribution, &device);
-        let (result, permutations) = lu_decomposition(tensor.clone()).unwrap();
+        let (result, permutations) = lu_decomposition(tensor.clone());
         // Reconstruct the original matrix from L and U
         let mut l = TestTensor::<2>::eye(size, &device);
         let mut u = TestTensor::<2>::zeros(Shape::new([size, size]), &device);

@@ -1,3 +1,4 @@
+use crate::ops::FloatElem;
 use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -1399,6 +1400,34 @@ impl TensorCheck {
                 ops,
                 TensorError::new("Number of channels in input tensor and input channels of convolution must be equal.")
                 .details(format!("got: {channels}, expected: {expected}")),
+            );
+        }
+        check
+    }
+
+    /// Check if input is compatible with LU decomposition.
+    pub fn is_square<const D: usize>(ops: &str, shape: &Shape) -> Self {
+        let mut check = TensorCheck::Ok;
+        if shape.dims[D - 1] != shape.dims[D - 2] {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor must be square.").details(format!(
+                    "Got tensor with shape {:?}, expected last two dimensions to be equal",
+                    shape.dims
+                )),
+            );
+        }
+        check
+    }
+
+    /// Check pivot is valid for LU decomposition.
+    pub fn lu_decomposition_pivot<B: Backend>(pivot: FloatElem<B>) -> Self {
+        let mut check = TensorCheck::Ok;
+        if pivot.to_f64().abs() <= 1e-6 {
+            check = check.register(
+                "lu_decomposition",
+                TensorError::new("LU decomposition requires a valid pivot.")
+                    .details(format!("Got pivot value too close to zero: {}", pivot)),
             );
         }
         check

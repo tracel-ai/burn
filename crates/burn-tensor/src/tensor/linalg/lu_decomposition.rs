@@ -1,15 +1,7 @@
-use crate::{Int, backend::Backend, cast::ToElement, linalg::swap_slices, s, tensor::Tensor};
-use alloc::{format, string::String};
-
-/// The things that can go wrong when computing the LU decomposition.
-#[derive(Debug)]
-pub enum LuError {
-    /// The input matrix is not square.
-    NotSquareMatrix(String),
-    /// The input matrix is singular.
-    SingularMatrix(String),
-}
-
+use crate::{
+    Int, backend::Backend, cast::ToElement, check, check::TensorCheck, linalg::swap_slices, s,
+    tensor::Tensor,
+};
 /// Performs PLU decomposition of a square matrix.
 ///
 /// The function decomposes a given square matrix `A` into three matrices: a permutation vector `p`,
@@ -27,16 +19,18 @@ pub enum LuError {
 /// - A 2D tensor representing the combined `L` and `U` matrices.
 /// - A 1D tensor representing the permutation vector `p`.
 ///
-pub fn lu_decomposition<B: Backend>(
-    tensor: Tensor<B, 2>,
-) -> Result<(Tensor<B, 2>, Tensor<B, 1, Int>), LuError> {
+/// # Panics and numerical issues
+/// - The function will panic if the input matrix is singular or near-singular.
+/// - The function will panic if the input matrix is not square.
+/// # Performance note (synchronization / device transfers)
+/// This function may involve multiple synchronizations and device transfers, especially
+/// when determining pivot elements and performing row swaps. This can impact performance,
+pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 1, Int>) {
+    check!(TensorCheck::is_square::<2>(
+        "lu_decomposition",
+        &tensor.shape()
+    ));
     let dims = tensor.shape().dims::<2>();
-    if dims[0] != dims[1] {
-        return Err(LuError::NotSquareMatrix(format!(
-            "LU decomposition requires a square matrix, but got shape: {:?}",
-            tensor.shape()
-        )));
-    }
     let n = dims[0];
 
     let mut permutations = Tensor::arange(0..n as i64, &tensor.device());
@@ -55,11 +49,8 @@ pub fn lu_decomposition<B: Backend>(
         let max = tensor.clone().slice(s![p, k]).abs();
 
         // Avoid division by zero
-        if max.into_scalar().to_f32().abs() < f32::EPSILON * 10.0 {
-            return Err(LuError::SingularMatrix(format!(
-                "LU decomposition failed: matrix is singular or near-singular at column {k}",
-            )));
-        }
+        let pivot = max.into_scalar();
+        check!(TensorCheck::lu_decomposition_pivot::<B>(pivot));
 
         if p != k {
             tensor = swap_slices(tensor, s![k, ..], s![p, ..]);
@@ -84,5 +75,5 @@ pub fn lu_decomposition<B: Backend>(
         }
     }
 
-    Ok((tensor, permutations))
+    (tensor, permutations)
 }
