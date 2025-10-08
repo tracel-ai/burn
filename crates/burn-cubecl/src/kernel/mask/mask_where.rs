@@ -4,7 +4,7 @@ use crate::{
     BoolElement, CubeRuntime,
     element::CubeElement,
     kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_line_size_many, numeric::empty_device},
     tensor::CubeTensor,
 };
 
@@ -46,7 +46,7 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     strategy: MaskWhereStrategy,
 ) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
-    let line_size = max_line_size(&input);
+    let line_size = max_line_size_many(&[&input, &mask, &value], input.shape.num_dims() - 1);
     let cube_count =
         calculate_cube_count_elemwise(input.shape.num_elements() / line_size as usize, cube_dim);
 
@@ -61,18 +61,18 @@ pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     };
 
     let out = match strategy {
-        MaskWhereStrategy::Readonly => linear_view(&output, &line_size),
-        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, &line_size, 0),
-        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, &line_size, 1),
+        MaskWhereStrategy::Readonly => linear_view(&output, line_size),
+        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, line_size, 0),
+        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, line_size, 1),
     };
 
     mask_where_kernel::launch::<E, BT, R>(
         &input.client,
         cube_count,
         cube_dim,
-        linear_view_ref(&input, &output, &line_size),
-        linear_view_ref(&value, &output, &line_size),
-        linear_view_ref(&mask, &output, &line_size),
+        linear_view_ref(&input, &output, line_size),
+        linear_view_ref(&value, &output, line_size),
+        linear_view_ref(&mask, &output, line_size),
         out,
     );
 

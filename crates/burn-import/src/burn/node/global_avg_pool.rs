@@ -3,7 +3,7 @@ use quote::quote;
 
 use burn::record::PrecisionSettings;
 
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, Type};
 
 /// GlobalAvgPoolNode is a node that performs a global average pooling operation.
@@ -97,11 +97,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GlobalAvgPoolNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::GlobalAvgPool(self)
+        Node::GlobalAveragePool(self)
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         S::serialize_none(serializer)
+    }
+}
+
+impl OnnxIntoNode for GlobalAvgPoolNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let name = &node.name;
+        Self::new(name, input, output)
     }
 }
 

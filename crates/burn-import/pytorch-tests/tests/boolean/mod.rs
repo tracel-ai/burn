@@ -36,8 +36,6 @@ mod tests {
     use crate::backend::TestBackend;
 
     #[test]
-    #[ignore = "It appears loading boolean tensors are not supported yet"]
-    // Error skipping: Msg("unsupported storage type BoolStorage")
     fn boolean() {
         let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()

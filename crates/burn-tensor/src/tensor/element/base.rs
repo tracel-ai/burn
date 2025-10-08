@@ -346,6 +346,11 @@ impl DType {
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
+                    // e2m1 native is automatically packed by the kernels, so the actual storage is
+                    // 8 bits wide.
+                    QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                        core::mem::size_of::<u8>()
+                    }
                     QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                         // Sub-byte values have fractional size
                         0

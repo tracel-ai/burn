@@ -229,6 +229,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_cast(tensor, desc.out.dtype.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::CumSum(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cumsum(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_empty(shape, &self.device, desc.dtype.into());
@@ -306,6 +311,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::CumSum(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cumsum(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_empty(shape, &self.device, desc.dtype.into());
@@ -387,6 +397,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::CumSum(_) => unreachable!("cumsum not supported for bool tensors"),
                 BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
@@ -921,6 +932,18 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 FloatOperationIr::Quantize(_) => todo!(),
                 FloatOperationIr::Dequantize(_) => todo!(),
+                FloatOperationIr::IsNan(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_is_nan(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                FloatOperationIr::IsInf(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_is_inf(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Module(op) => match op {
                 ModuleOperationIr::Embedding(desc) => {

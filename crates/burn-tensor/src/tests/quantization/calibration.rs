@@ -38,17 +38,17 @@ mod tests {
         );
         let scheme = QuantizedTensor::<TestBackend>::default_scheme()
             .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Block(4));
+            .with_level(QuantLevel::block([4]));
 
         let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
         range
             .min
             .into_data()
-            .assert_eq(&TensorData::from([-1.8, -0.5, 0.01, -0.04]), false);
+            .assert_eq(&TensorData::from([[-1.8], [-0.5], [0.01], [-0.04]]), false);
         range
             .max
             .into_data()
-            .assert_eq(&TensorData::from([0.5, 1.8, 0.04, -0.01]), false);
+            .assert_eq(&TensorData::from([[0.5], [1.8], [0.04], [-0.01]]), false);
     }
 }

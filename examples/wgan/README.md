@@ -1,12 +1,11 @@
 # Wasserstein Generative Adversarial Network
 
-A burn implementation of examplar WGAN model to generate MNIST digits inspired by
+A burn implementation of an example WGAN model to generate MNIST digits inspired by
 [the PyTorch implementation](https://bytepawn.com/training-a-pytorch-wasserstain-mnist-gan-on-google-colab.html).
 Please note that better performance maybe gained by adopting a convolution layer in
 [some other models](https://github.com/Lornatang/WassersteinGAN-PyTorch).
 
 ## Usage
-
 
 ## Training
 
@@ -29,7 +28,6 @@ cargo run --example wgan-mnist --release --features ndarray                # f32
 cargo run --example wgan-mnist --release --features ndarray-blas-openblas  # f32 - blas with openblas
 cargo run --example wgan-mnist --release --features ndarray-blas-netlib    # f32 - blas with netlib
 ```
-
 
 ### Generating
 

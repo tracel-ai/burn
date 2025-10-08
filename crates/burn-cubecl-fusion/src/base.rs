@@ -191,6 +191,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 QuantParam::F32 => DType::F32,
                 QuantParam::F16 => DType::F16,
                 QuantParam::BF16 => DType::BF16,
+                QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
             },
             strides: vec![1],
             qparams: None,

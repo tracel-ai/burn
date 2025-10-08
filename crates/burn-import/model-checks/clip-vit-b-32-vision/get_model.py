@@ -2,7 +2,7 @@
 
 # /// script
 # dependencies = [
-#   "onnx-weekly==1.19.0.dev20250419",
+#   "onnx==1.19.0",
 #   "onnxruntime>=1.22.0",
 #   "huggingface-hub>=0.20.0",
 #   "numpy",
@@ -27,11 +27,12 @@ def download_clip_model(output_path):
     model_path = hf_hub_download(
         repo_id="Qdrant/clip-ViT-B-32-vision",
         filename="model.onnx",
-        cache_dir="./artifacts/cache"
+        cache_dir="./artifacts/cache",
     )
 
     # Copy to artifacts
     import shutil
+
     shutil.copy(model_path, output_path)
 
     if not output_path.exists():
@@ -68,11 +69,11 @@ def get_input_info(model):
     for input_info in model.graph.input:
         shape = []
         for dim in input_info.type.tensor_type.shape.dim:
-            if dim.HasField('dim_value'):
+            if dim.HasField("dim_value"):
                 shape.append(dim.dim_value)
             else:
                 # Use proper defaults for CLIP vision model
-                if 'pixel_values' in input_info.name:
+                if "pixel_values" in input_info.name:
                     # CLIP vision uses [batch, channels, height, width]
                     if len(shape) == 0:
                         shape.append(1)  # batch
@@ -84,11 +85,13 @@ def get_input_info(model):
                         shape.append(224)  # width
                 else:
                     shape.append(1)  # Default to 1 for other dynamic dimensions
-        inputs.append({
-            'name': input_info.name,
-            'shape': shape,
-            'dtype': input_info.type.tensor_type.elem_type
-        })
+        inputs.append(
+            {
+                "name": input_info.name,
+                "shape": shape,
+                "dtype": input_info.type.tensor_type.elem_type,
+            }
+        )
     return inputs
 
 
@@ -112,13 +115,13 @@ def generate_test_data(model_path, output_dir):
     test_inputs = {}
 
     for info in input_infos:
-        if info['dtype'] == onnx.TensorProto.INT64:
+        if info["dtype"] == onnx.TensorProto.INT64:
             # For INT64 inputs, use random integers
-            test_input = np.random.randint(0, 1000, size=info['shape'], dtype=np.int64)
+            test_input = np.random.randint(0, 1000, size=info["shape"], dtype=np.int64)
         else:
             # For float inputs (like pixel_values), use random floats
-            test_input = np.random.rand(*info['shape']).astype(np.float32)
-        test_inputs[info['name']] = test_input
+            test_input = np.random.rand(*info["shape"]).astype(np.float32)
+        test_inputs[info["name"]] = test_input
 
     # Run inference to get output
     session = ort.InferenceSession(model_path)
@@ -128,11 +131,13 @@ def generate_test_data(model_path, output_dir):
     # For CLIP vision, we expect:
     # - Inputs: pixel_values
     # - Outputs: image_embeds (2D)
-    
+
     # Create a more structured format for Rust
     test_data = {
-        'pixel_values': torch.from_numpy(test_inputs.get('pixel_values', list(test_inputs.values())[0])),
-        'image_embeds': torch.from_numpy(outputs[0])
+        "pixel_values": torch.from_numpy(
+            test_inputs.get("pixel_values", list(test_inputs.values())[0])
+        ),
+        "image_embeds": torch.from_numpy(outputs[0]),
     }
 
     test_data_path = Path(output_dir) / "test_data.pt"
@@ -152,7 +157,7 @@ def save_model_info(model_path, output_dir):
     model = onnx.load(model_path)
 
     info_path = Path(output_dir) / "model-python.txt"
-    with open(info_path, 'w') as f:
+    with open(info_path, "w") as f:
         f.write("CLIP ViT-B-32-vision Model Information\n")
         f.write("=" * 60 + "\n\n")
 
@@ -162,12 +167,14 @@ def save_model_info(model_path, output_dir):
             f.write(f"  - {input_info.name}\n")
             shape = []
             for dim in input_info.type.tensor_type.shape.dim:
-                if dim.HasField('dim_value'):
+                if dim.HasField("dim_value"):
                     shape.append(dim.dim_value)
                 else:
-                    shape.append('dynamic')
+                    shape.append("dynamic")
             f.write(f"    Shape: {shape}\n")
-            f.write(f"    Type: {onnx.TensorProto.DataType.Name(input_info.type.tensor_type.elem_type)}\n")
+            f.write(
+                f"    Type: {onnx.TensorProto.DataType.Name(input_info.type.tensor_type.elem_type)}\n"
+            )
 
         # Output information
         f.write("\nOutputs:\n")
@@ -175,12 +182,14 @@ def save_model_info(model_path, output_dir):
             f.write(f"  - {output_info.name}\n")
             shape = []
             for dim in output_info.type.tensor_type.shape.dim:
-                if dim.HasField('dim_value'):
+                if dim.HasField("dim_value"):
                     shape.append(dim.dim_value)
                 else:
-                    shape.append('dynamic')
+                    shape.append("dynamic")
             f.write(f"    Shape: {shape}\n")
-            f.write(f"    Type: {onnx.TensorProto.DataType.Name(output_info.type.tensor_type.elem_type)}\n")
+            f.write(
+                f"    Type: {onnx.TensorProto.DataType.Name(output_info.type.tensor_type.elem_type)}\n"
+            )
 
         # Model statistics
         f.write(f"\nModel Statistics:\n")
@@ -265,5 +274,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n✗ Error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

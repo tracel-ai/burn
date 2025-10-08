@@ -119,9 +119,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             cube_dim,
-            linear_view(&lhs, &line_size),
-            linear_view_ref(&rhs, &lhs, &line_size),
-            linear_view_alias(&lhs, &line_size, 0),
+            linear_view(&lhs, line_size),
+            linear_view_ref(&rhs, &lhs, line_size),
+            linear_view_alias(&lhs, line_size, 0),
         );
 
         CubeTensor::new(
@@ -137,9 +137,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             CubeDim::default(),
-            linear_view_ref(&lhs, &rhs, &line_size),
-            linear_view(&rhs, &line_size),
-            linear_view_alias(&rhs, &line_size, 1),
+            linear_view_ref(&lhs, &rhs, line_size),
+            linear_view(&rhs, line_size),
+            linear_view_alias(&rhs, line_size, 1),
         );
 
         CubeTensor::new(
@@ -157,9 +157,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: Com
             &client,
             cube_count,
             CubeDim::default(),
-            linear_view_ref(&lhs, &output, &line_size),
-            linear_view_ref(&rhs, &output, &line_size),
-            linear_view(&output, &line_size),
+            linear_view_ref(&lhs, &output, line_size),
+            linear_view_ref(&rhs, &output, line_size),
+            linear_view(&output, line_size),
         );
 
         output
@@ -189,9 +189,9 @@ pub(crate) fn launch_scalar_cmp<
                 &client,
                 cube_count,
                 cube_dim,
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view_alias(&tensor, &line_size, 0),
+                linear_view_alias(&tensor, line_size, 0),
             );
         }
 
@@ -215,9 +215,9 @@ pub(crate) fn launch_scalar_cmp<
                 &client,
                 cube_count,
                 CubeDim::default(),
-                linear_view(&tensor, &line_size),
+                linear_view(&tensor, line_size),
                 ScalarArg::new(scalar),
-                linear_view(&output, &line_size),
+                linear_view(&output, line_size),
             );
         }
 
@@ -293,4 +293,99 @@ pub fn lower_equal_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     rhs: E,
 ) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, LowerEqualOp>(lhs, rhs)
+}
+
+// Unary comparison / predicate / relational ops
+
+#[cube]
+pub(crate) trait PredicateOp<F: Float>: 'static + Send + Sync {
+    /// Execute a predicate operation.
+    fn execute(input: Line<F>) -> bool;
+}
+
+struct IsNanOp;
+struct IsInfOp;
+
+#[cube]
+impl<F: Float> PredicateOp<F> for IsNanOp {
+    fn execute(input: Line<F>) -> bool {
+        Line::is_nan(input)
+    }
+}
+
+#[cube]
+impl<F: Float> PredicateOp<F> for IsInfOp {
+    fn execute(input: Line<F>) -> bool {
+        Line::is_inf(input)
+    }
+}
+
+// Defines the input/output types for a predicate
+pub(crate) trait PredicateOpSpec: Send + Sync + 'static {
+    type F: Float;
+    type B: Numeric;
+}
+
+impl<F: Float, B: Numeric> PredicateOpSpec for Spec<F, B> {
+    type F = F;
+    type B = B;
+}
+
+#[cube(launch_unchecked)]
+pub(crate) fn kernel_predicate<S: PredicateOpSpec, O: PredicateOp<S::F>>(
+    input: &LinearView<Line<S::F>>,
+    output: &mut LinearView<Line<S::B>, ReadWrite>,
+) {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
+        terminate!();
+    }
+
+    output[ABSOLUTE_POS] = Line::cast_from(O::execute(input[ABSOLUTE_POS]));
+}
+
+pub(crate) fn launch_predicate<
+    R: CubeRuntime,
+    E: CubeElement + Float,
+    BT: BoolElement,
+    O: PredicateOp<E>,
+>(
+    tensor: CubeTensor<R>,
+) -> CubeTensor<R> {
+    let line_size = max_line_size(&tensor);
+
+    let client = tensor.client.clone();
+    let num_elems = tensor.shape.num_elements();
+
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+
+    let output = empty_device::<R, BT>(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        tensor.shape.clone(),
+    );
+
+    unsafe {
+        kernel_predicate::launch_unchecked::<Spec<E, BT>, O, R>(
+            &client,
+            cube_count,
+            CubeDim::default(),
+            linear_view_ref(&tensor, &output, line_size),
+            linear_view(&output, line_size),
+        );
+    }
+
+    output
+}
+
+pub fn is_nan<R: CubeRuntime, E: CubeElement + Float, BT: BoolElement>(
+    tensor: CubeTensor<R>,
+) -> CubeTensor<R> {
+    launch_predicate::<R, E, BT, IsNanOp>(tensor)
+}
+
+pub fn is_inf<R: CubeRuntime, E: CubeElement + Float, BT: BoolElement>(
+    tensor: CubeTensor<R>,
+) -> CubeTensor<R> {
+    launch_predicate::<R, E, BT, IsInfOp>(tensor)
 }

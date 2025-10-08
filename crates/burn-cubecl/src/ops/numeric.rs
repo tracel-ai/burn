@@ -51,7 +51,7 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
         &empty.client,
         cube_count,
         cube_dim,
-        linear_view(&empty, &line_size),
+        linear_view(&empty, line_size),
         ScalarArg::new(value),
     );
 
@@ -234,4 +234,87 @@ pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
     rhs: E,
 ) -> CubeTensor<R> {
     launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
+}
+
+#[cube(launch)]
+fn cumsum_kernel<C: Numeric>(
+    input: &Tensor<C>,
+    output: &mut Tensor<C>,
+    dim_stride: u32,
+    #[comptime] dim_size: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
+    }
+
+    let idx = ABSOLUTE_POS;
+
+    // Compute components of the index
+    let before_dim = idx / dim_stride;
+    let after_dim = idx % dim_stride;
+
+    // Compute how many strides along dim we are
+    let dim_offset = (idx / dim_stride) % dim_size;
+
+    // Compute cumulative sum
+    let mut sum = C::from_int(0);
+    for i in 0..dim_size {
+        if i <= dim_offset {
+            let read_idx =
+                (before_dim / dim_size) * (dim_size * dim_stride) + i * dim_stride + after_dim;
+            sum += input[read_idx];
+        }
+    }
+
+    output[idx] = sum;
+}
+
+/// Compute the cumulative sum along a dimension
+///
+/// # Limitations
+///
+/// This is a **naive sequential implementation** along the cumsum dimension:
+/// - Each output element sequentially reads all previous elements along the dimension
+/// - Computational complexity: O(n²) memory reads where n is the size of the cumsum dimension
+/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+///
+/// # TODO
+///
+/// Implement an efficient GPU-optimized parallel scan algorithm (cubecl-scan crate).
+/// See draft PR: https://github.com/tracel-ai/cubecl/pull/863
+///
+/// References:
+/// - https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
+/// - https://www.w3.org/TR/WGSL/#builtin-subgroupInclusiveAdd
+pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
+    let client = input.client.clone();
+    let device = input.device.clone();
+    let shape = input.shape.clone();
+    let dim_size = shape.dims[dim];
+
+    // Calculate stride for the cumsum dimension
+    let dim_stride: usize = shape.dims[dim + 1..].iter().product();
+
+    let output = empty_device::<R, E>(client.clone(), device, shape);
+
+    let num_elems = output.shape.num_elements();
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+
+    cumsum_kernel::launch::<E, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        unsafe {
+            TensorArg::from_raw_parts::<E>(&input.handle, &input.strides, &input.shape.dims, 1)
+        },
+        unsafe {
+            TensorArg::from_raw_parts::<E>(&output.handle, &output.strides, &output.shape.dims, 1)
+        },
+        ScalarArg::new(dim_stride as u32),
+        dim_size as u32,
+    );
+
+    output
 }

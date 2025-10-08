@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{BurnImports, Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::unsqueeze::UnsqueezeConfig;
@@ -126,6 +126,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
             }
             _ => {}
         }
+    }
+}
+
+impl OnnxIntoNode for UnsqueezeNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let axes = onnx_ir::node::unsqueeze::unsqueeze_config(&node);
+        Self::new(input, output, axes)
     }
 }
 

@@ -315,7 +315,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         for id in streams_to_sync.drain() {
-            log::info!("Drain stream {id} for use in current {current}");
+            log::trace!("Drain stream {id} for use in current {current}");
             self.resolve_stream(handles, id, nodes);
         }
     }

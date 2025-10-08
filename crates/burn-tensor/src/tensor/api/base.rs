@@ -3382,7 +3382,7 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        match data.dtype {
+        match &data.dtype {
             DType::QFloat(_scheme) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
         }

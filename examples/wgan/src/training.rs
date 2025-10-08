@@ -129,7 +129,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
                 Distribution::Normal(0.0, 1.0),
                 &device,
             );
-            // datach: do not update gerenator, only discriminator is updated
+            // datach: do not update generator, only discriminator is updated
             let fake_images = generator.forward(noise.clone()).detach(); // [batch_size, channels*height*width]
             let fake_images = fake_images.reshape([
                 config.batch_size,

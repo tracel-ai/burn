@@ -5,6 +5,17 @@ use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 
+/// Error type for TensorSnapshot operations
+#[derive(Debug, Clone)]
+pub enum TensorSnapshotError {
+    /// I/O error occurred while loading tensor data
+    IoError(String),
+    /// Data corruption or invalid format
+    DataError(String),
+    /// Panic occurred while loading tensor data
+    PanicError(String),
+}
+
 /// A lightweight snapshot of a tensor that can lazily produce TensorData.
 ///
 /// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)
@@ -15,7 +26,7 @@ use burn_tensor::{Bool, Int, Tensor, TensorData, backend::Backend};
 /// which is particularly useful for serialization formats that need metadata upfront.
 pub struct TensorSnapshot {
     /// Function to get tensor data when needed (Rc allows cloning)
-    data_fn: Rc<dyn Fn() -> TensorData>,
+    data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
     /// Data type of the tensor (cached for efficient access)
     pub dtype: burn_tensor::DType,
     /// Shape of the tensor (cached for efficient access)
@@ -40,7 +51,7 @@ impl TensorSnapshot {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -60,7 +71,7 @@ impl TensorSnapshot {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -80,7 +91,7 @@ impl TensorSnapshot {
         let shape = tensor.shape().dims.to_vec();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
-            data_fn: Rc::new(move || tensor.to_data()),
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -90,8 +101,22 @@ impl TensorSnapshot {
     }
 
     /// Convert to TensorData (this is where actual data copy happens)
-    pub fn to_data(&self) -> TensorData {
-        (self.data_fn)()
+    #[cfg(feature = "std")]
+    pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
+        // Use AssertUnwindSafe since we're working with Rc which is not UnwindSafe
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.data_fn)())).unwrap_or_else(
+            |_| {
+                Err(TensorSnapshotError::PanicError(
+                    "Panic occurred while loading tensor data".to_string(),
+                ))
+            },
+        )
+    }
+
+    /// Convert to TensorData (this is where actual data copy happens)
+    #[cfg(not(feature = "std"))]
+    pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
+        (self.data_fn)() // Can't catch panics in no-std, do it when core::panic::AssertUnwindSafe is available
     }
 
     /// Get the full path by joining the path stack
@@ -122,7 +147,7 @@ impl TensorSnapshot {
     /// Create a TensorSnapshot from a closure that produces TensorData
     /// This is used internally for lazy loading
     pub fn from_closure(
-        data_fn: Rc<dyn Fn() -> TensorData>,
+        data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
         dtype: burn_tensor::DType,
         shape: Vec<usize>,
         path_stack: Vec<String>,
@@ -149,7 +174,7 @@ impl TensorSnapshot {
         let dtype = data.dtype;
         let shape = data.shape.clone();
         Self {
-            data_fn: Rc::new(move || data.clone()),
+            data_fn: Rc::new(move || Ok(data.clone())),
             dtype,
             shape,
             path_stack: Some(path_stack),
@@ -160,24 +185,11 @@ impl TensorSnapshot {
 
     /// Get the size of the tensor data in bytes without materializing it
     pub fn data_len(&self) -> usize {
-        let elem_size = match self.dtype {
-            burn_tensor::DType::F64 | burn_tensor::DType::I64 | burn_tensor::DType::U64 => 8,
-            burn_tensor::DType::F32
-            | burn_tensor::DType::I32
-            | burn_tensor::DType::U32
-            | burn_tensor::DType::Flex32 => 4,
-            burn_tensor::DType::F16
-            | burn_tensor::DType::BF16
-            | burn_tensor::DType::I16
-            | burn_tensor::DType::U16 => 2,
-            burn_tensor::DType::I8 | burn_tensor::DType::U8 | burn_tensor::DType::Bool => 1,
-            burn_tensor::DType::QFloat(_) => 1, // Simplified for quantized types
-        };
-        self.shape.iter().product::<usize>() * elem_size
+        self.shape.iter().product::<usize>() * self.dtype.size()
     }
 
     /// Clone the data function for lazy composition
-    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> TensorData> {
+    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>> {
         self.data_fn.clone()
     }
 }
@@ -193,6 +205,18 @@ impl Clone for TensorSnapshot {
             container_stack: self.container_stack.clone(),
             tensor_id: self.tensor_id,
         }
+    }
+}
+
+impl core::fmt::Debug for TensorSnapshot {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("TensorSnapshot")
+            .field("dtype", &self.dtype)
+            .field("shape", &self.shape)
+            .field("path_stack", &self.path_stack)
+            .field("container_stack", &self.container_stack)
+            .field("tensor_id", &self.tensor_id)
+            .finish()
     }
 }
 
@@ -222,7 +246,7 @@ mod tests {
         assert_eq!(snapshot.container_path(), "TestModule.Param");
 
         // Test data materialization
-        let data = snapshot.to_data();
+        let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::F32);
     }
@@ -244,7 +268,7 @@ mod tests {
         assert_eq!(snapshot.dtype, DType::I64);
         assert_eq!(snapshot.shape, vec![2, 2]);
 
-        let data = snapshot.to_data();
+        let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::I64);
     }
@@ -266,7 +290,7 @@ mod tests {
         assert_eq!(snapshot.dtype, DType::Bool);
         assert_eq!(snapshot.shape, vec![2, 2]);
 
-        let data = snapshot.to_data();
+        let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, vec![2, 2]);
         assert_eq!(data.dtype, DType::Bool);
     }
@@ -315,7 +339,7 @@ mod tests {
         let shape = data.shape.clone();
 
         let snapshot = TensorSnapshot::from_closure(
-            Rc::new(move || data.clone()),
+            Rc::new(move || Ok(data.clone())),
             dtype,
             shape.clone(),
             vec!["model".to_string(), "layer".to_string()],
@@ -330,7 +354,7 @@ mod tests {
         assert_eq!(snapshot.data_len(), 16); // 4 * 4 bytes
 
         // Test data materialization
-        let materialized = snapshot.to_data();
+        let materialized = snapshot.to_data().unwrap();
         assert_eq!(materialized.shape, vec![4]);
     }
 
@@ -355,8 +379,35 @@ mod tests {
         assert_eq!(snapshot.data_len(), 24); // 6 * 4 bytes
 
         // Test data materialization
-        let materialized = snapshot.to_data();
+        let materialized = snapshot.to_data().unwrap();
         assert_eq!(materialized.shape, original_shape);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn panic_catching_in_to_data() {
+        use alloc::rc::Rc;
+
+        // Create a TensorSnapshot with a closure that panics
+        let snapshot = TensorSnapshot {
+            data_fn: Rc::new(|| panic!("Test panic in data_fn")),
+            dtype: DType::F32,
+            shape: vec![2, 2],
+            path_stack: Some(vec!["test".to_string()]),
+            container_stack: Some(vec!["Test".to_string()]),
+            tensor_id: Some(ParamId::new()),
+        };
+
+        // When std is available, to_data should catch the panic and return an error
+        let result = snapshot.to_data();
+        assert!(result.is_err());
+
+        match result {
+            Err(TensorSnapshotError::PanicError(msg)) => {
+                assert!(msg.contains("Panic occurred"));
+            }
+            _ => panic!("Expected PanicError with panic message"),
+        }
     }
 
     #[test]

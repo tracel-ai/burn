@@ -507,6 +507,10 @@ where
         )
     }
 
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cumsum::<R, E>(tensor, dim))
+    }
+
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),
@@ -535,15 +539,15 @@ where
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Exp)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Exp)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log1p)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
     fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
@@ -571,39 +575,39 @@ where
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sqrt)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sqrt)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Abs)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Abs)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Cos)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cos)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sin)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sin)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Tanh)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tanh)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Round)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Round)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Floor)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Floor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Ceil)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Ceil)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Erf)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Erf)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -651,7 +655,7 @@ where
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Recip)
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Recip)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
@@ -722,5 +726,13 @@ where
         step: usize,
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
+    }
+
+    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_nan::<R, E, BT>(tensor))
+    }
+
+    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, kernel::is_inf::<R, E, BT>(tensor))
     }
 }
