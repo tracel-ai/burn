@@ -122,13 +122,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             x.shape[4],
         );
 
-        let shape = vec![
-            x.shape[0],
-            weight.shape[0],
-            size_0,
-            size_1,
-            size_2,
-        ];
+        let shape = vec![x.shape[0], weight.shape[0], size_0, size_1, size_2];
         let client = x.client.clone();
         let out = client.register_empty_tensor(Shape::from(shape), x.dtype);
 
@@ -202,12 +196,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             x.shape[3],
         );
 
-        let shape = vec![
-            x.shape[0],
-            weight.shape[1] * options.groups,
-            size_0,
-            size_1,
-        ];
+        let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
         let client = x.client.clone();
         let out = client.register_empty_tensor(Shape::from(shape), x.dtype);
 
@@ -402,8 +391,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         padding: usize,
         dilation: usize,
     ) -> FloatTensor<Self> {
-        let size =
-            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let client = x.client.clone();
@@ -470,8 +458,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         padding: usize,
         dilation: usize,
     ) -> MaxPool1dWithIndices<Self> {
-        let size =
-            calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let client = x.client.clone();
@@ -621,12 +608,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
     }
 
     fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
-        let shape = vec![
-            x.shape[0],
-            x.shape[1],
-            output_size[0],
-            output_size[1],
-        ];
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
 
         let client = x.client.clone();
         let out = client.register_empty_tensor(Shape::from(shape).clone(), x.dtype);
@@ -689,12 +671,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
-        let shape = vec![
-            x.shape[0],
-            x.shape[1],
-            output_size[0],
-            output_size[1],
-        ];
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
 
         let client = x.client.clone();
         let out = client.register_empty_tensor(Shape::from(shape).clone(), x.dtype);
