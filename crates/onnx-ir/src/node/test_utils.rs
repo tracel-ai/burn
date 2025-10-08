@@ -34,7 +34,6 @@ impl NodeBuilder {
             name: name.to_string(),
             ty,
             value: None,
-            passed: true,
         });
         self
     }
@@ -195,7 +194,6 @@ impl NodeBuilder {
                 static_shape: None,
             }),
             value: Some(TensorData { data, shape }),
-            passed: true,
         };
         self.inputs.push(arg);
         self
@@ -236,7 +234,6 @@ impl NodeBuilder {
                 data: Data::Float32(val),
                 shape: vec![],
             }),
-            passed: true,
         };
         self.inputs.push(arg);
         self
@@ -255,7 +252,6 @@ impl NodeBuilder {
                 data: Data::Int64(value),
                 shape: vec![],
             }),
-            passed: true,
         };
         self.inputs.push(arg);
         self
@@ -285,7 +281,6 @@ impl NodeBuilder {
             name: name.to_string(),
             ty,
             value: None,
-            passed: true,
         });
         self
     }
@@ -484,7 +479,6 @@ impl NodeBuilder {
             name: name.to_string(),
             ty: ArgType::default(),
             value: None,
-            passed: true,
         });
         self
     }

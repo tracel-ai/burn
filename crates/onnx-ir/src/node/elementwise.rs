@@ -54,7 +54,6 @@ mod tests {
                         static_shape: None,
                     }),
                     value: None,
-                    passed: true,
                 },
                 Argument {
                     name: "b".to_string(),
@@ -64,14 +63,12 @@ mod tests {
                         static_shape: None,
                     }),
                     value: None,
-                    passed: true,
                 },
             ],
             outputs: vec![Argument {
                 name: "c".to_string(),
                 ty: ArgType::default(),
                 value: None,
-                passed: false,
             }],
             attrs: Default::default(),
         };
@@ -102,13 +99,11 @@ mod tests {
                     static_shape: None,
                 }),
                 value: None,
-                passed: true,
             }],
             outputs: vec![Argument {
                 name: "b".to_string(),
                 ty: ArgType::default(),
                 value: None,
-                passed: false,
             }],
             attrs: Default::default(),
         };

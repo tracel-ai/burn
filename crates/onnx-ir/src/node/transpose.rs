@@ -84,7 +84,6 @@ mod tests {
                 static_shape: None,
             }),
             value: None,
-            passed: true,
         });
         let _ = transpose_config(&node);
     }

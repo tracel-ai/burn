@@ -100,6 +100,8 @@ pub struct GraphData {
     input_name_map: HashMap<String, IOEntry>,
     /// Maps the updated input name to the original input name. Required to check if the input is an initializer
     input_key_map: HashMap<String, String>,
+    /// Tracks which inputs have been used by nodes
+    passed_inputs: HashSet<usize>,
 }
 
 impl GraphData {
@@ -145,6 +147,7 @@ impl GraphData {
             processed_nodes: Vec::new(),
             input_name_map,
             input_key_map,
+            passed_inputs: HashSet::new(),
         }
     }
 
@@ -174,7 +177,9 @@ impl GraphData {
                 && !self.initializers.contains_key(old_input_name)
             {
                 match self.input_name_map.get(old_input_name) {
-                    Some(IOEntry::In(i)) => self.inputs[*i].passed = true,
+                    Some(IOEntry::In(i)) => {
+                        self.passed_inputs.insert(*i);
+                    }
                     _ => {
                         panic!("Should not happen, please report this error");
                     }
@@ -204,7 +209,14 @@ impl GraphData {
 
     /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
     fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-        self.inputs.retain(|x| x.passed);
+        let passed_inputs = self.passed_inputs;
+        let mut filtered_inputs = Vec::new();
+        for (i, input) in self.inputs.into_iter().enumerate() {
+            if passed_inputs.contains(&i) {
+                filtered_inputs.push(input);
+            }
+        }
+        self.inputs = filtered_inputs;
         let outputs = self
             .outputs
             .into_iter()
@@ -1221,7 +1233,6 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
                 static_shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
-            passed: false,
         };
         // ? should this replace the old input (reuse the old key) or should it be a new key
         // going with new key for now

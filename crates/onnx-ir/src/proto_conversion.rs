@@ -251,7 +251,6 @@ impl TryFrom<ValueInfoProto> for Argument {
             ty,
             name,
             value: None,
-            passed: false,
         })
     }
 }

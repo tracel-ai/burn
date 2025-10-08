@@ -295,7 +295,6 @@ mod tests {
                     static_shape: None,
                 }),
                 value: None,
-                passed: true,
             });
         }
 
@@ -307,7 +306,6 @@ mod tests {
                 static_shape: None,
             }),
             value: None,
-            passed: true,
         }];
 
         Node {
@@ -355,7 +353,6 @@ mod tests {
             name: "scalar_input".to_string(),
             ty: ArgType::Scalar(ElementType::Float32),
             value: None,
-            passed: true,
         });
 
         same_as_input_broadcast(&mut node);
@@ -391,7 +388,6 @@ mod tests {
             name: "shape_input".to_string(),
             ty: ArgType::Shape(3),
             value: None,
-            passed: true,
         });
 
         same_as_input_broadcast(&mut node);
@@ -418,7 +414,6 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
             Argument {
                 name: "input2".to_string(),
@@ -428,7 +423,6 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
         ];
 
@@ -447,7 +441,6 @@ mod tests {
                     static_shape: Some(vec![1, 3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
             Argument {
                 name: "input2".to_string(),
@@ -457,7 +450,6 @@ mod tests {
                     static_shape: Some(vec![2, 1, 4]),
                 }),
                 value: None,
-                passed: true,
             },
         ];
 
@@ -476,7 +468,6 @@ mod tests {
                     static_shape: Some(vec![3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
             Argument {
                 name: "input2".to_string(),
@@ -486,7 +477,6 @@ mod tests {
                     static_shape: Some(vec![2, 1, 4]),
                 }),
                 value: None,
-                passed: true,
             },
         ];
 
@@ -505,7 +495,6 @@ mod tests {
                     static_shape: Some(vec![]), // Scalar
                 }),
                 value: None,
-                passed: true,
             },
             Argument {
                 name: "input2".to_string(),
@@ -515,7 +504,6 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
         ];
 
@@ -534,7 +522,6 @@ mod tests {
                     static_shape: Some(vec![3, 4]),
                 }),
                 value: None,
-                passed: true,
             },
             Argument {
                 name: "input2".to_string(),
@@ -544,7 +531,6 @@ mod tests {
                     static_shape: Some(vec![2, 5]), // Incompatible: 4 != 5
                 }),
                 value: None,
-                passed: true,
             },
         ];
 
@@ -562,13 +548,11 @@ mod tests {
                     name: "shape_input".to_string(),
                     ty: ArgType::Shape(4),
                     value: None,
-                    passed: true,
                 },
                 Argument {
                     name: "scalar_input".to_string(),
                     ty: ArgType::Scalar(ElementType::Int64),
                     value: None,
-                    passed: true,
                 },
             ],
             outputs: vec![Argument {
@@ -579,7 +563,6 @@ mod tests {
                     static_shape: None,
                 }),
                 value: None,
-                passed: true,
             }],
             attrs: HashMap::new(),
         };

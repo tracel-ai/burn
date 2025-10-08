@@ -19,10 +19,6 @@ pub struct Argument {
 
     /// The data of the argument.
     pub value: Option<TensorData>,
-
-    /// True if the argument is passed to node, false otherwise. We use it mainly for informational purposes.
-    /// The argument should contain a value if passed is false.
-    pub passed: bool,
 }
 
 impl Argument {
@@ -44,7 +40,6 @@ impl Argument {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
                         value: Some(td),
-                        passed: false,
                     };
                 }
                 Self {
@@ -55,7 +50,6 @@ impl Argument {
                         static_shape: Some(td.shape.clone()),
                     }),
                     value: Some(td),
-                    passed: false,
                 }
             }
             Err(orig_err) => {
@@ -108,7 +102,6 @@ impl Argument {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
                         value: Some(td),
-                        passed: false,
                     };
                 }
 
@@ -161,7 +154,6 @@ impl Argument {
                             data,
                             shape: shape_usize,
                         }),
-                        passed: false,
                     };
                 }
 
@@ -279,7 +271,6 @@ impl Argument {
             name,
             ty: ArgType::default(),
             value: None,
-            passed: false,
         }
     }
 }
@@ -943,7 +934,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![],
                     data: Data::Float32(value),
                 }),
-                passed: false,
             },
             AttributeValue::Float32s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -956,7 +946,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![values.len()],
                     data: Data::Float32s(values),
                 }),
-                passed: false,
             },
             AttributeValue::Int64(value) => Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
@@ -965,7 +954,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![],
                     data: Data::Int64(value),
                 }),
-                passed: false,
             },
             AttributeValue::Int64s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -978,7 +966,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![values.len()],
                     data: Data::Int64s(values),
                 }),
-                passed: false,
             },
             AttributeValue::String(value) => Argument {
                 ty: ArgType::Scalar(ElementType::String),
@@ -987,7 +974,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![],
                     data: Data::String(value),
                 }),
-                passed: false,
             },
             AttributeValue::Strings(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -1000,7 +986,6 @@ impl From<AttributeValue> for Argument {
                     shape: vec![values.len()],
                     data: Data::Strings(values),
                 }),
-                passed: false,
             },
             AttributeValue::Tensor(tensor) => {
                 if tensor.shape.is_empty() {
@@ -1012,7 +997,6 @@ impl From<AttributeValue> for Argument {
                             shape: vec![],
                             data: tensor.data,
                         }),
-                        passed: false,
                     }
                 } else {
                     // Convert tensor to argument
@@ -1027,7 +1011,6 @@ impl From<AttributeValue> for Argument {
                             shape: tensor.shape,
                             data: tensor.data,
                         }),
-                        passed: false,
                     }
                 }
             }
