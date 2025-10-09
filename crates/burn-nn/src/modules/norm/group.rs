@@ -161,10 +161,10 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
         );
     }
 
-    let batch_size = shape.dims[0];
-    let num_channels = shape.dims[1];
+    let batch_size = shape[0];
+    let num_channels = shape[1];
 
-    let hidden_size = shape.dims[2..].iter().product::<usize>() * num_channels / num_groups;
+    let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
     let input = input.reshape([batch_size, num_groups, hidden_size]);
 
     let mean = input.clone().sum_dim(2) / hidden_size as f64;

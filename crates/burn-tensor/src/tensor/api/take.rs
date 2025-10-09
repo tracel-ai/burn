@@ -57,7 +57,7 @@ where
 
         // Store the indices shape for reshaping later
         let indices_shape = indices.shape();
-        let indices_dims = indices_shape.dims.clone();
+        let indices_dims = indices_shape.clone();
 
         // Flatten indices to 1D for processing
         let indices_flat = indices.reshape([indices_shape.num_elements()]);
@@ -72,7 +72,7 @@ where
 
         // Add dimensions before the selected dimension
         for i in 0..dim {
-            new_shape.push(selected_shape.dims[i]);
+            new_shape.push(selected_shape[i]);
         }
 
         // Add all indices dimensions
@@ -82,7 +82,7 @@ where
 
         // Add dimensions after the selected dimension
         for i in (dim + 1)..D {
-            new_shape.push(selected_shape.dims[i]);
+            new_shape.push(selected_shape[i]);
         }
 
         // Verify we have the correct number of dimensions

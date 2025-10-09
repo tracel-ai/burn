@@ -1,6 +1,5 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use burn_common::{iter_range_par, run_par};
 use burn_tensor::{
     DType, Element,
     ops::{ConvOptions, conv::calculate_conv_output_size},
@@ -12,7 +11,7 @@ use ndarray::{
 };
 use seq_macro::seq;
 
-use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef, iter_range_par, run_par};
 
 type Args<E> = (SharedArray<E>, SharedArray<E>, Option<SharedArray<E>>);
 

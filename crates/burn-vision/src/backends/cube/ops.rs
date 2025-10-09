@@ -81,6 +81,7 @@ mod fusion {
         stream::{Operation, OperationStreams},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
+    use burn_tensor::Shape;
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
         fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
@@ -112,7 +113,7 @@ mod fusion {
 
             let mut streams = OperationStreams::default();
             streams.tensor(&img);
-            let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
+            let out = client.tensor_uninitialized(Shape::new([height, width]), B::IntElem::dtype());
 
             let desc =
                 CustomOpIr::new("connected_components", &[img.into_ir()], &[out.to_ir_out()]);
@@ -167,13 +168,18 @@ mod fusion {
 
             let mut streams = OperationStreams::default();
             streams.tensor(&img);
-            let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
-            let area = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
-            let left = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
-            let top = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
-            let right = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
-            let bottom = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
-            let max_label = client.tensor_uninitialized(vec![1], B::IntElem::dtype());
+            let out = client.tensor_uninitialized(Shape::new([height, width]), B::IntElem::dtype());
+            let area =
+                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
+            let left =
+                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
+            let top =
+                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
+            let right =
+                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
+            let bottom =
+                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
+            let max_label = client.tensor_uninitialized(Shape::new([1]), B::IntElem::dtype());
 
             let desc = CustomOpIr::new(
                 "connected_components",

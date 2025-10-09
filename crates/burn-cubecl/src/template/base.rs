@@ -92,7 +92,7 @@ pub fn build_info<R: CubeRuntime, E: CubeElement>(tensors: &[&CubeTensor<R>]) ->
     }
     for tensor in tensors.iter() {
         for d in 0..ndims {
-            info[current] = tensor.shape.dims[d] as u32;
+            info[current] = tensor.shape[d] as u32;
             current += 1;
         }
     }

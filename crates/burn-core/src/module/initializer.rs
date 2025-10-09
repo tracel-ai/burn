@@ -111,13 +111,15 @@ impl Initializer {
         Param::uninitialized(
             ParamId::new(),
             move |device, require_grad| {
-                let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                B::memory_persistent_allocations(device, (), move |_| {
+                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
 
-                if require_grad {
-                    tensor = tensor.require_grad();
-                }
+                    if require_grad {
+                        tensor = tensor.require_grad();
+                    }
 
-                tensor
+                    tensor
+                })
             },
             device,
             true,

@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
-use burn_tensor::{Shape, quantization::params_shape};
+use burn_tensor::quantization::params_shape;
 use cubecl::Runtime;
 use std::marker::PhantomData;
 
@@ -49,9 +49,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
                     self.analyze(plan, pos, tensor_relative, &handle);
 
-                    if tensor_global.shape.len() < plan.rank {
+                    if tensor_global.shape.rank() < plan.rank {
                         let num_elem: usize = tensor_global.shape.iter().product();
-                        for _ in 0..(plan.rank - tensor_global.shape.len()) {
+                        for _ in 0..(plan.rank - tensor_global.shape.rank()) {
                             tensor_global.shape.insert(0, 1);
                             new_strides.insert(0, num_elem);
                         }
@@ -80,7 +80,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let precision = tensor_relative.dtype.into();
                     let precision_scales = params.dtype.into();
 
-                    let global_shape: Shape = tensor_global.shape.clone().into();
+                    let global_shape = tensor_global.shape.clone();
                     let shape_params = params_shape(&global_shape, scheme.level);
                     plan.handle_inputs
                         .push(HandleInput::QuantValues(QuantValuesHandleInput {
@@ -167,7 +167,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         }
 
         if let BlockInplaceSelection::Selected(idx) = block_inplace_selection {
-            if self.blocks[idx].shape_ref != tensor_relative.shape {
+            if self.blocks[idx].shape_ref != tensor_relative.shape.dims {
                 return;
             }
 
@@ -229,10 +229,15 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
 
                 if original == &tensor_relative.id {
-                    let mut shape = tensor_relative.shape.clone();
-                    shape.swap(dims.0 as usize, dims.1 as usize);
+                    let shape = tensor_relative
+                        .shape
+                        .clone()
+                        .swap(dims.0 as usize, dims.1 as usize)
+                        .unwrap();
 
-                    if block_plan.potential_reference_input.is_none() && shape == block.shape_ref {
+                    if block_plan.potential_reference_input.is_none()
+                        && shape.dims == block.shape_ref
+                    {
                         block_plan.potential_reference_input = Some(InputReference::SwapDims {
                             original_pos: pos,
                             dims: *dims,

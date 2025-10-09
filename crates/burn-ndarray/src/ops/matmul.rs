@@ -1,8 +1,7 @@
 use crate::UnsafeSharedRef;
-use crate::{NdArrayElement, ShapeOps, SharedArray, ops::NdArrayOps};
+use crate::{NdArrayElement, ShapeOps, SharedArray, iter_range_par, ops::NdArrayOps, run_par};
 
 use alloc::{vec, vec::Vec};
-use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use burn_tensor::Shape;
 use ndarray::{IxDyn, s};

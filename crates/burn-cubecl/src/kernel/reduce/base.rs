@@ -125,7 +125,7 @@ pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElem
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
-    let sorted_axis = argsort(&tensor.shape.dims);
+    let sorted_axis = argsort(&tensor.shape);
     for axis in sorted_axis {
         tensor = reduce_dim::<Run, In, Out, Acc>(tensor, axis, strategy, config)?;
     }
