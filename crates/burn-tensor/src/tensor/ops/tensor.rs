@@ -888,6 +888,7 @@ pub trait FloatTensorOps<B: Backend> {
         let exp = rhs.elem::<i32>();
         match exp {
             // How should non-finite values be handled?
+            // See: IEEE 754
             // 0 => Self::float_ones(lhs.shape(), &B::float_device(&lhs), lhs.dtype().into()),
             1 => lhs,
             2 => B::float_mul(lhs.clone(), lhs),
