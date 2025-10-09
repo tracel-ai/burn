@@ -439,6 +439,8 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Element-wise power with a scalar.
     ///
+    /// Handles a number of common cases, then dispatches to [`Self::int_powi_scalar_fallback`].
+    ///
     /// # Arguments
     ///
     /// * `lhs` - The left hand side tensor.
@@ -448,10 +450,34 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powi_scalar(B::int_into_float(lhs), rhs))
+        let exp = rhs.elem::<i32>();
+        match exp {
+            0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
+            1 => lhs,
+            2 => Self::int_mul(lhs.clone(), lhs),
+            _ => Self::int_powi_scalar_fallback(lhs, rhs),
+        }
+    }
+
+    /// Element-wise power with a scalar.
+    ///
+    /// Fallback handler for [`Self::int_powi_scalar`].
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn int_powi_scalar_fallback(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
+        B::float_into_int(B::float_powi_scalar_fallback(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.
+    ///
+    /// Handles a number of special cases, then calls [`Self::int_powf_scalar_fallback`].
     ///
     /// # Arguments
     ///
@@ -462,7 +488,28 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf_scalar(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
-        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs))
+        if rhs.floor() == rhs {
+            let exp = B::IntElem::from_elem(rhs as i32);
+            Self::int_powi_scalar(lhs, exp)
+        } else {
+            Self::int_powf_scalar_fallback(lhs, rhs)
+        }
+    }
+
+    /// Element-wise power with a floatTensor.
+    ///
+    /// Fallback handler for [`Self::int_powf_scalar`].
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn int_powf_scalar_fallback(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
+        B::float_into_int(B::float_powf_scalar_fallback(B::int_into_float(lhs), rhs))
     }
 
     /// Clamps a tensor under a minimum value.
