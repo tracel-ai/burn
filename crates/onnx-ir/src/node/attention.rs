@@ -42,7 +42,10 @@ pub enum AttentionQkMatmulOutputMode {
     MatmulAfterSoftmax,
 }
 
-pub fn attention_config(node: &Node) -> AttentionConfig {
+pub fn attention_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> AttentionConfig {
     if node.inputs.len() < 3 {
         panic!("Attention must have at least 3 inputs")
     }
@@ -132,7 +135,12 @@ impl NodeProcessor for AttentionProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         let q = extract_tensor(node.inputs.first(), "Q").unwrap();
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -335,27 +343,31 @@ mod tests {
             None,
             None,
         );
-        attention_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        attention_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_softcap() {
         let node = create_simple_test_node(None, None, None, None, None, Some(2.0), None);
-        let config = attention_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = attention_config(&node, &mut graph_data);
         assert_eq!(config.softcap, 2.0);
     }
 
     #[test]
     fn test_custom_scale() {
         let node = create_simple_test_node(None, None, None, None, Some(2.0), None, None);
-        let config = attention_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = attention_config(&node, &mut graph_data);
         assert_eq!(config.scale, Some(2.0));
     }
 
     #[test]
     fn test_is_causal() {
         let node = create_simple_test_node(Some(1), None, None, None, None, None, None);
-        let config = attention_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = attention_config(&node, &mut graph_data);
         assert!(config.is_causal);
     }
 
@@ -366,7 +378,8 @@ mod tests {
     #[case(3, AttentionQkMatmulOutputMode::MatmulAfterSoftmax)]
     fn test_qk_matmul_output(#[case] raw: i64, #[case] mode: AttentionQkMatmulOutputMode) {
         let node = create_simple_test_node(None, None, None, Some(raw), None, None, None);
-        let config = attention_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = attention_config(&node, &mut graph_data);
         assert_eq!(config.qk_matmul_output_mode, mode);
     }
 }

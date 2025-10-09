@@ -29,10 +29,12 @@ impl LayerNormConfig {
 }
 
 /// Create a LayerNormConfig from the attributes of the node
-pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
+pub fn layer_norm_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> (LayerNormConfig, bool) {
     let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("LayerNorm: weight tensor must be present")
         .shape
         .clone();
@@ -71,7 +73,12 @@ impl NodeProcessor for LayerNormProcessor {
         (17, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -82,7 +89,12 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(epsilon: f32, axis: i64, stash_type: i64, num_features: usize) -> Node {
+    fn create_test_node(
+        epsilon: f32,
+        axis: i64,
+        stash_type: i64,
+        num_features: usize,
+    ) -> NodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
@@ -94,13 +106,13 @@ mod tests {
             .attr_float("epsilon", epsilon)
             .attr_int("axis", axis)
             .attr_int("stash_type", stash_type)
-            .build()
     }
 
     #[test]
     fn test_layer_norm_config_basic() {
-        let node = create_test_node(1e-5, -1, 1, 64);
-        let (config, stash_type_flag) = layer_norm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(&mut graph_data);
+        let (config, stash_type_flag) = layer_norm_config(&node, &mut graph_data);
 
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -109,29 +121,39 @@ mod tests {
 
     #[test]
     fn test_layer_norm_config_no_stash_type() {
-        let node = create_test_node(1e-5, -1, 0, 32);
-        let (config, stash_type_flag) = layer_norm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(&mut graph_data);
+        let (config, stash_type_flag) = layer_norm_config(&node, &mut graph_data);
 
         assert_eq!(config.d_model, 32);
         assert!(!stash_type_flag);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(
+        expected = "LayerNorm: normalization is only supported on the last axis right now"
+    )]
     fn test_layer_norm_config_invalid_axis() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 1D weight tensor with shape [num_features],
         // both axis=0 (the first and only dim) and axis=-1 (the last dim) are valid
         // So we need to use a 2D weight tensor to test the invalid axis case
 
         // Create a custom node with a 2D weight tensor
-        let mut node = create_test_node(1e-5, 0, 1, 64);
+        let weight_data = vec![1.0; 32 * 64]; // 2D weight tensor
+        let bias_data = vec![0.0; 32 * 64];
 
-        // Modify the weight tensor to be 2D
-        if let Some(ref mut tensor) = node.inputs[1].value {
-            tensor.shape = vec![64, 64]; // Make it 2D
-        }
+        let node = NodeBuilder::new(NodeType::LayerNormalization, "test_layernorm_invalid")
+            .input_tensor_f32("X", 3, None)
+            .input_tensor_f32_data("scale", weight_data, vec![32, 64]) // 2D shape
+            .input_tensor_f32_data("bias", bias_data, vec![32, 64])
+            .output_tensor_f32("output", 3, None)
+            .attr_float("epsilon", 1e-5)
+            .attr_int("axis", 0) // axis=0 is NOT the last dimension for 2D weight
+            .attr_int("stash_type", 1)
+            .build_with_graph_data(&mut graph_data);
 
-        // Now axis=0 should trigger a panic since it's not the last dimension
-        let _ = layer_norm_config(&node);
+        // Now axis=0 should trigger a panic since it's not the last dimension (1)
+        let _ = layer_norm_config(&node, &mut graph_data);
     }
 }

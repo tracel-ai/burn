@@ -46,7 +46,7 @@ impl Conv3dConfig {
 }
 
 /// Create a Conv3dConfig from the attributes of the node
-pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
+pub fn conv3d_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Conv3dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1, 1, 1];
     let mut pads = vec![0, 0, 0, 0, 0, 0];
@@ -54,8 +54,7 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
     let mut group: usize = 1;
 
     let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("Conv3d: weight tensor must be present")
         .shape
         .clone();
@@ -131,7 +130,12 @@ impl NodeProcessor for Conv3dProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -150,7 +154,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> Node {
+    ) -> NodeBuilder {
         // Create weight tensor data (not important for the test)
         let weight_data = vec![0.0; 32];
         let weight_shape = vec![4, 2, 2, 2, 2]; // [output_channels, input_channels/groups, k_d, k_h, k_w]
@@ -183,11 +187,12 @@ mod tests {
             builder = builder.attr_string("auto_pad", auto_pad);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_conv3d_config_basic() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2, 2],
             vec![1, 1, 1],
@@ -196,8 +201,9 @@ mod tests {
             1,
             false,
             None,
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels, [2, 4]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -210,6 +216,7 @@ mod tests {
 
     #[test]
     fn test_conv3d_config_with_padding() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![3, 3, 3],
             vec![1, 1, 1],
@@ -218,8 +225,9 @@ mod tests {
             1,
             false,
             None,
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [3, 3, 3]);
         assert!(matches!(config.padding, PaddingConfig3d::Explicit(1, 1, 1)));
@@ -227,6 +235,7 @@ mod tests {
 
     #[test]
     fn test_conv3d_config_with_groups() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2, 2],
             vec![1, 1, 1],
@@ -235,8 +244,9 @@ mod tests {
             2,
             false,
             None,
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [4, 4]); // channels_in is adjusted by groups
@@ -244,6 +254,7 @@ mod tests {
 
     #[test]
     fn test_conv3d_config_with_bias() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2, 2],
             vec![1, 1, 1],
@@ -252,14 +263,16 @@ mod tests {
             1,
             true,
             None,
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert!(config.bias);
     }
 
     #[test]
     fn test_conv3d_config_autopad_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2, 2],
             vec![1, 1, 1],
@@ -268,8 +281,9 @@ mod tests {
             1,
             false,
             Some("NOTSET"),
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels, [2, 4]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -283,6 +297,7 @@ mod tests {
     #[test]
     #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv3d_config_autopad_not_supported() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2, 2],
             vec![1, 1, 1],
@@ -291,12 +306,14 @@ mod tests {
             1,
             false,
             Some("SAME_UPPER"),
-        );
-        let _config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let _config = conv3d_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_conv3d_config_kernel_shape_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![],
             vec![1, 1, 1],
@@ -305,8 +322,9 @@ mod tests {
             1,
             false,
             None,
-        );
-        let config = conv3d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv3d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [2, 2, 2]); // Inferred via weight tensor shape
     }

@@ -1,9 +1,19 @@
 use core::fmt;
 use half::f16;
-use std::{collections::HashMap, fmt::Formatter};
+use std::{any::Any, collections::HashMap, fmt::Formatter};
 use strum::{Display, EnumString};
 
 use crate::protos::TensorProto;
+
+/// Trait for node-specific configuration
+/// Each node type can have its own configuration struct that implements this trait
+pub trait NodeConfig: Send + Sync {
+    /// Downcast to Any for type-safe retrieval
+    fn as_any(&self) -> &dyn Any;
+
+    /// Clone the config into a boxed trait object
+    fn clone_box(&self) -> Box<dyn NodeConfig>;
+}
 
 pub type Rank = usize;
 pub type Shape = Vec<usize>;
@@ -16,41 +26,39 @@ pub struct Argument {
 
     /// The type of the argument.
     pub ty: ArgType,
-
-    /// The data of the argument.
-    pub value: Option<TensorData>,
 }
 
 impl Argument {
     /// Copy everything except the name from the other argument
     pub fn copy_value(&mut self, other_arg: &Argument) {
         self.ty = other_arg.ty.clone();
-        self.value.clone_from(&other_arg.value);
     }
 
-    pub fn from_initializer(initializer: &TensorProto) -> Argument {
+    /// Create an Argument and TensorData from an initializer
+    /// Returns (Argument with type info, TensorData with actual values)
+    pub fn from_initializer(initializer: &TensorProto) -> (Argument, TensorData) {
         let name = initializer.name.clone();
 
         // 1) Canonical path first.
         match TensorData::try_from(initializer.clone()) {
             Ok(td) => {
-                if td.shape.is_empty() {
+                let arg = if td.shape.is_empty() {
                     // rank-0 (scalar)
-                    return Self {
+                    Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
-                        value: Some(td),
-                    };
-                }
-                Self {
-                    name,
-                    ty: ArgType::Tensor(TensorType {
-                        elem_type: td.elem_type(),
-                        rank: td.shape.len(),
-                        static_shape: Some(td.shape.clone()),
-                    }),
-                    value: Some(td),
-                }
+                    }
+                } else {
+                    Self {
+                        name,
+                        ty: ArgType::Tensor(TensorType {
+                            elem_type: td.elem_type(),
+                            rank: td.shape.len(),
+                            static_shape: Some(td.shape.clone()),
+                        }),
+                    }
+                };
+                (arg, td)
             }
             Err(orig_err) => {
                 // 2) Fallback handling for scalars & empty tensors, with precise diagnostics.
@@ -98,11 +106,11 @@ impl Argument {
                             name, dims
                         )
                     });
-                    return Self {
+                    let arg = Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
-                        value: Some(td),
                     };
+                    return (arg, td);
                 }
 
                 // 2.b) Accept EMPTY tensors: dim_elems == 0 with payload_len == 0.
@@ -143,18 +151,19 @@ impl Argument {
 
                     let shape_usize: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
 
-                    return Self {
+                    let arg = Self {
                         name,
                         ty: ArgType::Tensor(TensorType {
                             elem_type: elem,
                             rank: shape_usize.len(),
                             static_shape: Some(shape_usize.clone()),
                         }),
-                        value: Some(TensorData {
-                            data,
-                            shape: shape_usize,
-                        }),
                     };
+                    let td = TensorData {
+                        data,
+                        shape: shape_usize,
+                    };
+                    return (arg, td);
                 }
 
                 // Not scalar, not empty-tensor; fail with context.
@@ -270,8 +279,49 @@ impl Argument {
         Self {
             name,
             ty: ArgType::default(),
-            value: None,
         }
+    }
+
+    /// Check if this argument has a value (i.e., points to a Constant node)
+    /// This method requires access to GraphData to check if the argument name
+    /// maps to a Constant node
+    pub fn has_value(&self, graph_data: &crate::from_onnx::GraphData) -> bool {
+        graph_data.is_constant(&self.name)
+    }
+
+    /// Convert the constant behind this argument into a value
+    /// The value is retrieved from the Constant node's attributes
+    /// The reference count for the constant is decremented, and the constant
+    /// is marked for removal if there are no other references
+    pub fn into_value(&self, graph_data: &mut crate::from_onnx::GraphData) -> Option<TensorData> {
+        if let Some(constant_node) = graph_data.get_constant_value(&self.name) {
+            // Get the value from the constant node's attributes
+            let value = constant_node.attrs.get("value").and_then(|attr| {
+                if let crate::ir::AttributeValue::Tensor(tensor) = attr {
+                    Some(tensor.clone())
+                } else {
+                    None
+                }
+            });
+
+            // Decrement the reference count
+            graph_data.decrement_constant_ref(&self.name);
+
+            value
+        } else {
+            None
+        }
+    }
+
+    /// Indicate that this argument is expected to be a specific type
+    /// This allows processors to declare type expectations for their inputs,
+    /// which can be used for type inference of upstream nodes
+    pub fn should_be(
+        &self,
+        context: &mut crate::processor::ProcessorContext,
+        expected_ty: ArgType,
+    ) {
+        context.set_expected_type(self.name.clone(), expected_ty);
     }
 }
 
@@ -346,7 +396,6 @@ pub struct OnnxGraph {
 }
 
 /// Nodes produced by the ONNX parser
-#[derive(Debug, Clone)]
 pub struct Node {
     /// The type of the node.
     /// This should be a valid ONNX operator.
@@ -363,6 +412,37 @@ pub struct Node {
 
     /// The attributes of the node.
     pub attrs: Attributes,
+
+    /// Node-specific configuration (populated during processing)
+    pub config: Option<Box<dyn NodeConfig>>,
+}
+
+// Custom Clone implementation since Box<dyn NodeConfig> doesn't auto-derive Clone
+impl Clone for Node {
+    fn clone(&self) -> Self {
+        Self {
+            node_type: self.node_type.clone(),
+            name: self.name.clone(),
+            inputs: self.inputs.clone(),
+            outputs: self.outputs.clone(),
+            attrs: self.attrs.clone(),
+            config: self.config.as_ref().map(|c| c.clone_box()),
+        }
+    }
+}
+
+// Custom Debug implementation since Box<dyn NodeConfig> doesn't auto-derive Debug
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("node_type", &self.node_type)
+            .field("name", &self.name)
+            .field("inputs", &self.inputs)
+            .field("outputs", &self.outputs)
+            .field("attrs", &self.attrs)
+            .field("config", &self.config.as_ref().map(|_| "Some(<config>)"))
+            .finish()
+    }
 }
 
 // Required by topological sort
@@ -927,13 +1007,9 @@ impl From<AttributeValue> for Argument {
         let name = "".to_string();
 
         match attr {
-            AttributeValue::Float32(value) => Argument {
+            AttributeValue::Float32(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Float32),
                 name,
-                value: Some(TensorData {
-                    shape: vec![],
-                    data: Data::Float32(value),
-                }),
             },
             AttributeValue::Float32s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -942,18 +1018,10 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
-                value: Some(TensorData {
-                    shape: vec![values.len()],
-                    data: Data::Float32s(values),
-                }),
             },
-            AttributeValue::Int64(value) => Argument {
+            AttributeValue::Int64(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
                 name,
-                value: Some(TensorData {
-                    shape: vec![],
-                    data: Data::Int64(value),
-                }),
             },
             AttributeValue::Int64s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -962,18 +1030,10 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
-                value: Some(TensorData {
-                    shape: vec![values.len()],
-                    data: Data::Int64s(values),
-                }),
             },
-            AttributeValue::String(value) => Argument {
+            AttributeValue::String(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::String),
                 name,
-                value: Some(TensorData {
-                    shape: vec![],
-                    data: Data::String(value),
-                }),
             },
             AttributeValue::Strings(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -982,10 +1042,6 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
-                value: Some(TensorData {
-                    shape: vec![values.len()],
-                    data: Data::Strings(values),
-                }),
             },
             AttributeValue::Tensor(tensor) => {
                 if tensor.shape.is_empty() {
@@ -993,10 +1049,6 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
                         name,
-                        value: Some(TensorData {
-                            shape: vec![],
-                            data: tensor.data,
-                        }),
                     }
                 } else {
                     // Convert tensor to argument
@@ -1007,10 +1059,6 @@ impl From<AttributeValue> for Argument {
                             static_shape: Some(tensor.shape.clone()),
                         }),
                         name,
-                        value: Some(TensorData {
-                            shape: tensor.shape,
-                            data: tensor.data,
-                        }),
                     }
                 }
             }
@@ -1021,10 +1069,9 @@ impl From<AttributeValue> for Argument {
 
 impl Argument {
     pub fn into_tensor(self) -> Option<TensorData> {
-        if let ArgType::Tensor(_) = self.ty {
-            self.value
-        } else {
-            None
-        }
+        // In the new architecture, values are stored in Constant nodes, not in Arguments
+        // This method can no longer return the tensor data directly
+        // Callers should use has_value() and into_value() with graph_data instead
+        None
     }
 }

@@ -30,14 +30,13 @@ impl LinearConfig {
 }
 
 /// Create a LinearConfig from the attributes of the node
-pub fn linear_config(node: &Node) -> LinearConfig {
+pub fn linear_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> LinearConfig {
     if node.inputs.len() < 2 {
         panic!("Linear: missing weight tensor");
     }
 
     let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("Linear: weight tensor must be present")
         .shape
         .clone();
@@ -53,7 +52,7 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
     // check if the bias is present
-    let bias = node.inputs.len() == 3 && node.inputs[2].value.is_some();
+    let bias = node.inputs.len() == 3 && node.inputs[2].into_value(graph_data).is_some();
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }
@@ -65,7 +64,12 @@ impl NodeProcessor for LinearProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Linear rank inference for node {}", node.name);
 
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
@@ -90,7 +94,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(has_bias: bool, weight_dims: Vec<usize>) -> Node {
+    fn create_test_node(has_bias: bool, weight_dims: Vec<usize>) -> NodeBuilder {
         // Create weight tensor data
         let weight_data = vec![0.0; weight_dims.iter().product()]; // Not important for the test
 
@@ -106,13 +110,14 @@ mod tests {
             builder = builder.input_tensor_f32_data("bias", bias_data, vec![weight_dims[1]]);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_linear_config_basic() {
-        let node = create_test_node(false, vec![10, 5]);
-        let config = linear_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
+        let config = linear_config(&node, &mut graph_data);
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -121,8 +126,9 @@ mod tests {
 
     #[test]
     fn test_linear_config_with_bias() {
-        let node = create_test_node(true, vec![10, 5]);
-        let config = linear_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(true, vec![10, 5]).build_with_graph_data(&mut graph_data);
+        let config = linear_config(&node, &mut graph_data);
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -132,15 +138,17 @@ mod tests {
     #[test]
     #[should_panic(expected = "Linear: weight tensor must have at least 2 dimensions")]
     fn test_linear_config_invalid_weight_dims() {
-        let node = create_test_node(false, vec![10]);
-        let _ = linear_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(false, vec![10]).build_with_graph_data(&mut graph_data);
+        let _ = linear_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Linear: missing weight tensor")]
     fn test_linear_config_missing_weight() {
-        let mut node = create_test_node(false, vec![10, 5]);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
         node.inputs.remove(1);
-        let _ = linear_config(&node);
+        let _ = linear_config(&node, &mut graph_data);
     }
 }

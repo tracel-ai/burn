@@ -10,7 +10,12 @@ impl NodeProcessor for BernoulliProcessor {
         (15, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Bernoulli rank inference for node {}", node.name);
 
         // Get the tensor type and its rank
@@ -71,7 +76,8 @@ mod tests {
         let mut node = create_test_node(Some(DataType::INT32.value()), Some(vec![3, 4, 2]));
         let processor = BernoulliProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -88,7 +94,8 @@ mod tests {
         let mut node = create_test_node(None, Some(vec![3, 4, 2]));
         let processor = BernoulliProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -104,7 +111,8 @@ mod tests {
         let mut node = create_test_node(None, None);
         let processor = BernoulliProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -122,6 +130,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = BernoulliProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

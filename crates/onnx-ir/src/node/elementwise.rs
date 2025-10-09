@@ -13,7 +13,12 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         (7, None) // Most element-wise ops use opset 7+ for broadcasting
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input_broadcast(node);
     }
 }
@@ -27,7 +32,12 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         (6, None) // Unary ops generally stable from opset 6+
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::util::same_as_input(node);
     }
 }
@@ -53,7 +63,6 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
-                    value: None,
                 },
                 Argument {
                     name: "b".to_string(),
@@ -62,19 +71,19 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
-                    value: None,
                 },
             ],
             outputs: vec![Argument {
                 name: "c".to_string(),
                 ty: ArgType::default(),
-                value: None,
             }],
             attrs: Default::default(),
+            config: None,
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.process(&mut node, &ctx);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &ctx, &mut graph_data);
 
         // Output should be rank 2
         match &node.outputs[0].ty {
@@ -98,18 +107,18 @@ mod tests {
                     rank: 3,
                     static_shape: None,
                 }),
-                value: None,
             }],
             outputs: vec![Argument {
                 name: "b".to_string(),
                 ty: ArgType::default(),
-                value: None,
             }],
             attrs: Default::default(),
+            config: None,
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.process(&mut node, &ctx);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &ctx, &mut graph_data);
 
         // Output should match input
         match &node.outputs[0].ty {

@@ -18,7 +18,10 @@ impl ModConfig {
 }
 
 /// Create a ModConfig from the node attributes
-pub fn mod_config(node: &crate::ir::Node) -> ModConfig {
+pub fn mod_config(
+    node: &crate::ir::Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> ModConfig {
     let fmod = match node.attrs.get("fmod") {
         Some(AttributeValue::Int64(value)) => *value != 0,
         _ => false, // Default value as per ONNX spec
@@ -33,7 +36,12 @@ impl NodeProcessor for ModuloProcessor {
         (10, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::util::same_as_input_broadcast(node);
     }
 }
@@ -56,7 +64,8 @@ mod tests {
     #[test]
     fn test_mod_config_default() {
         let node = create_test_node();
-        let config = mod_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = mod_config(&node, &mut graph_data);
         assert_eq!(config.fmod, false); // Should default to false
     }
 
@@ -65,7 +74,8 @@ mod tests {
         let mut node = create_test_node();
         node.attrs
             .insert("fmod".to_string(), AttributeValue::Int64(0));
-        let config = mod_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = mod_config(&node, &mut graph_data);
         assert_eq!(config.fmod, false);
     }
 
@@ -74,7 +84,8 @@ mod tests {
         let mut node = create_test_node();
         node.attrs
             .insert("fmod".to_string(), AttributeValue::Int64(1));
-        let config = mod_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = mod_config(&node, &mut graph_data);
         assert_eq!(config.fmod, true);
     }
 }

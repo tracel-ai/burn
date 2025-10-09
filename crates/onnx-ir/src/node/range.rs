@@ -19,14 +19,19 @@ pub enum RangeInput {
 }
 
 /// Extract range configuration from the node.
-pub fn range_config(node: &Node) -> RangeConfig {
-    fn get_range_input(node: &Node, index: usize, param_name: &str) -> RangeInput {
+pub fn range_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> RangeConfig {
+    fn get_range_input(
+        node: &Node,
+        index: usize,
+        param_name: &str,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) -> RangeInput {
         let input = node
             .inputs
             .get(index)
             .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
 
-        match &input.value {
+        match input.into_value(graph_data) {
             None => RangeInput::Runtime(input.clone()),
             Some(TensorData {
                 data: Data::Int64s(values),
@@ -43,9 +48,9 @@ pub fn range_config(node: &Node) -> RangeConfig {
         }
     }
 
-    let start = get_range_input(node, 0, "start");
-    let limit = get_range_input(node, 1, "limit");
-    let delta = get_range_input(node, 2, "delta");
+    let start = get_range_input(node, 0, "start", graph_data);
+    let limit = get_range_input(node, 1, "limit", graph_data);
+    let delta = get_range_input(node, 2, "delta", graph_data);
 
     RangeConfig {
         start,
@@ -61,7 +66,12 @@ impl NodeProcessor for RangeProcessor {
         (11, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Range rank inference for node {}", node.name);
 
         if node.inputs.len() != 3 {
@@ -102,7 +112,8 @@ mod tests {
         let mut node = create_test_node();
         let processor = RangeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -120,6 +131,7 @@ mod tests {
         node.inputs.pop();
         let processor = RangeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

@@ -9,7 +9,12 @@ impl NodeProcessor for MatMulProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("MatMul rank inference for node {}", node.name);
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
@@ -64,7 +69,8 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -82,7 +88,8 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -102,7 +109,8 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -122,6 +130,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

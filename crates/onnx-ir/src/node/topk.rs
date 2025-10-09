@@ -18,7 +18,7 @@ impl TopKConfig {
 }
 
 /// Creates a TopKConfig from the node attributes and inputs.
-pub fn top_k_config(node: &Node) -> TopKConfig {
+pub fn top_k_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> TopKConfig {
     // Extract the shape of the input data tensor
     let data_tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
@@ -28,7 +28,7 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
     let k = match node.inputs.get(1) {
         Some(k_tensor) => k_tensor
             .clone()
-            .value
+            .into_value(graph_data)
             .expect("TopK: only constant 'k' tensor is currently supported")
             .data
             .into_i64s()[0],
@@ -72,7 +72,12 @@ impl NodeProcessor for TopKProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("TopK rank inference for node {}", node.name);
 
         let rank = match &node.inputs[0].ty {
@@ -111,7 +116,7 @@ mod tests {
         input_rank: usize,
         attrs: Option<HashMap<String, AttributeValue>>,
         k_input_value: Option<i64>,
-    ) -> Node {
+    ) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::TopK, "test_topk")
             .input_tensor_f32("X", input_rank, None)
             .output_tensor_f32("Values", 0, None) // Rank will be updated
@@ -137,18 +142,20 @@ mod tests {
             }
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_topk_basic() {
-        let mut node = create_test_node(3, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(3, None, None).build();
         // Add K attribute since we didn't provide K input
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
 
         let processor = TopKProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 2);
 
@@ -174,12 +181,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "TopK: invalid input type")]
     fn test_topk_invalid_input() {
-        let mut node = create_test_node(3, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(3, None, None).build();
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = TopKProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     // Tests for top_k_config function
@@ -189,9 +198,11 @@ mod tests {
         // Test when k is provided as an attribute
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(10));
-        let node = create_test_node(3, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, Some(attrs), None).build();
 
-        let config = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = top_k_config(&node, &mut graph_data);
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(config, TopKConfig { axis: 2, k: 10 });
@@ -200,9 +211,10 @@ mod tests {
     #[test]
     fn test_top_k_config_with_k_input() {
         // Test when k is provided as an input
-        let node = create_test_node(4, None, Some(5));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(4, None, Some(5)).build_with_graph_data(&mut graph_data);
 
-        let config = top_k_config(&node);
+        let config = top_k_config(&node, &mut graph_data);
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(config, TopKConfig { axis: 3, k: 5 });
@@ -214,9 +226,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(3));
         attrs.insert("axis".to_string(), AttributeValue::Int64(1));
-        let node = create_test_node(3, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, Some(attrs), None).build();
 
-        let config = top_k_config(&node);
+        let config = top_k_config(&node, &mut graph_data);
 
         assert_eq!(config, TopKConfig { axis: 1, k: 3 });
     }
@@ -227,9 +240,11 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(5));
         attrs.insert("axis".to_string(), AttributeValue::Int64(-2)); // Second-to-last axis
-        let node = create_test_node(4, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(4, Some(attrs), None).build();
 
-        let config = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = top_k_config(&node, &mut graph_data);
 
         // For rank 4, axis -2 should be 2
         assert_eq!(config, TopKConfig { axis: 2, k: 5 });
@@ -241,9 +256,11 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(7));
         attrs.insert("largest".to_string(), AttributeValue::Int64(1));
-        let node = create_test_node(2, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, Some(attrs), None).build();
 
-        let config = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = top_k_config(&node, &mut graph_data);
 
         assert_eq!(config, TopKConfig { axis: 1, k: 7 });
     }
@@ -254,9 +271,11 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(2));
         attrs.insert("sorted".to_string(), AttributeValue::Int64(1));
-        let node = create_test_node(3, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, Some(attrs), None).build();
 
-        let config = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = top_k_config(&node, &mut graph_data);
 
         assert_eq!(config, TopKConfig { axis: 2, k: 2 });
     }
@@ -268,9 +287,11 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(3));
         attrs.insert("largest".to_string(), AttributeValue::Int64(0));
-        let node = create_test_node(2, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, Some(attrs), None).build();
 
-        let _ = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = top_k_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -280,29 +301,33 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(3));
         attrs.insert("sorted".to_string(), AttributeValue::Int64(0));
-        let node = create_test_node(2, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, Some(attrs), None).build();
 
-        let _ = top_k_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = top_k_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Only tensor input is valid")]
     fn test_top_k_config_with_invalid_input_type() {
         // Test with invalid input type
-        let mut node = create_test_node(2, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(2, None, None).build();
         node.attrs.insert("k".to_string(), AttributeValue::Int64(3));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
-        let _ = top_k_config(&node);
+        let _ = top_k_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "TopK: number of top elements 'k' is missing")]
     fn test_top_k_config_without_k() {
         // Test when k is neither provided as input nor attribute
-        let node = create_test_node(3, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, None, None).build();
 
-        let _ = top_k_config(&node);
+        let _ = top_k_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -311,9 +336,10 @@ mod tests {
         // Input should take precedence
         let mut attrs = HashMap::new();
         attrs.insert("k".to_string(), AttributeValue::Int64(10));
-        let node = create_test_node(3, Some(attrs), Some(5));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, Some(attrs), Some(5)).build_with_graph_data(&mut graph_data);
 
-        let config = top_k_config(&node);
+        let config = top_k_config(&node, &mut graph_data);
 
         // K from input should be used (5), not from attribute (10)
         assert_eq!(config, TopKConfig { axis: 2, k: 5 });

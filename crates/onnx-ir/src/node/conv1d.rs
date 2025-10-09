@@ -52,7 +52,7 @@ impl Conv1dConfig {
 }
 
 /// Create a Conv1dConfig from the attributes of the node
-pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
+pub fn conv1d_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Conv1dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1];
     let mut pads = vec![0, 0];
@@ -60,8 +60,7 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut group: usize = 1;
 
     let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("Conv1d: weight tensor must be present")
         .shape
         .clone();
@@ -126,7 +125,12 @@ impl NodeProcessor for Conv1dProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -145,7 +149,7 @@ mod tests {
         group: i64,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> Node {
+    ) -> NodeBuilder {
         // Create weight tensor data
         let weight_data = vec![0.1; 16];
 
@@ -181,13 +185,15 @@ mod tests {
             builder = builder.attr_ints("kernel_shape", kernel_shape);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_conv1d_config_basic() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, false, None);
-        let config = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, false, None)
+            .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -201,8 +207,10 @@ mod tests {
 
     #[test]
     fn test_conv1d_config_with_padding() {
-        let node = create_test_node(vec![4], vec![2], vec![2, 2], vec![1], 1, true, None);
-        let config = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![2], vec![2, 2], vec![1], 1, true, None)
+            .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -216,8 +224,10 @@ mod tests {
 
     #[test]
     fn test_conv1d_config_with_dilation() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![2], 1, false, None);
-        let config = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![2], 1, false, None)
+            .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -231,8 +241,10 @@ mod tests {
 
     #[test]
     fn test_conv1d_config_with_groups() {
-        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 2, false, None);
-        let config = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 2, false, None)
+            .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 4);
         assert_eq!(config.channels_out, 2);
@@ -247,19 +259,24 @@ mod tests {
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv1d_config_asymmetric_padding() {
-        let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, false, None);
-        let _ = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, false, None)
+            .build_with_graph_data(&mut graph_data);
+        let _ = conv1d_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Negative pad values are not supported")]
     fn test_conv1d_config_negative_padding() {
-        let node = create_test_node(vec![4], vec![1], vec![-1, -1], vec![1], 1, false, None);
-        let _ = conv1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(vec![4], vec![1], vec![-1, -1], vec![1], 1, false, None)
+            .build_with_graph_data(&mut graph_data);
+        let _ = conv1d_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_conv1d_config_autopad_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -268,8 +285,9 @@ mod tests {
             1,
             false,
             Some("NOTSET"),
-        );
-        let config = conv1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -280,9 +298,11 @@ mod tests {
         assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
+
     #[test]
     #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv1d_config_autopad_not_supported() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -291,12 +311,14 @@ mod tests {
             1,
             false,
             Some("SAME_UPPER"),
-        );
-        let _config = conv1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let _config = conv1d_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_conv1d_config_kernel_shape_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![],
             vec![1, 1],
@@ -305,8 +327,9 @@ mod tests {
             1,
             false,
             None,
-        );
-        let config = conv1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv1d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }

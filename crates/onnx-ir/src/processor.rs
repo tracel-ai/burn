@@ -4,7 +4,7 @@
 //! node-centric architecture where each node type declares its requirements
 //! rather than having centralized orchestration code decide what to provide.
 
-use crate::ir::{Node, NodeType};
+use crate::ir::{ArgType, Node, NodeType};
 use std::collections::HashMap;
 
 /// Context provided to node processors during inference
@@ -12,12 +12,29 @@ use std::collections::HashMap;
 pub struct ProcessorContext {
     /// ONNX opset version being processed
     pub opset_version: i64,
+
+    /// Type expectations set via should_be() method
+    /// Maps argument names to their expected types
+    expected_types: HashMap<String, ArgType>,
 }
 
 impl ProcessorContext {
     /// Create a new processor context with the given opset version
     pub fn new(opset_version: i64) -> Self {
-        Self { opset_version }
+        Self {
+            opset_version,
+            expected_types: HashMap::new(),
+        }
+    }
+
+    /// Set the expected type for an argument
+    pub fn set_expected_type(&mut self, arg_name: String, expected_ty: ArgType) {
+        self.expected_types.insert(arg_name, expected_ty);
+    }
+
+    /// Get the expected type for an argument, if any
+    pub fn get_expected_type(&self, arg_name: &str) -> Option<&ArgType> {
+        self.expected_types.get(arg_name)
     }
 }
 
@@ -41,18 +58,25 @@ pub trait NodeProcessor: Send + Sync {
         (16, None)
     }
 
-    /// Infer output types from input types.
+    /// Infer output types from input types and optionally create node configuration.
     ///
     /// This method should update the node's output arguments based on:
     /// - Input argument types
     /// - Node attributes
     /// - The provided context (including opset version)
+    /// - Access to graph data for constant values
     ///
     /// # Arguments
     ///
-    /// * `node` - The node to process (mutable to update outputs)
+    /// * `node` - The node to process (mutable to update outputs and store config)
     /// * `context` - Processing context with opset version and other metadata
-    fn process(&self, node: &mut Node, context: &ProcessorContext);
+    /// * `graph_data` - Mutable access to graph data for constant operations
+    fn process(
+        &self,
+        node: &mut Node,
+        context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    );
 }
 
 /// Registry for node processors.
@@ -614,7 +638,12 @@ impl ProcessorRegistry {
 struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         // Default: preserve input type
         crate::util::same_as_input(node);
     }
@@ -632,7 +661,12 @@ mod tests {
             (13, Some(18))
         }
 
-        fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+        fn process(
+            &self,
+            node: &mut Node,
+            _context: &ProcessorContext,
+            _graph_data: &mut crate::from_onnx::GraphData,
+        ) {
             // Simple test: copy input type to output
             if !node.inputs.is_empty() && !node.outputs.is_empty() {
                 node.outputs[0].ty = node.inputs[0].ty.clone();
@@ -656,6 +690,8 @@ mod tests {
 
     #[test]
     fn test_infer_outputs() {
+        use crate::protos::TensorProto;
+
         let processor = TestProcessor;
         let mut node = Node {
             node_type: NodeType::Add,
@@ -667,18 +703,18 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
-                value: None,
             }],
             outputs: vec![Argument {
                 name: "output".to_string(),
                 ty: ArgType::default(),
-                value: None,
             }],
             attrs: Default::default(),
+            config: None,
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.process(&mut node, &ctx);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &ctx, &mut graph_data);
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -721,18 +757,18 @@ mod tests {
                     rank: 3,
                     static_shape: None,
                 }),
-                value: None,
             }],
             outputs: vec![Argument {
                 name: "output".to_string(),
                 ty: ArgType::default(),
-                value: None,
             }],
             attrs: Default::default(),
+            config: None,
         };
 
         let ctx = ProcessorContext::new(16);
-        processor.process(&mut node, &ctx);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &ctx, &mut graph_data);
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {

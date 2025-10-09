@@ -294,7 +294,6 @@ mod tests {
                     rank: *rank,
                     static_shape: None,
                 }),
-                value: None,
             });
         }
 
@@ -305,7 +304,6 @@ mod tests {
                 rank: 0, // Will be updated
                 static_shape: None,
             }),
-            value: None,
         }];
 
         Node {
@@ -314,6 +312,7 @@ mod tests {
             inputs,
             outputs,
             attrs: HashMap::new(),
+            config: None,
         }
     }
 
@@ -352,7 +351,6 @@ mod tests {
         node.inputs.push(Argument {
             name: "scalar_input".to_string(),
             ty: ArgType::Scalar(ElementType::Float32),
-            value: None,
         });
 
         same_as_input_broadcast(&mut node);
@@ -387,7 +385,6 @@ mod tests {
         node.inputs.push(Argument {
             name: "shape_input".to_string(),
             ty: ArgType::Shape(3),
-            value: None,
         });
 
         same_as_input_broadcast(&mut node);
@@ -413,7 +410,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![2, 3, 4]),
                 }),
-                value: None,
             },
             Argument {
                 name: "input2".to_string(),
@@ -422,7 +418,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![2, 3, 4]),
                 }),
-                value: None,
             },
         ];
 
@@ -440,7 +435,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![1, 3, 4]),
                 }),
-                value: None,
             },
             Argument {
                 name: "input2".to_string(),
@@ -449,7 +443,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![2, 1, 4]),
                 }),
-                value: None,
             },
         ];
 
@@ -467,7 +460,6 @@ mod tests {
                     rank: 2,
                     static_shape: Some(vec![3, 4]),
                 }),
-                value: None,
             },
             Argument {
                 name: "input2".to_string(),
@@ -476,7 +468,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![2, 1, 4]),
                 }),
-                value: None,
             },
         ];
 
@@ -494,7 +485,6 @@ mod tests {
                     rank: 0,
                     static_shape: Some(vec![]), // Scalar
                 }),
-                value: None,
             },
             Argument {
                 name: "input2".to_string(),
@@ -503,7 +493,6 @@ mod tests {
                     rank: 3,
                     static_shape: Some(vec![2, 3, 4]),
                 }),
-                value: None,
             },
         ];
 
@@ -521,7 +510,6 @@ mod tests {
                     rank: 2,
                     static_shape: Some(vec![3, 4]),
                 }),
-                value: None,
             },
             Argument {
                 name: "input2".to_string(),
@@ -530,7 +518,6 @@ mod tests {
                     rank: 2,
                     static_shape: Some(vec![2, 5]), // Incompatible: 4 != 5
                 }),
-                value: None,
             },
         ];
 
@@ -547,12 +534,10 @@ mod tests {
                 Argument {
                     name: "shape_input".to_string(),
                     ty: ArgType::Shape(4),
-                    value: None,
                 },
                 Argument {
                     name: "scalar_input".to_string(),
                     ty: ArgType::Scalar(ElementType::Int64),
-                    value: None,
                 },
             ],
             outputs: vec![Argument {
@@ -562,9 +547,9 @@ mod tests {
                     rank: 0,
                     static_shape: None,
                 }),
-                value: None,
             }],
             attrs: HashMap::new(),
+            config: None,
         };
 
         same_as_input_broadcast(&mut node);

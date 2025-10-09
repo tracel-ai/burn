@@ -10,6 +10,8 @@ pub struct NodeBuilder {
     inputs: Vec<Argument>,
     outputs: Vec<Argument>,
     attrs: HashMap<String, AttributeValue>,
+    /// Stores constant data for inputs that should be constants (input_name -> (data, shape))
+    constant_data: HashMap<String, (Data, Vec<usize>)>,
 }
 
 impl NodeBuilder {
@@ -21,6 +23,7 @@ impl NodeBuilder {
             inputs: Vec::new(),
             outputs: Vec::new(),
             attrs: HashMap::new(),
+            constant_data: HashMap::new(),
         }
     }
 
@@ -33,7 +36,6 @@ impl NodeBuilder {
         self.inputs.push(Argument {
             name: name.to_string(),
             ty,
-            value: None,
         });
         self
     }
@@ -178,6 +180,10 @@ impl NodeBuilder {
     }
 
     /// Add a tensor input with data value
+    ///
+    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// This method creates the argument without the value field. If you need the value
+    /// in GraphData for testing, you'll need to add it separately.
     pub fn input_tensor_with_data(
         mut self,
         name: &str,
@@ -193,9 +199,10 @@ impl NodeBuilder {
                 rank,
                 static_shape: None,
             }),
-            value: Some(TensorData { data, shape }),
         };
         self.inputs.push(arg);
+        // Store the constant data for later registration in GraphData
+        self.constant_data.insert(name.to_string(), (data, shape));
         self
     }
 
@@ -222,6 +229,9 @@ impl NodeBuilder {
     }
 
     /// Add a float32 scalar tensor input (rank 0)
+    ///
+    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
         let arg = Argument {
             name: name.to_string(),
@@ -230,17 +240,21 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
-            value: value.map(|val| TensorData {
-                data: Data::Float32(val),
-                shape: vec![],
-            }),
         };
         self.inputs.push(arg);
+        // If value is provided, store it as constant data
+        if let Some(v) = value {
+            self.constant_data
+                .insert(name.to_string(), (Data::Float32(v), vec![]));
+        }
         self
     }
 
     /// Add an int64 scalar tensor input (rank 0)
-    pub fn input_scalar_tensor_i64(mut self, name: &str, value: i64) -> Self {
+    ///
+    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// This method creates the argument without the value field.
+    pub fn input_scalar_tensor_i64(mut self, name: &str, value: Option<i64>) -> Self {
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -248,12 +262,13 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
-            value: Some(TensorData {
-                data: Data::Int64(value),
-                shape: vec![],
-            }),
         };
         self.inputs.push(arg);
+        // If value is provided, store it as constant data
+        if let Some(v) = value {
+            self.constant_data
+                .insert(name.to_string(), (Data::Int64(v), vec![]));
+        }
         self
     }
 
@@ -280,7 +295,6 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty,
-            value: None,
         });
         self
     }
@@ -478,7 +492,6 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty: ArgType::default(),
-            value: None,
         });
         self
     }
@@ -491,6 +504,18 @@ impl NodeBuilder {
             inputs: self.inputs,
             outputs: self.outputs,
             attrs: self.attrs,
+            config: None,
         }
+    }
+
+    /// Build the node and register any constant inputs in GraphData.
+    /// This is useful for tests that need constant values accessible via GraphData.
+    pub fn build_with_graph_data(self, graph_data: &mut crate::from_onnx::GraphData) -> Node {
+        // Register constants in GraphData before building the node
+        for (input_name, (data, shape)) in &self.constant_data {
+            graph_data.register_test_constant(input_name.clone(), data.clone(), shape.clone());
+        }
+
+        self.build()
     }
 }

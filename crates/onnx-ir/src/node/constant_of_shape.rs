@@ -17,7 +17,10 @@ pub enum ConstantOfShapeShape {
 ///
 /// Extracts shape information from the node's input to determine
 /// whether to use static or runtime shape expansion.
-pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
+pub fn constant_of_shape_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> ConstantOfShapeShape {
     // Validate input type
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
@@ -35,7 +38,7 @@ pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
     }
 
     // Check if we have static values or need runtime resolution
-    match &node.inputs[0].value {
+    match node.inputs[0].into_value(graph_data) {
         Some(TensorData {
             data: Data::Int64s(shape),
             ..
@@ -45,8 +48,8 @@ pub fn constant_of_shape_config(node: &Node) -> ConstantOfShapeShape {
             ConstantOfShapeShape::Runtime(node.inputs[0].clone())
         }
         _ => panic!(
-            "ConstantOfShape node {} requires Int64 shape data, found {:?}",
-            node.name, &node.inputs[0].value
+            "ConstantOfShape node {} requires Int64 shape data",
+            node.name
         ),
     }
 }
@@ -58,7 +61,12 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         (9, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("ConstantOfShape rank inference for node {}", node.name);
 
         let value_type = node
@@ -85,7 +93,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 log::debug!("ConstantOfShape input is Tensor for {}", node.name);
 
                 // First check if we have a lifted constant value (most reliable)
-                if let Some(tensor_data) = &node.inputs[0].value {
+                if let Some(tensor_data) = node.inputs[0].into_value(_graph_data) {
                     // We have the actual constant values that were lifted
                     log::debug!(
                         "ConstantOfShape extracting rank from lifted constant value for {}",
@@ -173,19 +181,19 @@ mod tests {
     use crate::ir::{AttributeValue, Data, NodeType, TensorData};
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(input_ty: ArgType) -> Node {
+    fn create_test_node(input_ty: ArgType) -> NodeBuilder {
         NodeBuilder::new(NodeType::ConstantOfShape, "test_constantofshape")
             .add_input("shape", input_ty)
             .output_tensor_f32("output", 0, None) // Will be updated
-            .build()
     }
 
     #[test]
     fn test_shape_input() {
-        let mut node = create_test_node(ArgType::Shape(3));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(3)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -198,14 +206,16 @@ mod tests {
 
     #[test]
     fn test_tensor_input_with_static_shape() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(ArgType::Tensor(TensorType {
             elem_type: ElementType::Int64,
             rank: 1,
             static_shape: Some(vec![4]),
-        }));
+        }))
+        .build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -218,7 +228,8 @@ mod tests {
 
     #[test]
     fn test_custom_value_type() {
-        let mut node = create_test_node(ArgType::Shape(2));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(2)).build();
         node.attrs.insert(
             "value".to_string(),
             AttributeValue::Tensor(TensorData {
@@ -228,7 +239,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -242,15 +253,17 @@ mod tests {
     #[test]
     #[should_panic(expected = "ConstantOfShape node requires a Tensor or Shape type as input")]
     fn test_invalid_input_type() {
-        let mut node = create_test_node(ArgType::Scalar(ElementType::Float32));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Scalar(ElementType::Float32)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     #[test]
     fn test_no_static_shapes_with_value_attr() {
         // Simulates the scenario after constant lifting where the input has a value
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
             .input_tensor_i64("constant180_out1", 1, None)
             .output_default("/model/encoder/patch_encoder/ConstantOfShape_output_0")
@@ -263,15 +276,16 @@ mod tests {
             )
             .build();
 
-        // Simulate constant lifting by adding the value to the input
-        node.inputs[0].value = Some(TensorData {
-            data: Data::Int64s(vec![2, 3, 4]), // Shape values
-            shape: vec![3],                    // 1D tensor with 3 elements
-        });
+        // Simulate constant lifting by registering the value in graph_data
+        graph_data.register_test_constant(
+            "constant180_out1".to_string(),
+            Data::Int64s(vec![2, 3, 4]),
+            vec![3],
+        );
 
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Verify the output has the correct rank
         match &node.outputs[0].ty {
@@ -286,10 +300,11 @@ mod tests {
     #[test]
     fn test_scalar_output_with_shape_0() {
         // Test when input is Shape(0), output should be Scalar
-        let mut node = create_test_node(ArgType::Shape(0));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(0)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -302,14 +317,16 @@ mod tests {
     #[test]
     fn test_scalar_output_with_tensor_shape_0() {
         // Test when input is a tensor with static shape [0], output should be Scalar
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(ArgType::Tensor(TensorType {
             elem_type: ElementType::Int64,
             rank: 1,
             static_shape: Some(vec![0]), // Shape is [0], meaning rank-0 output
-        }));
+        }))
+        .build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -322,7 +339,8 @@ mod tests {
     #[test]
     fn test_scalar_output_with_custom_value() {
         // Test scalar output with custom value type
-        let mut node = create_test_node(ArgType::Shape(0));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(0)).build();
         node.attrs.insert(
             "value".to_string(),
             AttributeValue::Tensor(TensorData {
@@ -332,7 +350,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -345,7 +363,8 @@ mod tests {
     #[test]
     fn test_shape_optimization_with_int64() {
         // Test Shape(1) -> Shape(1) optimization when value type is Int64
-        let mut node = create_test_node(ArgType::Shape(1));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(1)).build();
         node.attrs.insert(
             "value".to_string(),
             AttributeValue::Tensor(TensorData {
@@ -355,7 +374,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -368,7 +387,8 @@ mod tests {
     #[test]
     fn test_shape_1_with_float_no_optimization() {
         // Test that Shape(1) with Float32 does NOT get optimized (outputs Tensor)
-        let mut node = create_test_node(ArgType::Shape(1));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(1)).build();
         node.attrs.insert(
             "value".to_string(),
             AttributeValue::Tensor(TensorData {
@@ -378,7 +398,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -392,11 +412,12 @@ mod tests {
     #[test]
     fn test_shape_1_default_value_no_optimization() {
         // Test that Shape(1) with default value (Float32) does NOT get optimized
-        let mut node = create_test_node(ArgType::Shape(1));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(ArgType::Shape(1)).build();
         // No value attribute means default Float32
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

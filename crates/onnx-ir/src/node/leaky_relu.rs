@@ -2,7 +2,7 @@ use crate::ir::Node;
 use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Create a LeakyReluConfig from the alpha attribute of the node
-pub fn leaky_relu_config(node: &Node) -> f64 {
+pub fn leaky_relu_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> f64 {
     let mut alpha = 0.01;
 
     for (key, value) in node.attrs.iter() {
@@ -21,7 +21,12 @@ impl NodeProcessor for LeakyReluProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::util::same_as_input(node);
     }
 }
@@ -43,7 +48,8 @@ mod tests {
     #[test]
     fn test_leaky_relu_config_with_alpha() {
         let node = create_test_node(0.2);
-        let alpha = leaky_relu_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let alpha = leaky_relu_config(&node, &mut graph_data);
         assert!((alpha - 0.2).abs() < 1e-6);
     }
 
@@ -51,7 +57,8 @@ mod tests {
     fn test_leaky_relu_config_default() {
         let mut node = create_test_node(0.2);
         node.attrs.clear(); // Remove all attributes
-        let alpha = leaky_relu_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let alpha = leaky_relu_config(&node, &mut graph_data);
         assert_eq!(alpha, 0.01); // Check default value
     }
 }

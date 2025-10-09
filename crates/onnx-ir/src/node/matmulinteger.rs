@@ -9,7 +9,12 @@ impl NodeProcessor for MatMulIntegerProcessor {
         (10, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
                 let mut out_rank = max(a.rank, b.rank);
@@ -51,7 +56,8 @@ mod tests {
         let mut node = create_test_node(2, 2);
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -67,7 +73,8 @@ mod tests {
         let mut node = create_test_node(1, 2);
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -85,7 +92,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }
 #[cfg(test)]
@@ -107,7 +115,8 @@ mod tests2 {
         let mut n = mk(2, 2);
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut n, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut n, &context, &mut graph_data);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);
@@ -122,7 +131,8 @@ mod tests2 {
         let mut n = mk(1, 2);
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut n, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut n, &context, &mut graph_data);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);

@@ -47,7 +47,10 @@ impl MaxPool2dConfig {
 }
 
 /// Create a MaxPool2dConfig from the attributes of the node
-pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
+pub fn max_pool2d_config(
+    curr: &Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> MaxPool2dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1, 1];
     let mut pads = vec![0, 0, 0, 0];
@@ -91,7 +94,12 @@ impl NodeProcessor for MaxPool2dProcessor {
         (8, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -134,7 +142,8 @@ mod tests {
             0,
             None,
         );
-        let config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = max_pool2d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -152,7 +161,8 @@ mod tests {
             0,
             None,
         );
-        let config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = max_pool2d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -170,7 +180,8 @@ mod tests {
             0,
             None,
         );
-        let config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = max_pool2d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -188,7 +199,8 @@ mod tests {
             0,
             Some("NOTSET"),
         );
-        let config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = max_pool2d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -207,7 +219,8 @@ mod tests {
             0,
             Some("SAME_UPPER"),
         );
-        let _config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _config = max_pool2d_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -221,6 +234,7 @@ mod tests {
             1,
             None,
         );
-        let _config = max_pool2d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _config = max_pool2d_config(&node, &mut graph_data);
     }
 }

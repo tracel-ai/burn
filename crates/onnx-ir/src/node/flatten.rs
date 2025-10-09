@@ -3,7 +3,7 @@ use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::ir::{ArgType, Node, TensorType};
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node) -> usize {
+pub fn flatten_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> usize {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = 1;
 
@@ -51,7 +51,12 @@ impl NodeProcessor for FlattenProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         if node.inputs.len() != 1 {
             panic!("Flatten: multiple inputs are not supported");
         }
@@ -89,14 +94,16 @@ mod tests {
     #[test]
     fn test_flatten_config_basic() {
         let node = create_test_node(1);
-        let config = flatten_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = flatten_config(&node, &mut graph_data);
         assert_eq!(config, 1);
     }
 
     #[test]
     fn test_flatten_config_with_negative_axis() {
         let node = create_test_node(-2);
-        let config = flatten_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = flatten_config(&node, &mut graph_data);
         assert_eq!(config, 2); // -2 + 4 = 2
     }
 
@@ -112,7 +119,8 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs[0] = input;
-        let _ = flatten_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = flatten_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -127,6 +135,7 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs.push(extra_input);
-        let _ = flatten_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = flatten_config(&node, &mut graph_data);
     }
 }

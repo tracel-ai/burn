@@ -35,7 +35,10 @@ pub fn gemm_output_shape(node: &mut Node) {
     });
 }
 
-pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
+pub fn gemm_config(
+    curr: &Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> (f32, f32, i64, i64) {
     let mut alpha: f32 = 1.0;
     let mut beta: f32 = 1.0;
     let mut trans_a: i64 = 0;
@@ -61,7 +64,12 @@ impl NodeProcessor for GemmProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::node::gemm::gemm_output_shape(node);
     }
 }
@@ -103,7 +111,8 @@ mod tests {
     #[test]
     fn test_gemm_config_defaults() {
         let node = create_test_node(None, None, None, None);
-        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node, &mut graph_data);
         assert_eq!(alpha, 1.0);
         assert_eq!(beta, 1.0);
         assert_eq!(trans_a, 0);
@@ -113,7 +122,8 @@ mod tests {
     #[test]
     fn test_gemm_config_with_attrs() {
         let node = create_test_node(Some(2.0), Some(3.0), Some(1), Some(1));
-        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node, &mut graph_data);
         assert_eq!(alpha, 2.0);
         assert_eq!(beta, 3.0);
         assert_eq!(trans_a, 1);
@@ -123,7 +133,8 @@ mod tests {
     #[test]
     fn test_gemm_config_partial_attrs() {
         let node = create_test_node(Some(0.5), None, Some(1), None);
-        let (alpha, beta, trans_a, trans_b) = gemm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (alpha, beta, trans_a, trans_b) = gemm_config(&node, &mut graph_data);
         assert_eq!(alpha, 0.5);
         assert_eq!(beta, 1.0); // default
         assert_eq!(trans_a, 1);

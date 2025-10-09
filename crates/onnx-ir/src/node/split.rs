@@ -23,7 +23,7 @@ impl SplitConfig {
 }
 
 /// Creates a SplitConfig from the node attributes and inputs.
-pub fn split_config(node: &Node) -> SplitConfig {
+pub fn split_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SplitConfig {
     // Initialize the axis to split along (default is 0 as per ONNX specification)
     let mut axis: i64 = 0;
     // Holds the uniform split size if calculated or provided
@@ -80,9 +80,9 @@ pub fn split_config(node: &Node) -> SplitConfig {
     }
 
     // Check for custom split sizes provided as a second input
-    if node.inputs.len() > 1 && node.inputs[1].value.is_some() {
+    if node.inputs.len() > 1 && node.inputs[1].has_value(graph_data) {
         let sizes = node.inputs[1]
-            .value
+            .into_value(graph_data)
             .as_ref()
             .unwrap()
             .data
@@ -137,7 +137,12 @@ impl NodeProcessor for SplitProcessor {
         (2, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Split rank inference for node {}", node.name);
 
         let tensor = match &node.inputs[0].ty {
@@ -175,7 +180,7 @@ mod tests {
         static_shape: Option<Vec<usize>>,
         attrs: Option<HashMap<String, AttributeValue>>,
         split_sizes_input: Option<Vec<i64>>,
-    ) -> Node {
+    ) -> NodeBuilder {
         // Start with input tensor
         let mut builder = NodeBuilder::new(NodeType::Split, "test_split").input_tensor_f32(
             "input",
@@ -198,22 +203,27 @@ mod tests {
         }
 
         // Add attributes if provided
-        let mut node = builder.build();
-
         if let Some(attributes) = attrs {
-            node.attrs = attributes;
+            for (key, value) in attributes {
+                builder = match key.as_str() {
+                    "axis" => builder.attr_int("axis", value.into_i64()),
+                    "num_outputs" => builder.attr_int("num_outputs", value.into_i64()),
+                    _ => builder,
+                };
+            }
         }
 
-        node
+        builder
     }
 
     #[test]
     fn test_split_single_output() {
-        let mut node = create_test_node(3, 1, None, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(3, 1, None, None, None).build();
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 1);
         match &node.outputs[0].ty {
@@ -227,11 +237,12 @@ mod tests {
 
     #[test]
     fn test_split_multiple_outputs() {
-        let mut node = create_test_node(4, 3, None, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(4, 3, None, None, None).build();
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 3);
         for output in &node.outputs {
@@ -248,12 +259,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "Split: Input must be a tensor")]
     fn test_split_invalid_input() {
-        let mut node = create_test_node(3, 2, None, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(3, 2, None, None, None).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     // Tests for split_config function
@@ -262,9 +274,10 @@ mod tests {
     fn test_split_config_default_axis() {
         // Create a node with static shape and 2 outputs
         let static_shape = Some(vec![10, 20, 30]);
-        let node = create_test_node(3, 2, static_shape, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 2, static_shape, None, None).build();
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         // Default axis should be 0, and split_size should be calculated
         assert_eq!(config.axis, 0);
@@ -279,9 +292,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("axis".to_string(), AttributeValue::Int64(1)); // Split along axis 1
 
-        let node = create_test_node(3, 2, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 2, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         assert_eq!(config.axis, 1);
         assert_eq!(config.split_size, Some(10)); // 20 / 2 = 10
@@ -295,9 +309,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("axis".to_string(), AttributeValue::Int64(-1)); // Last axis (index 2)
 
-        let node = create_test_node(3, 3, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 3, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
         assert_eq!(config.split_size, Some(10)); // 30 / 3 = 10
@@ -311,9 +326,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(4));
 
-        let node = create_test_node(3, 4, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 4, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(3)); // 12 / 4 = 3
@@ -326,9 +342,11 @@ mod tests {
         let static_shape = Some(vec![10, 20, 30]);
         let split_sizes = vec![5, 15]; // Custom split sizes along default axis
 
-        let node = create_test_node(3, 2, static_shape, None, Some(split_sizes.clone()));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 2, static_shape, None, Some(split_sizes.clone()))
+            .build_with_graph_data(&mut graph_data);
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
@@ -346,9 +364,11 @@ mod tests {
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(2));
         let split_sizes = vec![3, 7];
 
-        let node = create_test_node(3, 2, static_shape, Some(attrs), Some(split_sizes));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 2, static_shape, Some(attrs), Some(split_sizes))
+            .build_with_graph_data(&mut graph_data);
 
-        let _ = split_config(&node);
+        let _ = split_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -359,9 +379,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(0));
 
-        let node = create_test_node(3, 0, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 0, static_shape, Some(attrs), None).build();
 
-        let _ = split_config(&node);
+        let _ = split_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -372,9 +393,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(10)); // Larger than dim 0 size
 
-        let node = create_test_node(3, 10, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 10, static_shape, Some(attrs), None).build();
 
-        let _ = split_config(&node);
+        let _ = split_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -384,19 +406,21 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(2));
 
-        let node = create_test_node(3, 2, None, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 2, None, Some(attrs), None).build();
 
-        let _ = split_config(&node);
+        let _ = split_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Split: Input must be a valid tensor")]
     fn test_split_config_invalid_input_type() {
         // Test with invalid input type
-        let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
-        let _ = split_config(&node);
+        let _ = split_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -406,9 +430,10 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("axis".to_string(), AttributeValue::Int64(0));
 
-        let node = create_test_node(3, 3, static_shape, Some(attrs), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(3, 3, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node);
+        let config = split_config(&node, &mut graph_data);
 
         // 11 / (3-1) = 5, since the dimension is not evenly divisible
         assert_eq!(config.split_size, Some(5));

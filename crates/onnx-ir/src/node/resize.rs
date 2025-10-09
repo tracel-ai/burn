@@ -52,7 +52,7 @@ pub enum ResizeSizes {
     Runtime(Argument),
 }
 
-pub fn resize_config(node: &Node) -> ResizeConfig {
+pub fn resize_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ResizeConfig {
     let mut mode: Option<ResizeMode> = None;
 
     let input = if let ArgType::Tensor(tensor) = &node
@@ -120,7 +120,7 @@ pub fn resize_config(node: &Node) -> ResizeConfig {
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(TensorData { data, .. }) = &input.value {
+            if let Some(TensorData { data, .. }) = input.into_value(graph_data) {
                 data.clone().into_f32s()
             } else {
                 vec![]
@@ -129,10 +129,10 @@ pub fn resize_config(node: &Node) -> ResizeConfig {
         .unwrap_or_default();
 
     // Extract scales input (3rd input)
-    let scales = extract_scales_input(node, input.rank);
+    let scales = extract_scales_input(node, input.rank, graph_data);
 
     // Extract sizes input (4th input)
-    let sizes = extract_sizes_input(node, input.rank);
+    let sizes = extract_sizes_input(node, input.rank, graph_data);
 
     let mode = mode.expect("Resize: mode attribute is required");
 
@@ -153,7 +153,11 @@ pub fn resize_config(node: &Node) -> ResizeConfig {
 }
 
 /// Extract scales input as either static or runtime
-fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
+fn extract_scales_input(
+    node: &Node,
+    input_rank: usize,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
@@ -164,7 +168,7 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match &input.value {
+                    match input.into_value(graph_data) {
                         Some(TensorData { data, .. }) => {
                             let mut scales = data.clone().into_f32s();
                             if scales.is_empty() {
@@ -191,7 +195,11 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
+fn extract_sizes_input(
+    node: &Node,
+    input_rank: usize,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
@@ -202,7 +210,7 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match &input.value {
+                    match input.into_value(graph_data) {
                         Some(TensorData { data, .. }) => {
                             let mut sizes: Vec<usize> = data
                                 .clone()
@@ -241,7 +249,12 @@ impl NodeProcessor for ResizeProcessor {
         (10, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::util::same_as_input(node);
     }
 }
@@ -257,7 +270,7 @@ mod tests {
         scales: Option<Vec<f32>>,
         sizes: Option<Vec<i64>>,
         roi: Option<Vec<f32>>,
-    ) -> Node {
+    ) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::Resize, "test_resize")
             .input_tensor_f32("X", 4, None) // N,C,H,W format
             .output_tensor_f32("Y", 4, None)
@@ -290,18 +303,20 @@ mod tests {
             builder = builder.input_tensor_i64("", 1, None);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_resize_config_with_scales() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "nearest",
             Some(vec![1.0, 1.0, 2.0, 2.0]), // Keep N,C same, double H,W
             None,
             None,
-        );
-        let config = resize_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = resize_config(&node, &mut graph_data);
         assert_eq!(config.mode, ResizeMode::Nearest);
         match config.scales {
             Some(ResizeScales::Static(scales)) => {
@@ -314,13 +329,15 @@ mod tests {
 
     #[test]
     fn test_resize_config_with_sizes() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "linear",
             None,
             Some(vec![1, 3, 224, 224]), // Fixed output size
             None,
-        );
-        let config = resize_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = resize_config(&node, &mut graph_data);
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
         match config.sizes {
@@ -334,27 +351,33 @@ mod tests {
     #[test]
     #[should_panic(expected = "Resize: roi input is not supported")]
     fn test_resize_config_with_roi() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "nearest",
             Some(vec![1.0, 1.0, 2.0, 2.0]),
             None,
             Some(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]), // ROI values
-        );
-        let _ = resize_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let _ = resize_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Resize: either scales or sizes input is required")]
     fn test_resize_config_no_scales_or_sizes() {
-        let node = create_test_node("nearest", None, None, None);
-        let _ = resize_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node("nearest", None, None, None).build_with_graph_data(&mut graph_data);
+        let _ = resize_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Resize: mode attribute is required")]
     fn test_resize_config_no_mode() {
-        let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None)
+            .build_with_graph_data(&mut graph_data);
         node.attrs.clear(); // Remove all attributes including mode
-        let _ = resize_config(&node);
+        let _ = resize_config(&node, &mut graph_data);
     }
 }

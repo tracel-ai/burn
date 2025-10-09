@@ -15,12 +15,12 @@ impl TileConfig {
 }
 
 /// Creates a TileConfig from the node attributes and inputs.
-pub fn tile_config(node: &Node) -> TileConfig {
+pub fn tile_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> TileConfig {
     let repeat = node
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(TensorData { data, .. }) = &input.value {
+            if let Some(TensorData { data, .. }) = input.into_value(graph_data) {
                 data.clone()
                     .into_i64s()
                     .iter()
@@ -41,7 +41,12 @@ impl NodeProcessor for TileProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::util::same_as_input(node);
     }
 }
@@ -53,7 +58,7 @@ mod tests {
     use crate::node::test_utils::NodeBuilder;
 
     /// Helper function to create test nodes with different repeat values
-    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> Node {
+    fn create_test_node(repeats: Option<Vec<i64>>, input_rank: usize) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::Tile, "test_tile")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", input_rank, None); // Same rank as input initially
@@ -63,16 +68,18 @@ mod tests {
             builder = builder.input_tensor_i64_data("repeats", reps.clone(), vec![reps.len()]);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_tile_config_with_repeats() {
         // Test with normal repeats values
         let repeats = vec![2, 3, 4];
-        let node = create_test_node(Some(repeats.clone()), 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         // Should extract repeats correctly
         assert_eq!(config.repeats, vec![2, 3, 4]);
@@ -82,9 +89,11 @@ mod tests {
     fn test_tile_config_with_single_repeat() {
         // Test with single repeat value
         let repeats = vec![5];
-        let node = create_test_node(Some(repeats.clone()), 1);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node(Some(repeats.clone()), 1).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         assert_eq!(config.repeats, vec![5]);
     }
@@ -93,9 +102,11 @@ mod tests {
     fn test_tile_config_with_zero_repeats() {
         // Test with repeats including zeros
         let repeats = vec![0, 1, 0];
-        let node = create_test_node(Some(repeats.clone()), 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         assert_eq!(config.repeats, vec![0, 1, 0]);
     }
@@ -104,9 +115,11 @@ mod tests {
     fn test_tile_config_with_large_repeats() {
         // Test with large repeats values
         let repeats = vec![100, 200];
-        let node = create_test_node(Some(repeats.clone()), 2);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node(Some(repeats.clone()), 2).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         assert_eq!(config.repeats, vec![100, 200]);
     }
@@ -114,9 +127,10 @@ mod tests {
     #[test]
     fn test_tile_config_without_repeats_input() {
         // Test when repeats input is missing
-        let node = create_test_node(None, 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(None, 3).build();
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);
@@ -126,9 +140,10 @@ mod tests {
     fn test_tile_config_with_negative_repeats() {
         // Test with negative repeats values (will be converted to usize)
         let repeats = vec![-1, 2, -3];
-        let node = create_test_node(Some(repeats), 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         // Negative values get converted to very large positive values due to usize conversion
         // This is expected behavior for this function (though may cause issues elsewhere)
@@ -141,9 +156,10 @@ mod tests {
     fn test_tile_config_with_empty_repeats() {
         // Test with empty repeats array
         let repeats = vec![];
-        let node = create_test_node(Some(repeats), 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         assert_eq!(config.repeats, vec![]);
     }
@@ -151,7 +167,8 @@ mod tests {
     #[test]
     fn test_tile_config_with_missing_value() {
         // Test with repeats input that has no value
-        let mut node = create_test_node(None, 3);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(None, 3).build();
 
         // Add repeats input with no value
         node.inputs.push(
@@ -163,7 +180,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let config = tile_config(&node);
+        let config = tile_config(&node, &mut graph_data);
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);

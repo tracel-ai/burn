@@ -16,7 +16,7 @@ impl IsInfConfig {
     }
 }
 
-pub fn is_inf_config(curr: &Node) -> IsInfConfig {
+pub fn is_inf_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> IsInfConfig {
     let mut detect_negative = true;
     let mut detect_positive = true;
 
@@ -38,7 +38,12 @@ impl NodeProcessor for IsInfProcessor {
         (10, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         crate::node::comparison::elementwise_comparison_outputs(node);
     }
 }
@@ -68,7 +73,8 @@ mod tests {
     #[test]
     fn test_is_inf_config_default() {
         let node = create_test_node(None, None);
-        let config = is_inf_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = is_inf_config(&node, &mut graph_data);
 
         // Both should default to true if not specified according to the spec
         assert!(config.detect_negative);
@@ -78,7 +84,8 @@ mod tests {
     #[test]
     fn test_is_inf_only_neg() {
         let node = create_test_node(Some(1), Some(0));
-        let config = is_inf_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = is_inf_config(&node, &mut graph_data);
 
         assert!(config.detect_negative);
         assert!(!config.detect_positive);
@@ -87,7 +94,8 @@ mod tests {
     #[test]
     fn test_is_inf_only_pos() {
         let node = create_test_node(Some(0), Some(1));
-        let config = is_inf_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = is_inf_config(&node, &mut graph_data);
 
         assert!(!config.detect_negative);
         assert!(config.detect_positive);
@@ -96,7 +104,8 @@ mod tests {
     #[test]
     fn test_is_inf_detect_none() {
         let node = create_test_node(Some(0), Some(0));
-        let config = is_inf_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = is_inf_config(&node, &mut graph_data);
 
         assert!(!config.detect_negative);
         assert!(!config.detect_positive);

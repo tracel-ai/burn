@@ -18,7 +18,7 @@ pub enum GatherInput {
     Runtime(Argument),
 }
 /// Create a GatherConfig from the attributes of the node
-pub fn gather_config(curr: &Node) -> GatherConfig {
+pub fn gather_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> GatherConfig {
     // Default: 0 per ONNX spec
     let mut dim: i64 = 0;
 
@@ -54,7 +54,7 @@ pub fn gather_config(curr: &Node) -> GatherConfig {
         indices_input
     );
 
-    let indices = if let Some(value) = &indices_input.value {
+    let indices = if let Some(value) = indices_input.into_value(graph_data) {
         // Static indices
         log::debug!("Gather {} has static indices value: {:?}", curr.name, value);
         match &value.data {
@@ -92,7 +92,12 @@ impl NodeProcessor for GatherProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Gather rank inference for node {}", node.name);
 
         if node.inputs.len() != 2 {
@@ -174,7 +179,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(axis: i64, input_rank: usize, is_shape: bool) -> Node {
+    fn create_test_node(axis: i64, input_rank: usize, is_shape: bool) -> NodeBuilder {
         // Start building the node with the appropriate input type
         let mut builder = NodeBuilder::new(NodeType::Gather, "test_gather").attr_int("axis", axis);
 
@@ -185,56 +190,57 @@ mod tests {
         }
 
         // Add indices and output
-        builder = builder
+        builder
             .input_tensor_i64("indices", 1, None)
-            .output_tensor_f32("output", input_rank, None);
-
-        builder.build()
+            .output_tensor_f32("output", input_rank, None)
     }
 
     #[test]
     fn test_gather_config_basic() {
-        let node = create_test_node(0, 3, false);
-        let config = gather_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(0, 3, false).build();
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 0);
     }
 
     #[test]
     fn test_gather_config_negative_axis() {
-        let node = create_test_node(-2, 3, false);
-        let config = gather_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(-2, 3, false).build();
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
     #[test]
     fn test_gather_config_shape_input() {
-        let node = create_test_node(0, 4, true); // Shape of a 4D tensor
-        let config = gather_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(0, 4, true).build(); // Shape of a 4D tensor
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 0);
     }
 
     #[test]
     #[should_panic(expected = "Gather: index tensor must be present")]
     fn test_gather_config_missing_index() {
-        let mut node = create_test_node(0, 3, false);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(0, 3, false).build();
         node.inputs.pop(); // Remove the indices input
-        let _ = gather_config(&node);
+        let _ = gather_config(&node, &mut graph_data);
     }
 
-    fn create_runtime_gather_node(axis: i64, input_rank: usize) -> Node {
-        let builder = NodeBuilder::new(NodeType::Gather, "test_runtime_gather")
+    fn create_runtime_gather_node(axis: i64, input_rank: usize) -> NodeBuilder {
+        NodeBuilder::new(NodeType::Gather, "test_runtime_gather")
             .attr_int("axis", axis)
             .input_tensor_f32("data", input_rank, None)
             .input_tensor_i64("indices", 1, None) // No static value - runtime input
-            .output_tensor_f32("output", input_rank, None);
-
-        builder.build()
+            .output_tensor_f32("output", input_rank, None)
     }
 
     #[test]
     fn test_gather_config_runtime_indices() {
-        let node = create_runtime_gather_node(0, 3);
-        let config = gather_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_runtime_gather_node(0, 3).build();
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 0);
 
         // Check that indices is runtime
@@ -248,14 +254,15 @@ mod tests {
 
     #[test]
     fn test_gather_config_static_indices() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let builder = NodeBuilder::new(NodeType::Gather, "test_static_gather")
             .attr_int("axis", 1)
             .input_tensor_f32("data", 3, None)
             .input_tensor_i64_data("indices", vec![0, 2, 1], vec![3])
             .output_tensor_f32("output", 3, None);
 
-        let node = builder.build();
-        let config = gather_config(&node);
+        let node = builder.build_with_graph_data(&mut graph_data);
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 1);
 
         // Check that indices is static
@@ -270,6 +277,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_scalar_result() {
         // Test gather with scalar indices on 1D tensor -> scalar output
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_scalar_gather")
             .attr_int("axis", 0)
             .input_tensor_f32("data", 1, None)
@@ -281,7 +289,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output scalar, not tensor
         match &node.outputs[0].ty {
@@ -295,6 +303,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_tensor_result() {
         // Test gather with 1D indices on 2D tensor -> 2D tensor output
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_tensor_gather")
             .attr_int("axis", 0)
             .input_tensor_f32("data", 2, None)
@@ -306,7 +315,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output tensor with rank 2 (1 + 2 - 1)
         match &node.outputs[0].ty {
@@ -322,6 +331,7 @@ mod tests {
     fn test_gather_update_outputs_shape_indices() {
         // Test gather with Shape indices - this was the bug that caused the original issue
         // Gathering from a shape tensor using shape indices should work correctly
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_indices")
             .attr_int("axis", 0)
             .input_shape("data", 3) // Shape input (represents shape of a 3D tensor)
@@ -334,7 +344,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
         match &node.outputs[0].ty {
@@ -348,6 +358,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_scalar_indices() {
         // Test gather with scalar indices on shape input -> scalar output
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_scalar")
             .attr_int("axis", 0)
             .input_shape("data", 2) // Shape input (represents shape of a 2D tensor)
@@ -359,7 +370,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output scalar when gathering from shape with scalar indices
         match &node.outputs[0].ty {
@@ -374,6 +385,7 @@ mod tests {
     fn test_gather_update_outputs_shape_with_shape_indices_rank_2() {
         // Test gather from Shape with Shape(2) indices -> Shape(2) output
         // This tests our fix where Shape indices preserve their rank in the output
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_2")
             .attr_int("axis", 0)
             .input_shape("data", 4) // Shape input (represents shape of a 4D tensor)
@@ -385,7 +397,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output Shape(2) since indices are Shape(2)
         match &node.outputs[0].ty {
@@ -399,6 +411,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_with_shape_indices_rank_3() {
         // Test gather from Shape with Shape(3) indices -> Shape(3) output
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_shape_3")
             .attr_int("axis", 0)
             .input_shape("data", 5) // Shape input (represents shape of a 5D tensor)
@@ -410,7 +423,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output Shape(3) since indices are Shape(3)
         match &node.outputs[0].ty {
@@ -424,6 +437,7 @@ mod tests {
     #[test]
     fn test_gather_update_outputs_shape_with_tensor_indices() {
         // Test gather from Shape with Tensor indices -> Shape output with computed rank
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Gather, "test_gather_shape_tensor")
             .attr_int("axis", 0)
             .input_shape("data", 4) // Shape input
@@ -435,7 +449,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output Shape(1) for 1D tensor indices (indices_rank = 1)
         match &node.outputs[0].ty {
@@ -449,6 +463,7 @@ mod tests {
     #[test]
     fn test_gather_config_with_shape_indices() {
         // Test gather_config with Shape indices (runtime)
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = NodeBuilder::new(NodeType::Gather, "test_gather_config_shape")
             .attr_int("axis", 0)
             .input_shape("data", 3)
@@ -456,7 +471,7 @@ mod tests {
             .output_shape("output", 2)
             .build();
 
-        let config = gather_config(&node);
+        let config = gather_config(&node, &mut graph_data);
         assert_eq!(config.axis, 0);
 
         // Check that Shape indices are treated as runtime

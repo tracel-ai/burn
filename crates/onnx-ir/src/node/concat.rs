@@ -2,7 +2,7 @@ use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
 
 /// Create concat config from the attributes of the node
-pub fn concat_config(node: &Node) -> usize {
+pub fn concat_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
     // Extract the axis attribute (required per ONNX spec)
     let mut axis: Option<i64> = None;
 
@@ -49,7 +49,12 @@ impl NodeProcessor for ConcatProcessor {
         (4, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Concat rank inference for node {}", node.name);
 
         // Check if we have mixed Shape and rank-1 tensor inputs
@@ -75,7 +80,11 @@ impl NodeProcessor for ConcatProcessor {
                     ArgType::Tensor(t) if t.rank == 1 => {
                         // For constant tensors, use their actual dimension count
                         // For dynamic tensors, assume 1 element (will be corrected after conversion)
-                        let contribution = input.value.as_ref().map(|v| v.shape[0]).unwrap_or(1);
+                        let contribution = input
+                            .into_value(graph_data)
+                            .as_ref()
+                            .map(|v| v.shape[0])
+                            .unwrap_or(1);
                         provisional_rank += contribution;
 
                         log::debug!(
@@ -162,14 +171,16 @@ mod tests {
     #[test]
     fn test_concat_config_basic() {
         let node = create_test_node(1, 3, 2);
-        let config = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = concat_config(&node, &mut graph_data);
         assert_eq!(config, 1);
     }
 
     #[test]
     fn test_concat_config_negative_axis() {
         let node = create_test_node(-2, 3, 2);
-        let config = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = concat_config(&node, &mut graph_data);
         assert_eq!(config, 1); // -2 + 3 = 1
     }
 
@@ -182,7 +193,8 @@ mod tests {
             .attr_int("axis", 0) // Required attribute
             .build();
 
-        let config = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = concat_config(&node, &mut graph_data);
         assert_eq!(config, 0); // Shape concat uses axis 0
     }
 
@@ -195,7 +207,8 @@ mod tests {
             .output_tensor_f32("output", 3, None)
             .build();
 
-        let _ = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = concat_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -208,7 +221,8 @@ mod tests {
             .attr_int("axis", 3)
             .build();
 
-        let _ = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = concat_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -223,7 +237,8 @@ mod tests {
 
         let processor = ConcatProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Check that output is Shape with sum of input ranks
         match &node.outputs[0].ty {
@@ -241,7 +256,8 @@ mod tests {
             .attr_int("axis", -1) // -1 should become 0 for 1D shapes
             .build();
 
-        let config = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = concat_config(&node, &mut graph_data);
         assert_eq!(config, 0); // -1 + 1 = 0
     }
 
@@ -255,7 +271,8 @@ mod tests {
             .attr_int("axis", 1)
             .build();
 
-        let _ = concat_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = concat_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -269,6 +286,7 @@ mod tests {
 
         let processor = ConcatProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

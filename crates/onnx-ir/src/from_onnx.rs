@@ -9,7 +9,7 @@ use crate::util::verify_opsets;
 
 use super::{
     coalesce::coalesce,
-    ir::{Data, ElementType, OnnxGraph, TensorData, TensorType},
+    ir::{ElementType, OnnxGraph, TensorData},
     processor::{ProcessorContext, ProcessorRegistry},
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
@@ -28,38 +28,6 @@ fn get_processor_registry() -> &'static ProcessorRegistry {
     PROCESSOR_REGISTRY.get_or_init(ProcessorRegistry::with_standard_processors)
 }
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 30] = [
-    NodeType::BatchNormalization,
-    NodeType::Clip,
-    NodeType::Conv1d,
-    NodeType::Conv2d,
-    NodeType::Conv3d,
-    NodeType::ConvTranspose1d,
-    NodeType::ConvTranspose2d,
-    NodeType::ConvTranspose3d,
-    NodeType::Dropout,
-    NodeType::Expand,
-    NodeType::GroupNormalization,
-    NodeType::InstanceNormalization,
-    NodeType::LayerNormalization,
-    NodeType::Linear,
-    NodeType::OneHot,
-    NodeType::PRelu,
-    NodeType::Pad,
-    NodeType::Range,
-    NodeType::ReduceMax,
-    NodeType::ReduceMean,
-    NodeType::ReduceSum,
-    NodeType::Reshape,
-    NodeType::Resize,
-    NodeType::Slice,
-    NodeType::Split,
-    NodeType::Squeeze,
-    NodeType::Tile,
-    NodeType::TopK,
-    NodeType::Trilu,
-    NodeType::Unsqueeze,
-];
 use crate::protos::tensor_proto::DataType as DT;
 use protobuf::Enum;
 
@@ -102,6 +70,12 @@ pub struct GraphData {
     input_key_map: HashMap<String, String>,
     /// Tracks which inputs have been used by nodes
     passed_inputs: HashSet<usize>,
+    /// Reference counts for constant nodes (keyed by output name)
+    constant_references: HashMap<String, usize>,
+    /// Maps constant output names to node indices
+    constant_nodes: HashMap<String, usize>,
+    /// Nodes marked for removal
+    nodes_to_remove: HashSet<usize>,
 }
 
 impl GraphData {
@@ -112,42 +86,100 @@ impl GraphData {
     ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
+        let mut processed_nodes = Vec::new();
+        let mut constant_references = HashMap::new();
+        let mut constant_nodes = HashMap::new();
 
-        let constants = initializers
-            .iter()
-            .map(|x| (x.name.clone(), Argument::from_initializer(x)))
-            .collect::<HashMap<String, Argument>>();
+        // Convert all initializers to Constant nodes immediately
+        let mut constants_map: HashMap<String, Argument> = HashMap::new();
+        let mut tensor_data_map: HashMap<String, TensorData> = HashMap::new();
+        for initializer in initializers.iter() {
+            let (arg, tensor_data) = Argument::from_initializer(initializer);
+            constants_map.insert(initializer.name.clone(), arg);
+            tensor_data_map.insert(initializer.name.clone(), tensor_data);
+        }
+
+        // Create Constant nodes for all initializers
+        for (idx, initializer) in initializers.iter().enumerate() {
+            if let Some(arg) = constants_map.get(&initializer.name) {
+                let const_name = format!("constant_init_{}", idx + 1);
+                let output_name = format!("{}_out1", const_name);
+
+                let mut constant_node = Node {
+                    node_type: NodeType::Constant,
+                    name: const_name.clone(),
+                    inputs: vec![],
+                    outputs: vec![Argument {
+                        name: output_name.clone(),
+                        ty: arg.ty.clone(),
+                    }],
+                    attrs: HashMap::new(),
+                    config: None,
+                };
+
+                // Store the value in the 'value' attribute
+                if let Some(tensor_data) = tensor_data_map.get(&initializer.name) {
+                    constant_node.attrs.insert(
+                        "value".to_string(),
+                        crate::ir::AttributeValue::Tensor(tensor_data.clone()),
+                    );
+                }
+
+                // Register this constant
+                constant_nodes.insert(output_name.clone(), processed_nodes.len());
+                constant_references.insert(output_name.clone(), 0);
+
+                // Map the original initializer name to this constant node
+                input_name_map.insert(
+                    initializer.name.clone(),
+                    IOEntry::Node(processed_nodes.len(), 0),
+                );
+
+                processed_nodes.push(constant_node);
+            }
+        }
+
         let outputs = outputs
             .iter()
             .map(|x| Argument::try_from(x.clone()).unwrap())
             .collect::<Vec<Argument>>();
+
         let inputs = inputs
             .iter()
             .enumerate()
             .map(|(i, x)| {
                 let in_name = format!("input{}", i + 1);
 
-                input_name_map.insert(x.name.clone(), IOEntry::In(i));
+                // Only add to input_name_map if not already mapped to a constant
+                if !input_name_map.contains_key(&x.name) {
+                    input_name_map.insert(x.name.clone(), IOEntry::In(i));
+                }
                 input_key_map.insert(in_name.clone(), x.name.clone());
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
-                if let Some(initial_arg) = constants.get(&x.name) && arg.value.is_none() {
-                        log::warn!("Input {} is also an initializer. Initializer as default values are currently not supported", x.name);
-                        arg.copy_value(initial_arg);
+                if constants_map.contains_key(&x.name) {
+                    log::warn!(
+                        "Input {} is also an initializer. Initializer as default values are currently not supported",
+                        x.name
+                    );
                 }
 
                 arg.name = in_name;
                 arg
             })
             .collect::<Vec<Argument>>();
+
         Self {
             inputs,
             outputs,
-            initializers: constants,
-            processed_nodes: Vec::new(),
+            initializers: constants_map,
+            processed_nodes,
             input_name_map,
             input_key_map,
             passed_inputs: HashSet::new(),
+            constant_references,
+            constant_nodes,
+            nodes_to_remove: HashSet::new(),
         }
     }
 
@@ -207,8 +239,8 @@ impl GraphData {
         self.processed_nodes.push(node);
     }
 
-    /// Consumes the graph data and returns the processed nodes, filtered inputs and outputs
-    fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    /// Consumes the graph data and returns the processed nodes, filtered inputs, outputs, and nodes to remove
+    fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>, HashSet<usize>) {
         let passed_inputs = self.passed_inputs;
         let mut filtered_inputs = Vec::new();
         for (i, input) in self.inputs.into_iter().enumerate() {
@@ -229,7 +261,12 @@ impl GraphData {
                 _ => None,
             })
             .collect();
-        (self.processed_nodes, self.inputs, outputs)
+        (
+            self.processed_nodes,
+            self.inputs,
+            outputs,
+            self.nodes_to_remove,
+        )
     }
 
     /// Used to get the output of the graph by name. Only used to remap unsqueeze nodes
@@ -242,27 +279,133 @@ impl GraphData {
     pub fn get_current_index(&self) -> usize {
         self.processed_nodes.len()
     }
+
+    /// Register a constant node and initialize its reference count to 0
+    pub(crate) fn register_constant(&mut self, output_name: String, node_idx: usize) {
+        self.constant_nodes.insert(output_name.clone(), node_idx);
+        self.constant_references.insert(output_name, 0);
+    }
+
+    /// Increment the reference count for a constant
+    pub(crate) fn increment_constant_ref(&mut self, output_name: &str) {
+        if let Some(count) = self.constant_references.get_mut(output_name) {
+            *count += 1;
+        }
+    }
+
+    /// Decrement the reference count for a constant and mark it for removal if count reaches 0
+    /// Returns true if the constant was marked for removal
+    pub(crate) fn decrement_constant_ref(&mut self, output_name: &str) -> bool {
+        if let Some(count) = self.constant_references.get_mut(output_name) {
+            if *count > 0 {
+                *count -= 1;
+            }
+            if *count == 0
+                && let Some(&node_idx) = self.constant_nodes.get(output_name)
+            {
+                self.nodes_to_remove.insert(node_idx);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Check if an argument name corresponds to a constant node
+    pub(crate) fn is_constant(&self, arg_name: &str) -> bool {
+        self.constant_nodes.contains_key(arg_name)
+    }
+
+    /// Get the value from a constant node by output name
+    pub(crate) fn get_constant_value(&self, output_name: &str) -> Option<&Node> {
+        self.constant_nodes
+            .get(output_name)
+            .and_then(|&idx| self.processed_nodes.get(idx))
+    }
+
+    /// Get mutable access to a constant node by output name
+    pub(crate) fn get_constant_value_mut(&mut self, output_name: &str) -> Option<&mut Node> {
+        if let Some(&idx) = self.constant_nodes.get(output_name) {
+            self.processed_nodes.get_mut(idx)
+        } else {
+            None
+        }
+    }
+
+    /// Register a test constant in GraphData. This is used by test utilities to add constant
+    /// values that can be retrieved via `into_value()`.
+    pub(crate) fn register_test_constant(
+        &mut self,
+        name: String,
+        data: crate::ir::Data,
+        shape: Vec<usize>,
+    ) {
+        use crate::ir::{AttributeValue, NodeType, TensorData};
+
+        // Determine element type from data
+        let elem_type = match &data {
+            crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
+            crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => {
+                crate::ElementType::Float16
+            }
+            crate::ir::Data::Float32(_) | crate::ir::Data::Float32s(_) => {
+                crate::ElementType::Float32
+            }
+            crate::ir::Data::Float64(_) | crate::ir::Data::Float64s(_) => {
+                crate::ElementType::Float64
+            }
+            crate::ir::Data::Uint16(_) | crate::ir::Data::Uint16s(_) => crate::ElementType::Uint16,
+            crate::ir::Data::Uint8(_) | crate::ir::Data::Uint8s(_) => crate::ElementType::Uint8,
+            crate::ir::Data::Int8(_) | crate::ir::Data::Int8s(_) => crate::ElementType::Int8,
+            crate::ir::Data::Int32(_) | crate::ir::Data::Int32s(_) => crate::ElementType::Int32,
+            crate::ir::Data::Int64(_) | crate::ir::Data::Int64s(_) => crate::ElementType::Int64,
+            crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
+        };
+
+        let output_name = format!("{}_const_out", name);
+        let const_node_name = format!("{}_const", name);
+
+        let tensor_data = TensorData {
+            data,
+            shape: shape.clone(),
+        };
+
+        let mut constant_node = Node {
+            node_type: NodeType::Constant,
+            name: const_node_name,
+            inputs: vec![],
+            outputs: vec![Argument {
+                name: output_name.clone(),
+                ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                    elem_type,
+                    rank: shape.len(),
+                    static_shape: Some(shape),
+                }),
+            }],
+            attrs: HashMap::new(),
+            config: None,
+        };
+
+        // Store the value in the 'value' attribute
+        constant_node
+            .attrs
+            .insert("value".to_string(), AttributeValue::Tensor(tensor_data));
+
+        // Register this constant
+        let node_idx = self.processed_nodes.len();
+        self.constant_nodes.insert(name.clone(), node_idx);
+        self.constant_references.insert(name.clone(), 0);
+
+        self.processed_nodes.push(constant_node);
+    }
 }
 
 #[derive(Default)]
 pub(crate) struct OnnxGraphBuilder {
-    /// Nodes to remove. Note may be moved to graph data if we implement support for custom ops
-    nodes_to_remove: HashSet<usize>,
-    /// Map from constant node output names to indices of constant nodes
-    constants_map: HashMap<String, usize>,
-    /// Node types that should be lifted to constants
-    constants_types: HashSet<NodeType>,
     node_name_counter: HashMap<NodeType, usize>,
-    /// Track how many times each constant is used (keyed by original ONNX output name)
-    constant_usage_count: HashMap<String, usize>,
-    /// Map from constant node index to its original ONNX output name
-    constant_original_names: HashMap<usize, String>,
 }
 
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
-        self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
-
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
@@ -281,8 +424,6 @@ impl OnnxGraphBuilder {
                 t.double_data.len(),
             );
         }
-        // First pass: count constant usage
-        self.count_constant_usage(&model_proto.graph.node);
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
@@ -291,10 +432,8 @@ impl OnnxGraphBuilder {
 
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
-            coalesce(&mut node, &mut node_iter, &graph_data);
+            coalesce(&mut node, &mut node_iter, &mut graph_data);
             self.handle_identity(&mut node);
-            self.check_constants(&mut node, &graph_data);
-            self.convert_initializer_inputs_to_constants(&mut node, &mut graph_data);
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
@@ -304,8 +443,8 @@ impl OnnxGraphBuilder {
             log::debug!("Inferring rank for node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
-            let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context);
+            let mut context = ProcessorContext::new(16);
+            processor.process(&mut node, &mut context, &mut graph_data);
             log::debug!(
                 "Rank inference result for {}: {:?}",
                 node.name,
@@ -315,7 +454,7 @@ impl OnnxGraphBuilder {
             graph_data.add_node(node);
         }
 
-        let (mut processed_nodes, inputs, outputs) = graph_data.consume();
+        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = graph_data.consume();
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes);
@@ -323,7 +462,7 @@ impl OnnxGraphBuilder {
         // Remove the graph inputs/output that are not used by any node
         let mut i = 0;
         processed_nodes.retain(|_| {
-            let keep = !self.nodes_to_remove.contains(&i);
+            let keep = !nodes_to_remove.contains(&i);
             i += 1;
             keep
         });
@@ -412,12 +551,11 @@ impl OnnxGraphBuilder {
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
                             // Only consider constants for conversion
-                            // Check if this input is a constant (either has a value or comes from a Constant node)
-                            let is_constant = input.value.is_some()
-                                || all_nodes.iter().any(|n| {
-                                    n.node_type == NodeType::Constant
-                                        && n.outputs.iter().any(|o| o.name == input.name)
-                                });
+                            // Check if this input comes from a Constant node
+                            let is_constant = all_nodes.iter().any(|n| {
+                                n.node_type == NodeType::Constant
+                                    && n.outputs.iter().any(|o| o.name == input.name)
+                            });
 
                             if is_constant {
                                 shape_inputs.push((input.name.clone(), shape_rank));
@@ -437,12 +575,11 @@ impl OnnxGraphBuilder {
                     for input in &node.inputs {
                         if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
                             // Only consider constants for conversion
-                            // Check if this input is a constant (either has a value or comes from a Constant node)
-                            let is_constant = input.value.is_some()
-                                || all_nodes.iter().any(|n| {
-                                    n.node_type == NodeType::Constant
-                                        && n.outputs.iter().any(|o| o.name == input.name)
-                                });
+                            // Check if this input comes from a Constant node
+                            let is_constant = all_nodes.iter().any(|n| {
+                                n.node_type == NodeType::Constant
+                                    && n.outputs.iter().any(|o| o.name == input.name)
+                            });
 
                             if is_constant {
                                 // Actual rank will be determined from tensor data
@@ -467,11 +604,10 @@ impl OnnxGraphBuilder {
                         && t.rank == 1
                     {
                         // Only consider constants for conversion
-                        let is_constant = indices_input.value.is_some()
-                            || all_nodes.iter().any(|n| {
-                                n.node_type == NodeType::Constant
-                                    && n.outputs.iter().any(|o| o.name == indices_input.name)
-                            });
+                        let is_constant = all_nodes.iter().any(|n| {
+                            n.node_type == NodeType::Constant
+                                && n.outputs.iter().any(|o| o.name == indices_input.name)
+                        });
 
                         if is_constant {
                             // Convert rank-1 tensor indices to Shape(1)
@@ -621,8 +757,12 @@ impl OnnxGraphBuilder {
         // Infer output types using processor registry
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
-        let context = ProcessorContext::new(16);
-        processor.process(node, &context);
+        let mut context = ProcessorContext::new(16);
+
+        // Create an empty GraphData for type inference
+        // During post-processing, we don't need access to constant values
+        let mut empty_graph_data = GraphData::new(&[], &[], &[]);
+        processor.process(node, &mut context, &mut empty_graph_data);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());
@@ -739,271 +879,30 @@ impl OnnxGraphBuilder {
         }
     }
 
-    /// Count how many times each constant output is used by other nodes
-    fn count_constant_usage(&mut self, nodes: &[NodeProto]) {
-        // First, identify all constant output names
-        let mut constant_outputs = HashSet::new();
-        for node in nodes {
-            if node.op_type == "Constant" {
-                for output in &node.output {
-                    constant_outputs.insert(output.clone());
-                }
-            }
-        }
-
-        // Now count how many times each constant is used as an input
-        for node in nodes {
-            if node.op_type == "Constant" {
-                continue; // Skip constant nodes themselves
-            }
-
-            for input in &node.input {
-                if constant_outputs.contains(input) {
-                    *self.constant_usage_count.entry(input.clone()).or_insert(0) += 1;
-                }
-            }
-        }
-
-        log::debug!("Constant usage counts: {:?}", self.constant_usage_count);
-    }
-
-    fn check_constants(&mut self, node: &mut Node, graph_data: &GraphData) {
-        if node.node_type == NodeType::Constant {
-            let const_idx = graph_data.get_current_index();
-
-            // Remember the original ONNX output name before renaming for usage count lookup
-            if let Some(output) = node.outputs.first() {
-                self.constant_original_names
-                    .insert(const_idx, output.name.clone());
-            }
-
-            self.constants_map
-                .insert(format!("{}_out{}", &node.name, 1), const_idx);
-        } else if node.node_type == NodeType::ConstantOfShape {
-            // Special handling for ConstantOfShape - check first input
-            log::debug!("Checking ConstantOfShape node {} for constants", &node.name);
-            if let Some(input) = node.inputs.first_mut() {
-                log::debug!("Checking first input {:?} for const", input);
-                if let Some(const_idx) = self.constants_map.get(&input.name) {
-                    let constant = &graph_data.processed_nodes[*const_idx];
-                    log::debug!(
-                        "Input {} matched constant node {}",
-                        &input.name,
-                        &constant.name
-                    );
-                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
-                        // The value comes from Identity inputs
-                        input.value.clone_from(&constant.inputs[0].value);
-                        input.ty = constant.inputs[0].ty.clone();
-                    } else {
-                        let arg = convert_constant_value(constant);
-                        input.value = arg.value;
-                        input.ty = arg.ty;
-                    }
-
-                    // Check usage count to determine if we should remove this constant
-                    // Use the original ONNX output name for usage count lookup
-                    let original_name = self
-                        .constant_original_names
-                        .get(const_idx)
-                        .unwrap_or(&input.name);
-                    let usage_count = self.constant_usage_count.get(original_name).unwrap_or(&0);
-                    if *usage_count <= 1 {
-                        // This is the only usage, we can remove the constant
-                        self.nodes_to_remove.insert(*const_idx);
-                        log::debug!(
-                            "Lifted and removed constant node {} for ConstantOfShape (single use)",
-                            constant.name
-                        );
-                    } else {
-                        log::debug!(
-                            "Lifted constant node {} for ConstantOfShape (keeping, used {} times)",
-                            constant.name,
-                            usage_count
-                        );
-                    }
-                }
-            }
-        } else if self.constants_types.contains(&node.node_type) {
-            log::debug!("Checking node {} for constants", &node.name);
-            for input in node.inputs.iter_mut().skip(1) {
-                log::debug!("Checking input {input:?} for const");
-                if let Some(const_idx) = self.constants_map.get(&input.name) {
-                    let constant = &graph_data.processed_nodes[*const_idx];
-                    log::debug!(
-                        "Input {} matched constant node {}",
-                        &input.name,
-                        &constant.name
-                    );
-                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
-                        // The value comes from Identity inputs
-                        input.value.clone_from(&constant.inputs[0].value);
-                        input.ty = constant.inputs[0].ty.clone();
-                    } else {
-                        let arg = convert_constant_value(constant);
-                        input.value = arg.value;
-                        input.ty = arg.ty;
-                    }
-
-                    // Check usage count to determine if we should remove this constant
-                    // Use the original ONNX output name for usage count lookup
-                    let original_name = self
-                        .constant_original_names
-                        .get(const_idx)
-                        .unwrap_or(&input.name);
-                    let usage_count = self.constant_usage_count.get(original_name).unwrap_or(&0);
-                    if *usage_count <= 1 {
-                        // This is the only usage, we can remove the constant
-                        self.nodes_to_remove.insert(*const_idx);
-                        log::debug!(
-                            "Lifted and removed constant node {} for {} (single use)",
-                            constant.name,
-                            node.name
-                        );
-                    } else {
-                        log::debug!(
-                            "Lifted constant node {} for {} (keeping, used {} times)",
-                            constant.name,
-                            node.name,
-                            usage_count
-                        );
-                    }
-                }
-            }
-        }
-    }
-
     /// Check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
     /// Needs to be called after node renaming to ensure that the rhs name is correct
-    /// Needs to be called after constant lifting to ensure that the rhs value exists
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_data: &GraphData) {
-        if node.node_type == NodeType::Unsqueeze
-            && node.inputs.len() > 1
-            && node.inputs[1].value.is_none()
-        {
-            //if the output has a shape, it's only because it's a graph output
-            if let Some(out_arg) = graph_data.get_graph_output(&node.outputs[0].name) {
-                remap_unsqueeze_to_reshape(node, out_arg);
-            }
-        }
-    }
+        if node.node_type == NodeType::Unsqueeze && node.inputs.len() > 1 {
+            // Check if rhs is a constant using the new has_value method
+            let rhs_is_constant = node.inputs[1].has_value(graph_data);
 
-    /// Convert inputs with values (initializers) to Constant nodes
-    fn convert_initializer_inputs_to_constants(
-        &mut self,
-        node: &mut Node,
-        graph_data: &mut GraphData,
-    ) {
-        // Skip if this is already a Constant node
-        if node.node_type == NodeType::Constant {
-            return;
-        }
-
-        // Check each input for initializer values
-        for (idx, input) in node.inputs.iter_mut().enumerate() {
-            if let Some(value) = &input.value {
-                // Skip inputs that will be lifted by the constant lifting mechanism
-                // For nodes in the constant lifting list, skip inputs at index >= 1
-                // (these will be lifted by check_constants later)
-                if self.constants_types.contains(&node.node_type) && idx >= 1 {
-                    log::debug!(
-                        "Skipping constant creation for {} input {} (will be lifted)",
-                        node.name,
-                        idx
-                    );
-                    continue;
+            if !rhs_is_constant {
+                // if the output has a shape, it's only because it's a graph output
+                if let Some(out_arg) = graph_data.get_graph_output(&node.outputs[0].name) {
+                    remap_unsqueeze_to_reshape(node, out_arg);
                 }
-
-                // Skip first input for ConstantOfShape as it's handled in check_constants
-                if node.node_type == NodeType::ConstantOfShape && idx == 0 {
-                    log::debug!(
-                        "Skipping constant creation for ConstantOfShape {} input {} (handled in check_constants)",
-                        node.name,
-                        idx
-                    );
-                    continue;
-                }
-
-                // This input is an initializer - create a Constant node for it
-                // Use the existing constant naming convention
-                self.node_name_counter
-                    .entry(NodeType::Constant)
-                    .and_modify(|e| *e += 1)
-                    .or_insert(1);
-                let const_name = format!("constant{}", self.node_name_counter[&NodeType::Constant]);
-                log::debug!(
-                    "Creating Constant node {} for initializer {} at position {}",
-                    const_name,
-                    input.name,
-                    idx
-                );
-
-                // Create a new Constant node
-                let mut const_node = Node {
-                    node_type: NodeType::Constant,
-                    name: const_name.clone(),
-                    inputs: vec![],
-                    outputs: vec![input.clone()],
-                    attrs: HashMap::new(),
-                };
-
-                // Set the output name to match what the consuming node expects
-                const_node.outputs[0].name = format!("{}_out1", const_name);
-                const_node.attrs.insert(
-                    "value".to_string(),
-                    crate::ir::AttributeValue::Tensor(value.clone()),
-                );
-
-                // Add the Constant node to the graph
-                graph_data.add_node(const_node);
-
-                // Update the input to reference the Constant node's output
-                input.name = format!("{}_out1", const_name);
-                input.value = None; // Clear the value since it's now in the Constant node
             }
         }
     }
 
     fn handle_identity(&mut self, node: &mut Node) {
+        // Identity nodes are now passed through as-is
+        // No constant conversion needed since all initializers are already Constants
         if node.node_type == NodeType::Identity {
-            // If Identity node has a constant/initializer input, convert it to a Constant node
-            if let Some(value) = &node.inputs[0].value {
-                log::debug!(
-                    "Converting Identity node with constant input to Constant node: {}",
-                    &node.name
-                );
-
-                // Convert Identity to Constant
-                node.node_type = NodeType::Constant;
-
-                // Update the name to use constant naming convention
-                self.node_name_counter
-                    .entry(NodeType::Constant)
-                    .and_modify(|e| *e += 1)
-                    .or_insert(1);
-                let new_name = format!("constant{}", self.node_name_counter[&NodeType::Constant]);
-                log::debug!("Renaming {} to {}", node.name, new_name);
-                node.name = new_name;
-
-                // Move the value from input to an attribute
-                node.attrs.insert(
-                    "value".to_string(),
-                    crate::ir::AttributeValue::Tensor(value.clone()),
-                );
-
-                // Clear the inputs since Constant nodes don't have inputs
-                node.inputs.clear();
-
-                // The output remains the same
-            } else {
-                // For Identity nodes without constant inputs, we only optimize them away if they are
-                // part of a processing chain (not standalone). For now, let's pass them through to
-                // burn-import and let it handle them.
-                log::debug!(
-                    "Identity node without constant - will pass through to burn-import: {}",
-                    &node.name
-                );
-            }
+            log::debug!(
+                "Identity node will pass through to burn-import: {}",
+                &node.name
+            );
         }
     }
 
@@ -1097,11 +996,9 @@ impl OnnxGraphBuilder {
             }
 
             // Check if this is a constant
-            let is_constant = input.value.is_some()
-                || all_nodes.iter().any(|n| {
-                    n.node_type == NodeType::Constant
-                        && n.outputs.iter().any(|o| o.name == input.name)
-                });
+            let is_constant = all_nodes.iter().any(|n| {
+                n.node_type == NodeType::Constant && n.outputs.iter().any(|o| o.name == input.name)
+            });
 
             if !is_constant {
                 continue;
@@ -1213,29 +1110,22 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// properly deleted if nothing else uses it
 /// Remap the unsqueeze node to a reshape node
 pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
-    if let Some(value) = &out_arg.value {
-        let shape_vec = value.shape.clone();
-        let inner = shape_vec
-            .into_iter()
-            .map(|x| x as i64)
-            .collect::<Vec<i64>>();
+    // Get the shape information from the output argument's type
+    if let ArgType::Tensor(ref tensor_type) = out_arg.ty
+        && let Some(ref shape_vec) = tensor_type.static_shape
+    {
+        let inner = shape_vec.iter().map(|&x| x as i64).collect::<Vec<i64>>();
         let shape_len = inner.len();
-        let new_rhs_value = Some(TensorData {
-            shape: vec![shape_len],
-            data: Data::Int64s(inner),
-        });
-        //moving the remap to here
+
+        // Create a shape argument (the reshape shape will be a runtime input, not a constant with inline value)
+        // In the new architecture, if we need a constant, it should be created as a Constant node
+        // For now, we create a Shape type input
         let rhs_arg = Argument {
-            name: format!("{}_generated_const", &node.name),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 1,
-                static_shape: Some(vec![shape_len]),
-            }),
-            value: new_rhs_value,
+            name: format!("{}_generated_shape", &node.name),
+            ty: ArgType::Shape(shape_len),
         };
-        // ? should this replace the old input (reuse the old key) or should it be a new key
-        // going with new key for now
+
+        // Update the node
         node.inputs[1] = rhs_arg;
         node.outputs[0] = out_arg.clone();
         node.node_type = NodeType::Reshape;

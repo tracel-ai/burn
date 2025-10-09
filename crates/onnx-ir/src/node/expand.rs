@@ -17,7 +17,7 @@ pub enum ExpandShape {
 ///
 /// Extracts shape information from the node's second input to determine
 /// whether to use static or runtime shape expansion.
-pub fn expand_config(node: &Node) -> ExpandShape {
+pub fn expand_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ExpandShape {
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.rank, 1, "Expand: shape tensor must be 1D");
@@ -32,7 +32,7 @@ pub fn expand_config(node: &Node) -> ExpandShape {
         _ => panic!("Only tensor input is valid for shape"),
     }
 
-    match &node.inputs[1].value {
+    match node.inputs[1].into_value(graph_data) {
         Some(TensorData {
             data: Data::Int64s(shape),
             ..
@@ -43,7 +43,7 @@ pub fn expand_config(node: &Node) -> ExpandShape {
         }
         _ => panic!(
             "Shape data type must be int64, is {:?}",
-            &node.inputs[1].value
+            &node.inputs[1].into_value(graph_data)
         ),
     }
 }
@@ -55,7 +55,12 @@ impl NodeProcessor for ExpandProcessor {
         (8, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
         if node.inputs.len() >= 2 {
             log::debug!(
@@ -71,7 +76,7 @@ impl NodeProcessor for ExpandProcessor {
         }
 
         let shape = if node.inputs.len() == 2 {
-            match &node.inputs[1].value {
+            match node.inputs[1].into_value(graph_data) {
                 Some(value) => match &value.data {
                     Data::Int64s(shape) => Some(shape.clone()),
                     _ => panic!("Expand operation encountered invalid input types"),
@@ -121,7 +126,7 @@ impl NodeProcessor for ExpandProcessor {
                             // For dynamic rank-1 tensors without static shape, we need to make an assumption
                             // or get the information from elsewhere.
                             // Check if we have a value that can tell us the rank
-                            if let Some(value) = &node.inputs[1].value {
+                            if let Some(value) = node.inputs[1].into_value(graph_data) {
                                 if let Data::Int64s(shape_data) = &value.data {
                                     // We have the actual shape values, so the output rank is the number of elements
                                     shape_data.len()
@@ -177,7 +182,7 @@ mod tests {
         input_rank: usize,
         shape_value: Option<Vec<i64>>,
         shape_type: Option<ArgType>,
-    ) -> Node {
+    ) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", input_rank, None)
             .output_tensor_f32("output", 0, None); // Rank 0 will be updated
@@ -192,16 +197,18 @@ mod tests {
             builder = builder.input_tensor_i64("shape", 1, Some(vec![3]));
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_expand_with_constant_shape() {
-        let mut node = create_test_node(2, Some(vec![2, 3, 4]), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node =
+            create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(&mut graph_data);
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -215,11 +222,12 @@ mod tests {
 
     #[test]
     fn test_expand_with_dynamic_shape() {
-        let mut node = create_test_node(2, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(2, None, None).build();
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -234,20 +242,24 @@ mod tests {
     #[test]
     #[should_panic(expected = "Expand operation requires exactly two inputs")]
     fn test_expand_with_incorrect_inputs() {
-        let mut node = create_test_node(2, Some(vec![2, 3, 4]), None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node =
+            create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(&mut graph_data);
         node.inputs.pop(); // Remove one input
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     // Tests for expand_config function
 
     #[test]
     fn test_expand_config_with_static_shape() {
-        let node = create_test_node(2, Some(vec![2, 3, 4]), None);
-        let config = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(&mut graph_data);
+        let config = expand_config(&node, &mut graph_data);
 
         match config {
             ExpandShape::Static(shape) => {
@@ -259,8 +271,9 @@ mod tests {
 
     #[test]
     fn test_expand_config_with_runtime_shape() {
-        let node = create_test_node(2, None, None);
-        let config = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, None, None).build();
+        let config = expand_config(&node, &mut graph_data);
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -280,8 +293,9 @@ mod tests {
     #[test]
     fn test_expand_config_with_shape_type() {
         let shape_type = ArgType::Shape(3);
-        let node = create_test_node(2, None, Some(shape_type));
-        let config = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, None, Some(shape_type)).build();
+        let config = expand_config(&node, &mut graph_data);
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -305,8 +319,9 @@ mod tests {
             rank: 2, // Invalid rank, should be 1
             static_shape: None,
         });
-        let node = create_test_node(2, None, Some(invalid_shape_type));
-        let _ = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, None, Some(invalid_shape_type)).build();
+        let _ = expand_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -317,40 +332,44 @@ mod tests {
             rank: 1,
             static_shape: None,
         });
-        let node = create_test_node(2, None, Some(invalid_shape_type));
-        let _ = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, None, Some(invalid_shape_type)).build();
+        let _ = expand_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Only tensor input is valid for shape")]
     fn test_expand_config_with_invalid_input_type() {
         let invalid_shape_type = ArgType::Scalar(ElementType::Int64);
-        let node = create_test_node(2, None, Some(invalid_shape_type));
-        let _ = expand_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(2, None, Some(invalid_shape_type)).build();
+        let _ = expand_config(&node, &mut graph_data);
     }
 
     #[test]
-    #[should_panic(expected = "Shape data type must be int64")]
+    #[should_panic(expected = "Expand: shape tensor must have element type int64")]
     fn test_expand_config_with_invalid_value_type() {
-        let mut node = create_test_node(2, None, None);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
 
-        // Replace the value with a non-Int64s value
-        node.inputs[1].value = Some(TensorData {
-            shape: vec![1],
-            data: Data::Float32s(vec![1.0]), // Invalid data type
-        });
+        // Create a node with shape input that has Float32 type instead of Int64
+        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_tensor_f32("input", 2, None)
+            .input_tensor_f32_data("shape", vec![2.0, 3.0, 4.0], vec![3]) // Wrong type - Float32 instead of Int64
+            .output_tensor_f32("output", 0, None)
+            .build_with_graph_data(&mut graph_data);
 
-        let _ = expand_config(&node);
+        let _ = expand_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_expand_update_outputs_with_shape_input() {
         // Test Expand with Shape type as shape input
-        let mut node = create_test_node(2, None, Some(ArgType::Shape(4)));
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(2, None, Some(ArgType::Shape(4))).build();
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -364,18 +383,17 @@ mod tests {
 
     #[test]
     fn test_expand_update_outputs_with_shape_input_static_value() {
-        // Test Expand with Shape type that has a static value
-        let mut node = create_test_node(2, None, Some(ArgType::Shape(3)));
-
-        // Add a static value to the shape input
-        node.inputs[1].value = Some(TensorData {
-            shape: vec![3],
-            data: Data::Int64s(vec![5, 10, 15]),
-        });
+        // Test Expand with shape input that has static values
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_tensor_f32("input", 2, None)
+            .input_tensor_i64_data("shape", vec![5, 10, 15], vec![3]) // Static shape values
+            .output_tensor_f32("output", 0, None)
+            .build_with_graph_data(&mut graph_data);
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -393,11 +411,12 @@ mod tests {
 
         // Test Float32 -> Float32
         {
+            let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
             let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_f32("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_f32("output", 0, None)
-                .build();
+                .build_with_graph_data(&mut graph_data);
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -408,7 +427,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context);
+            processor.process(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -425,11 +444,12 @@ mod tests {
 
         // Test Int64 -> Int64
         {
+            let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
             let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_i64("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_i64("output", 0, None)
-                .build();
+                .build_with_graph_data(&mut graph_data);
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -440,7 +460,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context);
+            processor.process(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -457,11 +477,12 @@ mod tests {
 
         // Test Bool -> Bool
         {
+            let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
             let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
                 .input_tensor_bool("input", 2, None)
                 .input_tensor_i64_data("shape", vec![2, 3, 4], vec![3])
                 .output_tensor_bool("output", 0, None)
-                .build();
+                .build_with_graph_data(&mut graph_data);
 
             // Initially set output to wrong type
             node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -472,7 +493,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context);
+            processor.process(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -492,15 +513,16 @@ mod tests {
     fn test_expand_with_mismatched_output_type() {
         // Test that Expand corrects output type even when initially set incorrectly
         // This simulates the case where ONNX might have wrong type info
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_i64("input", 2, None) // Input is Int64
             .input_tensor_i64_data("shape", vec![2, 3], vec![2])
             .output_tensor_f32("output", 0, None) // Output incorrectly set to Float32
-            .build();
+            .build_with_graph_data(&mut graph_data);
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

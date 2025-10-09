@@ -35,7 +35,10 @@ impl AvgPool1dConfig {
 }
 
 /// Create an AvgPool1dConfig from the attributes of the node
-pub fn avg_pool1d_config(curr: &Node) -> AvgPool1dConfig {
+pub fn avg_pool1d_config(
+    curr: &Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> AvgPool1dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1];
     let mut pads = vec![0, 0];
@@ -87,7 +90,12 @@ impl NodeProcessor for AvgPool1dProcessor {
         (7, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -119,7 +127,8 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_basic() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 0);
-        let config = avg_pool1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = avg_pool1d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -130,7 +139,8 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_with_padding() {
         let node = create_test_node(vec![4], vec![2], vec![2, 2], 0, 0);
-        let config = avg_pool1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = avg_pool1d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
@@ -141,7 +151,8 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_with_count_include_pad() {
         let node = create_test_node(vec![4], vec![1], vec![2, 2], 1, 0);
-        let config = avg_pool1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = avg_pool1d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -153,6 +164,7 @@ mod tests {
     #[should_panic(expected = "ceil_mode is not supported")]
     fn test_avg_pool1d_config_with_ceil_mode() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 1);
-        let _ = avg_pool1d_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = avg_pool1d_config(&node, &mut graph_data);
     }
 }

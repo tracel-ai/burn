@@ -3,7 +3,10 @@ use crate::util::same_as_input;
 
 use crate::ir::{Data, Node};
 
-pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
+pub fn clip_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;
 
@@ -25,8 +28,14 @@ pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     // For Clip Opset 11+ , the min and max values are inputs
     // Get the min and max values from the input values
     if min_result.is_none() && max_result.is_none() {
-        let min = node.inputs.get(1).and_then(|arg| arg.value.clone());
-        let max = node.inputs.get(2).and_then(|arg| arg.value.clone());
+        let min = node
+            .inputs
+            .get(1)
+            .and_then(|arg| arg.into_value(graph_data));
+        let max = node
+            .inputs
+            .get(2)
+            .and_then(|arg| arg.into_value(graph_data));
 
         if min_result.is_none()
             && let Some(min) = min
@@ -71,7 +80,12 @@ impl NodeProcessor for ClipProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -98,19 +112,19 @@ mod tests {
         builder.build()
     }
 
-    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> Node {
+    fn create_test_node_with_inputs(min: Option<f32>, max: Option<f32>) -> NodeBuilder {
         NodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", min)
             .input_scalar_tensor_f32("max", max)
             .output_tensor_f32("Y", 4, None)
-            .build()
     }
 
     #[test]
     fn test_clip_config_with_attributes() {
         let node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, Some(-1.0));
         assert_eq!(max, Some(1.0));
     }
@@ -118,7 +132,8 @@ mod tests {
     #[test]
     fn test_clip_config_with_attributes_min_only() {
         let node = create_test_node_with_attributes(Some(-1.0), None);
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, Some(-1.0));
         assert_eq!(max, None);
     }
@@ -126,31 +141,38 @@ mod tests {
     #[test]
     fn test_clip_config_with_attributes_max_only() {
         let node = create_test_node_with_attributes(None, Some(1.0));
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, None);
         assert_eq!(max, Some(1.0));
     }
 
     #[test]
     fn test_clip_config_with_inputs() {
-        let node = create_test_node_with_inputs(Some(-1.0), Some(1.0));
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node_with_inputs(Some(-1.0), Some(1.0))
+            .build_with_graph_data(&mut graph_data);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, Some(-1.0));
         assert_eq!(max, Some(1.0));
     }
 
     #[test]
     fn test_clip_config_with_inputs_min_only() {
-        let node = create_test_node_with_inputs(Some(-1.0), None);
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(&mut graph_data);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, Some(-1.0));
         assert_eq!(max, None);
     }
 
     #[test]
     fn test_clip_config_with_inputs_max_only() {
-        let node = create_test_node_with_inputs(None, Some(1.0));
-        let (min, max) = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node =
+            create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(&mut graph_data);
+        let (min, max) = clip_config(&node, &mut graph_data);
         assert_eq!(min, None);
         assert_eq!(max, Some(1.0));
     }
@@ -159,6 +181,7 @@ mod tests {
     #[should_panic(expected = "Clip: min and max values must be either attributes or inputs")]
     fn test_clip_config_no_min_max() {
         let node = create_test_node_with_attributes(None, None);
-        let _ = clip_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = clip_config(&node, &mut graph_data);
     }
 }

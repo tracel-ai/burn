@@ -8,7 +8,12 @@ impl NodeProcessor for SizeProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Size rank inference for node {}", node.name);
 
         assert_eq!(
@@ -42,7 +47,8 @@ mod tests {
 
         let processor = SizeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         assert!(matches!(
             &node.outputs[0].ty,

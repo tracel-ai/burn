@@ -33,7 +33,10 @@ impl DepthToSpaceConfig {
 }
 
 /// Create a DepthToSpaceConfig from the attributes of the node
-pub fn depth_to_space_config(node: &Node) -> DepthToSpaceConfig {
+pub fn depth_to_space_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> DepthToSpaceConfig {
     let mut block_size: Option<usize> = None;
     let mut mode = DepthToSpaceMode::DCR;
 
@@ -61,7 +64,12 @@ impl NodeProcessor for DepthToSpaceProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("DepthToSpace rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
@@ -139,7 +147,8 @@ mod tests {
     #[test]
     fn test_basic_config() {
         let node = create_test_node(4, None, 2, None);
-        let config = depth_to_space_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = depth_to_space_config(&node, &mut graph_data);
 
         assert_eq!(config.block_size, 2);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -148,7 +157,8 @@ mod tests {
     #[test]
     fn test_dcr_config() {
         let node = create_test_node(4, None, 3, Some("DCR"));
-        let config = depth_to_space_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = depth_to_space_config(&node, &mut graph_data);
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -157,7 +167,8 @@ mod tests {
     #[test]
     fn test_crd_config() {
         let node = create_test_node(4, None, 3, Some("CRD"));
-        let config = depth_to_space_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = depth_to_space_config(&node, &mut graph_data);
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::CRD);
@@ -168,7 +179,8 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

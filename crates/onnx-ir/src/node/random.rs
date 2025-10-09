@@ -10,7 +10,12 @@ impl NodeProcessor for RandomProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Random rank inference for node {}", node.name);
 
         let dtype = node
@@ -65,7 +70,8 @@ mod tests {
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3, 4]);
         let processor = RandomProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -81,7 +87,8 @@ mod tests {
         let mut node = create_test_node(DataType::DOUBLE.value(), vec![5]);
         let processor = RandomProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -100,7 +107,8 @@ mod tests {
         node.attrs.remove("shape");
         let processor = RandomProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -109,6 +117,7 @@ mod tests {
         let mut node = create_test_node(DataType::INT32.value(), vec![2, 3]);
         let processor = RandomProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

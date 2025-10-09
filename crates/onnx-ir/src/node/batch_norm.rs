@@ -26,13 +26,14 @@ impl BatchNormConfig {
 }
 
 /// Create a BatchNormConfig from the attributes of the node
-pub fn batch_norm_config(node: &Node) -> BatchNormConfig {
+pub fn batch_norm_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> BatchNormConfig {
     let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("BatchNorm: weight tensor must be present")
-        .shape
-        .clone();
+        .shape;
 
     let num_features = weight_shape[0];
 
@@ -57,7 +58,12 @@ impl NodeProcessor for BatchNormProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -68,7 +74,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> Node {
+    fn create_test_node(epsilon: f32, momentum: f32, num_features: usize) -> NodeBuilder {
         let ones = vec![1.0; num_features];
         let zeros = vec![0.0; num_features];
 
@@ -81,13 +87,13 @@ mod tests {
             .output_tensor_f32("output", 4, None)
             .attr_float("epsilon", epsilon)
             .attr_float("momentum", momentum)
-            .build()
     }
 
     #[test]
     fn test_batch_norm_config_basic() {
-        let node = create_test_node(1e-5, 0.9, 64);
-        let config = batch_norm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(1e-5, 0.9, 64).build_with_graph_data(&mut graph_data);
+        let config = batch_norm_config(&node, &mut graph_data);
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -96,8 +102,9 @@ mod tests {
 
     #[test]
     fn test_batch_norm_config_default_values() {
-        let node = create_test_node(0.0, 0.0, 32);
-        let config = batch_norm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(0.0, 0.0, 32).build_with_graph_data(&mut graph_data);
+        let config = batch_norm_config(&node, &mut graph_data);
 
         assert_eq!(config.num_features, 32);
         assert!(f64::abs(config.epsilon - 0.0) < 1e-6);

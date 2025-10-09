@@ -2,12 +2,15 @@ use crate::processor::{NodeProcessor, ProcessorContext};
 
 use crate::ir::{ArgType, Data, Node, TensorType};
 
-pub fn squeeze_config(curr: &Node) -> Option<Vec<i64>> {
+pub fn squeeze_config(
+    curr: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> Option<Vec<i64>> {
     // In ONNX opset 13+, axes are provided as a second input
     // When no axes input is provided, return None (meaning squeeze all dims with size 1)
     if curr.inputs.len() == 2 {
         // Get axes from the second input (ONNX opset 13+ standard)
-        match &curr.inputs[1].value {
+        match curr.inputs[1].into_value(graph_data) {
             Some(value) => match &value.data {
                 Data::Int64s(axes) => Some(axes.clone()),
                 _ => None,
@@ -28,11 +31,16 @@ impl NodeProcessor for SqueezeProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Squeeze rank inference for node {}", node.name);
 
         let axes = if node.inputs.len() == 2 {
-            match &node.inputs[1].value {
+            match node.inputs[1].into_value(graph_data).as_ref() {
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(axes.clone()),
                     _ => panic!("Squeeze: invalid input types"),
@@ -115,7 +123,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> Node {
+    fn create_test_node(axes: Option<Vec<i64>>, rank: usize) -> NodeBuilder {
         let output_rank = if let Some(ref axes_vec) = axes {
             rank - axes_vec.len()
         } else {
@@ -133,20 +141,22 @@ mod tests {
             builder = builder.input_tensor_i64_data("axes", axes_val.clone(), vec![axes_val.len()]);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_squeeze_config_with_axes_input() {
-        let node = create_test_node(Some(vec![0, 2]), 4);
-        let axes = squeeze_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(&mut graph_data);
+        let axes = squeeze_config(&node, &mut graph_data);
         assert_eq!(axes, Some(vec![0, 2]));
     }
 
     #[test]
     fn test_squeeze_config_no_axes_input() {
-        let node = create_test_node(None, 4);
-        let axes = squeeze_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(None, 4).build();
+        let axes = squeeze_config(&node, &mut graph_data);
         assert_eq!(axes, None);
     }
 }

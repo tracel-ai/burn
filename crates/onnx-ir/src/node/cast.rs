@@ -16,7 +16,7 @@ impl CastConfig {
 }
 
 /// Create a CastConfig from the node attributes
-pub fn cast_config(node: &Node) -> CastConfig {
+pub fn cast_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> CastConfig {
     let elem_type = match node.attrs.get("to") {
         Some(AttributeValue::Int64(type_id)) => {
             element_type_from_proto(*type_id as i32).expect("Cast: unsupported 'to' dtype")
@@ -32,13 +32,18 @@ impl NodeProcessor for CastProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         if node.inputs.len() != 1 {
             panic!("Cast: multiple inputs are not supported");
         }
 
         // Get the cast configuration with the target element type first, before mutable borrows
-        let config = cast_config(node);
+        let config = cast_config(node, graph_data);
         let elem_type = config.to;
 
         let input = &mut node.inputs[0];
@@ -117,15 +122,18 @@ mod tests {
     #[test]
     fn test_cast_config() {
         let node = create_test_node(2, DataType::INT64.value() as i64);
-        let config = cast_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = cast_config(&node, &mut graph_data);
         assert_eq!(config.to, ElementType::Int64);
 
         let node = create_test_node(2, DataType::FLOAT.value() as i64);
-        let config = cast_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = cast_config(&node, &mut graph_data);
         assert_eq!(config.to, ElementType::Float32);
 
         let node = create_test_node(2, DataType::BOOL.value() as i64);
-        let config = cast_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = cast_config(&node, &mut graph_data);
         assert_eq!(config.to, ElementType::Bool);
     }
 
@@ -135,7 +143,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -152,7 +161,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -180,12 +190,12 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
-            value: None,
         });
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -194,7 +204,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -214,7 +225,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -236,7 +248,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -256,7 +269,8 @@ mod tests {
 
         let processor = CastProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

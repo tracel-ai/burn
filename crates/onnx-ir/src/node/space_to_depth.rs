@@ -2,7 +2,7 @@ use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{ArgType, TensorType, ir::Node};
 
 /// Get the configuration from the attributes of the node
-pub fn space_to_depth_config(node: &Node) -> usize {
+pub fn space_to_depth_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
     let mut block_size: Option<usize> = None;
 
     for (key, value) in node.attrs.iter() {
@@ -28,7 +28,12 @@ impl NodeProcessor for SpaceToDepthProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("SpaceToDepth rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
@@ -95,7 +100,8 @@ mod tests {
     #[test]
     fn test_basic_config() {
         let node = create_test_node(4, None, 2);
-        let block_size = space_to_depth_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let block_size = space_to_depth_config(&node, &mut graph_data);
 
         assert_eq!(block_size, 2);
     }
@@ -105,7 +111,8 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
         let processor = SpaceToDepthProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

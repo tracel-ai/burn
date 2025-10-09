@@ -10,7 +10,12 @@ impl NodeProcessor for RandomLikeProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("RandomLike rank inference for node {}", node.name);
 
         let dtype = node
@@ -63,7 +68,8 @@ mod tests {
         let mut node = create_test_node(DataType::FLOAT.value(), 3, None);
         let processor = RandomLikeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -79,7 +85,8 @@ mod tests {
         let mut node = create_test_node(DataType::DOUBLE.value(), 2, Some(vec![5, 10]));
         let processor = RandomLikeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -98,7 +105,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = RandomLikeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -107,6 +115,7 @@ mod tests {
         let mut node = create_test_node(DataType::INT32.value(), 2, None);
         let processor = RandomLikeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
     }
 }

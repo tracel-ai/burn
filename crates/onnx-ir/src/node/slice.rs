@@ -42,12 +42,16 @@ fn normalize_axes(axes: &mut [i64], rank: usize, node_name: &str) {
 ///
 /// Note: we leave the negative indices as is, but we need to handle them properly when slicing
 /// during the actual slicing operation using the runtime shape information.
-pub fn slice_config(node: &Node) -> SliceConfig {
+pub fn slice_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SliceConfig {
     /// Creates a SliceInput from either a static value or runtime argument.
-    fn get_slice_input(node: &Node, index: usize) -> Option<SliceInput> {
+    fn get_slice_input(
+        node: &Node,
+        index: usize,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) -> Option<SliceInput> {
         let input = node.inputs.get(index)?;
 
-        match &input.value {
+        match input.into_value(graph_data) {
             None => Some(SliceInput::Runtime(input.clone())),
             Some(TensorData {
                 data: Data::Int64s(values),
@@ -60,14 +64,14 @@ pub fn slice_config(node: &Node) -> SliceConfig {
         }
     }
 
-    let starts =
-        get_slice_input(node, 1).unwrap_or_else(|| panic!("Slice: starts parameter is required"));
+    let starts = get_slice_input(node, 1, graph_data)
+        .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
 
-    let ends =
-        get_slice_input(node, 2).unwrap_or_else(|| panic!("Slice: ends parameter is required"));
+    let ends = get_slice_input(node, 2, graph_data)
+        .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
 
-    let mut axes = get_slice_input(node, 3);
-    let steps = get_slice_input(node, 4);
+    let mut axes = get_slice_input(node, 3, graph_data);
+    let steps = get_slice_input(node, 4, graph_data);
 
     // Validate steps if present - zeros are not allowed
     if let Some(SliceInput::Static(ref step_values)) = steps
@@ -156,7 +160,12 @@ impl NodeProcessor for SliceProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("Slice rank inference for node {}", node.name);
 
         match &node.inputs[0].ty {
@@ -169,7 +178,7 @@ impl NodeProcessor for SliceProcessor {
             ArgType::Shape(shape_rank) => {
                 // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
                 log::debug!("Slice input for {} is Shape", node.name);
-                let config = slice_config(node);
+                let config = slice_config(node, graph_data);
 
                 // Only static slicing is supported for Shape inputs
                 let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
@@ -228,7 +237,7 @@ mod tests {
 
     use super::*;
 
-    fn create_test_node(starts: Vec<i64>, ends: Vec<i64>, axes: Option<Vec<i64>>) -> Node {
+    fn create_test_node(starts: Vec<i64>, ends: Vec<i64>, axes: Option<Vec<i64>>) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::Slice, "test_slice")
             .input_tensor_f32("data", 3, None)
             .output_default("output");
@@ -241,20 +250,19 @@ mod tests {
             builder = builder.input_tensor_i64_data("axes", axes_vec.clone(), vec![axes_vec.len()]);
         }
 
-        builder.build()
+        builder
     }
 
-    fn create_shape_input_node(start: i64, end: i64) -> Node {
+    fn create_shape_input_node(start: i64, end: i64) -> NodeBuilder {
         NodeBuilder::new(NodeType::Slice, "test_slice_shape")
             .input_shape("data", 5)
             .input_tensor_i64_data("starts", vec![start], vec![1])
             .input_tensor_i64_data("ends", vec![end], vec![1])
             .input_tensor_i64_data("axes", vec![0], vec![1])
             .output_default("output")
-            .build()
     }
 
-    fn create_runtime_slice_node() -> Node {
+    fn create_runtime_slice_node() -> NodeBuilder {
         NodeBuilder::new(NodeType::Slice, "test_runtime_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("starts", 0, None) // No static value - runtime input
@@ -262,10 +270,9 @@ mod tests {
             .input_tensor_i64_data("axes", vec![0], vec![1])
             .input_tensor_i64_data("steps", vec![1], vec![1])
             .output_default("output")
-            .build()
     }
 
-    fn create_mixed_slice_node_runtime_start() -> Node {
+    fn create_mixed_slice_node_runtime_start() -> NodeBuilder {
         NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64("starts", 0, None) // Runtime input
@@ -273,10 +280,9 @@ mod tests {
             .input_tensor_i64_data("axes", vec![0], vec![1])
             .input_tensor_i64_data("steps", vec![1], vec![1])
             .output_default("output")
-            .build()
     }
 
-    fn create_mixed_slice_node_runtime_end() -> Node {
+    fn create_mixed_slice_node_runtime_end() -> NodeBuilder {
         NodeBuilder::new(NodeType::Slice, "test_mixed_slice")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("starts", vec![1], vec![1]) // Static input
@@ -284,15 +290,16 @@ mod tests {
             .input_tensor_i64_data("axes", vec![0], vec![1])
             .input_tensor_i64_data("steps", vec![1], vec![1])
             .output_default("output")
-            .build()
     }
 
     #[test]
     fn test_slice_config_basic() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create a node with inputs for basic slicing
-        let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]));
+        let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]))
+            .build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -312,10 +319,12 @@ mod tests {
 
     #[test]
     fn test_slice_config_negative_axes() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test with negative axes values
-        let node = create_test_node(vec![1], vec![3], Some(vec![-3]));
+        let node = create_test_node(vec![1], vec![3], Some(vec![-3]))
+            .build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -333,10 +342,12 @@ mod tests {
 
     #[test]
     fn test_slice_config_default_axes() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test the default axes behavior (when axes input is not provided)
-        let node = create_test_node(vec![1, 2], vec![3, 4], None);
+        let node =
+            create_test_node(vec![1, 2], vec![3, 4], None).build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -352,10 +363,11 @@ mod tests {
 
     #[test]
     fn test_slice_config_runtime() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test with runtime inputs (no static values)
-        let node = create_runtime_slice_node();
+        let node = create_runtime_slice_node().build();
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
@@ -376,8 +388,10 @@ mod tests {
 
     #[test]
     fn test_slice_update_output_rank_tensor_input() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test when input is a Tensor - output should preserve the same type
-        let mut node = create_test_node(vec![1, 2], vec![3, 4], None);
+        let mut node =
+            create_test_node(vec![1, 2], vec![3, 4], None).build_with_graph_data(&mut graph_data);
 
         // Before calling, input is Tensor and output is default
         assert!(matches!(node.inputs[0].ty, ArgType::Tensor(_)));
@@ -385,7 +399,7 @@ mod tests {
 
         let processor = SliceProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // After calling, output should be the same type as input
         assert!(
@@ -395,8 +409,9 @@ mod tests {
 
     #[test]
     fn test_slice_update_output_rank_shape_input() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test when input is a Shape - output should be a rank-1 Int64 Tensor
-        let mut node = create_shape_input_node(1, 3);
+        let mut node = create_shape_input_node(1, 3).build_with_graph_data(&mut graph_data);
 
         // Before calling, input is Shape and output is default
         assert!(matches!(node.inputs[0].ty, ArgType::Shape(5)));
@@ -405,7 +420,7 @@ mod tests {
 
         let processor = SliceProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // After calling, output should be ArgType::Shape with the calculated length
         // start = 1, end = 3 => output_len = 3 - 1 = 2
@@ -414,10 +429,11 @@ mod tests {
 
     #[test]
     fn test_slice_config_mixed_runtime_start() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test with runtime start but static end
-        let node = create_mixed_slice_node_runtime_start();
+        let node = create_mixed_slice_node_runtime_start().build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -431,10 +447,11 @@ mod tests {
 
     #[test]
     fn test_slice_config_mixed_runtime_end() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test with static start but runtime end
-        let node = create_mixed_slice_node_runtime_end();
+        let node = create_mixed_slice_node_runtime_end().build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -448,6 +465,7 @@ mod tests {
 
     #[test]
     fn test_slice_config_with_steps() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create a node with steps input
         let builder = NodeBuilder::new(NodeType::Slice, "test_slice_with_steps")
             .input_tensor_f32("data", 3, None)
@@ -457,8 +475,8 @@ mod tests {
             .input_tensor_i64_data("steps", vec![2, 3], vec![2])
             .output_default("output");
 
-        let node = builder.build();
-        let result = slice_config(&node);
+        let node = builder.build_with_graph_data(&mut graph_data);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that we have static starts, ends, and steps
         match (&result.starts, &result.ends, &result.steps) {
@@ -478,6 +496,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "step values cannot be zero")]
     fn test_slice_config_zero_step() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create a node with zero step value (should panic)
         let builder = NodeBuilder::new(NodeType::Slice, "test_zero_step")
             .input_tensor_f32("data", 2, None)
@@ -487,12 +506,13 @@ mod tests {
             .input_tensor_i64_data("steps", vec![0], vec![1])
             .output_default("output");
 
-        let node = builder.build();
-        slice_config(&node); // Should panic
+        let node = builder.build_with_graph_data(&mut graph_data);
+        slice_config(&node, &mut graph_data); // Should panic
     }
 
     #[test]
     fn test_slice_config_negative_steps() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create a node with negative step values
         let builder = NodeBuilder::new(NodeType::Slice, "test_negative_steps")
             .input_tensor_f32("data", 2, None)
@@ -502,8 +522,8 @@ mod tests {
             .input_tensor_i64_data("steps", vec![-1, -2], vec![2])
             .output_default("output");
 
-        let node = builder.build();
-        let result = slice_config(&node);
+        let node = builder.build_with_graph_data(&mut graph_data);
+        let result = slice_config(&node, &mut graph_data);
 
         // Check that negative steps are preserved
         match &result.steps {

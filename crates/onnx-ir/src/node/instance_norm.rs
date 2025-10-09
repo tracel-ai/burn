@@ -23,10 +23,12 @@ impl InstanceNormConfig {
 }
 
 /// Create a InstanceNormConfig from the attributes of the node
-pub fn instance_norm_config(node: &Node) -> InstanceNormConfig {
+pub fn instance_norm_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> InstanceNormConfig {
     let weight_shape = node.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("InstanceNorm: weight tensor must be present")
         .shape
         .clone();
@@ -51,7 +53,12 @@ impl NodeProcessor for InstanceNormProcessor {
         (6, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -62,7 +69,7 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node(epsilon: f32, num_features: usize) -> Node {
+    fn create_test_node(epsilon: f32, num_features: usize) -> NodeBuilder {
         let weight_data = vec![1.0; num_features]; // Not important for the test
         let bias_data = vec![0.0; num_features]; // Not important for the test
 
@@ -72,13 +79,13 @@ mod tests {
             .input_tensor_f32_data("bias", bias_data, vec![num_features])
             .output_tensor_f32("output", 3, None)
             .attr_float("epsilon", epsilon)
-            .build()
     }
 
     #[test]
     fn test_instance_norm_config_basic() {
-        let node = create_test_node(1e-5, 64);
-        let config = instance_norm_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(1e-5, 64).build_with_graph_data(&mut graph_data);
+        let config = instance_norm_config(&node, &mut graph_data);
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);

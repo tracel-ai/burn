@@ -181,6 +181,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
         inputs,
         outputs,
         attrs,
+        config: None,
     }
 }
 
@@ -247,10 +248,6 @@ impl TryFrom<ValueInfoProto> for Argument {
             })
         };
 
-        Ok(Argument {
-            ty,
-            name,
-            value: None,
-        })
+        Ok(Argument { ty, name })
     }
 }

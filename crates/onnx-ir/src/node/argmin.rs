@@ -11,7 +11,7 @@ pub struct ArgMinConfig {
 }
 
 /// Create argmin config from the attributes of the node
-pub fn argmin_config(node: &Node) -> ArgMinConfig {
+pub fn argmin_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ArgMinConfig {
     let mut axis: i64 = 0;
     let mut keepdims = true; // default value per ONNX spec
 
@@ -69,7 +69,12 @@ impl NodeProcessor for ArgMinProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("ArgMin rank inference for node {}", node.name);
 
         if node.inputs.len() != 1 {
@@ -83,7 +88,7 @@ impl NodeProcessor for ArgMinProcessor {
         log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
 
         // Get config to determine output rank
-        let config = argmin_config(node);
+        let config = argmin_config(node, graph_data);
 
         // For burn compatibility, argmin always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank
@@ -136,7 +141,8 @@ mod tests {
     #[test]
     fn test_argmin_config_basic() {
         let node = create_test_node(0, 0, 1);
-        let config = argmin_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = argmin_config(&node, &mut graph_data);
         assert_eq!(config.axis, 0);
         assert_eq!(config.keepdims, true);
     }
@@ -144,7 +150,8 @@ mod tests {
     #[test]
     fn test_argmin_config_negative_axis() {
         let node = create_test_node(-2, 0, 1);
-        let config = argmin_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = argmin_config(&node, &mut graph_data);
         assert_eq!(config.axis, 1); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
     }
@@ -160,20 +167,21 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
-            value: None,
         });
-        let _ = argmin_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = argmin_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_argmin_config_keepdims_supported() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node_keepdims_0 = create_test_node(0, 0, 0);
-        let config_0 = argmin_config(&node_keepdims_0);
+        let config_0 = argmin_config(&node_keepdims_0, &mut graph_data);
         assert_eq!(config_0.axis, 0);
         assert_eq!(config_0.keepdims, false);
 
         let node_keepdims_1 = create_test_node(0, 0, 1);
-        let config_1 = argmin_config(&node_keepdims_1);
+        let config_1 = argmin_config(&node_keepdims_1, &mut graph_data);
         assert_eq!(config_1.axis, 0);
         assert_eq!(config_1.keepdims, true);
     }
@@ -182,14 +190,16 @@ mod tests {
     #[should_panic(expected = "Only keepdims=0 or keepdims=1 is supported for argmin in burn")]
     fn test_argmin_config_keepdims_invalid() {
         let node = create_test_node(0, 0, 2); // Invalid keepdims value
-        let _ = argmin_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = argmin_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "select_last_index=1 is not supported for argmin in burn")]
     fn test_argmin_config_select_last_index_invalid() {
         let node = create_test_node(0, 1, 1); // Invalid select_last_index value
-        let _ = argmin_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let _ = argmin_config(&node, &mut graph_data);
     }
 
     #[test]
@@ -204,7 +214,8 @@ mod tests {
 
         let processor = ArgMinProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
         match &node.outputs[0].ty {
@@ -228,7 +239,8 @@ mod tests {
 
         let processor = ArgMinProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output tensor with same rank as input (3)
         match &node.outputs[0].ty {
@@ -252,7 +264,8 @@ mod tests {
 
         let processor = ArgMinProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {

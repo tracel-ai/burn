@@ -54,7 +54,10 @@ impl ConvTranspose1dConfig {
 }
 
 /// Create a ConvTranspose1dConfig from the attributes of the node
-pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
+pub fn conv_transpose1d_config(
+    curr: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> ConvTranspose1dConfig {
     let mut kernel_shape = Vec::new();
     let mut stride = vec![1]; // Default stride to 1
     let mut pads = vec![0, 0]; // Default padding to 0
@@ -87,8 +90,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     }
 
     let weight_shape = curr.inputs[1]
-        .value
-        .as_ref()
+        .into_value(graph_data)
         .expect("ConvTranspose1d: weight tensor must be present")
         .shape
         .clone();
@@ -135,7 +137,12 @@ impl NodeProcessor for Convtranspose1dProcessor {
         (1, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -156,7 +163,7 @@ mod tests {
         output_padding: Vec<i64>,
         has_bias: bool,
         auto_pad: Option<&str>,
-    ) -> Node {
+    ) -> NodeBuilder {
         // Create weight tensor data
         let weight_data = vec![0.1; 16];
 
@@ -193,11 +200,12 @@ mod tests {
             builder = builder.attr_ints("kernel_shape", kernel_shape);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_conv_transpose1d_config_basic() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -207,8 +215,9 @@ mod tests {
             vec![0],
             false,
             None,
-        );
-        let config = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv_transpose1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -223,6 +232,7 @@ mod tests {
 
     #[test]
     fn test_conv_transpose1d_config_with_params() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![2],
@@ -232,8 +242,9 @@ mod tests {
             vec![1],
             true,
             None,
-        );
-        let config = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv_transpose1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 4); // weight_shape[1] * group = 2 * 2
         assert_eq!(config.channels_out, 2);
@@ -249,6 +260,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv_transpose1d_config_asymmetric_padding() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -258,12 +270,14 @@ mod tests {
             vec![0],
             false,
             None,
-        );
-        let _ = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let _ = conv_transpose1d_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_conv_transpose1d_config_autopad_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -273,8 +287,9 @@ mod tests {
             vec![0],
             false,
             Some("NOTSET"),
-        );
-        let config = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv_transpose1d_config(&node, &mut graph_data);
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -290,6 +305,7 @@ mod tests {
     #[test]
     #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv_transpose1d_config_autopad_not_supported() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![4],
             vec![1],
@@ -299,12 +315,14 @@ mod tests {
             vec![0],
             false,
             Some("SAME_UPPER"),
-        );
-        let _config = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let _config = conv_transpose1d_config(&node, &mut graph_data);
     }
 
     #[test]
     fn test_conv_transpose1d_config_kernel_shape_not_set() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![],
             vec![1],
@@ -314,8 +332,9 @@ mod tests {
             vec![0],
             false,
             None,
-        );
-        let config = conv_transpose1d_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = conv_transpose1d_config(&node, &mut graph_data);
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }

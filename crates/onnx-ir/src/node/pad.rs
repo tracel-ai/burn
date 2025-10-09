@@ -22,18 +22,18 @@ impl PadConfig {
 }
 
 /// Creates a PadConfig from the node attributes and inputs.
-pub fn pad_config(node: &Node) -> PadConfig {
-    fn get_pads_input(node: &Node) -> Vec<i64> {
+pub fn pad_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> PadConfig {
+    fn get_pads_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Vec<i64> {
         if node.inputs.len() <= 1 {
             return Vec::new();
         }
 
-        match &node.inputs[1].value {
-            Some(TensorData { data, .. }) => data.clone().into_i64s(),
+        match node.inputs[1].into_value(graph_data) {
+            Some(TensorData { data, .. }) => data.into_i64s(),
             _ => Vec::new(),
         }
     }
-    fn get_pads(node: &Node) -> Vec<usize> {
+    fn get_pads(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Vec<usize> {
         if node.inputs.is_empty() {
             panic!("Pad: must provide data as input")
         }
@@ -47,7 +47,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         };
 
         // TODO: Handle more possible attributes
-        let mut pads: Vec<usize> = get_pads_input(node)
+        let mut pads: Vec<usize> = get_pads_input(node, graph_data)
             .into_iter()
             .map(|x| x as usize)
             .collect();
@@ -110,11 +110,11 @@ pub fn pad_config(node: &Node) -> PadConfig {
         let bottom = pads[bottom_index];
         vec![left, right, top, bottom]
     }
-    fn get_constant_value(node: &Node) -> f32 {
+    fn get_constant_value(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> f32 {
         // TODO: Support int, boolean
         let mut constant_value = node.inputs
                 .get(2)
-                .and_then(|input| match &input.value.as_ref().expect("Value input must be present").data {
+                .and_then(|input| match &input.into_value(graph_data).expect("Value input must be present").data {
                     Data::Float16s(constant_value) => {
                         constant_value.first().map(|&f| f32::from(f))
                     }
@@ -140,8 +140,8 @@ pub fn pad_config(node: &Node) -> PadConfig {
         constant_value
     }
 
-    let pads = get_pads(node);
-    let constant_value = get_constant_value(node);
+    let pads = get_pads(node, graph_data);
+    let constant_value = get_constant_value(node, graph_data);
 
     PadConfig::new(pads, constant_value)
 }
@@ -153,7 +153,12 @@ impl NodeProcessor for PadProcessor {
         (2, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -171,14 +176,15 @@ mod tests {
         constant_value_input: Option<f32>,
         mode: Option<&str>,
         rank: usize,
-    ) -> Node {
+    ) -> NodeBuilder {
         let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", rank, None)
             .output_tensor_f32("output", rank, None);
 
         // Add pad inputs if provided
         if let Some(pads) = pad_inputs.clone() {
-            builder = builder.input_tensor_i64_data("pads", pads, vec![]);
+            let pads_len = pads.len();
+            builder = builder.input_tensor_i64_data("pads", pads, vec![pads_len]);
         }
 
         // Add constant value input if provided
@@ -199,11 +205,12 @@ mod tests {
             builder = builder.attr_string("mode", mode_val);
         }
 
-        builder.build()
+        builder
     }
 
     #[test]
     fn test_pad_config_with_attrs() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test for 2D tensor (rank 2)
         let pads = vec![0, 0, 1, 1];
         let node = create_test_node(
@@ -213,8 +220,9 @@ mod tests {
             None,
             Some("constant"),
             2,
-        );
-        let config = pad_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = pad_config(&node, &mut graph_data);
         assert_eq!(
             config,
             PadConfig {
@@ -226,10 +234,12 @@ mod tests {
 
     #[test]
     fn test_pad_config_with_inputs() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 2D tensor, pads should have 4 values (2*rank)
         let pads = vec![0, 0, 1, 1];
-        let node = create_test_node(None, Some(pads.clone()), None, Some(1.0), None, 2);
-        let config = pad_config(&node);
+        let node = create_test_node(None, Some(pads.clone()), None, Some(1.0), None, 2)
+            .build_with_graph_data(&mut graph_data);
+        let config = pad_config(&node, &mut graph_data);
         assert_eq!(
             config,
             PadConfig {
@@ -241,6 +251,7 @@ mod tests {
 
     #[test]
     fn test_pad_config_with_3d_tensor() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 3D tensor, pads should have 6 values (2*rank)
         let pads = vec![0, 0, 0, 0, 1, 1];
         let node = create_test_node(
@@ -250,8 +261,9 @@ mod tests {
             None,
             Some("constant"),
             3,
-        );
-        let config = pad_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = pad_config(&node, &mut graph_data);
         assert_eq!(
             config,
             PadConfig {
@@ -263,6 +275,7 @@ mod tests {
 
     #[test]
     fn test_pad_config_attrs_override_inputs() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Attributes should override inputs
         let attr_pads = vec![0, 0, 2, 2];
         let input_pads = vec![0, 0, 1, 1];
@@ -273,8 +286,9 @@ mod tests {
             Some(1.0),
             Some("constant"),
             2,
-        );
-        let config = pad_config(&node);
+        )
+        .build_with_graph_data(&mut graph_data);
+        let config = pad_config(&node, &mut graph_data);
         assert_eq!(
             config,
             PadConfig {
@@ -287,24 +301,30 @@ mod tests {
     #[test]
     #[should_panic(expected = "Pad: must provide data as input")]
     fn test_pad_config_no_inputs() {
-        let mut node = create_test_node(None, None, None, None, None, 2);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(None, None, None, None, None, 2)
+            .build_with_graph_data(&mut graph_data);
         node.inputs = vec![];
-        let _ = pad_config(&node);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: Only tensor input is valid")]
     fn test_pad_config_invalid_input_type() {
-        let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2)
+            .build_with_graph_data(&mut graph_data);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        let _ = pad_config(&node);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: axes input is not supported")]
     fn test_pad_config_with_axes_input() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create node with 4 inputs (including axes)
-        let mut node = create_test_node(None, Some(vec![0, 0, 1, 1]), None, Some(0.0), None, 2);
+        let mut node = create_test_node(None, Some(vec![0, 0, 1, 1]), None, Some(0.0), None, 2)
+            .build_with_graph_data(&mut graph_data);
         node.inputs.push(Argument {
             name: "axes".to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -312,54 +332,62 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
-            value: Some(TensorData {
-                data: Data::Int64s(vec![0, 1]),
-                shape: vec![],
-            }),
         });
-        let _ = pad_config(&node);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: Negative pad is not supported")]
     fn test_pad_config_negative_pad() {
-        let node = create_test_node(Some(vec![0, 0, -1, 1]), None, None, None, None, 2);
-        let _ = pad_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(vec![0, 0, -1, 1]), None, None, None, None, 2)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "only constant mode is supported")]
     fn test_pad_config_unsupported_mode() {
-        let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2);
-        let _ = pad_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: pads should be given as attribute or as input")]
     fn test_pad_config_no_pads() {
-        let node = create_test_node(None, None, None, None, None, 2);
-        let _ = pad_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(None, None, None, None, None, 2)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: pads should be a 1D tensor of shape [2 * num_axes]")]
     fn test_pad_config_invalid_pads_length() {
-        let node = create_test_node(Some(vec![0, 0, 1]), None, None, None, None, 2);
-        let _ = pad_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(vec![0, 0, 1]), None, None, None, None, 2)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: input tensor should be rank 2 or higher")]
     fn test_pad_config_invalid_tensor_rank() {
-        let node = create_test_node(Some(vec![0, 1]), None, None, None, None, 1);
-        let _ = pad_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node(Some(vec![0, 1]), None, None, None, None, 1)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 
     #[test]
     #[should_panic(expected = "Pad: padding will only be applied to the last two dimensions")]
     fn test_pad_config_non_zero_padding_on_other_dimensions() {
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 3D tensor, we try to set non-zero padding on first dimension
-        let node = create_test_node(Some(vec![1, 0, 0, 0, 1, 1]), None, None, None, None, 3);
-        let _ = pad_config(&node);
+        let node = create_test_node(Some(vec![1, 0, 0, 0, 1, 1]), None, None, None, None, 3)
+            .build_with_graph_data(&mut graph_data);
+        let _ = pad_config(&node, &mut graph_data);
     }
 }

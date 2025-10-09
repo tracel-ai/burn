@@ -8,7 +8,10 @@ pub struct NonZeroConfig {
 }
 
 /// Create a NonZero configuration from the node
-pub fn nonzero_config(_node: &Node) -> NonZeroConfig {
+pub fn nonzero_config(
+    _node: &Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> NonZeroConfig {
     // NonZero operation has no configurable attributes
     NonZeroConfig::new()
 }
@@ -20,7 +23,12 @@ impl NodeProcessor for NonZeroProcessor {
         (9, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         log::debug!("NonZero rank inference for node {}", node.name);
 
         match &node.inputs[0].ty {
@@ -56,7 +64,8 @@ mod tests {
 
         let processor = NonZeroProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -75,7 +84,8 @@ mod tests {
             .output_tensor_i64("output", 2, None)
             .build();
 
-        let config = nonzero_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let config = nonzero_config(&node, &mut graph_data);
         // NonZero has no attributes, so just verify it constructs successfully
         assert!(matches!(config, NonZeroConfig {}));
     }
@@ -89,7 +99,8 @@ mod tests {
 
         let processor = NonZeroProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -110,7 +121,8 @@ mod tests {
 
         let processor = NonZeroProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        processor.process(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

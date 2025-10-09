@@ -18,7 +18,7 @@ impl DropoutConfig {
 }
 
 /// Create a DropoutConfig from an attribute and state of the node
-pub fn dropout_config(node: &Node) -> DropoutConfig {
+pub fn dropout_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> DropoutConfig {
     // Opset 7 and older store probability as an attribute
     if node.attrs.contains_key("ratio") {
         let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
@@ -30,7 +30,7 @@ pub fn dropout_config(node: &Node) -> DropoutConfig {
     }
 
     let ratio = node.inputs[1]
-        .value
+        .into_value(graph_data)
         .clone()
         .expect("Dropout ratio must be passed in the second input")
         .data
@@ -53,7 +53,12 @@ impl NodeProcessor for DropoutProcessor {
         (7, None)
     }
 
-    fn process(&self, node: &mut Node, _context: &ProcessorContext) {
+    fn process(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
         same_as_input(node);
     }
 }
@@ -64,42 +69,43 @@ mod tests {
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node_with_attr(ratio: f32) -> Node {
+    fn create_test_node_with_attr(ratio: f32) -> NodeBuilder {
         NodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .output_tensor_f32("output", 3, None)
             .attr_float("ratio", ratio)
-            .build()
     }
 
-    fn create_test_node_with_input(ratio: f32) -> Node {
+    fn create_test_node_with_input(ratio: f32) -> NodeBuilder {
         NodeBuilder::new(NodeType::Dropout, "test_dropout")
             .input_tensor_f32("data", 3, None)
             .input_scalar_tensor_f32("ratio", Some(ratio))
             .output_tensor_f32("output", 3, None)
-            .build()
     }
 
     #[test]
     fn test_dropout_config_with_attr() {
-        let node = create_test_node_with_attr(0.3);
-        let config = dropout_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node_with_attr(0.3).build_with_graph_data(&mut graph_data);
+        let config = dropout_config(&node, &mut graph_data);
         assert!(f64::abs(config.prob - 0.3) < 1e-6);
     }
 
     #[test]
     fn test_dropout_config_with_input() {
-        let node = create_test_node_with_input(0.5);
-        let config = dropout_config(&node);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
+        let config = dropout_config(&node, &mut graph_data);
         assert!(f64::abs(config.prob - 0.5) < 1e-6);
     }
 
     #[test]
     #[should_panic(expected = "Dropout configuration must have at least 2 inputs")]
     fn test_dropout_config_missing_input() {
-        let mut node = create_test_node_with_input(0.5);
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        let mut node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
         node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
-        let _ = dropout_config(&node);
+        let _ = dropout_config(&node, &mut graph_data);
     }
 }
