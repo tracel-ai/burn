@@ -60,16 +60,13 @@ where
         futures_lite::future::block_on(client.sync());
     }
 
-    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
         device: &Self::Device,
         input: Input,
         func: Func,
     ) -> Output {
         let client = R::client(device);
-        let output = client.memory_static_allocation(input, func);
-        let memory = client.memory_usage();
-        println!("{memory}");
-        output
+        client.memory_persistent_allocation(input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {
