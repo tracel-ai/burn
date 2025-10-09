@@ -218,7 +218,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
     let client = input.client.clone();
     let device = input.device.clone();
     let num_elems = input.shape.num_elements() as u32;
-    let numbers = *input.shape.dims.last().unwrap() as u32;
+    let numbers = *input.shape.last().unwrap() as u32;
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches as usize, numbers as usize]));

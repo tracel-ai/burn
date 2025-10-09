@@ -301,11 +301,11 @@ pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> F
     let ndims = shape_grad.num_dims();
 
     for i in 0..ndims {
-        if shape_grad.dims[i] != shape.dims[i] {
-            if shape.dims[i] != 1 {
+        if shape_grad[i] != shape[i] {
+            if shape[i] != 1 {
                 panic!(
                     "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
-                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
+                    shape, shape_grad, "Expected the shape of the next grad to be 1."
                 );
             }
             grad = B::float_sum_dim(grad, i);

@@ -171,10 +171,10 @@ impl FuseOptimizationBuilder {
     /// registered based on the operations [registered](Self::register).
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape = tensor.shape.clone();
+            self.current_output_shape = tensor.shape.dims.clone();
         } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
             // The larguest shape win.
-            self.current_output_shape = tensor.shape.clone();
+            self.current_output_shape = tensor.shape.dims.clone();
         }
 
         self.builder.builder.output_unhandled(tensor)
@@ -260,7 +260,7 @@ impl FuseOptimizationBuilder {
                     });
                 }
 
-                if desc.input.shape.len() > desc.out.shape.len() {
+                if desc.input.shape.rank() > desc.out.shape.rank() {
                     // Not yet supported.
                     return false;
                 }
@@ -635,14 +635,14 @@ impl FuseOptimizationBuilder {
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape.clone_from(&out.shape);
+            self.current_output_shape.clone_from(&out.shape.dims);
             return true;
         }
 
         let rank = self.current_output_shape.len();
 
         // Rank should be equal.
-        if rank != out.shape.len() {
+        if rank != out.shape.num_dims() {
             return false;
         }
 
@@ -680,11 +680,11 @@ impl FuseOptimizationBuilder {
 
         if should_update {
             // For now forced to have exact shape.
-            if updated != out.shape {
+            if updated != out.shape.dims {
                 return false;
             }
 
-            self.current_output_shape.clone_from_slice(&out.shape);
+            self.current_output_shape.clone_from_slice(&out.shape.dims);
         }
 
         true

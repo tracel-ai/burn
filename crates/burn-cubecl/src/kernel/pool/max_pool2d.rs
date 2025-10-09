@@ -111,14 +111,14 @@ pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
         stride[0],
         padding[0],
         dilation[0],
-        x.shape.dims[2],
+        x.shape[2],
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape.dims[3],
+        x.shape[3],
     );
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));
@@ -168,14 +168,14 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeEle
         stride[0],
         padding[0],
         dilation[0],
-        x.shape.dims[2],
+        x.shape[2],
     );
     let size_1 = calculate_pool_output_size(
         kernel_size[1],
         stride[1],
         padding[1],
         dilation[1],
-        x.shape.dims[3],
+        x.shape[3],
     );
 
     let x = into_contiguous(permute_nchw_to_nhwc(x));

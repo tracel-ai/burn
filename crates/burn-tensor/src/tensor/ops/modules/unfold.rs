@@ -113,7 +113,7 @@ pub fn calculate_unfold_shape<S: Into<Shape>>(
     size: usize,
     step: usize,
 ) -> Vec<usize> {
-    let mut shape = shape.into().dims.to_vec();
+    let mut shape = shape.into().to_vec();
     let d_shape = shape[dim];
     let windows = calculate_unfold_windows(d_shape, size, step);
     shape[dim] = windows;

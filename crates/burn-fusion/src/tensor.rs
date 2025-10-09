@@ -18,7 +18,7 @@ pub struct FusionTensor<R: FusionRuntime> {
     /// Tensor id.
     pub id: TensorId,
     /// The shape of the tensor.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     /// The [fusion client](FusionClient).
     pub client: Client<R>,
     /// The datatype of the tensor.
@@ -63,18 +63,18 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     }
 
     fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
+        self.shape.clone()
     }
 
     fn rank(&self) -> usize {
-        self.shape.len()
+        self.shape.num_dims()
     }
 }
 
 impl<R: FusionRuntime> FusionTensor<R> {
     pub(crate) fn new(
         id: TensorId,
-        shape: Vec<usize>,
+        shape: Shape,
         dtype: DType,
         client: Client<R>,
         stream: StreamId,
@@ -112,7 +112,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         let count = self.count.load(Ordering::Relaxed);
         let status = self.status(count);
 
-        let mut shape_out = Vec::new();
+        let mut shape_out = Shape::from(Vec::<usize>::new());
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
@@ -198,7 +198,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
-                let mut shape = Vec::new();
+                let mut shape = Shape::from(Vec::<usize>::new());
                 core::mem::swap(&mut shape, &mut self.shape);
 
                 let ir = TensorIr {

@@ -851,7 +851,7 @@ fn unsqueeze<B: Backend>(tensor: FloatTensor<B>, ndims_out: usize) -> FloatTenso
 
     let mut dims = vec![1; ndims_out];
     let num_ones = ndims_out - ndims_in;
-    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape.dims[..ndims_in]);
+    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape[..ndims_in]);
 
     B::float_reshape(tensor, Shape::from(dims))
 }
