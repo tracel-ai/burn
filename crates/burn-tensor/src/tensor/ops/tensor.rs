@@ -887,7 +887,8 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
         let exp = rhs.elem::<i32>();
         match exp {
-            0 => Self::float_ones(lhs.shape(), &B::float_device(&lhs), lhs.dtype().into()),
+            // How should non-finite values be handled?
+            // 0 => Self::float_ones(lhs.shape(), &B::float_device(&lhs), lhs.dtype().into()),
             1 => lhs,
             2 => B::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),
