@@ -1,4 +1,3 @@
-/// Module with convolution operations.
 pub mod conv;
 
 /// Module with cat operation
