@@ -453,7 +453,8 @@ pub trait IntTensorOps<B: Backend> {
     fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
         let exp = rhs.elem::<i32>();
         match exp {
-            0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
+            // How should non-finite values be handled?
+            // 0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
             1 => lhs,
             2 => Self::int_mul(lhs.clone(), lhs),
             _ => Self::int_powi_scalar_fallback(lhs, rhs),
