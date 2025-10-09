@@ -49,10 +49,10 @@ pub(crate) fn cross<R: CubeRuntime, E: CubeElement + Float>(
     let ndims = lhs.shape.num_dims();
 
     // Validate that the cross dimension has size 3
-    if lhs.shape.dims[dim] != 3 || rhs.shape.dims[dim] != 3 {
+    if lhs.shape[dim] != 3 || rhs.shape[dim] != 3 {
         panic!(
             "Cross product requires dimension {} to have size 3, but got {} and {}",
-            dim, lhs.shape.dims[dim], rhs.shape.dims[dim]
+            dim, lhs.shape[dim], rhs.shape[dim]
         );
     }
 

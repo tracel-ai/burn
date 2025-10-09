@@ -1,9 +1,9 @@
 use crate::{RouterTensor, RunnerChannel};
-use alloc::{boxed::Box, vec::Vec};
+use alloc::boxed::Box;
 use burn_common::future::DynFut;
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{
-    DType, FloatDType, TensorData,
+    DType, FloatDType, Shape, TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use core::ops::DerefMut;
@@ -30,9 +30,9 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Create a new [RouterTensor] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Create a new [RouterTensor] with no resources associated.
-    fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
+    fn register_empty_tensor(&self, shape: Shape, dtype: DType) -> RouterTensor<Self>;
     /// Create a new float [RouterTensor] with no resources associated.
-    fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self>;
+    fn register_float_tensor(&self, shape: Shape, dtype: FloatDType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
     /// Seed the runner.

@@ -745,7 +745,7 @@ impl TensorCheck {
 
         for tensor in tensors {
             let mut shape = tensor.shape();
-            shape.dims[dim] = 1; // Ignore the concatenate dim.
+            shape[dim] = 1; // Ignore the concatenate dim.
 
             if shape_reference != shape {
                 return check.register(
@@ -786,7 +786,7 @@ impl TensorCheck {
         }
 
         for (i, slice) in slices.iter().enumerate().take(D1) {
-            let d_tensor = shape.dims[i];
+            let d_tensor = shape[i];
 
             // Check the raw end value before conversion
             if let Some(end) = slice.end
@@ -860,7 +860,7 @@ impl TensorCheck {
         }
 
         for (i, slice) in slices.iter().enumerate().take(usize::min(D1, D2)) {
-            let d_tensor = shape.dims[i];
+            let d_tensor = shape[i];
             let d_tensor_value = shape_value.dims[i];
             let range = slice.to_range(d_tensor);
 
@@ -1076,7 +1076,7 @@ impl TensorCheck {
                 continue;
             }
 
-            let tensor_dim_i = shape.dims[i];
+            let tensor_dim_i = shape[i];
             let indices_dim_i = shape_indices.dims[i];
 
             if tensor_dim_i != indices_dim_i {
@@ -1309,7 +1309,7 @@ impl TensorCheck {
         for i in 0..max_dims {
             // Use 1 as the default dimension size for dimensions beyond the tensor's rank.
             let d_shape = if i >= start_index_shape {
-                shape.dims[i - start_index_shape]
+                shape[i - start_index_shape]
             } else {
                 1
             };

@@ -9,7 +9,7 @@ license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.88"
+rust-version = "1.89"
 version.workspace = true
 
 [lints]

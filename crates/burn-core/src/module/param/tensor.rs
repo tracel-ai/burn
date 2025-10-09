@@ -105,8 +105,10 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
-        let value = Tensor::from_data(data, device);
-        Param::initialized(ParamId::new(), value.require_grad())
+        B::memory_persistent_allocations(device, data, |data| {
+            let value = Tensor::from_data(data, device);
+            Param::initialized(ParamId::new(), value.require_grad())
+        })
     }
 
     /// Load a parameter from a tensor.

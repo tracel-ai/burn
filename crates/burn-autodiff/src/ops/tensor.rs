@@ -32,24 +32,13 @@ fn unsqueeze_like<B: Backend>(
     tensor: B::FloatTensorPrimitive,
     shape: Shape,
 ) -> B::FloatTensorPrimitive {
-    /*
-    let mut dims = [1; D2];
-    let num_ones = D2 - D;
-    let shape = self.shape();
-
-    dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
-
-    let shape = Shape::new(dims);
-    self.reshape(shape)
-    */
-
     let ndims_out = shape.num_dims();
     let shape = tensor.shape();
     let ndims_in = shape.num_dims();
 
     let mut dims = vec![1; ndims_out];
     let num_ones = ndims_out - ndims_in;
-    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape.dims[..ndims_in]);
+    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape[..ndims_in]);
 
     B::float_reshape(tensor, Shape::from(dims))
 }
@@ -916,7 +905,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let mut grad = grad;
 
                     for i in 0..ndims_out {
-                        if shape.dims[i] == 1 && shape_grad.dims[i] != 1 {
+                        if shape[i] == 1 && shape_grad[i] != 1 {
                             grad = B::float_sum_dim(grad, i);
                         }
                     }
@@ -1568,7 +1557,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let val = 1_f64 / shape.dims[dim] as f64;
+                    let val = 1_f64 / shape[dim] as f64;
                     let ones = B::float_ones(shape, &B::float_device(&grad), grad.dtype().into());
                     let val = B::float_mul_scalar(ones, B::FloatElem::from_elem(val));
 
@@ -2206,7 +2195,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend> Step for CatStep<B> {
             fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
                 let grad = grads.consume::<B>(&self.output);
-                let ranges: Vec<_> = grad.shape().dims.iter().map(|v| 0..*v).collect();
+                let ranges: Vec<_> = grad.shape().iter().map(|v| 0..*v).collect();
 
                 let mut current_index = 0;
 
@@ -2626,15 +2615,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (dim, times) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let mut dims = grad.shape().dims;
+                    let mut dims = grad.shape();
                     let orig_dim_size = dims[dim] / times;
                     if orig_dim_size > 1 {
                         dims[dim] = orig_dim_size;
                         let orig_dims = dims.clone();
                         dims.insert(dim + 1, times); // shape [..., orig_dim_size, times, ...]
-                        let grad = B::float_reshape(grad, Shape::from(dims));
+                        let grad = B::float_reshape(grad, dims);
                         let grad = B::float_sum_dim(grad, dim + 1); // sum over repeat times
-                        B::float_reshape(grad, Shape::from(orig_dims))
+                        B::float_reshape(grad, orig_dims)
                     } else {
                         B::float_sum_dim(grad, dim)
                     }

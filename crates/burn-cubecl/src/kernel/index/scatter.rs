@@ -95,7 +95,7 @@ pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems *= tensor.shape.dims[index];
+            num_elems *= tensor.shape[index];
         });
 
     // Fake strides of the virtual output where the strides of dim is hardcoded to one.

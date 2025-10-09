@@ -485,24 +485,21 @@ mod tests {
         fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
+                self.paths.insert(path, (id, tensor.shape().to_vec()));
             }
         }
 
         fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
+                self.paths.insert(path, (id, tensor.shape().to_vec()));
             }
         }
 
         fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.val().shape().dims.to_vec()));
+                self.paths.insert(path, (id, tensor.shape().to_vec()));
             }
         }
     }

@@ -117,8 +117,8 @@ where
         device: &B::Device,
     ) -> Self {
         let shape: Shape = shape.into();
-        let height = shape.dims[D - 2];
-        let width = shape.dims[D - 1];
+        let height = shape[D - 2];
+        let width = shape[D - 1];
 
         // Generate row and column index tensors.
         let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, device);

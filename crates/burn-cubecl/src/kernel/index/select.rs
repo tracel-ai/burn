@@ -36,7 +36,7 @@ pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
 ) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
-    shape_output.dims[dim] = indices.shape.dims[0];
+    shape_output.dims[dim] = indices.shape[0];
     let total_elem = shape_output.num_elements();
     let indices = into_contiguous(indices);
 

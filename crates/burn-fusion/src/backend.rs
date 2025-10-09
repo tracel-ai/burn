@@ -62,12 +62,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         false
     }
 
-    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
         device: &Self::Device,
         input: Input,
         func: Func,
     ) -> Output {
-        B::memory_static_allocations(device, input, func)
+        B::memory_persistent_allocations(device, input, func)
     }
 
     fn memory_cleanup(device: &Self::Device) {

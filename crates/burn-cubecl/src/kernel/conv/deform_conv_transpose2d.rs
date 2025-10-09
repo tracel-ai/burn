@@ -214,10 +214,10 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
             client.clone(),
             device.clone(),
             Shape::new([
-                offset.shape.dims[0],
-                offset.shape.dims[1] / 2,
-                offset.shape.dims[2],
-                offset.shape.dims[3],
+                offset.shape[0],
+                offset.shape[1] / 2,
+                offset.shape[2],
+                offset.shape[3],
             ]),
         )
     });

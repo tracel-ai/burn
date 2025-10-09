@@ -54,8 +54,8 @@ fn new_quantized<R: CubeRuntime>(
     let shape: Shape = shape.into();
     let mut shape_value: Shape = shape.clone();
 
-    let rank = shape.dims.len();
-    let shape_last = shape.dims[rank - 1];
+    let rank = shape.rank();
+    let shape_last = shape[rank - 1];
     let num_quants = scheme.num_quants();
 
     let data_size = match scheme.store {

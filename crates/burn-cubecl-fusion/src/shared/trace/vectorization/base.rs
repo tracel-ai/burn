@@ -269,7 +269,7 @@ fn vectorization_output(
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
+    let axis = axis.unwrap_or_else(|| desc.shape.rank() - 1);
 
     let inner = |s: u8| {
         // The dimension should be a multiple of the vector size.
@@ -308,7 +308,7 @@ fn vectorization_reshape(
     max: u8,
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
+    let axis = axis.unwrap_or_else(|| reshaped.shape.rank() - 1);
     let reshape_shape_axis = reshaped.shape[axis];
 
     if !multi_reads && reshape_shape_axis == 1 {
@@ -316,11 +316,11 @@ fn vectorization_reshape(
     }
 
     // If the axis is not the last dim, didn't think of it, return Aligned(1) to be sure.
-    if axis != reshaped.shape.len() - 1 {
+    if axis != reshaped.shape.rank() - 1 {
         return Vect::Aligned(1);
     }
 
-    let original_shape_axis = original.shape[original.shape.len() - 1];
+    let original_shape_axis = original.shape[original.shape.rank() - 1];
 
     if original_shape_axis != reshape_shape_axis {
         return Vect::Aligned(1);
@@ -381,7 +381,7 @@ fn vectorization_swapped<R: Runtime>(
     line_sizes: &[u8],
     overrides: Option<&Vec<u8>>,
 ) -> Vect {
-    let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
+    let axis = axis.unwrap_or_else(|| swapped.shape.rank() - 1);
 
     let swapped_axis = swapped.shape[axis];
     let shape_axis = original.shape[axis];
