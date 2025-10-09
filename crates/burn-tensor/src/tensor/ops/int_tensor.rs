@@ -490,7 +490,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf_scalar(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
-        if rhs.floor() == rhs {
+        if num_traits::Float::floor(rhs) == rhs {
             let exp = B::IntElem::from_elem(rhs as i32);
             Self::int_powi_scalar(lhs, exp)
         } else {
