@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn sampler_dataset_without_replacement_uniform_order_test() {
         // This is a reversion test on the indices.shuffle(rng) call in SamplerDataset::index().
-        let size = 100;
+        let size = 1000;
         let dataset_sampler =
             SamplerDataset::without_replacement(FakeDataset::<i32>::new(size), size);
 
@@ -431,7 +431,7 @@ mod tests {
         let expected = (size + 2) as f64 / 3.0;
 
         assert!(
-            (mean_delta - expected).abs() <= 0.2 * expected,
+            (mean_delta - expected).abs() <= 0.25 * expected,
             "Sampled indices are not uniformly distributed: mean_delta: {mean_delta}, expected: {expected}"
         );
     }
