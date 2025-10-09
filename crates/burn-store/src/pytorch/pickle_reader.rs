@@ -487,6 +487,7 @@ fn rebuild_tensor_v2(
     }
 
     // Create a TensorSnapshot with a closure that loads the actual data on-demand
+    // TODO extract this long code into stand along function (part of a bigger refactor)
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
             // Load data only when needed
