@@ -312,18 +312,6 @@ if !result.errors.is_empty() {
 
 ### Loading Benchmarks
 
-Compares 6 loading methods with a 312MB ResNet-18 model:
-
-**Performance Results (NdArray Backend)**:
-- **BurnpackStore**: 565ms (2x faster than SafeTensors, 361MB memory)
-- **NamedMpkFileRecorder**: 48ms (fastest, 344MB memory)
-- **SafetensorsStore**: 1106ms (361MB memory)
-- SafetensorsFileRecorder: 1138ms (654MB memory - inefficient)
-- PytorchStore: 1234ms
-- PyTorchFileRecorder: 1289ms
-
-All modern stores (BurnpackStore, NamedMpkFileRecorder, SafetensorsStore) achieve optimal memory efficiency (344-361MB) through memory mapping or lazy loading.
-
 ```bash
 # Generate model files first (one-time setup)
 cd crates/burn-store
