@@ -42,67 +42,6 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 ///
 /// 1. **Initialized**: `state: OnceCell<T>` contains value, `initialization: None`
 /// 2. **Uninitialized (Lazy)**: `state` is empty, `initialization: Some(RwLock<Option<Uninitialized<T>>>)`
-///
-/// ## Critical Methods
-///
-/// **Initialization trigger** ([val](Self::val)):
-/// ```rust,ignore
-/// pub fn val(&self) -> T {
-///     self.state.get_or_init(|| {
-///         let mut result = self.initialization.as_ref().unwrap().write().unwrap();
-///         let state = result.take();  // Takes ownership, replaces with None
-///         state.initialize()           // Runs: init(&device, is_require_grad)
-///     }).clone()
-/// }
-/// ```
-///
-/// **Lazy queries WITHOUT triggering initialization:**
-/// - [lazy_device](Self::lazy_device): Reads device from `Uninitialized` if lazy, else calls `device()`
-/// - `lazy_is_require_grad()`: Reads flag from `Uninitialized` if lazy, else calls `is_require_grad()`
-///
-/// ## The Load Optimization
-///
-/// **Key insight:** When loading tensors into an uninitialized param, the original `init` function
-/// is **never called** - this is the performance win for loading pre-trained weights.
-///
-/// The `load()` method (in tensor.rs):
-/// ```rust,ignore
-/// pub fn load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
-///     let expected_device = self.lazy_device();         // NO initialization!
-///     let expected_require_grad = self.lazy_is_require_grad(); // NO initialization!
-///
-///     // Move to expected device, apply mapper, set require_grad
-///     new_tensor = tensor.to_device(&expected_device);
-///     new_tensor = mapper.on_load(new_tensor);
-///     new_tensor = new_tensor.set_require_grad(expected_require_grad);
-///
-///     Self::initialized(param_id, new_tensor)  // Returns initialized param
-/// }
-/// ```
-///
-/// ## Thread Safety
-///
-/// **Why RwLock?**
-/// - `OnceCell` guarantees single initialization
-/// - BUT concurrent calls to `lazy_device()` during initialization need to wait
-/// - `RwLock` ensures readers wait for the write lock during initialization
-///
-/// ## Important Behaviors
-///
-/// 1. **Clone**: Forces initialization, creates new initialized param with same ID
-/// 2. **map()**: Forces initialization, always returns initialized param
-/// 3. **init_mapper()**: If lazy, wraps the init function; if initialized, maps value
-/// 4. **set_require_grad()**: If lazy, updates `Uninitialized.is_require_grad`; if initialized, maps value
-///
-/// ## Performance Pattern
-///
-/// ```rust,ignore
-/// // Create uninitialized module (no tensor allocations)
-/// let module = config.init(device);
-///
-/// // Load tensors - lazy params use loaded tensors directly, bypassing init functions
-/// let module = module.load(...);
-/// ```
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
@@ -115,11 +54,6 @@ pub struct Param<T: Parameter> {
     /// - Initialized params: `None`
     /// - Uninitialized params: `Some(RwLock<Some(Uninitialized<T>)>)`
     /// - After lazy init triggers: `Some(RwLock<None>)` (inner Option is taken)
-    ///
-    /// **Thread Safety:**
-    /// The RwLock ensures that concurrent calls to `lazy_device()` or `lazy_is_require_grad()`
-    /// during initialization will wait for the write lock to complete, preventing race conditions
-    /// between initialization and lazy queries.
     pub(crate) initialization: Option<RwLock<Option<Uninitialized<T>>>>,
     pub(crate) param_mapper: ParamMapper<T>,
 }
@@ -206,21 +140,6 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 }
 
 /// The deferred initialization state for lazy parameters.
-///
-/// # Uninitialized Struct
-///
-/// Contains all information needed to initialize a parameter on first access:
-/// ```rust,ignore
-/// struct Uninitialized<P> {
-///     init: Box<dyn FnOnce(&P::Device, bool) -> P>,  // initialization function
-///     device: P::Device,                              // target device
-///     is_require_grad: bool,                          // gradient requirement
-///     shape: Shape,                                   // tensor shape
-/// }
-/// ```
-///
-/// This struct is stored inside the `initialization` field of [Param] and is consumed
-/// when the parameter is first accessed, transferring ownership to the initialization function.
 #[allow(clippy::type_complexity)]
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
@@ -287,13 +206,6 @@ impl<T: Parameter> Param<T> {
     ///
     /// For initialized parameters, this returns a clone of the cached value.
     /// For uninitialized parameters, this triggers initialization:
-    /// 1. Acquires write lock on the initialization state
-    /// 2. Takes the `Uninitialized` struct (replacing with `None`)
-    /// 3. Calls the initialization function
-    /// 4. Stores the result in the `OnceCell` for future access
-    ///
-    /// **Thread Safety:** OnceCell ensures initialization happens exactly once,
-    /// even with concurrent access.
     pub fn val(&self) -> T {
         self.state
             .get_or_init(|| {
