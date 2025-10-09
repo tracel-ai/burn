@@ -20,9 +20,6 @@ extern crate alloc;
 #[cfg(feature = "network")]
 pub mod network;
 
-/// Parallel utilities.
-pub mod parallel;
-
 /// Tensor utilities.
 pub mod tensor {
     use alloc::vec;
