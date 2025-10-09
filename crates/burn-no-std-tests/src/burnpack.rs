@@ -43,7 +43,7 @@ pub fn test_burnpack_basic<B: Backend>(device: &B::Device) {
     // Save to bytes (no file I/O in no-std)
     let mut save_store = BurnpackStore::from_bytes(None);
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save model");
 
     // Get the serialized bytes
@@ -53,7 +53,7 @@ pub fn test_burnpack_basic<B: Backend>(device: &B::Device) {
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     let result = loaded_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load model");
 
     // Verify all tensors were loaded
@@ -75,7 +75,7 @@ pub fn test_burnpack_filtering<B: Backend>(device: &B::Device) {
         .with_full_path("linear1.bias");
     let mut save_store = BurnpackStore::from_bytes(None).with_filter(filter);
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save filtered model");
 
     let bytes = save_store.get_bytes().expect("Failed to get bytes");
@@ -84,7 +84,7 @@ pub fn test_burnpack_filtering<B: Backend>(device: &B::Device) {
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).allow_partial(true);
     let mut partial_model = TestModel::<B>::new(device);
     let result = partial_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load partial model");
 
     // Verify that only linear1 was loaded
@@ -102,7 +102,7 @@ pub fn test_burnpack_metadata<B: Backend>(device: &B::Device) {
         .metadata("environment", "no-std")
         .metadata("model_type", "test");
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save model with metadata");
 
     let bytes = save_store.get_bytes().expect("Failed to get bytes");
@@ -111,7 +111,7 @@ pub fn test_burnpack_metadata<B: Backend>(device: &B::Device) {
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     let result = loaded_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load model with metadata");
 
     assert!(result.is_success(), "Should load successfully");
@@ -128,7 +128,7 @@ pub fn test_burnpack_match_all<B: Backend>(device: &B::Device) {
     // Save with match_all (should save everything)
     let mut save_store = BurnpackStore::from_bytes(None).match_all();
     model
-        .collect_to(&mut save_store)
+        .save_into(&mut save_store)
         .expect("Failed to save model");
 
     let bytes = save_store.get_bytes().expect("Failed to get bytes");
@@ -137,7 +137,7 @@ pub fn test_burnpack_match_all<B: Backend>(device: &B::Device) {
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
     let mut loaded_model = TestModel::<B>::new(device);
     let result = loaded_model
-        .apply_from(&mut load_store)
+        .load_from(&mut load_store)
         .expect("Failed to load model");
 
     assert!(result.is_success(), "Should load successfully");

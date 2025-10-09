@@ -99,7 +99,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
         applier.into_result()
     }
 
-    /// Collects tensor snapshots into a [`ModuleSnapshoter`] for saving.
+    /// Saves tensor snapshots into a [`ModuleSnapshoter`].
     ///
     /// This method allows using a `ModuleSnapshoter` implementation to handle the
     /// collection and writing logic in a configurable way.
@@ -107,14 +107,14 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
     /// # Arguments
     ///
     /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will collect and save the tensors
-    fn collect_to<P>(&self, store: &mut P) -> Result<(), P::Error>
+    fn save_into<P>(&self, store: &mut P) -> Result<(), P::Error>
     where
         P: ModuleSnapshoter,
     {
         store.collect_from(self)
     }
 
-    /// Applies tensor data from a [`ModuleSnapshoter`] for loading.
+    /// Loads tensor data from a [`ModuleSnapshoter`].
     ///
     /// This method allows using a `ModuleSnapshoter` implementation to handle the
     /// loading and application logic in a configurable way.
@@ -122,7 +122,7 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
     /// # Arguments
     ///
     /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will load and apply tensors
-    fn apply_from<P>(&mut self, store: &mut P) -> Result<ApplyResult, P::Error>
+    fn load_from<P>(&mut self, store: &mut P) -> Result<ApplyResult, P::Error>
     where
         P: ModuleSnapshoter,
     {

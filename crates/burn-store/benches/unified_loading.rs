@@ -86,7 +86,7 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
     let mut store =
         SafetensorsStore::from_file(st_path.clone()).with_from_adapter(PyTorchToBurnAdapter);
     model
-        .apply_from(&mut store)
+        .load_from(&mut store)
         .expect("Failed to load from SafeTensors");
 
     // Save as Burnpack
@@ -94,7 +94,7 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
         println!("  Creating Burnpack file...");
         let mut burnpack_store = BurnpackStore::from_file(bp_path.clone());
         model
-            .collect_to(&mut burnpack_store)
+            .save_into(&mut burnpack_store)
             .expect("Failed to save as Burnpack");
     }
 
@@ -229,7 +229,7 @@ macro_rules! bench_backend {
                         let device: TestDevice = Default::default();
                         let mut model = LargeModel::<TestBackend>::new(&device);
                         let mut store = BurnpackStore::from_file(bp_path.clone());
-                        model.apply_from(&mut store).expect("Failed to load");
+                        model.load_from(&mut store).expect("Failed to load");
                     });
             }
 
@@ -262,7 +262,7 @@ macro_rules! bench_backend {
                         let mut model = LargeModel::<TestBackend>::new(&device);
                         let mut store = SafetensorsStore::from_file(st_path.clone())
                             .with_from_adapter(PyTorchToBurnAdapter);
-                        model.apply_from(&mut store).expect("Failed to load");
+                        model.load_from(&mut store).expect("Failed to load");
                     });
             }
 
@@ -296,7 +296,7 @@ macro_rules! bench_backend {
                         let mut store = PytorchStore::from_file(pt_path.clone())
                             .with_top_level_key("model_state_dict")
                             .allow_partial(true);
-                        model.apply_from(&mut store).expect("Failed to load");
+                        model.load_from(&mut store).expect("Failed to load");
                     });
             }
 

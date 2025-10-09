@@ -44,11 +44,11 @@ use burn_store::{ModuleSnapshot, BurnpackStore};
 let mut store = BurnpackStore::from_file("model.burnpack")
     .metadata("version", "1.0")
     .metadata("description", "My trained model");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load a model (automatically memory-mapped when available)
 let mut store = BurnpackStore::from_file("model.burnpack");
-model.apply_from(&mut store)?;
+model.load_from(&mut store)?;
 ```
 
 **Performance**: Burnpack provides 2x faster loading than SafeTensors with identical memory efficiency through automatic memory mapping.
@@ -60,11 +60,11 @@ use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 // Save a model
 let mut store = SafetensorsStore::from_file("model.safetensors");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load a model
 let mut store = SafetensorsStore::from_file("model.safetensors");
-model.apply_from(&mut store)?;
+model.load_from(&mut store)?;
 ```
 
 ### Filtering Tensors
@@ -75,7 +75,7 @@ let mut store = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .metadata("subset", "encoder_only");
 
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load with multiple filter patterns (OR logic)
 let mut store = SafetensorsStore::from_file("model.safetensors")
@@ -83,7 +83,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_regex(r".*\.bias$")          // OR include any bias tensors
     .with_full_path("decoder.scale"); // OR include specific tensor
 
-model.apply_from(&mut store)?;
+model.load_from(&mut store)?;
 ```
 
 ### PyTorch Interoperability
@@ -96,20 +96,20 @@ let mut store = PytorchStore::from_file("pytorch_model.pth")
     .with_top_level_key("state_dict")         // Access nested state dict
     .allow_partial(true);                     // Skip unknown tensors
 
-burn_model.apply_from(&mut store)?;
+burn_model.load_from(&mut store)?;
 
 // Load PyTorch model from SafeTensors
 let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
     .allow_partial(true);                     // Skip unknown PyTorch tensors
 
-burn_model.apply_from(&mut store)?;
+burn_model.load_from(&mut store)?;
 
 // Save Burn model for PyTorch
 let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
     .with_to_adapter(BurnToPyTorchAdapter);   // Convert back to PyTorch format
 
-burn_model.collect_to(&mut store)?;
+burn_model.save_into(&mut store)?;
 ```
 
 ### Tensor Name Remapping
@@ -144,18 +144,18 @@ let mut store = PytorchStore::from_file("model.pth")
 let mut store = BurnpackStore::from_bytes(None)
     .with_regex(r"^encoder\..*")
     .metadata("subset", "encoder_only");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 let bytes = store.get_bytes()?;
 
 // Burnpack: Load from memory buffer (no-std compatible)
 let mut store = BurnpackStore::from_bytes(Some(bytes))
     .allow_partial(true);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 
 // SafeTensors: Memory operations
 let mut store = SafetensorsStore::from_bytes(None)
     .with_regex(r"^encoder\..*");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 let bytes = store.get_bytes()?;
 
 println!("Loaded {} tensors", result.applied.len());
@@ -199,12 +199,12 @@ model2.apply(snapshots, None, None);
 // Export only specific layers
 let mut store = SafetensorsStore::from_file("encoder_only.safetensors")
     .with_regex(r"^encoder\..*");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load with missing tensors allowed
 let mut store = SafetensorsStore::from_file("pretrained.safetensors")
     .allow_partial(true);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 println!("Loaded: {}, Missing: {:?}", result.applied.len(), result.missing);
 ```
 
@@ -224,12 +224,12 @@ target_model.apply(merged, None, None);
 
 // Alternative: Sequential loading from files
 let mut base_store = SafetensorsStore::from_file("base.safetensors");
-model.apply_from(&mut base_store)?;
+model.load_from(&mut base_store)?;
 
 let mut encoder_store = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .allow_partial(true);
-model.apply_from(&mut encoder_store)?;  // Overlays encoder weights
+model.load_from(&mut encoder_store)?;  // Overlays encoder weights
 ```
 
 ### Complete Example: Migrating PyTorch Models
@@ -251,7 +251,7 @@ let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     .allow_partial(true);
 
 let mut model = TransformerModel::new(&device);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 
 println!("Successfully migrated {} tensors", result.applied.len());
 if !result.errors.is_empty() {
@@ -263,7 +263,7 @@ let mut save_store = SafetensorsStore::from_file("migrated_model.safetensors")
     .metadata("source", "pytorch")
     .metadata("converted_by", "burn-store");
 
-model.collect_to(&mut save_store)?;
+model.save_into(&mut save_store)?;
 ```
 
 ## Advanced Usage
@@ -293,7 +293,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
 ### Handling Load Results
 
 ```rust
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 
 // Detailed result information
 println!("Applied: {} tensors", result.applied.len());

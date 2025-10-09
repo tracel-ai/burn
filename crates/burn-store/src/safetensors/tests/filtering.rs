@@ -13,7 +13,7 @@ fn filtered_export_import() {
 
     // Export only encoder tensors using the builder pattern
     let mut save_store = SafetensorsStore::from_bytes(None).with_regex(r"^encoder\..*");
-    module1.collect_to(&mut save_store).unwrap();
+    module1.save_into(&mut save_store).unwrap();
 
     // Import filtered tensors - need to allow partial since we only saved encoder tensors
     let mut load_store = SafetensorsStore::from_bytes(None).allow_partial(true);
@@ -24,7 +24,7 @@ fn filtered_export_import() {
         let data_arc = p_save.data().unwrap();
         p.set_data(data_arc.as_ref().clone());
     }
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert_eq!(result.applied.len(), 3); // encoder.weight, encoder.bias, encoder.norm
@@ -51,7 +51,7 @@ fn builder_pattern_filtering() {
         })
         .count();
 
-    module.collect_to(&mut store).unwrap();
+    module.save_into(&mut store).unwrap();
 
     // Verify we saved the expected number of tensors
     if let SafetensorsStore::Memory(ref p) = store {
@@ -72,7 +72,7 @@ fn builder_pattern_exact_paths() {
         .with_full_path("encoder.norm")
         .with_full_paths(paths.clone());
 
-    module.collect_to(&mut store).unwrap();
+    module.save_into(&mut store).unwrap();
 
     // Verify only specified tensors were saved
     if let SafetensorsStore::Memory(ref p) = store {
@@ -97,7 +97,7 @@ fn builder_pattern_with_predicate() {
         path.contains("layer") && path.ends_with("weight")
     });
 
-    module.collect_to(&mut store).unwrap();
+    module.save_into(&mut store).unwrap();
 
     // Verify only layer weights were saved
     if let SafetensorsStore::Memory(ref p) = store {
@@ -127,7 +127,7 @@ fn builder_pattern_combined() {
                 path.contains("projection")
             });
 
-        module.collect_to(&mut store).unwrap();
+        module.save_into(&mut store).unwrap();
 
         if let SafetensorsStore::Memory(ref p) = store {
             let data = p.data().unwrap();
@@ -159,7 +159,7 @@ fn builder_pattern_match_all() {
     // Test match_all - should save everything
     let mut store = SafetensorsStore::from_bytes(None).match_all();
 
-    module.collect_to(&mut store).unwrap();
+    module.save_into(&mut store).unwrap();
 
     if let SafetensorsStore::Memory(ref p) = store {
         let data = p.data().unwrap();

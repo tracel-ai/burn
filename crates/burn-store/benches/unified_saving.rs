@@ -131,7 +131,7 @@ macro_rules! bench_backend {
                     let output_path = get_output_dir().join("test_burnpack.burnpack");
                     let mut store = BurnpackStore::from_file(output_path.clone()).overwrite(true);
                     model
-                        .collect_to(&mut store)
+                        .save_into(&mut store)
                         .expect("Failed to save with BurnpackStore");
                     // Clean up
                     let _ = fs::remove_file(output_path);
@@ -161,7 +161,7 @@ macro_rules! bench_backend {
                     let output_path = get_output_dir().join("test_safetensors_store.safetensors");
                     let mut store = SafetensorsStore::from_file(output_path.clone());
                     model
-                        .collect_to(&mut store)
+                        .save_into(&mut store)
                         .expect("Failed to save with SafetensorsStore");
                     // Clean up
                     let _ = fs::remove_file(output_path);

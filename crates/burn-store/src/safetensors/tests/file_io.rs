@@ -20,7 +20,7 @@ fn file_based_loading() {
     // Save to file
     let mut save_store = SafetensorsStore::from_file(&file_path).metadata("test", "file_loading");
 
-    module.collect_to(&mut save_store).unwrap();
+    module.save_into(&mut save_store).unwrap();
 
     // Verify file exists
     assert!(file_path.exists());
@@ -32,7 +32,7 @@ fn file_based_loading() {
         .with_bias(true)
         .init::<TestBackend>(&device);
 
-    let result = loaded_module.apply_from(&mut load_store).unwrap();
+    let result = loaded_module.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert_eq!(result.applied.len(), 2); // weight and bias
@@ -116,7 +116,7 @@ fn test_store_overwrite_with_metadata() {
     let mut module2 = LinearConfig::new(4, 2)
         .with_bias(true)
         .init::<TestBackend>(&device);
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
     assert!(result.is_success());
 }
 

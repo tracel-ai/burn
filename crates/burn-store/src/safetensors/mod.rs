@@ -23,12 +23,12 @@
 //!
 //! // Save a model to a file
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
-//! model.collect_to(&mut store)?;
+//! model.save_into(&mut store)?;
 //!
 //! // Load a model from a file
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut store)?;
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! ## Memory-Based Operations
@@ -38,13 +38,13 @@
 //!
 //! // Save to memory buffer
 //! let mut store = SafetensorsStore::from_bytes(None);
-//! model.collect_to(&mut store)?;
+//! model.save_into(&mut store)?;
 //! let bytes = store.get_bytes()?;
 //!
 //! // Load from memory buffer
 //! let mut store = SafetensorsStore::from_bytes(Some(bytes));
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut store)?;
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! ## Advanced Features
@@ -122,13 +122,13 @@
 //!     .allow_partial(true);                     // PyTorch models may have extra tensors
 //!
 //! let mut burn_model = Model::new(&device);
-//! burn_model.apply_from(&mut store)?;
+//! burn_model.load_from(&mut store)?;
 //!
 //! // Saving Burn model for PyTorch
 //! let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
 //!     .with_to_adapter(BurnToPyTorchAdapter);   // Transposes weights back, renames for PyTorch
 //!
-//! burn_model.collect_to(&mut store)?;
+//! burn_model.save_into(&mut store)?;
 //! ```
 //!
 //! ### Additional Configuration Options
@@ -146,9 +146,9 @@
 //!     .validate(false);
 //!
 //! // Use the configured store
-//! model.collect_to(&mut store)?;  // For saving
+//! model.save_into(&mut store)?;  // For saving
 //! // or
-//! model.apply_from(&mut store)?;   // For loading
+//! model.load_from(&mut store)?;   // For loading
 //! ```
 //!
 //! # Efficient Loading with SafeTensors
@@ -162,7 +162,7 @@
 //! // Uses memory mapping (when available) for zero-copy access
 //! // Falls back to buffered reading when mmap is not available
 //! let mut model = Model::new(&device);
-//! model.apply_from(&mut store)?;
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! The safetensors approach provides:
@@ -261,7 +261,7 @@
 //!     .with_regex(r"^encoder\..*")                       // Only save encoder tensors
 //!     .with_key_remapping(r"^encoder\.", "transformer.")  // Rename encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
-//! model.collect_to(&mut store)?;
+//! model.save_into(&mut store)?;
 //! let bytes = store.get_bytes()?;
 //!
 //! // Load from bytes (allow partial since we only saved encoder)
@@ -269,7 +269,7 @@
 //!     .with_key_remapping(r"^transformer\.", "encoder.")  // Rename back: transformer.X -> encoder.X
 //!     .allow_partial(true);
 //! let mut model = Model::new(&device);
-//! let result = model.apply_from(&mut store)?;
+//! let result = model.load_from(&mut store)?;
 //! println!("Applied {} tensors", result.applied.len());
 //! ```
 //!
@@ -295,7 +295,7 @@
 //!     .metadata("converted_by", "burn-store");
 //!
 //! let mut model = TransformerModel::new(&device);
-//! let result = model.apply_from(&mut store)?;
+//! let result = model.load_from(&mut store)?;
 //!
 //! println!("Successfully loaded {} tensors", result.applied.len());
 //! if !result.missing.is_empty() {

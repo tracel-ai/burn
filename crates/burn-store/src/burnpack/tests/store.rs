@@ -702,7 +702,7 @@ fn test_partial_loading_preserves_lazy_initialization() {
     // Partial load: only load weight and bias (skip nested.*)
     let filter = PathFilter::new().with_regex("^(weight|bias)$");
     let mut load_store = BurnpackStore::from_file(&path).filter(filter);
-    let result = load_module.apply_from(&mut load_store).unwrap();
+    let result = load_module.load_from(&mut load_store).unwrap();
 
     // Verify only weight and bias were loaded
     assert_eq!(result.applied.len(), 2);

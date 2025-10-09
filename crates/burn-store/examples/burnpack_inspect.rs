@@ -62,7 +62,7 @@ fn main() {
         .metadata("version", env!("CARGO_PKG_VERSION"))
         .metadata("author", "Burn Example");
 
-    model.collect_to(&mut store).expect("Failed to save model");
+    model.save_into(&mut store).expect("Failed to save model");
 
     println!("✅ Successfully created: {}", output_path);
     println!();
@@ -143,5 +143,5 @@ fn main() {
         "  # let mut store = BurnpackStore::from_file(\"{}\");",
         output_path
     );
-    println!("  # model.apply_from(&mut store)?;");
+    println!("  # model.load_from(&mut store)?;");
 }
