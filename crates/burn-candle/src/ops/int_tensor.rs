@@ -303,6 +303,53 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
+    fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        use super::macros::cumulative_op;
+        // Convert to float for computation, then convert back
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+
+        let result_float = cumulative_op!(
+            tensor_float,
+            dim,
+            tensor_float.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_mul(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result_float.to_dtype(dtype).unwrap())
+    }
+
+    fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        use super::macros::cumulative_op;
+        // Convert to float for computation, then convert back
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+
+        let result_float = cumulative_op!(
+            tensor_float,
+            dim,
+            tensor_float.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_minimum(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result_float.to_dtype(dtype).unwrap())
+    }
+
+    fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_maximum(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result)
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor

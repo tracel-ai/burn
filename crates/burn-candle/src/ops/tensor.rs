@@ -330,6 +330,45 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_mul(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result)
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_minimum(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result)
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        use super::macros::cumulative_op;
+        let result = cumulative_op!(
+            tensor.tensor,
+            dim,
+            tensor.tensor.narrow(dim, 0, 1).unwrap(),
+            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
+                prev.broadcast_maximum(curr).unwrap()
+            }
+        );
+        CandleTensor::new(result)
+    }
+
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.exp().unwrap())
     }
