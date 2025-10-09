@@ -874,7 +874,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// Raises a tensor to the power of an int scalar.
     ///
     /// Handles a number of common cases, then dispatches
-    /// to [`float_powi_scalar_fallback`].
+    /// to [`Self::float_powi_scalar_fallback`].
     ///
     /// # Arguments
     ///
@@ -898,7 +898,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Raises a tensor to the power of an int scalar.
     ///
-    /// Called by [`float_powi_scalar`] in the fallback case.
+    /// Called by [`Self::float_powi_scalar`] in the fallback case.
     ///
     /// # Arguments
     ///
@@ -914,7 +914,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Returns a new tensor with values raised to the power of float `value`.
     ///
-    /// Handles a number of special cases, and then calls [`float_powf_scalar_fallback`].
+    /// Handles a number of special cases, and then calls [`Self::float_powf_scalar_fallback`].
     ///
     /// # Arguments
     ///
@@ -935,7 +935,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Returns a new tensor with values raised to the power of float `value`.
     ///
-    /// Called by [`float_powf_scalar`].
+    /// Called by [`Self::float_powf_scalar`].
     ///
     /// # Arguments
     ///
