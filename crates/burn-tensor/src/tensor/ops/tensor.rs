@@ -927,7 +927,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
     fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B> {
-        if value.floor() == value {
+        if num_traits::Float::floor(value) == value {
             let exp = B::IntElem::from_elem(value as i32);
             Self::float_powi_scalar(tensor, exp)
         } else {
