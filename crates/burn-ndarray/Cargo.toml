@@ -61,6 +61,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
 
 atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true }      # no-std compatible
+const-random = { workspace = true }
 derive-new = { workspace = true }
 libm = { workspace = true }
 matrixmultiply = { workspace = true, default-features = false }
@@ -69,7 +70,6 @@ num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
 rand = { workspace = true, default-features = false, features = ["small_rng"] }
-const-random = { workspace = true }
 spin = { workspace = true }
 
 # SIMD

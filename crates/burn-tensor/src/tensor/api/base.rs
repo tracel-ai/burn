@@ -2855,7 +2855,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
         let slice_shape = tensor.shape().slice(slices).unwrap();
-        let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
+        let value = Self::from_data_dtype(
+            TensorData::from([value]),
+            &Self::device(&tensor),
+            Self::dtype(&tensor),
+        );
         let value = Self::expand(value, slice_shape);
         Self::slice_assign(tensor, slices, value)
     }

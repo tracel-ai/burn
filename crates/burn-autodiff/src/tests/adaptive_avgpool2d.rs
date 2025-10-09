@@ -36,6 +36,36 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_avg_pool2d_output_1() {
+        let test = AdaptiveAvgPool2dTestCase {
+            batch_size: 1,
+            channels: 1,
+            height: 4,
+            width: 8,
+            output_size_1: 1,
+            output_size_2: 1,
+        };
+
+        test.assert_output(TestTensor::from_floats(
+            [[[
+                [
+                    0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
+                ],
+                [
+                    0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
+                ],
+                [
+                    0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
+                ],
+                [
+                    0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
+                ],
+            ]]],
+            &Default::default(),
+        ));
+    }
+
     struct AdaptiveAvgPool2dTestCase {
         batch_size: usize,
         channels: usize,

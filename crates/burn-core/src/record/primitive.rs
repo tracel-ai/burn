@@ -161,11 +161,13 @@ where
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::initialized(
-            ParamId::deserialize(&item.id),
-            Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
-                                                                  // Param from a tensor.
-        )
+        B::memory_persistent_allocations(device, item, |item| {
+            Param::initialized(
+                ParamId::deserialize(&item.id),
+                Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
+                                                                      // Param from a tensor.
+            )
+        })
     }
 }
 
@@ -182,10 +184,12 @@ where
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::initialized(
-            ParamId::deserialize(&item.id),
-            Tensor::from_item(item.param, device),
-        )
+        B::memory_persistent_allocations(device, item, |item| {
+            Param::initialized(
+                ParamId::deserialize(&item.id),
+                Tensor::from_item(item.param, device),
+            )
+        })
     }
 }
 
@@ -202,10 +206,12 @@ where
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::initialized(
-            ParamId::deserialize(&item.id),
-            Tensor::from_item::<S>(item.param, device),
-        )
+        B::memory_persistent_allocations(device, item, |item| {
+            Param::initialized(
+                ParamId::deserialize(&item.id),
+                Tensor::from_item::<S>(item.param, device),
+            )
+        })
     }
 }
 

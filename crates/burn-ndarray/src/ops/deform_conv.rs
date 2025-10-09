@@ -1,4 +1,3 @@
-use burn_common::{iter_par, run_par};
 use burn_tensor::ops::{DeformConvOptions, conv::calculate_conv_output_size};
 use core::ops::AddAssign;
 use ndarray::{
@@ -10,7 +9,7 @@ use ndarray::{
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray};
+use crate::{FloatNdArrayElement, NdArrayTensor, ShapeOps, SharedArray, iter_par, run_par};
 
 use super::matmul::matmul;
 

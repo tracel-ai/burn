@@ -1,11 +1,12 @@
 use crate::{
     ShapeOps, SharedArray,
     element::{FloatNdArrayElement, IntNdArrayElement},
+    iter_range_par,
     ops::padding::apply_padding_4d,
+    run_par,
     sharing::UnsafeSharedRef,
 };
 
-use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
