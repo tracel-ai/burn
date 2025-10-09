@@ -124,7 +124,7 @@ impl Initializer {
             },
             device,
             true,
-            shape,
+            shape_for_closure,
         )
     }
 
