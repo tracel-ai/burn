@@ -1047,6 +1047,7 @@ dependencies = [
  "burn-wgpu",
  "byteorder",
  "divan",
+ "half",
  "hashbrown 0.15.5",
  "memmap2",
  "regex",

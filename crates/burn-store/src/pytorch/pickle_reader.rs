@@ -18,6 +18,7 @@ use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::{DType, TensorData};
 use byteorder::{LittleEndian, ReadBytesExt};
+use half::{bf16, f16};
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::sync::Arc;
@@ -383,7 +384,8 @@ fn rebuild_tensor_v2(
                 "LongStorage" => DType::I64,
                 "IntStorage" => DType::I32,
                 "ShortStorage" => DType::I16,
-                "CharStorage" | "ByteStorage" => DType::I8,
+                "CharStorage" => DType::I8,
+                "ByteStorage" => DType::U8,
                 "BoolStorage" => DType::Bool,
                 _ => DType::F32, // Default to F32
             };
@@ -426,7 +428,8 @@ fn rebuild_tensor_v2(
                     "LongStorage" => DType::I64,
                     "IntStorage" => DType::I32,
                     "ShortStorage" => DType::I16,
-                    "CharStorage" | "ByteStorage" => DType::I8,
+                    "CharStorage" => DType::I8,
+                    "ByteStorage" => DType::U8,
                     _ => DType::F32, // Default to F32
                 };
                 (dtype, parts[2].to_string())
@@ -491,17 +494,8 @@ fn rebuild_tensor_v2(
                 // Parse the binary data based on dtype
                 let num_elements = shape_clone.iter().product::<usize>().max(1);
 
-                // Calculate expected size and actual element count
-                let element_size = match dtype {
-                    DType::F64 => 8,
-                    DType::F32 => 4,
-                    DType::F16 | DType::BF16 => 2,
-                    DType::I64 => 8,
-                    DType::I32 => 4,
-                    DType::I16 => 2,
-                    DType::I8 | DType::U8 | DType::Bool => 1,
-                    _ => 4,
-                };
+                // Use dtype.size() to get element size in bytes
+                let element_size = dtype.size();
 
                 // Apply storage offset
                 let offset_bytes = storage_offset * element_size;
@@ -589,18 +583,92 @@ fn rebuild_tensor_v2(
                         values.resize(num_elements, false);
                         Ok(TensorData::new(values, shape_clone.clone()))
                     }
+                    DType::F16 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 2];
+                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            values.push(f16::from_le_bytes(bytes));
+                        }
+                        values.resize(num_elements, f16::ZERO);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
+                    DType::BF16 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 2];
+                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            values.push(bf16::from_le_bytes(bytes));
+                        }
+                        values.resize(num_elements, bf16::ZERO);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
+                    DType::U8 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for &byte in data_slice.iter().take(elements_to_read) {
+                            values.push(byte);
+                        }
+                        values.resize(num_elements, 0);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
+                    DType::U16 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 2];
+                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            values.push(u16::from_le_bytes(bytes));
+                        }
+                        values.resize(num_elements, 0);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
+                    DType::U32 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 4];
+                            bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
+                            values.push(u32::from_le_bytes(bytes));
+                        }
+                        values.resize(num_elements, 0);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
+                    DType::U64 => {
+                        let mut values = Vec::with_capacity(num_elements);
+                        for i in 0..elements_to_read {
+                            let mut bytes = [0u8; 8];
+                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            values.push(u64::from_le_bytes(bytes));
+                        }
+                        values.resize(num_elements, 0);
+                        Ok(TensorData::new(values, shape_clone.clone()))
+                    }
                     _ => {
-                        // For other types, default to f32 zeros for now
-                        Ok(TensorData::new(
-                            vec![0.0f32; num_elements],
-                            shape_clone.clone(),
-                        ))
+                        // For any remaining unsupported types, return an error
+                        Err(crate::TensorSnapshotError::DataError(format!(
+                            "Unsupported dtype for tensor data reading: {:?}",
+                            dtype
+                        )))
                     }
                 }
             } else {
                 // If no data file found, return zeros of the appropriate type
                 let num_elements = shape_clone.iter().product::<usize>().max(1);
                 match dtype {
+                    DType::F32 => Ok(TensorData::new(
+                        vec![0.0f32; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::F64 => Ok(TensorData::new(
+                        vec![0.0f64; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::F16 => Ok(TensorData::new(
+                        vec![f16::ZERO; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::BF16 => Ok(TensorData::new(
+                        vec![bf16::ZERO; num_elements],
+                        shape_clone.clone(),
+                    )),
                     DType::I64 => Ok(TensorData::new(
                         vec![0i64; num_elements],
                         shape_clone.clone(),
@@ -617,18 +685,33 @@ fn rebuild_tensor_v2(
                         vec![0i8; num_elements],
                         shape_clone.clone(),
                     )),
-                    DType::F64 => Ok(TensorData::new(
-                        vec![0.0f64; num_elements],
+                    DType::U8 => Ok(TensorData::new(
+                        vec![0u8; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::U16 => Ok(TensorData::new(
+                        vec![0u16; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::U32 => Ok(TensorData::new(
+                        vec![0u32; num_elements],
+                        shape_clone.clone(),
+                    )),
+                    DType::U64 => Ok(TensorData::new(
+                        vec![0u64; num_elements],
                         shape_clone.clone(),
                     )),
                     DType::Bool => Ok(TensorData::new(
                         vec![false; num_elements],
                         shape_clone.clone(),
                     )),
-                    _ => Ok(TensorData::new(
-                        vec![0.0f32; num_elements],
-                        shape_clone.clone(),
-                    )),
+                    _ => {
+                        // For any remaining unsupported types, return an error
+                        Err(crate::TensorSnapshotError::DataError(format!(
+                            "Unsupported dtype for tensor data reading: {:?}",
+                            dtype
+                        )))
+                    }
                 }
             }
         }),
