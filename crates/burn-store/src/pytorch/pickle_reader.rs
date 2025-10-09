@@ -516,10 +516,10 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let bytes = [
-                                data_slice[i * 4],
-                                data_slice[i * 4 + 1],
-                                data_slice[i * 4 + 2],
-                                data_slice[i * 4 + 3],
+                                data_slice[i * element_size],
+                                data_slice[i * element_size + 1],
+                                data_slice[i * element_size + 2],
+                                data_slice[i * element_size + 3],
                             ];
                             values.push(f32::from_le_bytes(bytes));
                         }
@@ -531,7 +531,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(f64::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0.0);
@@ -541,7 +543,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(i64::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
@@ -551,7 +555,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(i32::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
@@ -561,7 +567,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(i16::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
@@ -587,7 +595,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(f16::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, f16::ZERO);
@@ -597,7 +607,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(bf16::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, bf16::ZERO);
@@ -615,7 +627,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 2];
-                            bytes.copy_from_slice(&data_slice[i * 2..(i + 1) * 2]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(u16::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
@@ -625,7 +639,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(&data_slice[i * 4..(i + 1) * 4]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(u32::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
@@ -635,7 +651,9 @@ fn rebuild_tensor_v2(
                         let mut values = Vec::with_capacity(num_elements);
                         for i in 0..elements_to_read {
                             let mut bytes = [0u8; 8];
-                            bytes.copy_from_slice(&data_slice[i * 8..(i + 1) * 8]);
+                            bytes.copy_from_slice(
+                                &data_slice[i * element_size..(i + 1) * element_size],
+                            );
                             values.push(u64::from_le_bytes(bytes));
                         }
                         values.resize(num_elements, 0);
