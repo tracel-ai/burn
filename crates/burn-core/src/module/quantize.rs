@@ -20,7 +20,7 @@ impl<B: Backend> ModuleMapper<B> for Quantizer {
         let range = compute_range(&self.scheme, &tensor, &self.calibration);
         let qparams = compute_q_params(&self.scheme, range);
         let tensor = tensor.quantize(&self.scheme, qparams);
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }
 

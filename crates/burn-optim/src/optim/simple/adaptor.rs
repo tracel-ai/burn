@@ -155,6 +155,6 @@ where
             tensor
         };
 
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }

@@ -260,7 +260,7 @@ impl<T: Parameter> Param<T> {
     ///
     /// This is a helper method for creating parameters while preserving the param mapper,
     /// typically used in ModuleMapper implementations.
-    pub fn into_initialized(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
+    pub fn from_mapped_value(id: ParamId, value: T, param_mapper: ParamMapper<T>) -> Self {
         Self {
             id,
             state: OnceCell::from(value),

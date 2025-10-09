@@ -24,7 +24,7 @@ macro_rules! module {
                 let (id, tensor, mapper) = param.consume();
                 let func = $item;
                 let tensor = func(tensor);
-                Param::into_initialized(id, tensor, mapper)
+                Param::from_mapped_value(id, tensor, mapper)
             }
         }
         let mut mapper = Mapper;
@@ -329,7 +329,7 @@ pub trait ModuleMapper<B: Backend> {
     #[allow(unused_variables)]
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
         let (id, tensor, mapper) = param.consume();
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 
     /// Map an int parameter in the module.
@@ -345,7 +345,7 @@ pub trait ModuleMapper<B: Backend> {
         param: Param<Tensor<B, D, Int>>,
     ) -> Param<Tensor<B, D, Int>> {
         let (id, tensor, mapper) = param.consume();
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 
     /// Map a bool parameter in the module.
@@ -361,7 +361,7 @@ pub trait ModuleMapper<B: Backend> {
         param: Param<Tensor<B, D, Bool>>,
     ) -> Param<Tensor<B, D, Bool>> {
         let (id, tensor, mapper) = param.consume();
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }
 

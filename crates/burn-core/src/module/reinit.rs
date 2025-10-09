@@ -145,7 +145,7 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
             }
         };
 
-        super::Param::into_initialized(id, tensor, mapper)
+        super::Param::from_mapped_value(id, tensor, mapper)
     }
 
     fn map_int<const D: usize>(
@@ -173,7 +173,7 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
             }
         };
 
-        super::Param::into_initialized(id, tensor, mapper)
+        super::Param::from_mapped_value(id, tensor, mapper)
     }
 
     fn map_bool<const D: usize>(
@@ -181,7 +181,7 @@ impl<B: Backend> ModuleMapper<B> for Reinitializer<B> {
         param: super::Param<Tensor<B, D, burn_tensor::Bool>>,
     ) -> super::Param<Tensor<B, D, burn_tensor::Bool>> {
         let (id, tensor, mapper) = param.consume();
-        super::Param::into_initialized(id, tensor, mapper)
+        super::Param::from_mapped_value(id, tensor, mapper)
     }
 }
 
