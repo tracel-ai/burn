@@ -581,6 +581,45 @@ where
         dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
     }
 
+    /// Aggregate and squeeze along the given dimensions.
+    ///
+    /// This is equivalent to ``tensor.sum_dims(dims).squeeze_dims(dims)``
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::from_data([
+    ///         [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
+    ///         [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
+    ///     ], &device);
+    ///     let tensor = tensor.clone().sum_dims_squeeze::<1, _>(&[0, 1]);
+    ///     println!("{tensor}");
+    ///     // [20.0, 16.0, 21.0]
+    /// }
+    /// ```
+    pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<B, D2, K> {
+        // TODO: remove idims when squeeze_dims uses AsIndex.
+        let idims = dims
+            .iter()
+            .map(|&dim| canonicalize_dim(dim, D, false) as isize)
+            .collect::<Vec<_>>();
+        self.sum_dims(dims).squeeze_dims::<D2>(&idims)
+    }
+
     /// Aggregate all elements in the tensor with the product operation.
     ///
     /// # Example
