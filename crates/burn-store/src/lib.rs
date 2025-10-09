@@ -87,7 +87,7 @@ pub use applier::{Applier, ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
 pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
-pub use traits::{ModuleSnapshot, ModuleSnapshoter};
+pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
 mod keyremapper;

@@ -1,7 +1,7 @@
 //! PyTorch store implementation for saving and loading models in PyTorch format.
 
 use crate::{
-    ApplyResult, KeyRemapper, ModuleSnapshot, ModuleSnapshoter, PathFilter, PyTorchToBurnAdapter,
+    ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
     TensorSnapshot,
 };
 
@@ -265,7 +265,7 @@ impl PytorchStore {
     }
 }
 
-impl ModuleSnapshoter for PytorchStore {
+impl ModuleStore for PytorchStore {
     type Error = PytorchStoreError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(

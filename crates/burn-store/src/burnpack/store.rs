@@ -6,7 +6,7 @@ use super::writer::BurnpackWriter;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::base::BurnpackError;
-use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
+use crate::{ModuleSnapshot, ModuleStore, PathFilter};
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
@@ -278,7 +278,7 @@ impl BurnpackStore {
     }
 }
 
-impl ModuleSnapshoter for BurnpackStore {
+impl ModuleStore for BurnpackStore {
     type Error = BurnpackError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(

@@ -1,7 +1,7 @@
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::store::BurnpackStore;
-use crate::{ModuleSnapshot, ModuleSnapshoter, PathFilter};
+use crate::{ModuleSnapshot, ModuleStore, PathFilter};
 use burn_core::module::{Module, Param};
 use burn_tensor::{Tensor, backend::Backend};
 

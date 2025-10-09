@@ -1,7 +1,7 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
 use crate::{
-    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
+    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
     TensorSnapshot,
 };
 
@@ -517,7 +517,7 @@ impl safetensors::View for TensorSnapshotAdapter {
     }
 }
 
-impl ModuleSnapshoter for SafetensorsStore {
+impl ModuleStore for SafetensorsStore {
     type Error = SafetensorsStoreError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
