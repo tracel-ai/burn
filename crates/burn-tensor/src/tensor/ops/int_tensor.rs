@@ -7,7 +7,6 @@ use crate::{
 use crate::{TensorMetadata, argsort, sort, sort_with_indices};
 use alloc::vec::Vec;
 use core::ops::Range;
-use num_traits::Float;
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -454,6 +453,7 @@ pub trait IntTensorOps<B: Backend> {
         let exp = rhs.elem::<i32>();
         match exp {
             // How should non-finite values be handled?
+            // See: IEEE 754
             // 0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
             1 => lhs,
             2 => Self::int_mul(lhs.clone(), lhs),
