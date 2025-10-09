@@ -322,10 +322,6 @@ impl<T: Parameter> Param<T> {
     /// we need to know the target device to move the loaded tensor appropriately, but we don't want to
     /// trigger the initialization function (which would allocate an unnecessary tensor).
     ///
-    /// **Returns:**
-    /// - For uninitialized params: the device from the `Uninitialized` struct
-    /// - For initialized params: the actual device from the tensor
-    ///
     /// Use this instead of [crate::tensor::Tensor::device] when you need the device but want to
     /// preserve lazy initialization.
     pub fn lazy_device(&self) -> T::Device {
@@ -347,10 +343,6 @@ impl<T: Parameter> Param<T> {
     /// Similar to [lazy_device](Self::lazy_device), this is critical for the load optimization.
     /// When loading tensors into an uninitialized parameter, we need to apply the correct gradient
     /// setting to the loaded tensor without triggering the initialization function.
-    ///
-    /// **Returns:**
-    /// - For uninitialized params: the gradient requirement from the `Uninitialized` struct
-    /// - For initialized params: the actual gradient requirement from the tensor
     ///
     /// # Notes
     ///
