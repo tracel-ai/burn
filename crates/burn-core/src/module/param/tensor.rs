@@ -107,12 +107,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
         })
     }
 
-    /// Load a parameter from a tensor.
+    /// Transform a parameter for loading by applying load transformations.
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device, applies the param mapper's
     /// `on_load` transformation, and preserves the autodiff settings (require_grad).
-    pub fn load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -135,12 +135,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
         loaded
     }
 
-    /// Save a parameter by applying transformations.
+    /// Transform a parameter for saving by applying save transformations.
     ///
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(&self) -> Self {
+    pub fn transform_for_save(&self) -> Self {
         let mut tensor = self.val();
         let mapper = self.param_mapper.clone();
 
@@ -173,12 +173,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
         }
     }
 
-    /// Load a parameter from a tensor.
+    /// Transform a parameter for loading by applying load transformations.
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device and applies the param mapper's
     /// `on_load` transformation.
-    pub fn load(self, tensor: Tensor<B, D, Int>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<B, D, Int>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -197,12 +197,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
         loaded
     }
 
-    /// Save a parameter by applying transformations.
+    /// Transform a parameter for saving by applying save transformations.
     ///
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(&self) -> Self {
+    pub fn transform_for_save(&self) -> Self {
         let mut tensor = self.val();
         let mapper = self.param_mapper.clone();
 
@@ -239,12 +239,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
         }
     }
 
-    /// Load a parameter from a tensor.
+    /// Transform a parameter for loading by applying load transformations.
     ///
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device and applies the param mapper's
     /// `on_load` transformation.
-    pub fn load(self, tensor: Tensor<B, D, Bool>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<B, D, Bool>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -263,12 +263,12 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
         loaded
     }
 
-    /// Save a parameter by applying transformations.
+    /// Transform a parameter for saving by applying save transformations.
     ///
     /// This method is used to prepare a parameter for saving (typically during serialization).
     /// It applies the param mapper's `on_save` transformation, which can be used
     /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn save(&self) -> Self {
+    pub fn transform_for_save(&self) -> Self {
         let mut tensor = self.val();
         let mapper = self.param_mapper.clone();
 
@@ -290,12 +290,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn into_record(self) -> Self::Record {
-        self.save()
+        self.transform_for_save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
         let (record_param_id, record_tensor, _) = record.consume();
-        self.load(record_tensor, record_param_id)
+        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -354,12 +354,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 
     fn into_record(self) -> Self::Record {
-        self.save()
+        self.transform_for_save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
         let (record_param_id, record_tensor, _) = record.consume();
-        self.load(record_tensor, record_param_id)
+        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
@@ -409,12 +409,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 
     fn into_record(self) -> Self::Record {
-        self.save()
+        self.transform_for_save()
     }
 
     fn load_record(self, record: Self::Record) -> Self {
         let (record_param_id, record_tensor, _) = record.consume();
-        self.load(record_tensor, record_param_id)
+        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device<B>) -> Self {

@@ -298,7 +298,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
-                param.load(tensor, param_id)
+                param.transform_for_load(tensor, param_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -319,7 +319,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
-                param.load(tensor, param_id)
+                param.transform_for_load(tensor, param_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -340,7 +340,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
-                param.load(tensor, param_id)
+                param.transform_for_load(tensor, param_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged

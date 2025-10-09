@@ -124,7 +124,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_float(
-                &param.save().val(),
+                &param.transform_for_save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,
@@ -135,7 +135,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_int(
-                &param.save().val(),
+                &param.transform_for_save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,
@@ -146,7 +146,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_bool(
-                &param.save().val(),
+                &param.transform_for_save().val(),
                 self.path_stack.clone(),
                 self.container_stack.clone(),
                 param.id,
@@ -485,24 +485,30 @@ mod tests {
         fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.save().val().shape().to_vec()));
+                self.paths.insert(
+                    path,
+                    (param.id, param.transform_for_save().val().shape().to_vec()),
+                );
             }
         }
 
         fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.save().val().shape().to_vec()));
+                self.paths.insert(
+                    path,
+                    (param.id, param.transform_for_save().val().shape().to_vec()),
+                );
             }
         }
 
         fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
             let path = self.current_path();
             if !path.is_empty() {
-                self.paths
-                    .insert(path, (param.id, param.save().val().shape().to_vec()));
+                self.paths.insert(
+                    path,
+                    (param.id, param.transform_for_save().val().shape().to_vec()),
+                );
             }
         }
     }
