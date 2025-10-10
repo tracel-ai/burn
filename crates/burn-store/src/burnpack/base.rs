@@ -69,8 +69,13 @@ pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_S
 /// Prevents memory exhaustion attacks via oversized metadata claims
 pub const MAX_METADATA_SIZE: u32 = 100 * 1024 * 1024;
 
-/// Maximum allowed tensor size (10 GB per tensor)
+/// Maximum allowed tensor size per tensor
 /// Prevents memory exhaustion attacks via oversized tensor claims
+/// 32-bit platforms: 2 GB limit (to fit within usize range)
+/// 64-bit platforms: 10 GB limit
+#[cfg(target_pointer_width = "32")]
+pub const MAX_TENSOR_SIZE: usize = 2 * 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "32"))]
 pub const MAX_TENSOR_SIZE: usize = 10 * 1024 * 1024 * 1024;
 
 /// Maximum allowed number of tensors (100,000)
@@ -84,6 +89,7 @@ pub const MAX_CBOR_RECURSION_DEPTH: usize = 128;
 /// Maximum allowed file size (100 GB)
 /// Prevents resource exhaustion from extremely large files
 /// This limit applies to file-based loading (mmap and buffered)
+#[cfg(feature = "std")]
 pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024 * 1024;
 
 /// Byte range for magic number in header

@@ -1,7 +1,9 @@
 use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
-    MAX_CBOR_RECURSION_DEPTH, MAX_FILE_SIZE, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
+    MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
 };
+#[cfg(feature = "std")]
+use super::base::MAX_FILE_SIZE;
 use crate::TensorSnapshot;
 use alloc::format;
 use alloc::rc::Rc;
