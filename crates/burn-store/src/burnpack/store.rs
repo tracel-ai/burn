@@ -10,14 +10,14 @@ use crate::{ModuleSnapshot, ModuleStore, PathFilter};
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
-use alloc::vec::Vec;
 use burn_core::prelude::Backend;
+use burn_tensor::Bytes;
 
 /// Store mode for BurnpackStore
 enum StoreMode {
     #[cfg(feature = "std")]
     File(PathBuf),
-    Bytes(Option<Vec<u8>>),
+    Bytes(Option<Bytes>),
 }
 
 /// BurnpackStore - A Burn-specific file format store using CBOR for metadata
@@ -100,7 +100,7 @@ impl BurnpackStore {
     }
 
     /// Create a new store from bytes (for reading) or empty (for writing)
-    pub fn from_bytes(bytes: Option<Vec<u8>>) -> Self {
+    pub fn from_bytes(bytes: Option<Bytes>) -> Self {
         Self {
             mode: StoreMode::Bytes(bytes),
             filter: None,
@@ -247,7 +247,7 @@ impl BurnpackStore {
     }
 
     /// Get the bytes after writing (only valid for bytes mode after collecting)
-    pub fn get_bytes(&self) -> Result<Vec<u8>, BurnpackError> {
+    pub fn get_bytes(&self) -> Result<Bytes, BurnpackError> {
         if let Some(writer) = &self.writer {
             return writer.to_bytes();
         }
@@ -317,12 +317,14 @@ impl ModuleStore for BurnpackStore {
                     writer.write_to_file(&final_path)?;
                 }
                 StoreMode::Bytes(_) => {
-                    // Generate and store the bytes - need to handle this separately due to mutability
+                    // Generate and store the bytes
                     let bytes_data = writer.to_bytes()?;
-                    // Now update the mode with the bytes
-                    if let StoreMode::Bytes(bytes_ref) = &mut self.mode {
-                        *bytes_ref = Some(bytes_data);
-                    }
+                    // Update mode with bytes - this pattern is irrefutable in no-std mode
+                    #[cfg_attr(not(feature = "std"), allow(irrefutable_let_patterns))]
+                    let StoreMode::Bytes(bytes_ref) = &mut self.mode else {
+                        unreachable!("We just matched Bytes variant");
+                    };
+                    *bytes_ref = Some(bytes_data);
                 }
             }
         }

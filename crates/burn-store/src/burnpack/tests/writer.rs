@@ -409,5 +409,127 @@ fn test_writer_write_to_file() {
     let file_bytes = fs::read(&file_path).unwrap();
     let memory_bytes = writer.to_bytes().unwrap();
 
-    assert_eq!(file_bytes, memory_bytes);
+    assert_eq!(file_bytes.as_slice(), memory_bytes.as_ref());
+}
+
+#[test]
+fn test_writer_size() {
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),
+        vec!["test".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]).with_metadata("test", "value");
+
+    let size = writer.size().unwrap();
+    let bytes = writer.to_bytes().unwrap();
+
+    // Size should match actual bytes length
+    assert_eq!(size, bytes.len());
+}
+
+#[test]
+fn test_writer_write_into() {
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),
+        vec!["test".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]).with_metadata("test", "value");
+
+    // Get size and allocate buffer
+    let size = writer.size().unwrap();
+    let mut buffer = vec![0u8; size];
+
+    // Write into buffer
+    writer.write_into(&mut buffer).unwrap();
+
+    // Compare with to_bytes()
+    let bytes = writer.to_bytes().unwrap();
+    assert_eq!(buffer.as_slice(), bytes.as_ref());
+}
+
+#[test]
+fn test_writer_write_into_buffer_too_small() {
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),
+        vec!["test".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]);
+
+    // Allocate a buffer that's too small
+    let mut buffer = vec![0u8; 10];
+
+    // Should fail with buffer too small error
+    let result = writer.write_into(&mut buffer);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Buffer too small"));
+}
+
+#[test]
+fn test_writer_write_into_buffer_larger_than_needed() {
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),
+        vec!["test".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]);
+
+    // Allocate a larger buffer
+    let size = writer.size().unwrap();
+    let mut buffer = vec![0u8; size + 100]; // Extra 100 bytes
+
+    // Should succeed and only write the necessary bytes
+    writer.write_into(&mut buffer).unwrap();
+
+    // Compare the written portion with to_bytes()
+    let bytes = writer.to_bytes().unwrap();
+    assert_eq!(&buffer[..size], bytes.as_ref());
+}
+
+#[test]
+fn test_writer_write_into_multiple_tensors() {
+    let snapshot1 = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),
+        vec!["tensor1".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let snapshot2 = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(vec![5, 6, 7, 8, 9, 10], vec![2, 3], DType::U8),
+        vec!["tensor2".to_string()],
+        vec![],
+        ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot1, snapshot2]).with_metadata("test", "multiple");
+
+    let size = writer.size().unwrap();
+    let mut buffer = vec![0u8; size];
+    writer.write_into(&mut buffer).unwrap();
+
+    let bytes = writer.to_bytes().unwrap();
+    assert_eq!(buffer.as_slice(), bytes.as_ref());
+}
+
+#[test]
+fn test_writer_write_into_empty() {
+    let writer = BurnpackWriter::new(vec![]);
+
+    let size = writer.size().unwrap();
+    let mut buffer = vec![0u8; size];
+    writer.write_into(&mut buffer).unwrap();
+
+    let bytes = writer.to_bytes().unwrap();
+    assert_eq!(buffer.as_slice(), bytes.as_ref());
 }

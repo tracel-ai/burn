@@ -8,7 +8,7 @@ use crate::burnpack::{
 };
 
 use super::*;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{Bytes, DType, TensorData};
 
 #[test]
 fn test_reader_from_bytes_empty() {
@@ -57,7 +57,7 @@ fn test_reader_invalid_magic_number() {
     // Write invalid magic number
     bytes[magic_range()].copy_from_slice(b"NOPE");
 
-    let result = BurnpackReader::from_bytes(bytes);
+    let result = BurnpackReader::from_bytes(Bytes::from_bytes_vec(bytes));
     assert!(matches!(result, Err(BurnpackError::InvalidMagicNumber)));
 }
 
@@ -69,7 +69,7 @@ fn test_reader_invalid_version() {
     bytes[version_range()].copy_from_slice(&999u16.to_le_bytes()); // Invalid version
     bytes[metadata_size_range()].copy_from_slice(&10u32.to_le_bytes()); // Metadata size
 
-    let result = BurnpackReader::from_bytes(bytes);
+    let result = BurnpackReader::from_bytes(Bytes::from_bytes_vec(bytes));
     assert!(matches!(result, Err(BurnpackError::InvalidVersion)));
 }
 
@@ -77,7 +77,7 @@ fn test_reader_invalid_version() {
 fn test_reader_header_too_short() {
     let bytes = vec![0u8; 5]; // Less than HEADER_SIZE
 
-    let result = BurnpackReader::from_bytes(bytes);
+    let result = BurnpackReader::from_bytes(Bytes::from_bytes_vec(bytes));
     assert!(matches!(result, Err(BurnpackError::InvalidHeader)));
 }
 
@@ -90,7 +90,7 @@ fn test_reader_metadata_truncated() {
     bytes[metadata_size_range()].copy_from_slice(&100u32.to_le_bytes()); // Claims 100 bytes of metadata
 
     // But only provide 10 bytes after header
-    let result = BurnpackReader::from_bytes(bytes);
+    let result = BurnpackReader::from_bytes(Bytes::from_bytes_vec(bytes));
     assert!(matches!(result, Err(BurnpackError::InvalidHeader)));
 }
 
@@ -418,7 +418,7 @@ fn test_reader_corrupt_metadata() {
         bytes[i] = 0xFF;
     }
 
-    let result = BurnpackReader::from_bytes(bytes);
+    let result = BurnpackReader::from_bytes(Bytes::from_bytes_vec(bytes));
     assert!(result.is_err());
 }
 

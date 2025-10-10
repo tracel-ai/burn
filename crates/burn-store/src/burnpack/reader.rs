@@ -8,7 +8,7 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::TensorData;
+use burn_tensor::{Bytes, TensorData};
 
 #[cfg(feature = "std")]
 use std::cell::RefCell;
@@ -22,7 +22,7 @@ use std::path::Path;
 /// Storage backend for BurnpackReader
 pub(crate) enum StorageBackend {
     /// Memory-based storage
-    Memory(Rc<Vec<u8>>),
+    Memory(Rc<Bytes>),
     /// Memory-mapped file storage (efficient for large files)
     #[cfg(all(feature = "std", feature = "memmap"))]
     Mmap(Rc<memmap2::Mmap>),
@@ -33,39 +33,47 @@ pub(crate) enum StorageBackend {
 }
 
 impl StorageBackend {
-    /// Get data slice from the storage
-    /// For FileBuffered backend, start and end should be absolute file positions
-    pub(crate) fn get_slice(&self, start: usize, end: usize) -> Result<Vec<u8>, BurnpackError> {
+    /// Read data from storage into the provided buffer at the given offset.
+    ///
+    /// # Arguments
+    /// * `bytes` - The buffer to read into (caller-allocated)
+    /// * `offset` - Absolute file/data position to start reading from
+    ///
+    /// # Notes
+    /// The caller allocates the buffer, which allows for buffer reuse and future optimizations
+    /// like memory pools and pinned memory.
+    pub(crate) fn read_into(&self, bytes: &mut [u8], offset: usize) -> Result<(), BurnpackError> {
         match self {
             StorageBackend::Memory(data) => {
-                let bytes = data.as_ref();
-                let safe_end = end.min(bytes.len());
-                let safe_start = start.min(safe_end);
-                Ok(bytes[safe_start..safe_end].to_vec())
+                let data_bytes = data.as_ref();
+                let end = offset.saturating_add(bytes.len()).min(data_bytes.len());
+                let safe_offset = offset.min(data_bytes.len());
+                let available = &data_bytes[safe_offset..end];
+                bytes[..available.len()].copy_from_slice(available);
+                Ok(())
             }
             #[cfg(all(feature = "std", feature = "memmap"))]
             StorageBackend::Mmap(mmap) => {
-                let bytes = mmap.as_ref();
-                let safe_end = end.min(bytes.len());
-                let safe_start = start.min(safe_end);
-                Ok(bytes[safe_start..safe_end].to_vec())
+                let mmap_bytes = mmap.as_ref();
+                let end = offset.saturating_add(bytes.len()).min(mmap_bytes.len());
+                let safe_offset = offset.min(mmap_bytes.len());
+                let available = &mmap_bytes[safe_offset..end];
+                bytes[..available.len()].copy_from_slice(available);
+                Ok(())
             }
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { file } => {
                 use std::io::SeekFrom;
 
                 let mut file = file.borrow_mut();
-                // For FileBuffered, start and end are absolute file positions
-                file.seek(SeekFrom::Start(start as u64)).map_err(|e| {
+                file.seek(SeekFrom::Start(offset as u64)).map_err(|e| {
                     BurnpackError::IoError(format!("Failed to seek in file: {}", e))
                 })?;
 
-                let len = end - start;
-                let mut buffer = vec![0u8; len];
-                file.read_exact(&mut buffer).map_err(|e| {
+                file.read_exact(bytes).map_err(|e| {
                     BurnpackError::IoError(format!("Failed to read from file: {}", e))
                 })?;
-                Ok(buffer)
+                Ok(())
             }
         }
     }
@@ -97,7 +105,7 @@ pub struct BurnpackReader {
 
 impl BurnpackReader {
     /// Load from bytes
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, BurnpackError> {
+    pub fn from_bytes(bytes: Bytes) -> Result<Self, BurnpackError> {
         // Validate minimum size
         if bytes.len() < HEADER_SIZE {
             return Err(BurnpackError::InvalidHeader);
@@ -267,7 +275,11 @@ impl BurnpackReader {
             let snapshot = TensorSnapshot::from_closure(
                 Rc::new(move || {
                     // This closure is only called when data is actually needed
-                    let data_bytes = storage.get_slice(start, end).map_err(|e| {
+                    let len = end - start;
+                    // TODO Should be allocated by the backend in the future
+                    // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
+                    let mut data_bytes = vec![0u8; len];
+                    storage.read_into(&mut data_bytes, start).map_err(|e| {
                         crate::TensorSnapshotError::IoError(format!(
                             "Failed to read tensor data: {}",
                             e
@@ -332,6 +344,9 @@ impl BurnpackReader {
         // Always use absolute positions for all backends
         let start = self.data_offset + descriptor.data_offsets.0 as usize;
         let end = self.data_offset + descriptor.data_offsets.1 as usize;
-        self.storage.get_slice(start, end)
+        let len = end - start;
+        let mut buffer = vec![0u8; len];
+        self.storage.read_into(&mut buffer, start)?;
+        Ok(buffer)
     }
 }
