@@ -395,12 +395,14 @@ strategies.
 
 ## Linalg Functions
 
-| Burn API                               | PyTorch Equivalent                              |
-| -------------------------------------- | ----------------------------------------------- |
-| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`      |
-| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                            |
-| `linalg::trace(tensor)`                | `torch.trace(tensor)`                           |
-| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)` |
+
+| Burn API                               | PyTorch Equivalent                                 |
+|----------------------------------------|----------------------------------------------------|
+| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`         |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                               |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                              |
+| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)`    |
+| `linalg::lu_decomposition(tensor)`     | `torch.linalg.lu(tensor)`                          |
 
 ## Displaying Tensor Details
 

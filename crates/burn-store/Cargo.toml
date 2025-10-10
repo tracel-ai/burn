@@ -40,6 +40,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
+half = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }

@@ -62,6 +62,10 @@ save_test_file("float16.pt", {"tensor": float16_tensor}, "Float16 tensor [1.5, -
 bfloat16_tensor = torch.tensor([1.5, -2.5, 3.5], dtype=torch.bfloat16)
 save_test_file("bfloat16.pt", {"tensor": bfloat16_tensor}, "BFloat16 tensor [1.5, -2.5, 3.5]")
 
+# UInt8 tensor
+uint8_tensor = torch.tensor([0, 128, 255, 42], dtype=torch.uint8)
+save_test_file("uint8.pt", {"tensor": uint8_tensor}, "UInt8 tensor [0, 128, 255, 42]")
+
 # Test 2: Multi-dimensional tensors
 print("\n=== Generating Multi-dimensional Tensor Tests ===")
 

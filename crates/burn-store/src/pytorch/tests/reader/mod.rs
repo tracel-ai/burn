@@ -1,4 +1,9 @@
 //! Tests for PyTorch file reader functionality
+//!
+//! Floating-point comparison tolerances:
+//! - F16/BF16: 1e-2 (~3 decimal digits precision)
+//! - F32: 1e-6 (~7 decimal digits precision)
+//! - F64: 1e-10 (~16 decimal digits precision)
 
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
@@ -120,29 +125,58 @@ fn test_bool_tensor() {
 }
 
 #[test]
+fn test_uint8_tensor() {
+    let path = test_data_path("uint8.pt");
+
+    let reader = PytorchReader::new(&path).expect("Failed to load uint8.pt");
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::U8);
+    assert_eq!(tensor.shape, vec![4]);
+
+    // Verify actual U8 values [0, 128, 255, 42] from test_data.py
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<u8>().unwrap();
+    assert_eq!(values, &[0, 128, 255, 42]);
+}
+
+#[test]
 fn test_float16_tensor() {
+    use half::f16;
+
     let path = test_data_path("float16.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load float16.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F16);
     assert_eq!(tensor.shape, vec![3]);
 
-    // F16 support may vary, just check shape and dtype
+    // Verify actual F16 values [1.5, -2.25, 3.125] from test_data.py
     let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![3]);
+    let values = data.as_slice::<f16>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!((values[0].to_f32() - 1.5).abs() < 1e-2);
+    assert!((values[1].to_f32() - (-2.25)).abs() < 1e-2);
+    assert!((values[2].to_f32() - 3.125).abs() < 1e-2);
 }
 
 #[test]
 fn test_bfloat16_tensor() {
+    use half::bf16;
+
     let path = test_data_path("bfloat16.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load bfloat16.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::BF16);
     assert_eq!(tensor.shape, vec![3]);
 
-    // BF16 support may vary, just check shape and dtype
+    // Verify actual BF16 values [1.5, -2.5, 3.5] from test_data.py
     let data = tensor.to_data().unwrap();
     assert_eq!(data.shape, vec![3]);
+    let values = data.as_slice::<bf16>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!((values[0].to_f32() - 1.5).abs() < 1e-2);
+    assert!((values[1].to_f32() - (-2.5)).abs() < 1e-2);
+    assert!((values[2].to_f32() - 3.5).abs() < 1e-2);
 }
 
 #[test]
@@ -239,15 +273,21 @@ fn test_nested_dict() {
     assert!(keys.contains(&"layer2.weight".to_string()));
     assert!(keys.contains(&"layer2.bias".to_string()));
 
-    // Check layer1.weight
+    // Check layer1.weight and load data
     let layer1_weight = reader.get("layer1.weight").unwrap();
     assert_eq!(layer1_weight.shape, vec![2, 3]);
     assert_eq!(layer1_weight.dtype, DType::F32);
+    let data = layer1_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 6); // 2x3 = 6 elements
 
-    // Check layer2.weight
+    // Check layer2.weight and load data
     let layer2_weight = reader.get("layer2.weight").unwrap();
     assert_eq!(layer2_weight.shape, vec![4, 2]);
     assert_eq!(layer2_weight.dtype, DType::F32);
+    let data = layer2_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 8); // 4x2 = 8 elements
 }
 
 #[test]
@@ -262,13 +302,19 @@ fn test_checkpoint() {
     assert!(keys.contains(&"model_state_dict.fc2.weight".to_string()));
     assert!(keys.contains(&"model_state_dict.fc2.bias".to_string()));
 
-    // Check fc1.weight dimensions
+    // Check fc1.weight dimensions and load data
     let fc1_weight = reader.get("model_state_dict.fc1.weight").unwrap();
     assert_eq!(fc1_weight.shape, vec![10, 5]);
+    let data = fc1_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 50); // 10x5 = 50 elements
 
-    // Check fc2.weight dimensions
+    // Check fc2.weight dimensions and load data
     let fc2_weight = reader.get("model_state_dict.fc2.weight").unwrap();
     assert_eq!(fc2_weight.shape, vec![3, 10]);
+    let data = fc2_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 30); // 3x10 = 30 elements
 }
 
 #[test]
@@ -277,10 +323,10 @@ fn test_empty_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load empty.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.shape, vec![0]); // Empty tensor has shape [0]
-
-    // Empty tensors might have issues with TensorData conversion
-    // Just verify the shape is correct
     assert_eq!(tensor.dtype, DType::F32);
+
+    // Note: Empty tensors cannot be loaded with to_data() due to TensorData validation
+    // We verify the metadata is correct, which confirms the .pt file is being read
 }
 
 #[test]
@@ -323,25 +369,39 @@ fn test_mixed_types() {
 
     assert_eq!(tensors.len(), 4);
 
-    // Check float32 tensor
+    // Check float32 tensor [1.0, 2.0] from test_data.py
     let float32 = reader.get("float32").unwrap();
     assert_eq!(float32.dtype, DType::F32);
     assert_eq!(float32.shape, vec![2]);
+    let data = float32.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert!((values[0] - 1.0).abs() < 1e-6);
+    assert!((values[1] - 2.0).abs() < 1e-6);
 
-    // Check int64 tensor
+    // Check int64 tensor [100, 200] from test_data.py
     let int64 = reader.get("int64").unwrap();
     assert_eq!(int64.dtype, DType::I64);
     assert_eq!(int64.shape, vec![2]);
+    let data = int64.to_data().unwrap();
+    let values = data.as_slice::<i64>().unwrap();
+    assert_eq!(values, &[100, 200]);
 
-    // Check bool tensor
+    // Check bool tensor [True, False] from test_data.py
     let bool_tensor = reader.get("bool").unwrap();
     assert_eq!(bool_tensor.dtype, DType::Bool);
     assert_eq!(bool_tensor.shape, vec![2]);
+    let data = bool_tensor.to_data().unwrap();
+    let values = data.as_slice::<bool>().unwrap();
+    assert_eq!(values, &[true, false]);
 
-    // Check float64 tensor
+    // Check float64 tensor [1.1, 2.2] from test_data.py
     let float64 = reader.get("float64").unwrap();
     assert_eq!(float64.dtype, DType::F64);
     assert_eq!(float64.shape, vec![2]);
+    let data = float64.to_data().unwrap();
+    let values = data.as_slice::<f64>().unwrap();
+    assert!((values[0] - 1.1).abs() < 1e-10);
+    assert!((values[1] - 2.2).abs() < 1e-10);
 }
 
 #[test]
@@ -443,13 +503,19 @@ fn test_complex_structure() {
     assert!(keys.contains(&"state.decoder.weight".to_string()));
     assert!(keys.contains(&"state.decoder.bias".to_string()));
 
-    // Check encoder layer_0 weight
+    // Check encoder layer_0 weight and load data
     let layer0_weight = reader.get("state.encoder.layer_0.weight").unwrap();
     assert_eq!(layer0_weight.shape, vec![4, 3]);
+    let data = layer0_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 12); // 4x3 = 12 elements
 
-    // Check decoder weight
+    // Check decoder weight and load data
     let decoder_weight = reader.get("state.decoder.weight").unwrap();
     assert_eq!(decoder_weight.shape, vec![3, 2]);
+    let data = decoder_weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 6); // 3x2 = 6 elements
 }
 
 #[test]
