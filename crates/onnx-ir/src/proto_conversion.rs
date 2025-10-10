@@ -1,4 +1,7 @@
+use std::path::Path;
 use std::str::{FromStr, from_utf8};
+
+use crate::external_data::{ExternalDataInfo, is_external_data};
 
 use super::from_onnx::GraphData;
 use super::from_onnx::element_type_from_proto;
@@ -22,6 +25,120 @@ fn cast_vec_with_fallback<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
 #[derive(Debug)]
 pub enum ParseError {
     VariantNotFound(String),
+    ExternalDataError(String),
+}
+
+/// Convert TensorProto to TensorData with support for external data
+///
+/// # Arguments
+/// * `tensor` - The TensorProto to convert
+/// * `base_dir` - Base directory for resolving external data file paths (optional)
+pub fn tensor_proto_to_data(
+    tensor: TensorProto,
+    base_dir: Option<&Path>,
+) -> Result<TensorData, ParseError> {
+    // Check if tensor uses external data storage
+    if is_external_data(tensor.data_location) {
+        // Parse external data information
+        let external_info =
+            ExternalDataInfo::from_proto(&tensor.external_data).ok_or_else(|| {
+                ParseError::ExternalDataError(
+                    "Tensor marked as external but no external_data information found".to_string(),
+                )
+            })?;
+
+        // Base directory is required for external data
+        let base_dir = base_dir.ok_or_else(|| {
+            ParseError::ExternalDataError(
+                "Base directory required for loading external data".to_string(),
+            )
+        })?;
+
+        // Read external data from file
+        let raw_data = external_info.read_data(base_dir).map_err(|e| {
+            ParseError::ExternalDataError(format!("Failed to read external data: {}", e))
+        })?;
+
+        // Convert raw bytes to typed data using the same logic as raw_data handling below
+        let shape = convert_shape(tensor.dims);
+        let elem = element_type_from_proto(tensor.data_type)
+            .map_err(|e| ParseError::ExternalDataError(format!("Invalid data type: {}", e)))?;
+
+        let data = match elem {
+            ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(raw_data)),
+            ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(raw_data)),
+            ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(raw_data)),
+            ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(raw_data)),
+            ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(raw_data)),
+            ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(raw_data)),
+            ElementType::Uint8 => Data::Uint8s(raw_data),
+            ElementType::Int8 => Data::Int8s(raw_data.into_iter().map(|b| b as i8).collect()),
+            ElementType::Bool => Data::Bools(raw_data.into_iter().map(|b| b != 0).collect()),
+            ElementType::String => {
+                return Err(ParseError::ExternalDataError(
+                    "String tensors not supported in external data".into(),
+                ));
+            }
+        };
+
+        return Ok(TensorData { shape, data });
+    }
+
+    // Non-external data: use inline conversion logic
+    convert_tensor_proto_inline(tensor)
+}
+
+/// Internal helper to convert TensorProto with inline data (non-external)
+/// This is used by both tensor_proto_to_data and TryFrom to avoid infinite recursion
+fn convert_tensor_proto_inline(tensor: TensorProto) -> Result<TensorData, ParseError> {
+    let shape = convert_shape(tensor.dims);
+    let data = if !tensor.raw_data.is_empty() {
+        // Data stored in raw_data field
+        let elem =
+            element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
+        match elem {
+            ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
+            ElementType::Uint8 => Data::Uint8s(tensor.raw_data),
+            ElementType::Int8 => {
+                Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
+            }
+            ElementType::Bool => Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect()),
+            ElementType::String => {
+                return Err(ParseError::VariantNotFound(
+                    "String data in raw_data not supported".to_string(),
+                ));
+            }
+        }
+    } else {
+        // Data stored in type-specific fields
+        if !tensor.float_data.is_empty() {
+            Data::Float32s(tensor.float_data)
+        } else if !tensor.int32_data.is_empty() {
+            Data::Int32s(tensor.int32_data)
+        } else if !tensor.int64_data.is_empty() {
+            Data::Int64s(tensor.int64_data)
+        } else if !tensor.double_data.is_empty() {
+            Data::Float64s(tensor.double_data)
+        } else if !tensor.string_data.is_empty() {
+            Data::Strings(
+                tensor
+                    .string_data
+                    .iter()
+                    .map(|s| String::from_utf8_lossy(s).to_string())
+                    .collect(),
+            )
+        } else {
+            return Err(ParseError::VariantNotFound(
+                "No data found in tensor".to_string(),
+            ));
+        }
+    };
+    Ok(TensorData { shape, data })
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
@@ -29,68 +146,9 @@ impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
 
     fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
-        let shape = convert_shape(tensor.dims);
-        let elem =
-            element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
-
-        let data = if !tensor.raw_data.is_empty() {
-            match elem {
-                ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Uint8 => Data::Uint8s(tensor.raw_data), // keep bytes
-                ElementType::Int8 => {
-                    Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
-                }
-                ElementType::Bool => {
-                    Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect())
-                }
-                ElementType::String => panic!("String initializers unsupported"),
-            }
-        } else {
-            match elem {
-                ElementType::Float32 if !tensor.float_data.is_empty() => {
-                    Data::Float32s(tensor.float_data)
-                }
-                ElementType::Float64 if !tensor.double_data.is_empty() => {
-                    Data::Float64s(tensor.double_data)
-                }
-                ElementType::Int32 if !tensor.int32_data.is_empty() => {
-                    Data::Int32s(tensor.int32_data)
-                }
-                ElementType::Int64 if !tensor.int64_data.is_empty() => {
-                    Data::Int64s(tensor.int64_data)
-                }
-                ElementType::Bool if !tensor.int32_data.is_empty() => {
-                    Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
-                }
-                ElementType::Uint8 => {
-                    // accept weird exporters that stuff zp as int32_data
-                    if !tensor.int32_data.is_empty() {
-                        Data::Uint8s(tensor.int32_data.into_iter().map(|x| x as u8).collect())
-                    } else {
-                        return Err(ParseError::VariantNotFound("no data for UINT8".into()));
-                    }
-                }
-                ElementType::Int8 => {
-                    if !tensor.int32_data.is_empty() {
-                        Data::Int8s(tensor.int32_data.into_iter().map(|x| x as i8).collect())
-                    } else {
-                        return Err(ParseError::VariantNotFound("no data for INT8".into()));
-                    }
-                }
-                _ => {
-                    return Err(ParseError::VariantNotFound(format!(
-                        "empty/unsupported payload for {:?}",
-                        elem
-                    )));
-                }
-            }
-        };
-        Ok(TensorData { shape, data })
+        // Use inline conversion for backward compatibility
+        // External data not supported through TryFrom (requires base_dir)
+        convert_tensor_proto_inline(tensor)
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {

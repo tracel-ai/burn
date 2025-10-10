@@ -2,12 +2,13 @@
 extern crate derive_new;
 
 mod coalesce;
+pub mod external_data;
 mod from_onnx;
 pub mod ir;
 pub mod node;
 mod node_remap;
 mod proto_conversion;
-mod protos;
+pub mod protos;
 mod rank_inference;
 pub mod util;
 
