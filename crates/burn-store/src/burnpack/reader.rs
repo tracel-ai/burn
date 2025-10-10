@@ -202,6 +202,38 @@ impl BurnpackReader {
             )));
         }
 
+        // Validate total file size - ensure file is large enough for all claimed tensor data
+        if !metadata.tensors.is_empty() {
+            let max_data_offset = metadata
+                .tensors
+                .values()
+                .map(|t| t.data_offsets.1)
+                .max()
+                .unwrap_or(0);
+
+            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
+                BurnpackError::ValidationError(format!(
+                    "Data offset {} exceeds platform maximum",
+                    max_data_offset
+                ))
+            })?;
+
+            let min_file_size =
+                metadata_end
+                    .checked_add(max_data_offset_usize)
+                    .ok_or_else(|| {
+                        BurnpackError::ValidationError("File size calculation overflow".into())
+                    })?;
+
+            if bytes.len() < min_file_size {
+                return Err(BurnpackError::ValidationError(format!(
+                    "File truncated: expected at least {} bytes, got {} bytes",
+                    min_file_size,
+                    bytes.len()
+                )));
+            }
+        }
+
         Ok(Self {
             metadata,
             storage: StorageBackend::Memory(Rc::new(bytes)),
@@ -275,6 +307,38 @@ impl BurnpackReader {
             )));
         }
 
+        // Validate total file size - ensure file is large enough for all claimed tensor data
+        if !metadata.tensors.is_empty() {
+            let max_data_offset = metadata
+                .tensors
+                .values()
+                .map(|t| t.data_offsets.1)
+                .max()
+                .unwrap_or(0);
+
+            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
+                BurnpackError::ValidationError(format!(
+                    "Data offset {} exceeds platform maximum",
+                    max_data_offset
+                ))
+            })?;
+
+            let min_file_size =
+                metadata_end
+                    .checked_add(max_data_offset_usize)
+                    .ok_or_else(|| {
+                        BurnpackError::ValidationError("File size calculation overflow".into())
+                    })?;
+
+            if mmap.len() < min_file_size {
+                return Err(BurnpackError::ValidationError(format!(
+                    "File truncated: expected at least {} bytes, got {} bytes",
+                    min_file_size,
+                    mmap.len()
+                )));
+            }
+        }
+
         Ok(Self {
             metadata,
             storage: StorageBackend::Mmap(Rc::new(mmap)),
@@ -344,7 +408,7 @@ impl BurnpackReader {
             )));
         }
 
-        // Store file handle for reuse
+        // Calculate metadata end offset
         let metadata_end = HEADER_SIZE
             .checked_add(header.metadata_size as usize)
             .ok_or_else(|| {
@@ -353,6 +417,43 @@ impl BurnpackReader {
                     HEADER_SIZE, header.metadata_size
                 ))
             })?;
+
+        // Validate total file size - ensure file is large enough for all claimed tensor data
+        if !metadata.tensors.is_empty() {
+            let max_data_offset = metadata
+                .tensors
+                .values()
+                .map(|t| t.data_offsets.1)
+                .max()
+                .unwrap_or(0);
+
+            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
+                BurnpackError::ValidationError(format!(
+                    "Data offset {} exceeds platform maximum",
+                    max_data_offset
+                ))
+            })?;
+
+            let min_file_size =
+                metadata_end
+                    .checked_add(max_data_offset_usize)
+                    .ok_or_else(|| {
+                        BurnpackError::ValidationError("File size calculation overflow".into())
+                    })?;
+
+            // Get actual file size
+            let file_size = file
+                .metadata()
+                .map_err(|e| BurnpackError::IoError(e.to_string()))?
+                .len() as usize;
+
+            if file_size < min_file_size {
+                return Err(BurnpackError::ValidationError(format!(
+                    "File truncated: expected at least {} bytes, got {} bytes",
+                    min_file_size, file_size
+                )));
+            }
+        }
 
         Ok(Self {
             metadata,

@@ -670,3 +670,99 @@ fn test_reader_inverted_offsets_returns_error() {
     assert!(matches!(err, BurnpackError::ValidationError(_)));
     assert!(err.to_string().contains("end offset") && err.to_string().contains("start offset"));
 }
+
+#[test]
+fn test_reader_truncated_file_from_bytes() {
+    // Create a valid burnpack with tensor data
+    let tensor_size = 1024; // 1KB of data
+    let data = vec![42u8; tensor_size];
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(data, vec![tensor_size], DType::U8),
+        vec!["large_tensor".to_string()],
+        vec![],
+        burn_core::module::ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]);
+    let full_bytes = writer.to_bytes().unwrap();
+
+    // Truncate the bytes - remove the last 512 bytes of tensor data
+    let truncated_len = full_bytes.len() - 512;
+    let truncated_bytes = Bytes::from_bytes_vec(full_bytes.to_vec()[..truncated_len].to_vec());
+
+    // This should fail with a validation error indicating file truncation
+    let result = BurnpackReader::from_bytes(truncated_bytes);
+    assert!(result.is_err());
+    if let Err(err) = result {
+        assert!(matches!(err, BurnpackError::ValidationError(_)));
+        assert!(err.to_string().contains("File truncated"));
+        assert!(err.to_string().contains("expected at least"));
+    }
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_reader_truncated_file_from_file() {
+    use std::fs::OpenOptions;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("truncated.bpk");
+
+    // Create a valid burnpack file with tensor data
+    let tensor_size = 2048; // 2KB of data
+    let data = vec![99u8; tensor_size];
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(data, vec![tensor_size], DType::U8),
+        vec!["data_tensor".to_string()],
+        vec![],
+        burn_core::module::ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]);
+    writer.write_to_file(&file_path).unwrap();
+
+    // Read the full file to get its size
+    let full_size = std::fs::metadata(&file_path).unwrap().len();
+
+    // Truncate the file - remove the last 1KB
+    let truncated_size = full_size - 1024;
+    let truncated_file = OpenOptions::new().write(true).open(&file_path).unwrap();
+    truncated_file.set_len(truncated_size).unwrap();
+    drop(truncated_file);
+
+    // Try to read the truncated file - should fail with validation error
+    let result = BurnpackReader::from_file(&file_path);
+    assert!(result.is_err());
+    if let Err(err) = result {
+        assert!(matches!(err, BurnpackError::ValidationError(_)));
+        assert!(err.to_string().contains("File truncated"));
+        assert!(err.to_string().contains("expected at least"));
+    }
+}
+
+#[test]
+fn test_reader_file_size_exactly_correct() {
+    // Test that a file with exactly the right size passes validation
+    let tensor_size = 100;
+    let data = vec![77u8; tensor_size];
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(data, vec![tensor_size], DType::U8),
+        vec!["exact_size".to_string()],
+        vec![],
+        burn_core::module::ParamId::new(),
+    );
+
+    let writer = BurnpackWriter::new(vec![snapshot]);
+    let bytes = writer.to_bytes().unwrap();
+
+    // This should succeed - file is exactly the right size
+    let reader = BurnpackReader::from_bytes(bytes);
+    assert!(reader.is_ok());
+
+    // Verify we can read the data
+    let reader = reader.unwrap();
+    let tensor_data = reader.get_tensor_data("exact_size").unwrap();
+    assert_eq!(tensor_data.len(), tensor_size);
+    assert!(tensor_data.iter().all(|&b| b == 77));
+}
