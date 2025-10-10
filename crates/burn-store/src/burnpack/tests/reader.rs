@@ -253,7 +253,7 @@ fn test_reader_from_file() {
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("test.burnpack");
+    let file_path = dir.path().join("test.bpk");
 
     // Create test file
     let snapshot = TensorSnapshot::from_data(
@@ -285,7 +285,7 @@ fn test_reader_from_file_mmap() {
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("test_mmap.burnpack");
+    let file_path = dir.path().join("test_mmap.bpk");
 
     // Create large test file
     let size = 1024 * 1024; // 1MB
@@ -314,7 +314,7 @@ fn test_reader_from_file_buffered() {
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("test_buffered.burnpack");
+    let file_path = dir.path().join("test_buffered.bpk");
 
     // Create test file
     let snapshot = TensorSnapshot::from_data(

@@ -34,7 +34,7 @@ pub struct BurnpackStore {
     validate: bool,
     /// Allow overwriting existing files (default: false)
     overwrite: bool,
-    /// Automatically append .burnpack extension if not present (default: true)
+    /// Automatically append .bpk extension if not present (default: true)
     #[cfg(feature = "std")]
     auto_extension: bool,
     /// Key remapper for tensor name transformations
@@ -64,18 +64,18 @@ impl BurnpackStore {
     }
     /// Create a new store from a file path
     ///
-    /// By default, automatically appends `.burnpack` extension if the path doesn't have one.
+    /// By default, automatically appends `.bpk` extension if the path doesn't have one.
     /// Use `.auto_extension(false)` to disable this behavior.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use burn_store::BurnpackStore;
-    /// // Automatically appends .burnpack
-    /// let store = BurnpackStore::from_file("model");  // creates "model.burnpack"
+    /// // Automatically appends .bpk
+    /// let store = BurnpackStore::from_file("model");  // creates "model.bpk"
     ///
     /// // Already has extension, no append
-    /// let store = BurnpackStore::from_file("model.burnpack");  // uses "model.burnpack"
+    /// let store = BurnpackStore::from_file("model.bpk");  // uses "model.bpk"
     /// let store = BurnpackStore::from_file("model.myext");  // uses "model.myext"
     ///
     /// // Disable auto-extension
@@ -166,9 +166,9 @@ impl BurnpackStore {
         self
     }
 
-    /// Enable or disable automatic .burnpack extension appending
+    /// Enable or disable automatic .bpk extension appending
     ///
-    /// When enabled (default), automatically appends `.burnpack` to the file path
+    /// When enabled (default), automatically appends `.bpk` to the file path
     /// if no extension is detected. If an extension is already present, it is preserved.
     ///
     /// When disabled, uses the exact path provided without modification.
@@ -180,7 +180,7 @@ impl BurnpackStore {
     /// ```no_run
     /// # use burn_store::BurnpackStore;
     /// // With auto_extension enabled (default)
-    /// let store = BurnpackStore::from_file("model");  // -> "model.burnpack"
+    /// let store = BurnpackStore::from_file("model");  // -> "model.bpk"
     ///
     /// // With auto_extension disabled
     /// let store = BurnpackStore::from_file("model")
@@ -271,9 +271,9 @@ impl BurnpackStore {
             return path.to_path_buf();
         }
 
-        // No extension, append .burnpack
+        // No extension, append .bpk
         let mut new_path = path.to_path_buf();
-        new_path.set_extension("burnpack");
+        new_path.set_extension("bpk");
         new_path
     }
 }

@@ -128,7 +128,7 @@ macro_rules! bench_backend {
                 bencher.bench(|| {
                     let device: TestDevice = Default::default();
                     let model = LargeModel::<TestBackend>::new(&device);
-                    let output_path = get_output_dir().join("test_burnpack.burnpack");
+                    let output_path = get_output_dir().join("test_burnpack.bpk");
                     let mut store = BurnpackStore::from_file(output_path.clone()).overwrite(true);
                     model
                         .save_into(&mut store)

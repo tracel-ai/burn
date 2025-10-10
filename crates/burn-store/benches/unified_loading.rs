@@ -112,7 +112,7 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
 fn get_model_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let dir = get_model_dir();
     (
-        dir.join("large_model.burnpack"),
+        dir.join("large_model.bpk"),
         dir.join("large_model.mpk"),
         dir.join("large_model.safetensors"),
         dir.join("large_model.pt"),

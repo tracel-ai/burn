@@ -41,13 +41,13 @@ interoperability, and advanced tensor management.
 use burn_store::{ModuleSnapshot, BurnpackStore};
 
 // Save a model with metadata
-let mut store = BurnpackStore::from_file("model.burnpack")
+let mut store = BurnpackStore::from_file("model.bpk")
     .metadata("version", "1.0")
     .metadata("description", "My trained model");
 model.save_into(&mut store)?;
 
 // Load a model (automatically memory-mapped when available)
-let mut store = BurnpackStore::from_file("model.burnpack");
+let mut store = BurnpackStore::from_file("model.bpk");
 model.load_from(&mut store)?;
 ```
 
@@ -387,8 +387,8 @@ The stores provide a fluent API for configuration:
 Generate and examine a sample file:
 
 ```bash
-cargo run --example burnpack_inspect sample.burnpack
-hexdump -C sample.burnpack | head -20
+cargo run --example burnpack_inspect sample.bpk
+hexdump -C sample.bpk | head -20
 ```
 
 The example creates a sample model and outputs inspection commands for examining the binary format.

@@ -390,7 +390,7 @@ fn test_writer_write_to_file() {
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("test.burnpack");
+    let file_path = dir.path().join("test.bpk");
 
     let snapshot = TensorSnapshot::from_data(
         TensorData::from_bytes_vec(vec![1, 2, 3, 4], vec![2, 2], DType::U8),

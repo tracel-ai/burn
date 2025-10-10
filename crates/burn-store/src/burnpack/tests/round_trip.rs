@@ -363,7 +363,7 @@ fn test_round_trip_file_io() {
     use crate::burnpack::writer::BurnpackWriter;
 
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("round_trip.burnpack");
+    let file_path = dir.path().join("round_trip.bpk");
 
     // Create original data
     let data = vec![1.0f32, 2.0, 3.0, 4.0];
@@ -384,7 +384,7 @@ fn test_round_trip_file_io() {
     let reader = BurnpackReader::from_file(&file_path).unwrap();
 
     // Write to another file
-    let file_path2 = dir.path().join("round_trip2.burnpack");
+    let file_path2 = dir.path().join("round_trip2.bpk");
 
     // Collect snapshots from reader
     let mut snapshots2 = Vec::new();

@@ -6,13 +6,13 @@
 //!   cargo run --example burnpack-inspect [output_path]
 //!
 //! Example:
-//!   cargo run --example burnpack-inspect sample.burnpack
-//!   cargo run --example burnpack-inspect /tmp/test.burnpack
+//!   cargo run --example burnpack-inspect sample.bpk
+//!   cargo run --example burnpack-inspect /tmp/test.bpk
 //!
 //! After generating the file, examine it with:
-//!   hexdump -C sample.burnpack | head -100
-//!   xxd sample.burnpack | head -100
-//!   hexyl sample.burnpack
+//!   hexdump -C sample.bpk | head -100
+//!   xxd sample.bpk | head -100
+//!   hexyl sample.bpk
 
 use burn_core::module::Module;
 use burn_ndarray::NdArray;
@@ -45,7 +45,7 @@ fn main() {
     // Get output path from command line or use default
     let output_path = env::args()
         .nth(1)
-        .unwrap_or_else(|| "sample.burnpack".to_string());
+        .unwrap_or_else(|| "sample.bpk".to_string());
 
     println!("Creating sample Burnpack file: {}", output_path);
     println!();

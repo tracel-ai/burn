@@ -458,7 +458,7 @@ fn test_store_file_round_trip() {
 
     // Create temp directory and file path
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_file_round_trip.burnpack");
+    let path = temp_dir.path().join("test_file_round_trip.bpk");
 
     // Save to file
     let mut save_store = BurnpackStore::from_file(&path).metadata("test", "value");
@@ -491,7 +491,7 @@ fn test_store_overwrite_protection() {
 
     // Create temp directory and file path (file doesn't exist yet)
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_model.burnpack");
+    let path = temp_dir.path().join("test_model.bpk");
 
     // First save - should succeed
     let mut save_store = BurnpackStore::from_file(&path);
@@ -530,7 +530,7 @@ fn test_store_overwrite_with_metadata() {
 
     // Create temp directory and file path
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("test_model_metadata.burnpack");
+    let path = temp_dir.path().join("test_model_metadata.bpk");
 
     // First save with v1 metadata
     let mut save_store = BurnpackStore::from_file(&path)
@@ -563,12 +563,12 @@ fn test_store_auto_extension_default() {
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("model");
 
-    // Save without extension - should auto-append .burnpack
+    // Save without extension - should auto-append .bpk
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
-    // Verify that model.burnpack was created
-    let expected_path = temp_dir.path().join("model.burnpack");
+    // Verify that model.bpk was created
+    let expected_path = temp_dir.path().join("model.bpk");
     assert!(expected_path.exists());
     assert!(!path.exists()); // Original path without extension should not exist
 
@@ -589,15 +589,15 @@ fn test_store_auto_extension_with_existing_extension() {
 
     // Create temp directory
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("model.burnpack");
+    let path = temp_dir.path().join("model.bpk");
 
-    // Save with .burnpack extension - should not double append
+    // Save with .bpk extension - should not double append
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
-    // Verify that only model.burnpack was created
+    // Verify that only model.bpk was created
     assert!(path.exists());
-    let double_ext_path = temp_dir.path().join("model.burnpack.burnpack");
+    let double_ext_path = temp_dir.path().join("model.bpk.bpk");
     assert!(!double_ext_path.exists());
 
     // Load and verify
@@ -623,9 +623,9 @@ fn test_store_auto_extension_with_custom_extension() {
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
 
-    // Verify that model.mpk was created (not model.mpk.burnpack)
+    // Verify that model.mpk was created (not model.mpk.bpk)
     assert!(path.exists());
-    let burnpack_path = temp_dir.path().join("model.mpk.burnpack");
+    let burnpack_path = temp_dir.path().join("model.mpk.bpk");
     assert!(!burnpack_path.exists());
 
     // Load and verify
@@ -653,7 +653,7 @@ fn test_store_auto_extension_disabled() {
 
     // Verify that "model" (without extension) was created
     assert!(path.exists());
-    let burnpack_path = temp_dir.path().join("model.burnpack");
+    let burnpack_path = temp_dir.path().join("model.bpk");
     assert!(!burnpack_path.exists());
 
     // Load with auto_extension disabled
@@ -673,7 +673,7 @@ fn test_partial_loading_preserves_lazy_initialization() {
     // Create and save a full module
     let module = TestModule::<TestBackend>::new(&device);
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("model.burnpack");
+    let path = temp_dir.path().join("model.bpk");
 
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&module).unwrap();
@@ -819,7 +819,7 @@ fn test_forward_pass_preservation_after_save_load() {
 
     // Save model1 weights
     let temp_dir = tempdir().unwrap();
-    let path = temp_dir.path().join("forward_test_model.burnpack");
+    let path = temp_dir.path().join("forward_test_model.bpk");
     let mut save_store = BurnpackStore::from_file(&path);
     save_store.collect_from(&model1).unwrap();
 
