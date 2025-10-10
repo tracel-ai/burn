@@ -64,8 +64,8 @@ pub struct Param<T: Parameter> {
 /// # Mapper System
 ///
 /// `ParamMapper<T>` allows applying transformations during serialization and deserialization:
-/// - `load: Option<Mapper<T>>` - transformation during deserialization (applied in `load()`)
-/// - `save: Option<Mapper<T>>` - transformation during serialization (applied in `save()`)
+/// - `load: Option<Mapper<T>>` - transformation during deserialization (applied in `transform_for_load()`)
+/// - `save: Option<Mapper<T>>` - transformation during serialization (applied in `transform_for_save()`)
 ///
 /// These are commonly used for:
 /// - Quantization/dequantization
