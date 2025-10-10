@@ -123,7 +123,7 @@ mod tests {
     use burn_ir::{
         BinaryOpIr, NumericOperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr, TensorStatus,
     };
-    use burn_tensor::DType;
+    use burn_tensor::{DType, Shape};
 
     use super::*;
 
@@ -224,19 +224,19 @@ mod tests {
             NumericOperationIr::Add(BinaryOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: TensorIr {
                     id: TensorId::new(1),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
@@ -250,14 +250,14 @@ mod tests {
             NumericOperationIr::AddScalar(ScalarOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: ScalarIr::F32(5.0),
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
@@ -271,19 +271,19 @@ mod tests {
             NumericOperationIr::Sub(BinaryOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: TensorIr {
                     id: TensorId::new(1),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },

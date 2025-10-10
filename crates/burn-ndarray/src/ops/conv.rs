@@ -1,4 +1,3 @@
-use burn_common::{iter_par, iter_range_par, run_par};
 use burn_tensor::{
     ElementConversion,
     ops::{
@@ -11,8 +10,9 @@ use ndarray::{
 };
 
 use crate::{
-    NdArrayElement, SharedArray,
+    NdArrayElement, SharedArray, iter_par, iter_range_par,
     ops::padding::{apply_padding_4d, apply_padding_5d},
+    run_par,
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
 };

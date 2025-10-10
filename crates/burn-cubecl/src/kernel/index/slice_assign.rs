@@ -125,10 +125,10 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
             .cloned()
             .unwrap_or(burn_tensor::Slice {
                 start: 0,
-                end: Some(tensor.shape.dims[ndims - 1] as isize),
+                end: Some(tensor.shape[ndims - 1] as isize),
                 step: 1,
             });
-        let end = last.end.unwrap_or(tensor.shape.dims[ndims - 1] as isize);
+        let end = last.end.unwrap_or(tensor.shape[ndims - 1] as isize);
         let shape = (end - last.start) as usize;
         let offset = last.start as usize;
         *R::supported_line_sizes()
@@ -152,11 +152,11 @@ pub(crate) fn slice_assign<R: CubeRuntime, E: CubeElement>(
     for i in 0..ndims {
         let slice = indices.get(i).cloned().unwrap_or(burn_tensor::Slice {
             start: 0,
-            end: Some(tensor.shape.dims[i] as isize),
+            end: Some(tensor.shape[i] as isize),
             step: 1,
         });
         let start = slice.start as usize;
-        let end = slice.end.unwrap_or(tensor.shape.dims[i] as isize);
+        let end = slice.end.unwrap_or(tensor.shape[i] as isize);
         let length = (end - slice.start) as usize;
 
         shape.push(FastDivmodArgs::new(&client, length as u32));
@@ -207,7 +207,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     let mut steps = SequenceArg::<R, i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
-        let range = slice.to_range(tensor.shape.dims[dim]);
+        let range = slice.to_range(tensor.shape[dim]);
         starts.push(ScalarArg::new(range.start as u32));
         ends.push(ScalarArg::new(range.end as u32));
         steps.push(ScalarArg::new(slice.step as i32));
@@ -216,7 +216,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime, E: CubeElement>(
     // Pad with default values if needed to match tensor dimensions
     for dim in slices.len()..tensor.shape.num_dims() {
         starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.shape.dims[dim] as u32));
+        ends.push(ScalarArg::new(tensor.shape[dim] as u32));
         steps.push(ScalarArg::new(1));
     }
 

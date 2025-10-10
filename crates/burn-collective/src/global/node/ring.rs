@@ -66,12 +66,12 @@ where
     let device = &B::float_device(&tensor);
     // Slice tensors in N parts, N is node count
     let slice_dim = get_slice_dim(&shape);
-    if shape.dims[slice_dim] < nodes.len() {
+    if shape[slice_dim] < nodes.len() {
         return Err(GlobalCollectiveError::RingReduceImpossible);
     }
 
     let ring = get_ring_topology(nodes.keys().cloned().collect::<Vec<_>>());
-    let slice_ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], ring.len());
+    let slice_ranges = get_ring_reduce_slice_ranges(shape[slice_dim], ring.len());
     let mut slices = slice_tensor::<B>(tensor, slice_dim, slice_ranges);
 
     let mut send_slice_idx = ring

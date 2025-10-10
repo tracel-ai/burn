@@ -93,12 +93,12 @@ fn create_key<R: CubeRuntime, E: FloatElement, const N: usize>(
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape.dims[0];
-    let in_channels = input.shape.dims[dim_c];
-    let out_channels = weights.shape.dims[0];
+    let batch_size = input.shape[0];
+    let in_channels = input.shape[dim_c];
+    let out_channels = weights.shape[0];
 
-    let kernel_size = weights.shape.dims[1..dim_c].to_vec();
-    let in_shape = input.shape.dims[1..dim_c]
+    let kernel_size = weights.shape[1..dim_c].to_vec();
+    let in_shape = input.shape[1..dim_c]
         .iter()
         .map(|shape| anchor(*shape, None, None, None))
         .collect();

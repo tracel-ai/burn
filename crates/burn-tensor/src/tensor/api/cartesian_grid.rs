@@ -32,7 +32,7 @@ pub fn cartesian_grid<B: Backend, S: Into<Shape>, const D: usize, const D2: usiz
         panic!("D2 must equal D + 1 for Tensor::cartesian_grid")
     }
 
-    let dims = shape.into().dims;
+    let dims = shape.into();
     let mut indices: Vec<Tensor<B, D, Int>> = Vec::new();
 
     for dim in 0..D {
