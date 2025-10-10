@@ -409,7 +409,7 @@ fn test_writer_write_to_file() {
     let file_bytes = fs::read(&file_path).unwrap();
     let memory_bytes = writer.to_bytes().unwrap();
 
-    assert_eq!(file_bytes.as_slice(), memory_bytes.as_ref());
+    assert_eq!(file_bytes.as_slice(), &*memory_bytes);
 }
 
 #[test]
@@ -450,7 +450,7 @@ fn test_writer_write_into() {
 
     // Compare with to_bytes()
     let bytes = writer.to_bytes().unwrap();
-    assert_eq!(buffer.as_slice(), bytes.as_ref());
+    assert_eq!(buffer.as_slice(), &*bytes);
 }
 
 #[test]
@@ -493,7 +493,7 @@ fn test_writer_write_into_buffer_larger_than_needed() {
 
     // Compare the written portion with to_bytes()
     let bytes = writer.to_bytes().unwrap();
-    assert_eq!(&buffer[..size], bytes.as_ref());
+    assert_eq!(&buffer[..size], &*bytes);
 }
 
 #[test]
@@ -519,7 +519,7 @@ fn test_writer_write_into_multiple_tensors() {
     writer.write_into(&mut buffer).unwrap();
 
     let bytes = writer.to_bytes().unwrap();
-    assert_eq!(buffer.as_slice(), bytes.as_ref());
+    assert_eq!(buffer.as_slice(), &*bytes);
 }
 
 #[test]
@@ -531,5 +531,5 @@ fn test_writer_write_into_empty() {
     writer.write_into(&mut buffer).unwrap();
 
     let bytes = writer.to_bytes().unwrap();
-    assert_eq!(buffer.as_slice(), bytes.as_ref());
+    assert_eq!(buffer.as_slice(), &*bytes);
 }
