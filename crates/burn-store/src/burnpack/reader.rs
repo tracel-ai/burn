@@ -1,6 +1,6 @@
 use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
-    MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
+    MAX_CBOR_RECURSION_DEPTH, MAX_FILE_SIZE, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
 };
 use crate::TensorSnapshot;
 use alloc::format;
@@ -246,6 +246,19 @@ impl BurnpackReader {
     pub(crate) fn from_file_mmap<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
         let file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
+        // Validate maximum file size to prevent resource exhaustion
+        let file_size = file
+            .metadata()
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(BurnpackError::ValidationError(format!(
+                "File size {} bytes exceeds maximum allowed size of {} bytes",
+                file_size, MAX_FILE_SIZE
+            )));
+        }
+
         // Memory map the file
         let mmap = unsafe {
             memmap2::MmapOptions::new()
@@ -367,6 +380,19 @@ impl BurnpackReader {
     #[allow(dead_code)]
     pub(crate) fn from_file_buffered<P: AsRef<Path>>(path: P) -> Result<Self, BurnpackError> {
         let mut file = File::open(&path).map_err(|e| BurnpackError::IoError(e.to_string()))?;
+
+        // Validate maximum file size to prevent resource exhaustion
+        let file_size = file
+            .metadata()
+            .map_err(|e| BurnpackError::IoError(e.to_string()))?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(BurnpackError::ValidationError(format!(
+                "File size {} bytes exceeds maximum allowed size of {} bytes",
+                file_size, MAX_FILE_SIZE
+            )));
+        }
 
         // Read header
         let mut header_bytes = [0u8; HEADER_SIZE];

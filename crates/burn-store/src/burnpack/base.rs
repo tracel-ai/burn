@@ -81,6 +81,11 @@ pub const MAX_TENSOR_COUNT: usize = 100_000;
 /// Prevents stack overflow attacks via deeply nested CBOR structures
 pub const MAX_CBOR_RECURSION_DEPTH: usize = 128;
 
+/// Maximum allowed file size (100 GB)
+/// Prevents resource exhaustion from extremely large files
+/// This limit applies to file-based loading (mmap and buffered)
+pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024 * 1024;
+
 /// Byte range for magic number in header
 pub const fn magic_range() -> core::ops::Range<usize> {
     let start = 0;
