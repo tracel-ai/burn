@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::DYN_ELEM_ID;
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone)]
 pub struct GlobalTensor {
     pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
     #[cube(comptime)]
@@ -33,7 +33,7 @@ pub struct GlobalTensorArg<'a, R: Runtime> {
     pub broadcasted: bool,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone)]
 pub enum GlobalScalar {
     F64(f64),
     F32(f32),

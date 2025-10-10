@@ -193,7 +193,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 
             handles.insert(
                 self.info.reduce.op.out.id,
-                (out_desc.shape.clone(), handle_out.clone()),
+                (out_desc.shape.dims.clone(), handle_out.clone()),
             );
         }
 

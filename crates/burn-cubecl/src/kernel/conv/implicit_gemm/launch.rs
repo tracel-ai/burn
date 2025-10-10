@@ -2,7 +2,10 @@ use burn_tensor::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubecl::{
     convolution::{
         ConvolutionArgs,
-        components::{AcceleratedConv, ConvSetupError, global::args::ConcreteInputsFactory},
+        components::{
+            AcceleratedConv, ConvSetupError,
+            global::args::{ConcreteInputsFactory, ConcreteOutputFactory},
+        },
         kernels::layered::algorithm::{
             Algorithm, multi_stage_tma::MultiStageTmaConvAlgorithm, simple::SimpleConvAlgorithm,
             simple_tma::SimpleTmaConvAlgorithm,
@@ -11,10 +14,7 @@ use cubecl::{
     },
     matmul::{
         MatmulInputHandleRef,
-        components::{
-            AccG, LhsG, MatmulPrecision, RhsG,
-            global::args::{ConcreteOutputFactory, MatmulArgs},
-        },
+        components::{AccG, LhsG, MatmulPrecision, RhsG, global::args::MatmulArgs},
     },
 };
 
