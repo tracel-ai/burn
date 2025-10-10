@@ -305,31 +305,24 @@ impl BurnpackReader {
     }
 
     /// Get all tensor snapshots at once for efficient loading
-    pub fn get_snapshots(&self) -> Vec<TensorSnapshot> {
+    pub fn get_snapshots(&self) -> Result<Vec<TensorSnapshot>, BurnpackError> {
         let mut snapshots = Vec::new();
 
         for (name, descriptor) in &self.metadata.tensors {
             // Clone metadata for use in closure
             // Convert shape dimensions with overflow checking
-            let shape: Result<Vec<usize>, _> = descriptor
+            let shape: Vec<usize> = descriptor
                 .shape
                 .iter()
                 .map(|&s| {
                     s.try_into().map_err(|_| {
-                        BurnpackError::IoError(format!(
-                            "Shape dimension {} exceeds platform maximum",
-                            s
+                        BurnpackError::ValidationError(format!(
+                            "Tensor '{}' has corrupted shape data: dimension {} exceeds platform maximum",
+                            name, s
                         ))
                     })
                 })
-                .collect();
-
-            let shape = shape.unwrap_or_else(|_| {
-                panic!(
-                    "Tensor '{}' has corrupted shape data: dimension exceeds platform maximum",
-                    name
-                )
-            });
+                .collect::<Result<Vec<usize>, BurnpackError>>()?;
 
             let dtype = descriptor.dtype;
 
@@ -346,43 +339,44 @@ impl BurnpackReader {
 
             // Always use absolute positions for all backends
             // Convert offsets with overflow checking
-            let offset_start: usize = descriptor.data_offsets.0.try_into().unwrap_or_else(|_| panic!("Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
-                name, descriptor.data_offsets.0));
+            let offset_start: usize = descriptor.data_offsets.0.try_into().map_err(|_| {
+                BurnpackError::ValidationError(format!(
+                    "Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
+                    name, descriptor.data_offsets.0
+                ))
+            })?;
 
-            let offset_end: usize = descriptor.data_offsets.1.try_into().unwrap_or_else(|_| {
-                panic!(
+            let offset_end: usize = descriptor.data_offsets.1.try_into().map_err(|_| {
+                BurnpackError::ValidationError(format!(
                     "Tensor '{}' has corrupted offset data: end offset {} exceeds platform maximum",
                     name, descriptor.data_offsets.1
-                )
-            });
+                ))
+            })?;
 
-            let start = self
-                .data_offset
-                .checked_add(offset_start)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
-                        name, self.data_offset, offset_start
-                    )
-                });
+            let start = self.data_offset.checked_add(offset_start).ok_or_else(|| {
+                BurnpackError::ValidationError(format!(
+                    "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
+                    name, self.data_offset, offset_start
+                ))
+            })?;
 
-            let end = self.data_offset.checked_add(offset_end).unwrap_or_else(|| {
-                panic!(
+            let end = self.data_offset.checked_add(offset_end).ok_or_else(|| {
+                BurnpackError::ValidationError(format!(
                     "Tensor '{}' has corrupted offset data: end offset overflow {} + {}",
                     name, self.data_offset, offset_end
-                )
-            });
+                ))
+            })?;
 
             // Clone shape for the closure (TensorSnapshot::from_closure will also need it)
             let shape_for_closure = shape.clone();
 
             // Validate offset range
-            assert!(
-                end >= start,
-                "Tensor has corrupted offset data: end offset {} < start offset {}",
-                end,
-                start
-            );
+            if end < start {
+                return Err(BurnpackError::ValidationError(format!(
+                    "Tensor '{}' has corrupted offset data: end offset {} < start offset {}",
+                    name, end, start
+                )));
+            }
 
             // Create lazy TensorSnapshot
             let snapshot = TensorSnapshot::from_closure(
@@ -414,7 +408,7 @@ impl BurnpackReader {
             snapshots.push(snapshot);
         }
 
-        snapshots
+        Ok(snapshots)
     }
 
     // Legacy methods for test compatibility - will be removed
@@ -422,7 +416,7 @@ impl BurnpackReader {
     /// Get tensor as TensorSnapshot with lazy loading
     #[allow(dead_code)]
     pub(crate) fn get_tensor_snapshot(&self, name: &str) -> Result<TensorSnapshot, BurnpackError> {
-        let snapshots = self.get_snapshots();
+        let snapshots = self.get_snapshots()?;
         snapshots
             .into_iter()
             .find(|s| s.full_path() == name)

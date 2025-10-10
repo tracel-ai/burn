@@ -361,15 +361,15 @@ impl ModuleStore for BurnpackStore {
         // Get all snapshots at once for efficient loading
         #[cfg(feature = "std")]
         let snapshots = if !self.remapper.patterns.is_empty() {
-            let (remapped, _remapped_names) = self.remapper.remap(reader.get_snapshots());
+            let (remapped, _remapped_names) = self.remapper.remap(reader.get_snapshots()?);
             // TODO figure what to do with remapped names
             remapped
         } else {
-            reader.get_snapshots()
+            reader.get_snapshots()?
         };
 
         #[cfg(not(feature = "std"))]
-        let snapshots = reader.get_snapshots();
+        let snapshots = reader.get_snapshots()?;
 
         // Apply all snapshots at once to the module
         let result = module.apply(snapshots, self.filter.clone(), None);

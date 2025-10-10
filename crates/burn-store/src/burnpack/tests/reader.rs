@@ -487,3 +487,186 @@ fn test_reader_offset_overflow_error() {
     let err = result.unwrap_err();
     assert!(err.to_string().contains("overflow"));
 }
+
+#[test]
+fn test_reader_corrupted_shape_returns_error() {
+    // Only test this on platforms where usize is smaller than u64
+    // On 64-bit platforms, u64 values can fit in usize
+    #[cfg(target_pointer_width = "32")]
+    {
+        use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
+        use alloc::collections::BTreeMap;
+        use alloc::rc::Rc;
+        use burn_tensor::DType;
+
+        // Create metadata with a shape dimension that exceeds usize::MAX on 32-bit platforms
+        let mut tensors = BTreeMap::new();
+        tensors.insert(
+            "corrupted_tensor".to_string(),
+            TensorDescriptor {
+                dtype: DType::F32,
+                shape: vec![u64::MAX, 2, 3], // First dimension exceeds usize::MAX on 32-bit
+                data_offsets: (0, 100),
+            },
+        );
+
+        let metadata = BurnpackMetadata {
+            tensors,
+            metadata: BTreeMap::new(),
+        };
+
+        // Create a small data buffer
+        let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
+        let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+
+        let reader = BurnpackReader {
+            metadata,
+            storage: backend,
+            data_offset: 0,
+        };
+
+        // This should return an error, not panic
+        let result = reader.get_snapshots();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BurnpackError::ValidationError(_)));
+        assert!(
+            err.to_string().contains("corrupted shape data")
+                || err.to_string().contains("exceeds platform maximum")
+        );
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        // On 64-bit platforms, just pass the test
+        // The conversion logic is still correct, but u64 fits in usize
+    }
+}
+
+#[test]
+fn test_reader_corrupted_offsets_returns_error() {
+    // Only test this on platforms where usize is smaller than u64
+    #[cfg(target_pointer_width = "32")]
+    {
+        use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
+        use alloc::collections::BTreeMap;
+        use alloc::rc::Rc;
+        use burn_tensor::DType;
+
+        // Create metadata with offsets that would overflow
+        let mut tensors = BTreeMap::new();
+        tensors.insert(
+            "tensor_bad_offset".to_string(),
+            TensorDescriptor {
+                dtype: DType::F32,
+                shape: vec![2, 2],
+                data_offsets: (u64::MAX - 10, u64::MAX), // Offsets that exceed usize::MAX on 32-bit
+            },
+        );
+
+        let metadata = BurnpackMetadata {
+            tensors,
+            metadata: BTreeMap::new(),
+        };
+
+        let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
+        let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+
+        let reader = BurnpackReader {
+            metadata,
+            storage: backend,
+            data_offset: 0,
+        };
+
+        // This should return an error, not panic
+        let result = reader.get_snapshots();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BurnpackError::ValidationError(_)));
+        assert!(
+            err.to_string().contains("corrupted offset data")
+                || err.to_string().contains("exceeds platform maximum")
+        );
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    {
+        use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
+        use alloc::collections::BTreeMap;
+        use alloc::rc::Rc;
+        use burn_tensor::DType;
+
+        // On 64-bit platforms, test offset overflow during addition
+        let mut tensors = BTreeMap::new();
+        tensors.insert(
+            "tensor_overflow".to_string(),
+            TensorDescriptor {
+                dtype: DType::F32,
+                shape: vec![2, 2],
+                data_offsets: (0, 100),
+            },
+        );
+
+        let metadata = BurnpackMetadata {
+            tensors,
+            metadata: BTreeMap::new(),
+        };
+
+        let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
+        let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+
+        // Use a data_offset that will overflow when added to the tensor offset
+        let reader = BurnpackReader {
+            metadata,
+            storage: backend,
+            data_offset: usize::MAX - 50, // Will overflow when added to 100
+        };
+
+        // This should return an error, not panic
+        let result = reader.get_snapshots();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BurnpackError::ValidationError(_)));
+        assert!(err.to_string().contains("overflow"));
+    }
+}
+
+#[test]
+fn test_reader_inverted_offsets_returns_error() {
+    use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
+    use alloc::collections::BTreeMap;
+    use alloc::rc::Rc;
+    use burn_tensor::DType;
+
+    // Create metadata with end offset < start offset (corrupted)
+    let mut tensors = BTreeMap::new();
+    tensors.insert(
+        "inverted_tensor".to_string(),
+        TensorDescriptor {
+            dtype: DType::F32,
+            shape: vec![2, 2],
+            data_offsets: (100, 50), // End offset < start offset
+        },
+    );
+
+    let metadata = BurnpackMetadata {
+        tensors,
+        metadata: BTreeMap::new(),
+    };
+
+    let data = Bytes::from_bytes_vec(vec![0u8; 1000]);
+    let backend = crate::burnpack::reader::StorageBackend::Memory(Rc::new(data));
+
+    let reader = BurnpackReader {
+        metadata,
+        storage: backend,
+        data_offset: 0,
+    };
+
+    // This should return an error, not panic
+    let result = reader.get_snapshots();
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(matches!(err, BurnpackError::ValidationError(_)));
+    assert!(err.to_string().contains("end offset") && err.to_string().contains("start offset"));
+}
