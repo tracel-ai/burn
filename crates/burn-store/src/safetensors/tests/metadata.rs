@@ -30,7 +30,7 @@ fn metadata_preservation() {
         .metadata("model_type", "linear")
         .metadata("custom_field", "test_value");
 
-    module.collect_to(&mut save_store).unwrap();
+    module.save_into(&mut save_store).unwrap();
 
     // Verify metadata was saved (would need to add a method to check metadata)
     // For now, just verify the round trip works
@@ -46,7 +46,7 @@ fn metadata_preservation() {
     let mut module2 = LinearConfig::new(4, 2)
         .with_bias(true)
         .init::<TestBackend>(&device);
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
 }
@@ -64,7 +64,7 @@ fn clear_metadata_removes_all() {
         .metadata("custom_field", "test_value")
         .clear_metadata(); // Should remove all metadata including defaults
 
-    module.collect_to(&mut save_store).unwrap();
+    module.save_into(&mut save_store).unwrap();
 
     // Load and verify the module still works (metadata is optional)
     let mut load_store = SafetensorsStore::from_bytes(None);
@@ -78,7 +78,7 @@ fn clear_metadata_removes_all() {
     let mut module2 = LinearConfig::new(4, 2)
         .with_bias(true)
         .init::<TestBackend>(&device);
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
 }
@@ -95,7 +95,7 @@ fn clear_then_add_custom_metadata() {
         .clear_metadata()
         .metadata("only_custom", "value");
 
-    module.collect_to(&mut save_store).unwrap();
+    module.save_into(&mut save_store).unwrap();
 
     // Verify round-trip works
     let mut load_store = SafetensorsStore::from_bytes(None);
@@ -109,7 +109,7 @@ fn clear_then_add_custom_metadata() {
     let mut module2 = LinearConfig::new(4, 2)
         .with_bias(true)
         .init::<TestBackend>(&device);
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
 }

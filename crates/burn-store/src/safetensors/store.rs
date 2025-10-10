@@ -1,7 +1,7 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
 use crate::{
-    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleSnapshoter, PathFilter,
+    ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
     TensorSnapshot,
 };
 
@@ -119,6 +119,7 @@ impl SafetensorsStore {
             metadata: Self::default_metadata(),
             validate: true,
             allow_partial: false,
+            overwrite: false,
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
         })
@@ -154,7 +155,8 @@ impl SafetensorsStore {
     /// Multiple patterns can be added and they work with OR logic.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_regex(r"^encoder\..*")  // Match all encoder tensors
     ///     .with_regex(r".*\.weight$");   // OR match any weight tensors
@@ -187,7 +189,8 @@ impl SafetensorsStore {
     /// Add an exact full path to match.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_full_path("encoder.layer1.weight")
     ///     .with_full_path("decoder.output.bias");
@@ -220,7 +223,8 @@ impl SafetensorsStore {
     /// The predicate receives the tensor path and container path.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_predicate(|path, _| path.starts_with("encoder.") || path.ends_with(".bias"));
     /// ```
@@ -269,7 +273,8 @@ impl SafetensorsStore {
     /// Add a regex pattern to remap tensor names during load/save.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
     /// let store = SafetensorsStore::from_file("model.safetensors")
     ///     .with_key_remapping(r"^encoder\.", "transformer.encoder.")  // encoder.X -> transformer.encoder.X
     ///     .with_key_remapping(r"\.gamma$", ".weight");               // X.gamma -> X.weight
@@ -353,6 +358,31 @@ impl SafetensorsStore {
         self
     }
 
+    /// Set whether to overwrite existing files when saving (default: false).
+    ///
+    /// When set to `false`, attempting to save to an existing file will result in an error.
+    /// When set to `true`, existing files will be overwritten without warning.
+    ///
+    /// This setting only applies to file-based stores.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// let mut store = SafetensorsStore::from_file("model.safetensors")
+    ///     .overwrite(true);
+    /// // Will overwrite if file exists when saving
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn overwrite(mut self, overwrite: bool) -> Self {
+        match &mut self {
+            Self::File(p) => p.overwrite = overwrite,
+            Self::Memory(_) => {
+                // Memory stores don't have overwrite semantics, ignore
+            }
+        }
+        self
+    }
+
     /// Set the adapter for loading tensors (converting from source format to Burn).
     pub fn with_from_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
         match &mut self {
@@ -376,10 +406,14 @@ impl SafetensorsStore {
     /// Get saved bytes from memory-based store.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut store = SafetensorsStore::from_bytes(None);
-    /// model.collect_to(&mut store)?;
+    /// // After saving model with collect_to()...
     /// let bytes = store.get_bytes()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get_bytes(&self) -> Result<Vec<u8>, SafetensorsStoreError> {
         match self {
@@ -404,6 +438,7 @@ pub struct FileStore {
     metadata: HashMap<String, String>,
     validate: bool,
     allow_partial: bool,
+    overwrite: bool,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
 }
@@ -482,7 +517,7 @@ impl safetensors::View for TensorSnapshotAdapter {
     }
 }
 
-impl ModuleSnapshoter for SafetensorsStore {
+impl ModuleStore for SafetensorsStore {
     type Error = SafetensorsStoreError;
 
     fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
@@ -520,6 +555,14 @@ impl ModuleSnapshoter for SafetensorsStore {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
+                // Check if file exists and overwrite is disabled
+                if p.path.exists() && !p.overwrite {
+                    return Err(SafetensorsStoreError::Other(format!(
+                        "File already exists: {}. Use .overwrite(true) to overwrite.",
+                        p.path.display()
+                    )));
+                }
+
                 // Convert to safetensors format
                 let tensors = snapshots_to_safetensors(snapshots)?;
 

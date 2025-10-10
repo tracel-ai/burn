@@ -158,7 +158,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                             burn::module::ParamId::new(),
                             move |device, _require_grad| Tensor::<B, #rank, Int>::zeros(#shape, device),
                             device.clone(),
-                            false
+                            false,
+                            #shape.into(),
                         );
                     }),
                     crate::burn::TensorKind::Float => Some(quote! {
@@ -167,6 +168,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                             move |device, _require_grad| Tensor::<B, #rank>::zeros(#shape, device),
                             device.clone(),
                             false,
+                            #shape.into(),
                         );
                     }),
                     crate::burn::TensorKind::Bool => Some(quote! {
@@ -175,6 +177,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                             move |device, _require_grad| Tensor::<B, #rank, Bool>::empty(#shape, device),
                             device.clone(),
                             false,
+                            #shape.into(),
                         );
                     }),
                 }
@@ -474,7 +477,8 @@ mod tests {
                         burn::module::ParamId::new(),
                         move |device, _require_grad| Tensor::<B, 1>::zeros([4], device),
                         device.clone(),
-                        false
+                        false,
+                        [4].into(),
                     );
 
                     Self {
@@ -530,7 +534,8 @@ mod tests {
                         burn::module::ParamId::new(),
                         move |device, _require_grad| Tensor::<B, 1, Int>::zeros([3], device),
                         device.clone(),
-                        false
+                        false,
+                        [3].into(),
                     );
 
                     Self {
@@ -586,7 +591,8 @@ mod tests {
                         burn::module::ParamId::new(),
                         move |device, _require_grad| Tensor::<B, 3, Bool>::empty([1, 3, 2], device),
                         device.clone(),
-                        false
+                        false,
+                        [1, 3, 2].into(),
                     );
 
                     Self {

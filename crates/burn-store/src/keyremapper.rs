@@ -12,16 +12,18 @@ use crate::TensorSnapshot;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
-/// use burn_store::KeyRemapper;
-///
+/// ```rust,no_run
+/// # use burn_store::KeyRemapper;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a key remapper
 /// let remapper = KeyRemapper::new()
 ///     .add_pattern(r"^pytorch\.(.*)", "burn.$1")?  // pytorch.layer -> burn.layer
 ///     .add_pattern(r"\.gamma$", ".weight")?;       // layer.gamma -> layer.weight
 ///
-/// // Apply to tensor views
-/// let (remapped_tensors, transformations) = remapper.remap(tensors);
+/// // Use remapper with stores
+/// // store.remap(remapper)
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct KeyRemapper {

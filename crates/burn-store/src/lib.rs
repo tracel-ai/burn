@@ -26,11 +26,11 @@
 //!
 //! // Save a model
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
-//! model.collect_to(&mut store)?;
+//! model.save_into(&mut store)?;
 //!
 //! // Load a model
 //! let mut store = SafetensorsStore::from_file("model.safetensors");
-//! model.apply_from(&mut store)?;
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! ### Loading PyTorch Models
@@ -43,21 +43,20 @@
 //!     .with_top_level_key("state_dict")  // Access nested state dict if needed
 //!     .allow_partial(true);               // Skip unknown tensors
 //!
-//! model.apply_from(&mut store)?;
+//! model.load_from(&mut store)?;
 //! ```
 //!
 //! ### Filtering and Remapping
 //!
-//! ```rust,ignore
-//! use burn_store::SafetensorsStore;
-//!
+//! ```rust,no_run
+//! # use burn_store::SafetensorsStore;
 //! // Save only specific layers with renaming
 //! let mut store = SafetensorsStore::from_file("encoder.safetensors")
 //!     .with_regex(r"^encoder\..*")                         // Filter: only encoder layers
 //!     .with_key_remapping(r"^encoder\.", "transformer.")   // Rename: encoder.X -> transformer.X
 //!     .metadata("subset", "encoder_only");
 //!
-//! model.collect_to(&mut store)?;
+//! // Use store with model.save_into(&mut store)?;
 //! ```
 //!
 //! ## Core Components
@@ -88,7 +87,7 @@ pub use applier::{Applier, ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
 pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
-pub use traits::{ModuleSnapshot, ModuleSnapshoter};
+pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
 mod keyremapper;
@@ -104,3 +103,8 @@ pub use pytorch::{PytorchStore, PytorchStoreError};
 mod safetensors;
 #[cfg(feature = "safetensors")]
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
+
+#[cfg(feature = "burnpack")]
+mod burnpack;
+#[cfg(feature = "burnpack")]
+pub use burnpack::store::BurnpackStore;

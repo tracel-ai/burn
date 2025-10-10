@@ -67,14 +67,14 @@ mod tests {
 
         // Save to bytes
         let mut save_store = SafetensorsStore::from_bytes(None);
-        model.collect_to(&mut save_store).expect("Failed to save");
+        model.save_into(&mut save_store).expect("Failed to save");
         let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
         // Load into a new model
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
         loaded_model
-            .apply_from(&mut load_store)
+            .load_from(&mut load_store)
             .expect("Failed to load");
 
         // Verify float tensor is preserved
@@ -171,13 +171,13 @@ mod tests {
 
         // Save and load
         let mut save_store = SafetensorsStore::from_bytes(None);
-        model.collect_to(&mut save_store).expect("Failed to save");
+        model.save_into(&mut save_store).expect("Failed to save");
         let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
         let mut loaded_model = ExtremeValueModel::<TestBackend>::new(&device);
         loaded_model
-            .apply_from(&mut load_store)
+            .load_from(&mut load_store)
             .expect("Failed to load");
 
         // Check exact preservation
@@ -218,14 +218,14 @@ mod tests {
 
             // Save to bytes
             let mut save_store = SafetensorsStore::from_bytes(None);
-            model.collect_to(&mut save_store).expect("Failed to save");
+            model.save_into(&mut save_store).expect("Failed to save");
             let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
             // Load and verify
             let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
             let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
             loaded_model
-                .apply_from(&mut load_store)
+                .load_from(&mut load_store)
                 .expect("Failed to load");
 
             assert_eq!(
@@ -259,7 +259,7 @@ mod tests {
 
             // Save to bytes
             let mut save_store = SafetensorsStore::from_bytes(None);
-            model.collect_to(&mut save_store).expect("Failed to save");
+            model.save_into(&mut save_store).expect("Failed to save");
             let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
             // Load and verify
@@ -269,7 +269,7 @@ mod tests {
                 double_precision: Param::from_tensor(Tensor::zeros([2, 2], &device)),
             };
             loaded_model
-                .apply_from(&mut load_store)
+                .load_from(&mut load_store)
                 .expect("Failed to load");
 
             let orig = model.double_precision.val().into_data();
@@ -310,7 +310,7 @@ mod tests {
 
         // Save to bytes
         let mut save_store = SafetensorsStore::from_bytes(None);
-        model.collect_to(&mut save_store).expect("Failed to save");
+        model.save_into(&mut save_store).expect("Failed to save");
         let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
         // Load and verify
@@ -321,7 +321,7 @@ mod tests {
             large_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
         };
         loaded_model
-            .apply_from(&mut load_store)
+            .load_from(&mut load_store)
             .expect("Failed to load");
 
         assert_eq!(
@@ -400,7 +400,7 @@ mod tests {
 
         // Save to bytes
         let mut save_store = SafetensorsStore::from_bytes(None);
-        model.collect_to(&mut save_store).expect("Failed to save");
+        model.save_into(&mut save_store).expect("Failed to save");
         let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
         // Load into fresh model
@@ -419,7 +419,7 @@ mod tests {
             ),
         };
         loaded_model
-            .apply_from(&mut load_store)
+            .load_from(&mut load_store)
             .expect("Failed to load");
 
         // Verify all data is preserved

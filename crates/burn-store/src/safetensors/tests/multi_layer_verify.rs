@@ -66,7 +66,7 @@ fn multi_layer_model() {
         .allow_partial(true);
 
     let mut model = Net::<TestBackend>::new(&device);
-    let result = model.apply_from(&mut store).unwrap();
+    let result = model.load_from(&mut store).unwrap();
 
     // Verify loading was successful
     assert!(

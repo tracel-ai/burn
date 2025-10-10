@@ -27,7 +27,7 @@
 //!     .allow_partial(true);                          // Skip missing tensors
 //!
 //! let mut model = MyModel::new(&device);
-//! let result = model.apply_from(&mut store)?;
+//! let result = model.load_from(&mut store)?;
 //!
 //! println!("Loaded {} tensors", result.applied.len());
 //! if !result.missing.is_empty() {

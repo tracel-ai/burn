@@ -56,17 +56,19 @@ fn multi_layer_model_import() {
     // PyTorch stores as [out_features, in_features], Burn as [in_features, out_features]
     // Also, tensor names may differ (e.g., PyTorch uses different names for BatchNorm params)
     let mut store = SafetensorsStore::from_file(safetensors_path)
-        .validate(false) // Disable validation due to shape differences
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
 
-    let result = model.apply_from(&mut store).unwrap();
+    let result = model.load_from(&mut store).unwrap();
 
-    // Since we have shape mismatches with PyTorch model (transposed weights),
-    // we expect some errors but should still load what we can
+    // With the adapter, weights should load correctly
     assert!(!result.applied.is_empty());
-    // fc1.weight will have errors due to shape mismatch
-    assert!(!result.errors.is_empty());
+    assert!(
+        result.errors.is_empty(),
+        "Should have no errors with adapter: {:?}",
+        result.errors
+    );
 
     // Test forward pass with the loaded weights
     // Note: Due to shape mismatches (PyTorch vs Burn conventions for linear layers),
@@ -94,17 +96,22 @@ fn safetensors_round_trip_with_pytorch_model() {
 
     // Load the model from PyTorch safetensors
     let mut load_store = SafetensorsStore::from_file(safetensors_path)
-        .validate(false) // Disable validation due to shape differences
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::<TestBackend>::new(&device);
-    let load_result = model.apply_from(&mut load_store).unwrap();
-    // We expect some errors due to shape mismatch but some tensors should load
+    let load_result = model.load_from(&mut load_store).unwrap();
+    // With the adapter, weights should load correctly
     assert!(!load_result.applied.is_empty());
+    assert!(
+        load_result.errors.is_empty(),
+        "Should have no errors with adapter: {:?}",
+        load_result.errors
+    );
 
     // Save the model to memory
     // Note: format, producer and version are automatically added
     let mut save_store = SafetensorsStore::from_bytes(None).metadata("source", "pytorch");
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // Load into a new model
     let mut model2 = Net::<TestBackend>::new(&device);
@@ -115,7 +122,7 @@ fn safetensors_round_trip_with_pytorch_model() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let result = model2.apply_from(&mut load_store2).unwrap();
+    let result = model2.load_from(&mut load_store2).unwrap();
     assert!(!result.applied.is_empty());
 
     // Verify both models produce the same output
@@ -153,7 +160,7 @@ fn partial_load_from_pytorch_model() {
     // Save initial fc1 weights for comparison
     let _initial_fc1_weight = model.fc1.weight.val().to_data();
 
-    let result = model.apply_from(&mut store).unwrap();
+    let result = model.load_from(&mut store).unwrap();
 
     // Should load available tensors (with some errors due to shape mismatch)
     assert!(!result.applied.is_empty());
@@ -179,7 +186,7 @@ fn verify_tensor_names_from_pytorch() {
     let mut store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences
-    let result = model.apply_from(&mut store).unwrap();
+    let result = model.load_from(&mut store).unwrap();
 
     // Check that we loaded some tensors (with errors due to shape mismatch)
     assert!(!result.applied.is_empty());

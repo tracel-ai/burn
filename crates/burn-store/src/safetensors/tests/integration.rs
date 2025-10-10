@@ -117,7 +117,7 @@ fn basic_usage() {
     let mut save_store = SafetensorsStore::from_bytes(None).metadata("model_name", "test_model");
 
     // Use collect_to method
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // Load using new API
     let mut load_store = SafetensorsStore::from_bytes(None);
@@ -128,7 +128,7 @@ fn basic_usage() {
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
-    let result = target_model.apply_from(&mut load_store).unwrap();
+    let result = target_model.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert_eq!(result.applied.len(), 14); // All tensors should be applied
@@ -147,7 +147,7 @@ fn with_filtering() {
         .with_regex(r"^encoder\..*")
         .metadata("subset", "encoder_only");
 
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // Load into new model - need to allow partial loading since we only saved encoder tensors
     let mut load_store = SafetensorsStore::from_bytes(None).allow_partial(true);
@@ -158,7 +158,7 @@ fn with_filtering() {
     }
 
     let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
-    let result = target_model.apply_from(&mut load_store).unwrap();
+    let result = target_model.load_from(&mut load_store).unwrap();
 
     // Only encoder tensors should be applied
     assert_eq!(result.applied.len(), 6); // encoder has 6 tensors (2 layers × 2 + norm × 2)

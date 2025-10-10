@@ -83,6 +83,7 @@ impl ActivationConfig {
 /// Provides support for many in-built `burn::nn` activations.
 #[derive(Module, Debug)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum Activation<B: Backend> {
     /// [`Gelu`] activation layer.
     Gelu(Gelu),

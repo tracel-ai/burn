@@ -1,5 +1,5 @@
 use burn::{
-    module::{Module, ModuleMapper, ParamId},
+    module::{Module, ModuleMapper, Param},
     prelude::*,
     tensor::backend::AutodiffBackend,
 };
@@ -143,7 +143,8 @@ pub struct Clip {
 }
 
 impl<B: AutodiffBackend> ModuleMapper<B> for Clip {
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
         let is_require_grad = tensor.is_require_grad();
 
         let mut tensor = Tensor::from_inner(tensor.inner().clamp(self.min, self.max));
@@ -151,6 +152,6 @@ impl<B: AutodiffBackend> ModuleMapper<B> for Clip {
         if is_require_grad {
             tensor = tensor.require_grad();
         }
-        tensor
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }

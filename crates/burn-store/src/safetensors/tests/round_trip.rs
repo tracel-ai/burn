@@ -75,7 +75,7 @@ fn complex_module_round_trip() {
 
     // Save module1 using new store API
     let mut save_store = SafetensorsStore::from_bytes(None);
-    module1.collect_to(&mut save_store).unwrap();
+    module1.save_into(&mut save_store).unwrap();
 
     // Load into module2
     let mut load_store = SafetensorsStore::from_bytes(None);
@@ -86,7 +86,7 @@ fn complex_module_round_trip() {
         let data_arc = p_save.data().unwrap();
         p.set_data(data_arc.as_ref().clone());
     }
-    let result = module2.apply_from(&mut load_store).unwrap();
+    let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert!(result.applied.len() > 5);

@@ -107,6 +107,7 @@ impl Initializer {
         let device = device.clone();
         let shape: Shape = shape.into();
         let config = self.clone();
+        let shape_for_closure = shape.clone();
 
         Param::uninitialized(
             ParamId::new(),
@@ -123,6 +124,7 @@ impl Initializer {
             },
             device,
             true,
+            shape_for_closure,
         )
     }
 

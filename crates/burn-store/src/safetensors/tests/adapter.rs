@@ -30,7 +30,7 @@ fn pytorch_to_burn_adapter_linear_transpose() {
 
     // Save with BurnToPyTorch adapter (will transpose linear weights)
     let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // Load with PyTorchToBurn adapter (will transpose back)
     let mut load_store = SafetensorsStore::from_bytes(None).with_from_adapter(PyTorchToBurnAdapter);
@@ -41,7 +41,7 @@ fn pytorch_to_burn_adapter_linear_transpose() {
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_store).unwrap();
+    let result = model2.load_from(&mut load_store).unwrap();
 
     // Should successfully load all tensors
     assert!(!result.applied.is_empty());
@@ -86,7 +86,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
 
     // Save with BurnToPyTorch adapter (will rename gamma->weight, beta->bias)
     let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // The saved data should have PyTorch naming convention
     // We can't directly verify the internal names, but we can verify round-trip works
@@ -100,7 +100,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
     }
 
     let mut model2 = NormModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_store).unwrap();
+    let result = model2.load_from(&mut load_store).unwrap();
 
     // Should load successfully
     assert!(!result.applied.is_empty());
@@ -122,7 +122,7 @@ fn no_adapter_preserves_original() {
 
     // Save without adapter
     let mut save_store = SafetensorsStore::from_bytes(None);
-    model.collect_to(&mut save_store).unwrap();
+    model.save_into(&mut save_store).unwrap();
 
     // Load without adapter
     let mut load_store = SafetensorsStore::from_bytes(None);
@@ -133,7 +133,7 @@ fn no_adapter_preserves_original() {
     }
 
     let mut model2 = TestModel::<TestBackend>::new(&device);
-    let result = model2.apply_from(&mut load_store).unwrap();
+    let result = model2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
     assert!(!result.applied.is_empty());
@@ -183,7 +183,7 @@ fn adapter_with_pytorch_import() {
         .allow_partial(true);
 
     let mut model = SimpleNet::<TestBackend>::new(&device);
-    let result = model.apply_from(&mut store).unwrap();
+    let result = model.load_from(&mut store).unwrap();
 
     // Should load some tensors (fc1 if it exists in the file)
     // This mainly tests that the adapter works with real PyTorch files
