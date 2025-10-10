@@ -1778,7 +1778,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_fallback(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct PowfScalar;
 

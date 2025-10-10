@@ -350,7 +350,7 @@ where
         })
     }
 
-    fn int_powf_scalar(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
+    fn int_powf_scalar_fallback(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
                 (a.elem::<i64>().pow(rhs as u32)).elem()

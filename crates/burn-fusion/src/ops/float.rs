@@ -1543,7 +1543,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_fallback(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         scalar_float_ops!(PowfOps, B::float_powf_scalar);
 
         let mut streams = OperationStreams::default();

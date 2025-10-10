@@ -84,6 +84,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         )))
     }
 
+    /// Applies element wise square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
+    pub fn square(self) -> Self {
+        self.powi_scalar(2)
+    }
+
     /// Applies element wise root square operation.
     ///
     #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
