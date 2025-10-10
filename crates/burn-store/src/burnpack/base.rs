@@ -62,6 +62,25 @@ pub const METADATA_SIZE_FIELD_SIZE: usize = 4;
 /// Total header size (computed from components)
 pub const HEADER_SIZE: usize = MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_SIZE;
 
+// Security limits to prevent DoS attacks via resource exhaustion
+// These can be adjusted based on your use case
+
+/// Maximum allowed metadata size (100 MB)
+/// Prevents memory exhaustion attacks via oversized metadata claims
+pub const MAX_METADATA_SIZE: u32 = 100 * 1024 * 1024;
+
+/// Maximum allowed tensor size (10 GB per tensor)
+/// Prevents memory exhaustion attacks via oversized tensor claims
+pub const MAX_TENSOR_SIZE: usize = 10 * 1024 * 1024 * 1024;
+
+/// Maximum allowed number of tensors (100,000)
+/// Prevents resource exhaustion via excessive tensor counts
+pub const MAX_TENSOR_COUNT: usize = 100_000;
+
+/// Maximum CBOR deserialization recursion depth (128 levels)
+/// Prevents stack overflow attacks via deeply nested CBOR structures
+pub const MAX_CBOR_RECURSION_DEPTH: usize = 128;
+
 /// Byte range for magic number in header
 pub const fn magic_range() -> core::ops::Range<usize> {
     let start = 0;

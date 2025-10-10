@@ -1,5 +1,6 @@
 use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
+    MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
 };
 use crate::TensorSnapshot;
 use alloc::format;
@@ -163,6 +164,14 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidVersion);
         }
 
+        // Validate metadata size against security limit
+        if header.metadata_size > MAX_METADATA_SIZE {
+            return Err(BurnpackError::ValidationError(format!(
+                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
+                header.metadata_size, MAX_METADATA_SIZE
+            )));
+        }
+
         // Parse metadata
         let metadata_start = HEADER_SIZE;
         let metadata_end = metadata_start
@@ -178,9 +187,20 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidHeader);
         }
 
-        let metadata: BurnpackMetadata =
-            ciborium::de::from_reader(&bytes[metadata_start..metadata_end])
-                .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+        let metadata: BurnpackMetadata = ciborium::de::from_reader_with_recursion_limit(
+            &bytes[metadata_start..metadata_end],
+            MAX_CBOR_RECURSION_DEPTH,
+        )
+        .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+
+        // Validate tensor count against security limit
+        if metadata.tensors.len() > MAX_TENSOR_COUNT {
+            return Err(BurnpackError::ValidationError(format!(
+                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
+                metadata.tensors.len(),
+                MAX_TENSOR_COUNT
+            )));
+        }
 
         Ok(Self {
             metadata,
@@ -217,6 +237,14 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidVersion);
         }
 
+        // Validate metadata size against security limit
+        if header.metadata_size > MAX_METADATA_SIZE {
+            return Err(BurnpackError::ValidationError(format!(
+                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
+                header.metadata_size, MAX_METADATA_SIZE
+            )));
+        }
+
         // Parse metadata
         let metadata_start = HEADER_SIZE;
         let metadata_end = metadata_start
@@ -232,9 +260,20 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidHeader);
         }
 
-        let metadata: BurnpackMetadata =
-            ciborium::de::from_reader(&mmap[metadata_start..metadata_end])
-                .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+        let metadata: BurnpackMetadata = ciborium::de::from_reader_with_recursion_limit(
+            &mmap[metadata_start..metadata_end],
+            MAX_CBOR_RECURSION_DEPTH,
+        )
+        .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+
+        // Validate tensor count against security limit
+        if metadata.tensors.len() > MAX_TENSOR_COUNT {
+            return Err(BurnpackError::ValidationError(format!(
+                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
+                metadata.tensors.len(),
+                MAX_TENSOR_COUNT
+            )));
+        }
 
         Ok(Self {
             metadata,
@@ -277,13 +316,33 @@ impl BurnpackReader {
             return Err(BurnpackError::InvalidVersion);
         }
 
+        // Validate metadata size against security limit
+        if header.metadata_size > MAX_METADATA_SIZE {
+            return Err(BurnpackError::ValidationError(format!(
+                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
+                header.metadata_size, MAX_METADATA_SIZE
+            )));
+        }
+
         // Read metadata
         let mut metadata_bytes = vec![0u8; header.metadata_size as usize];
         file.read_exact(&mut metadata_bytes)
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
-        let metadata: BurnpackMetadata = ciborium::de::from_reader(metadata_bytes.as_slice())
-            .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+        let metadata: BurnpackMetadata = ciborium::de::from_reader_with_recursion_limit(
+            metadata_bytes.as_slice(),
+            MAX_CBOR_RECURSION_DEPTH,
+        )
+        .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
+
+        // Validate tensor count against security limit
+        if metadata.tensors.len() > MAX_TENSOR_COUNT {
+            return Err(BurnpackError::ValidationError(format!(
+                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
+                metadata.tensors.len(),
+                MAX_TENSOR_COUNT
+            )));
+        }
 
         // Store file handle for reuse
         let metadata_end = HEADER_SIZE
@@ -375,6 +434,15 @@ impl BurnpackReader {
                 return Err(BurnpackError::ValidationError(format!(
                     "Tensor '{}' has corrupted offset data: end offset {} < start offset {}",
                     name, end, start
+                )));
+            }
+
+            // Validate tensor size against security limit
+            let tensor_size = end - start;
+            if tensor_size > MAX_TENSOR_SIZE {
+                return Err(BurnpackError::ValidationError(format!(
+                    "Tensor '{}' size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
+                    name, tensor_size, MAX_TENSOR_SIZE
                 )));
             }
 
