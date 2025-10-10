@@ -39,26 +39,65 @@ impl StorageBackend {
     /// * `bytes` - The buffer to read into (caller-allocated)
     /// * `offset` - Absolute file/data position to start reading from
     ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The requested data range is out of bounds
+    /// - Less data is available than requested (indicates corruption or incorrect offset)
+    /// - File I/O fails
+    ///
     /// # Notes
+    ///
     /// The caller allocates the buffer, which allows for buffer reuse and future optimizations
     /// like memory pools and pinned memory.
+    ///
+    /// This method ensures all backends have consistent behavior: if the exact number of
+    /// requested bytes cannot be read, an error is returned to prevent data corruption.
     pub(crate) fn read_into(&self, bytes: &mut [u8], offset: usize) -> Result<(), BurnpackError> {
         match self {
             StorageBackend::Memory(data) => {
                 let data_bytes = data.as_ref();
-                let end = offset.saturating_add(bytes.len()).min(data_bytes.len());
-                let safe_offset = offset.min(data_bytes.len());
-                let available = &data_bytes[safe_offset..end];
-                bytes[..available.len()].copy_from_slice(available);
+                let end = offset.checked_add(bytes.len()).ok_or_else(|| {
+                    BurnpackError::IoError(format!(
+                        "Offset overflow: offset {} + length {} exceeds maximum",
+                        offset,
+                        bytes.len()
+                    ))
+                })?;
+
+                if end > data_bytes.len() {
+                    return Err(BurnpackError::IoError(format!(
+                        "Read out of bounds: requested {}..{} but data length is {}",
+                        offset,
+                        end,
+                        data_bytes.len()
+                    )));
+                }
+
+                bytes.copy_from_slice(&data_bytes[offset..end]);
                 Ok(())
             }
             #[cfg(all(feature = "std", feature = "memmap"))]
             StorageBackend::Mmap(mmap) => {
                 let mmap_bytes = mmap.as_ref();
-                let end = offset.saturating_add(bytes.len()).min(mmap_bytes.len());
-                let safe_offset = offset.min(mmap_bytes.len());
-                let available = &mmap_bytes[safe_offset..end];
-                bytes[..available.len()].copy_from_slice(available);
+                let end = offset.checked_add(bytes.len()).ok_or_else(|| {
+                    BurnpackError::IoError(format!(
+                        "Offset overflow: offset {} + length {} exceeds maximum",
+                        offset,
+                        bytes.len()
+                    ))
+                })?;
+
+                if end > mmap_bytes.len() {
+                    return Err(BurnpackError::IoError(format!(
+                        "Read out of bounds: requested {}..{} but mmap length is {}",
+                        offset,
+                        end,
+                        mmap_bytes.len()
+                    )));
+                }
+
+                bytes.copy_from_slice(&mmap_bytes[offset..end]);
                 Ok(())
             }
             #[cfg(feature = "std")]

@@ -450,3 +450,40 @@ fn test_reader_data_offsets_validation() {
     assert_eq!(tensor1_desc.data_offsets, (0, 4));
     assert_eq!(tensor2_desc.data_offsets, (4, 8));
 }
+
+#[test]
+fn test_reader_out_of_bounds_error() {
+    use crate::burnpack::reader::StorageBackend;
+    use alloc::rc::Rc;
+
+    // Create a small data buffer
+    let data = Bytes::from_bytes_vec(vec![1, 2, 3, 4, 5]);
+    let backend = StorageBackend::Memory(Rc::new(data));
+
+    // Try to read beyond the available data
+    let mut buffer = vec![0u8; 10];
+    let result = backend.read_into(&mut buffer, 0);
+
+    // Should return an error
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("out of bounds"));
+}
+
+#[test]
+fn test_reader_offset_overflow_error() {
+    use crate::burnpack::reader::StorageBackend;
+    use alloc::rc::Rc;
+
+    let data = Bytes::from_bytes_vec(vec![1, 2, 3, 4, 5]);
+    let backend = StorageBackend::Memory(Rc::new(data));
+
+    // Try to read with an offset that would overflow
+    let mut buffer = vec![0u8; 10];
+    let result = backend.read_into(&mut buffer, usize::MAX - 5);
+
+    // Should return an error about overflow
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("overflow"));
+}
