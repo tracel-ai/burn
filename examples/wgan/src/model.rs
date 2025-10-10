@@ -152,6 +152,6 @@ impl<B: AutodiffBackend> ModuleMapper<B> for Clip {
         if is_require_grad {
             tensor = tensor.require_grad();
         }
-        Param::into_initialized(id, tensor, mapper)
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }
