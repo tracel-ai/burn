@@ -166,15 +166,15 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         if let TuneOutput::Checked { handles } = &mut output {
             let out_desc = context
                 .tensors
-                .get(&self.variants.simple.op.out.id)
+                .get(&self.info.variants.simple.op.out.id)
                 .unwrap();
             let handle_out = context
                 .handles
                 .get_handle(&out_desc.id, &burn_ir::TensorStatus::ReadOnly);
 
             handles.insert(
-                self.variants.simple.op.out.id,
-                (out_desc.shape.clone(), handle_out.clone()),
+                self.info.variants.simple.op.out.id,
+                (out_desc.shape.dims.clone(), handle_out.clone()),
             );
         }
 
