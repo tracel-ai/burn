@@ -16,6 +16,18 @@ pub enum TensorSnapshotError {
     PanicError(String),
 }
 
+impl core::fmt::Display for TensorSnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "I/O error: {}", e),
+            Self::DataError(e) => write!(f, "Data error: {}", e),
+            Self::PanicError(e) => write!(f, "Panic error: {}", e),
+        }
+    }
+}
+
+impl core::error::Error for TensorSnapshotError {}
+
 /// A lightweight snapshot of a tensor that can lazily produce TensorData.
 ///
 /// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)

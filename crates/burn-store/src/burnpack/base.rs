@@ -195,3 +195,5 @@ impl core::fmt::Display for BurnpackError {
         }
     }
 }
+
+impl core::error::Error for BurnpackError {}

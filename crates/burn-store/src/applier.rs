@@ -84,6 +84,8 @@ impl core::fmt::Display for ApplyError {
     }
 }
 
+impl core::error::Error for ApplyError {}
+
 /// Result of applying tensor snapshots to a module
 #[derive(Debug, Clone)]
 pub struct ApplyResult {
