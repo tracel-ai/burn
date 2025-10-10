@@ -49,7 +49,12 @@ impl BurnpackWriter {
         for snapshot in &self.snapshots {
             let data_len = snapshot.data_len() as u64;
             let start = current_offset;
-            let end = start + data_len;
+            let end = start.checked_add(data_len).ok_or_else(|| {
+                BurnpackError::IoError(format!(
+                    "Tensor offset overflow: {} + {} exceeds maximum",
+                    start, data_len
+                ))
+            })?;
 
             tensors.insert(
                 snapshot.full_path(),
@@ -102,11 +107,20 @@ impl BurnpackWriter {
     pub fn write_into(&self, buffer: &mut [u8]) -> Result<(), BurnpackError> {
         let (_, metadata_bytes) = self.build_metadata()?;
 
+        // Check metadata size fits in u32
+        let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
+            BurnpackError::IoError(format!(
+                "Metadata size {} exceeds maximum of {} bytes",
+                metadata_bytes.len(),
+                u32::MAX
+            ))
+        })?;
+
         // Create header
         let header = BurnpackHeader {
             magic: MAGIC_NUMBER,
             version: FORMAT_VERSION,
-            metadata_size: metadata_bytes.len() as u32,
+            metadata_size,
         };
 
         // Calculate required size
@@ -135,12 +149,24 @@ impl BurnpackWriter {
 
         // Write tensor data
         for snapshot in &self.snapshots {
+            let expected_len = snapshot.data_len();
             let data = snapshot.to_data().map_err(|e| {
                 BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
             })?;
-            let data_len = data.bytes.len();
-            buffer[offset..offset + data_len].copy_from_slice(&data.bytes);
-            offset += data_len;
+            let actual_len = data.bytes.len();
+
+            // Validate data length consistency
+            if actual_len != expected_len {
+                return Err(BurnpackError::IoError(format!(
+                    "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
+                    snapshot.full_path(),
+                    expected_len,
+                    actual_len
+                )));
+            }
+
+            buffer[offset..offset + actual_len].copy_from_slice(&data.bytes);
+            offset += actual_len;
         }
 
         Ok(())
@@ -164,11 +190,20 @@ impl BurnpackWriter {
 
         let (_, metadata_bytes) = self.build_metadata()?;
 
+        // Check metadata size fits in u32
+        let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
+            BurnpackError::IoError(format!(
+                "Metadata size {} exceeds maximum of {} bytes",
+                metadata_bytes.len(),
+                u32::MAX
+            ))
+        })?;
+
         // Create and write header
         let header = BurnpackHeader {
             magic: MAGIC_NUMBER,
             version: FORMAT_VERSION,
-            metadata_size: metadata_bytes.len() as u32,
+            metadata_size,
         };
 
         file.write_all(&header.into_bytes())
@@ -180,9 +215,22 @@ impl BurnpackWriter {
 
         // Stream tensor data directly to file
         for snapshot in &self.snapshots {
+            let expected_len = snapshot.data_len();
             let data = snapshot.to_data().map_err(|e| {
                 BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
             })?;
+            let actual_len = data.bytes.len();
+
+            // Validate data length consistency
+            if actual_len != expected_len {
+                return Err(BurnpackError::IoError(format!(
+                    "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
+                    snapshot.full_path(),
+                    expected_len,
+                    actual_len
+                )));
+            }
+
             file.write_all(&data.bytes)
                 .map_err(|e| BurnpackError::IoError(e.to_string()))?;
         }

@@ -165,7 +165,14 @@ impl BurnpackReader {
 
         // Parse metadata
         let metadata_start = HEADER_SIZE;
-        let metadata_end = metadata_start + header.metadata_size as usize;
+        let metadata_end = metadata_start
+            .checked_add(header.metadata_size as usize)
+            .ok_or_else(|| {
+                BurnpackError::IoError(format!(
+                    "Metadata size overflow: {} + {}",
+                    metadata_start, header.metadata_size
+                ))
+            })?;
 
         if bytes.len() < metadata_end {
             return Err(BurnpackError::InvalidHeader);
@@ -212,7 +219,14 @@ impl BurnpackReader {
 
         // Parse metadata
         let metadata_start = HEADER_SIZE;
-        let metadata_end = metadata_start + header.metadata_size as usize;
+        let metadata_end = metadata_start
+            .checked_add(header.metadata_size as usize)
+            .ok_or_else(|| {
+                BurnpackError::IoError(format!(
+                    "Metadata size overflow: {} + {}",
+                    metadata_start, header.metadata_size
+                ))
+            })?;
 
         if mmap.len() < metadata_end {
             return Err(BurnpackError::InvalidHeader);
@@ -272,7 +286,14 @@ impl BurnpackReader {
             .map_err(|e| BurnpackError::MetadataDeserializationError(e.to_string()))?;
 
         // Store file handle for reuse
-        let metadata_end = HEADER_SIZE + header.metadata_size as usize;
+        let metadata_end = HEADER_SIZE
+            .checked_add(header.metadata_size as usize)
+            .ok_or_else(|| {
+                BurnpackError::IoError(format!(
+                    "Metadata size overflow: {} + {}",
+                    HEADER_SIZE, header.metadata_size
+                ))
+            })?;
 
         Ok(Self {
             metadata,
@@ -289,7 +310,27 @@ impl BurnpackReader {
 
         for (name, descriptor) in &self.metadata.tensors {
             // Clone metadata for use in closure
-            let shape: Vec<usize> = descriptor.shape.iter().map(|&s| s as usize).collect();
+            // Convert shape dimensions with overflow checking
+            let shape: Result<Vec<usize>, _> = descriptor
+                .shape
+                .iter()
+                .map(|&s| {
+                    s.try_into().map_err(|_| {
+                        BurnpackError::IoError(format!(
+                            "Shape dimension {} exceeds platform maximum",
+                            s
+                        ))
+                    })
+                })
+                .collect();
+
+            let shape = shape.unwrap_or_else(|_| {
+                panic!(
+                    "Tensor '{}' has corrupted shape data: dimension exceeds platform maximum",
+                    name
+                )
+            });
+
             let dtype = descriptor.dtype;
 
             // Clone storage reference for the closure
@@ -304,11 +345,44 @@ impl BurnpackReader {
             };
 
             // Always use absolute positions for all backends
-            let start = self.data_offset + descriptor.data_offsets.0 as usize;
-            let end = self.data_offset + descriptor.data_offsets.1 as usize;
+            // Convert offsets with overflow checking
+            let offset_start: usize = descriptor.data_offsets.0.try_into().unwrap_or_else(|_| panic!("Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
+                name, descriptor.data_offsets.0));
+
+            let offset_end: usize = descriptor.data_offsets.1.try_into().unwrap_or_else(|_| {
+                panic!(
+                    "Tensor '{}' has corrupted offset data: end offset {} exceeds platform maximum",
+                    name, descriptor.data_offsets.1
+                )
+            });
+
+            let start = self
+                .data_offset
+                .checked_add(offset_start)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
+                        name, self.data_offset, offset_start
+                    )
+                });
+
+            let end = self.data_offset.checked_add(offset_end).unwrap_or_else(|| {
+                panic!(
+                    "Tensor '{}' has corrupted offset data: end offset overflow {} + {}",
+                    name, self.data_offset, offset_end
+                )
+            });
 
             // Clone shape for the closure (TensorSnapshot::from_closure will also need it)
             let shape_for_closure = shape.clone();
+
+            // Validate offset range
+            assert!(
+                end >= start,
+                "Tensor has corrupted offset data: end offset {} < start offset {}",
+                end,
+                start
+            );
 
             // Create lazy TensorSnapshot
             let snapshot = TensorSnapshot::from_closure(
@@ -381,8 +455,43 @@ impl BurnpackReader {
             .ok_or_else(|| BurnpackError::TensorNotFound(name.to_string()))?;
 
         // Always use absolute positions for all backends
-        let start = self.data_offset + descriptor.data_offsets.0 as usize;
-        let end = self.data_offset + descriptor.data_offsets.1 as usize;
+        // Convert offsets with overflow checking
+        let offset_start: usize = descriptor.data_offsets.0.try_into().map_err(|_| {
+            BurnpackError::IoError(format!(
+                "Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
+                name, descriptor.data_offsets.0
+            ))
+        })?;
+
+        let offset_end: usize = descriptor.data_offsets.1.try_into().map_err(|_| {
+            BurnpackError::IoError(format!(
+                "Tensor '{}' has corrupted offset data: end offset {} exceeds platform maximum",
+                name, descriptor.data_offsets.1
+            ))
+        })?;
+
+        let start = self.data_offset.checked_add(offset_start).ok_or_else(|| {
+            BurnpackError::IoError(format!(
+                "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
+                name, self.data_offset, offset_start
+            ))
+        })?;
+
+        let end = self.data_offset.checked_add(offset_end).ok_or_else(|| {
+            BurnpackError::IoError(format!(
+                "Tensor '{}' has corrupted offset data: end offset overflow {} + {}",
+                name, self.data_offset, offset_end
+            ))
+        })?;
+
+        // Validate offset range
+        if end < start {
+            return Err(BurnpackError::IoError(format!(
+                "Tensor '{}' has corrupted offset data: end offset {} < start offset {}",
+                name, end, start
+            )));
+        }
+
         let len = end - start;
         let mut buffer = vec![0u8; len];
         self.storage.read_into(&mut buffer, start)?;
