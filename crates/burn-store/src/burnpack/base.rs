@@ -108,8 +108,8 @@ impl BurnpackHeader {
         }
     }
 
-    /// Serialize header to bytes
-    pub fn to_bytes(self) -> [u8; HEADER_SIZE] {
+    /// Serialize header into bytes
+    pub fn into_bytes(self) -> [u8; HEADER_SIZE] {
         let mut bytes = [0u8; HEADER_SIZE];
         LittleEndian::write_u32(&mut bytes[magic_range()], self.magic);
         LittleEndian::write_u16(&mut bytes[version_range()], self.version);

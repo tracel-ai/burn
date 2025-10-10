@@ -10,7 +10,7 @@ fn test_header_serialization() {
     assert_eq!(header.metadata_size, 12345);
 
     // Serialize to bytes
-    let bytes = header.to_bytes();
+    let bytes = header.into_bytes();
     assert_eq!(bytes.len(), HEADER_SIZE);
 
     // Deserialize back
@@ -48,7 +48,7 @@ fn test_header_insufficient_bytes() {
 fn test_version_compatibility() {
     // Create a header with current version
     let header = BurnpackHeader::new(100);
-    let bytes = header.to_bytes();
+    let bytes = header.into_bytes();
 
     // Should succeed with current version
     let result = BurnpackHeader::from_bytes(&bytes);

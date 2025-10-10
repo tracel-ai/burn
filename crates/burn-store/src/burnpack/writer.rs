@@ -87,7 +87,7 @@ impl BurnpackWriter {
         let mut buffer = Vec::with_capacity(total_size);
 
         // Write header
-        buffer.extend_from_slice(&header.to_bytes());
+        buffer.extend_from_slice(&header.into_bytes());
 
         // Write metadata
         buffer.extend_from_slice(&metadata_bytes);
@@ -147,7 +147,7 @@ impl BurnpackWriter {
             metadata_size: metadata_bytes.len() as u32,
         };
 
-        file.write_all(&header.to_bytes())
+        file.write_all(&header.into_bytes())
             .map_err(|e| BurnpackError::IoError(e.to_string()))?;
 
         // Write metadata
