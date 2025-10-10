@@ -18,10 +18,9 @@ use cubecl::{
 };
 
 use crate::shared::{
-    DYN_ELEM_ID,
     ir::{Arg, FuseBlockConfig, GlobalArgs, LocalArgs},
     kernel::init_locals,
-    view::FusedOutput,
+    view::{FusedOutput, GlobalInput},
 };
 
 #[derive(Clone)]
@@ -82,8 +81,6 @@ impl MatmulArgs for FusedMatmulArgs {
             Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
             _ => panic!("Input must be concrete"),
         };
-        let ty = comptime![state.a.precision().into_type()];
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
 
         let mut batch_strides = Sequence::new();
         #[unroll]
@@ -108,8 +105,14 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_col,
             state.lhs_memory_config,
         );
-        let slice = lhs.tensor.to_slice().try_cast_unchecked();
-        View::new::<Slice<Line<Lhs>>, Coords1d>(&slice, layout)
+        let buffer = GlobalInput::new(
+            &state.inputs,
+            &state.locals,
+            comptime![state.a.clone()],
+            comptime![state.config.clone()],
+            None,
+        );
+        View::new::<GlobalInput, Coords1d>(&buffer, layout)
     }
 
     fn view_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
@@ -120,8 +123,6 @@ impl MatmulArgs for FusedMatmulArgs {
             Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
             _ => panic!("Input must be concrete"),
         };
-        let ty = comptime![state.b.precision().into_type()];
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
 
         let mut batch_strides = Sequence::new();
         #[unroll]
@@ -146,8 +147,14 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_col,
             state.rhs_memory_config,
         );
-        let slice = rhs.tensor.to_slice().try_cast_unchecked();
-        View::new::<Slice<Line<Rhs>>, Coords1d>(&slice, layout)
+        let buffer = GlobalInput::new(
+            &state.inputs,
+            &state.locals,
+            comptime![state.b.clone()],
+            comptime![state.config.clone()],
+            None,
+        );
+        View::new::<GlobalInput, Coords1d>(&buffer, layout)
     }
 
     fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
@@ -160,8 +167,6 @@ impl MatmulArgs for FusedMatmulArgs {
                     Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
                     _ => panic!("Input must be concrete"),
                 };
-                let ty = comptime![c.precision().into_type()];
-                set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
 
                 let mut batch_strides = Sequence::new();
                 #[unroll]
@@ -186,8 +191,14 @@ impl MatmulArgs for FusedMatmulArgs {
                     stride_col,
                     state.out_memory_config,
                 );
-                let slice = acc.tensor.to_slice().try_cast_unchecked();
-                CubeOption::new_Some(View::new::<Slice<Line<EO>>, Coords1d>(&slice, layout))
+                let buffer = GlobalInput::new(
+                    &state.inputs,
+                    &state.locals,
+                    comptime![c.clone()],
+                    comptime![state.config.clone()],
+                    None,
+                );
+                CubeOption::new_Some(View::new::<GlobalInput, Coords1d>(&buffer, layout))
             }
             CubeOption::None => CubeOption::new_None(),
         }
@@ -196,8 +207,6 @@ impl MatmulArgs for FusedMatmulArgs {
     fn view_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &mut Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<EO>, Coords3d, ReadWrite> {
-        let ty = comptime![state.out.precision().into_type()];
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
         let rank = comptime![state.config.rank];
 
         let mut batch_strides = Sequence::new();

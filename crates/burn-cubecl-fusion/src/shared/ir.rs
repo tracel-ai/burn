@@ -29,7 +29,9 @@ pub enum Arg {
     },
 }
 
-#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
 /// Layout information.
 pub enum LayoutInfo {
     /// The layout if the same as the reference.
