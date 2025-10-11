@@ -10,7 +10,7 @@ pub fn squeeze_config(
     // When no axes input is provided, return None (meaning squeeze all dims with size 1)
     if curr.inputs.len() == 2 {
         // Get axes from the second input (ONNX opset 13+ standard)
-        match curr.inputs[1].into_value(graph_data) {
+        match curr.inputs[1].into_value() {
             Some(value) => match &value.data {
                 Data::Int64s(axes) => Some(axes.clone()),
                 _ => None,
@@ -40,7 +40,7 @@ impl NodeProcessor for SqueezeProcessor {
         log::debug!("Squeeze rank inference for node {}", node.name);
 
         let axes = if node.inputs.len() == 2 {
-            match node.inputs[1].into_value(graph_data).as_ref() {
+            match node.inputs[1].into_value().as_ref() {
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(axes.clone()),
                     _ => panic!("Squeeze: invalid input types"),

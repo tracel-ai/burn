@@ -31,7 +31,7 @@ pub fn range_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
             .get(index)
             .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
 
-        match input.into_value(graph_data) {
+        match input.into_value() {
             None => RangeInput::Runtime(input.clone()),
             Some(TensorData {
                 data: Data::Int64s(values),

@@ -48,7 +48,7 @@ pub fn unsqueeze_config(
             if let Some(TensorData {
                 data: Data::Int64s(shape),
                 ..
-            }) = input_value.into_value(graph_data).as_ref()
+            }) = input_value.into_value().as_ref()
             {
                 UnsqueezeConfig::Static(shape.clone())
             } else {
@@ -75,7 +75,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         log::debug!("Unsqueeze rank inference for node {}", node.name);
 
         let axes = if node.inputs.len() == 2 {
-            match node.inputs[1].into_value(graph_data).as_ref() {
+            match node.inputs[1].into_value().as_ref() {
                 Some(value) => match &value.data {
                     Data::Int64s(a) => Some(a.clone()),
                     _ => panic!("Unsqueeze: invalid input types"),

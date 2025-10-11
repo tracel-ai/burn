@@ -36,7 +36,7 @@ pub fn reduce_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
     if let Some(value) = node
         .inputs
         .get(1)
-        .and_then(|argument| argument.into_value(graph_data))
+        .and_then(|argument| argument.into_value())
     {
         axes = value.data.into_i64s();
     }

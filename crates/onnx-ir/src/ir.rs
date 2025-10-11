@@ -1,6 +1,6 @@
 use core::fmt;
 use half::f16;
-use std::{any::Any, collections::HashMap, fmt::Formatter};
+use std::{any::Any, cell::RefCell, collections::HashMap, fmt::Formatter, rc::Rc};
 use strum::{Display, EnumString};
 
 use crate::protos::TensorProto;
@@ -19,13 +19,26 @@ pub type Rank = usize;
 pub type Shape = Vec<usize>;
 
 /// A node input or output.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Argument {
     /// The name of the node input.
     pub name: String,
 
     /// The type of the argument.
     pub ty: ArgType,
+
+    /// Reference to the value store for lazy constant lookup
+    pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphData>>>,
+}
+
+impl fmt::Debug for Argument {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Argument")
+            .field("name", &self.name)
+            .field("ty", &self.ty)
+            .field("value_store", &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"))
+            .finish()
+    }
 }
 
 impl Argument {
@@ -47,6 +60,7 @@ impl Argument {
                     Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
+                        value_store: None,
                     }
                 } else {
                     Self {
@@ -56,6 +70,7 @@ impl Argument {
                             rank: td.shape.len(),
                             static_shape: Some(td.shape.clone()),
                         }),
+                        value_store: None,
                     }
                 };
                 (arg, td)
@@ -109,6 +124,7 @@ impl Argument {
                     let arg = Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
+                        value_store: None,
                     };
                     return (arg, td);
                 }
@@ -158,6 +174,7 @@ impl Argument {
                             rank: shape_usize.len(),
                             static_shape: Some(shape_usize.clone()),
                         }),
+                        value_store: None,
                     };
                     let td = TensorData {
                         data,
@@ -279,38 +296,28 @@ impl Argument {
         Self {
             name,
             ty: ArgType::default(),
+            value_store: None,
         }
     }
 
     /// Check if this argument has a value (i.e., points to a Constant node)
-    /// This method requires access to GraphData to check if the argument name
-    /// maps to a Constant node
-    pub fn has_value(&self, graph_data: &crate::from_onnx::GraphData) -> bool {
-        graph_data.is_constant(&self.name)
+    pub fn has_value(&self) -> bool {
+        self.value_store
+            .as_ref()
+            .map(|store| store.borrow().has_value(&self.name))
+            .unwrap_or(false)
     }
 
     /// Convert the constant behind this argument into a value
     /// The value is retrieved from the Constant node's attributes
-    /// The reference count for the constant is decremented, and the constant
-    /// is marked for removal if there are no other references
-    pub fn into_value(&self, graph_data: &mut crate::from_onnx::GraphData) -> Option<TensorData> {
-        if let Some(constant_node) = graph_data.get_constant_value(&self.name) {
-            // Get the value from the constant node's attributes
-            let value = constant_node.attrs.get("value").and_then(|attr| {
-                if let crate::ir::AttributeValue::Tensor(tensor) = attr {
-                    Some(tensor.clone())
-                } else {
-                    None
-                }
-            });
-
-            // Decrement the reference count
-            graph_data.decrement_constant_ref(&self.name);
-
-            value
-        } else {
-            None
-        }
+    /// The constant node is marked as consumed and removed from the graph,
+    /// but the value remains accessible via the consumed cache
+    pub fn into_value(&self) -> Option<TensorData> {
+        self.value_store.as_ref().and_then(|store| {
+            let value = store.borrow().get_value(&self.name)?;
+            store.borrow_mut().mark_consumed(&self.name);
+            Some(value)
+        })
     }
 
     /// Indicate that this argument is expected to be a specific type
@@ -1010,6 +1017,7 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Float32(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Float32),
                 name,
+                value_store: None,
             },
             AttributeValue::Float32s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -1018,10 +1026,12 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                value_store: None,
             },
             AttributeValue::Int64(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
                 name,
+                value_store: None,
             },
             AttributeValue::Int64s(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -1030,10 +1040,12 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                value_store: None,
             },
             AttributeValue::String(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::String),
                 name,
+                value_store: None,
             },
             AttributeValue::Strings(values) => Argument {
                 ty: ArgType::Tensor(TensorType {
@@ -1042,6 +1054,7 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                value_store: None,
             },
             AttributeValue::Tensor(tensor) => {
                 if tensor.shape.is_empty() {
@@ -1049,6 +1062,7 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
                         name,
+                        value_store: None,
                     }
                 } else {
                     // Convert tensor to argument
@@ -1059,6 +1073,7 @@ impl From<AttributeValue> for Argument {
                             static_shape: Some(tensor.shape.clone()),
                         }),
                         name,
+                        value_store: None,
                     }
                 }
             }

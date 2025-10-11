@@ -54,7 +54,7 @@ pub fn gather_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         indices_input
     );
 
-    let indices = if let Some(value) = indices_input.into_value(graph_data) {
+    let indices = if let Some(value) = indices_input.into_value() {
         // Static indices
         log::debug!("Gather {} has static indices value: {:?}", curr.name, value);
         match &value.data {

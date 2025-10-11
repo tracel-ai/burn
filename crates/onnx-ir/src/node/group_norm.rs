@@ -31,7 +31,7 @@ pub fn group_norm_config(
     graph_data: &mut crate::from_onnx::GraphData,
 ) -> (GroupNormConfig, bool) {
     let weight_shape = node.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .as_ref()
         .expect("GroupNorm: weight tensor must be present")
         .shape

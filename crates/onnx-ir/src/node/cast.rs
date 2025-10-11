@@ -190,6 +190,7 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
+            value_store: None,
         });
 
         let processor = CastProcessor;

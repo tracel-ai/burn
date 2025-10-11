@@ -248,6 +248,6 @@ impl TryFrom<ValueInfoProto> for Argument {
             })
         };
 
-        Ok(Argument { ty, name })
+        Ok(Argument { ty, name, value_store: None })
     }
 }

@@ -31,11 +31,11 @@ pub fn clip_config(
         let min = node
             .inputs
             .get(1)
-            .and_then(|arg| arg.into_value(graph_data));
+            .and_then(|arg| arg.into_value());
         let max = node
             .inputs
             .get(2)
-            .and_then(|arg| arg.into_value(graph_data));
+            .and_then(|arg| arg.into_value());
 
         if min_result.is_none()
             && let Some(min) = min

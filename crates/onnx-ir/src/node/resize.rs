@@ -120,7 +120,7 @@ pub fn resize_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(TensorData { data, .. }) = input.into_value(graph_data) {
+            if let Some(TensorData { data, .. }) = input.into_value() {
                 data.clone().into_f32s()
             } else {
                 vec![]
@@ -168,7 +168,7 @@ fn extract_scales_input(
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match input.into_value(graph_data) {
+                    match input.into_value() {
                         Some(TensorData { data, .. }) => {
                             let mut scales = data.clone().into_f32s();
                             if scales.is_empty() {
@@ -210,7 +210,7 @@ fn extract_sizes_input(
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match input.into_value(graph_data) {
+                    match input.into_value() {
                         Some(TensorData { data, .. }) => {
                             let mut sizes: Vec<usize> = data
                                 .clone()

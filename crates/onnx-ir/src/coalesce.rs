@@ -63,7 +63,7 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
     );
 
     assert!(
-        node.inputs[1].has_value(graph_data),
+        node.inputs[1].has_value(),
         "Input must have a value"
     );
 
@@ -150,7 +150,7 @@ pub(crate) fn convert_matmul_to_linear(
     }
 
     // if the second input does not have a value, it is not a weight, then proceed to the next node
-    if !node.inputs[1].has_value(graph_data) {
+    if !node.inputs[1].has_value() {
         return;
     }
 
@@ -182,9 +182,9 @@ fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &Gra
     peek_node.node_type == NodeType::Add
         && peek_node.inputs.len() == 2
         && ((peek_node.inputs[0].name == current_node.outputs[0].name
-            && peek_node.inputs[1].has_value(graph_data))
+            && peek_node.inputs[1].has_value())
             || (peek_node.inputs[1].name == current_node.outputs[0].name
-                && peek_node.inputs[0].has_value(graph_data)))
+                && peek_node.inputs[0].has_value()))
 }
 
 /// Helper function to convert and remove the Add node

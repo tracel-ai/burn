@@ -28,7 +28,7 @@ pub fn instance_norm_config(
     graph_data: &mut crate::from_onnx::GraphData,
 ) -> InstanceNormConfig {
     let weight_shape = node.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("InstanceNorm: weight tensor must be present")
         .shape
         .clone();

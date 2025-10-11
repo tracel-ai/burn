@@ -20,7 +20,7 @@ pub fn tile_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) ->
         .inputs
         .get(1)
         .map(|input| {
-            if let Some(TensorData { data, .. }) = input.into_value(graph_data) {
+            if let Some(TensorData { data, .. }) = input.into_value() {
                 data.clone()
                     .into_i64s()
                     .iter()

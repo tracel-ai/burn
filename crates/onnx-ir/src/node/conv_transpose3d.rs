@@ -91,7 +91,7 @@ pub fn conv_transpose3d_config(
     }
 
     let weight_shape = curr.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("ConvTranspose3d: weight tensor must be present")
         .shape
         .clone();

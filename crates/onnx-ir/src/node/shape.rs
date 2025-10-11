@@ -170,6 +170,7 @@ mod tests {
                 rank: 4,
                 static_shape: None,
             }),
+            value_store: None,
         });
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let _ = shape_config(&node, &mut graph_data);

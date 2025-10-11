@@ -32,7 +32,7 @@ pub fn expand_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         _ => panic!("Only tensor input is valid for shape"),
     }
 
-    match node.inputs[1].into_value(graph_data) {
+    match node.inputs[1].into_value() {
         Some(TensorData {
             data: Data::Int64s(shape),
             ..
@@ -43,7 +43,7 @@ pub fn expand_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         }
         _ => panic!(
             "Shape data type must be int64, is {:?}",
-            &node.inputs[1].into_value(graph_data)
+            &node.inputs[1].into_value()
         ),
     }
 }
@@ -76,7 +76,7 @@ impl NodeProcessor for ExpandProcessor {
         }
 
         let shape = if node.inputs.len() == 2 {
-            match node.inputs[1].into_value(graph_data) {
+            match node.inputs[1].into_value() {
                 Some(value) => match &value.data {
                     Data::Int64s(shape) => Some(shape.clone()),
                     _ => panic!("Expand operation encountered invalid input types"),
@@ -126,7 +126,7 @@ impl NodeProcessor for ExpandProcessor {
                             // For dynamic rank-1 tensors without static shape, we need to make an assumption
                             // or get the information from elsewhere.
                             // Check if we have a value that can tell us the rank
-                            if let Some(value) = node.inputs[1].into_value(graph_data) {
+                            if let Some(value) = node.inputs[1].into_value() {
                                 if let Data::Int64s(shape_data) = &value.data {
                                     // We have the actual shape values, so the output rank is the number of elements
                                     shape_data.len()

@@ -54,7 +54,7 @@ pub fn conv2d_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) 
     let mut group: usize = 1;
 
     let weight_shape = curr.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("Conv2d: weight tensor must be present")
         .shape
         .clone();

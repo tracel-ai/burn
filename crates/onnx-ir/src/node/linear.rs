@@ -36,7 +36,7 @@ pub fn linear_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
     }
 
     let weight_shape = node.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("Linear: weight tensor must be present")
         .shape
         .clone();
@@ -52,7 +52,7 @@ pub fn linear_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
     let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
     // check if the bias is present
-    let bias = node.inputs.len() == 3 && node.inputs[2].into_value(graph_data).is_some();
+    let bias = node.inputs.len() == 3 && node.inputs[2].into_value().is_some();
 
     LinearConfig::new(in_size, out_size).with_bias(bias)
 }

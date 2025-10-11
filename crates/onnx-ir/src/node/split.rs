@@ -80,9 +80,9 @@ pub fn split_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
     }
 
     // Check for custom split sizes provided as a second input
-    if node.inputs.len() > 1 && node.inputs[1].has_value(graph_data) {
+    if node.inputs.len() > 1 && node.inputs[1].has_value() {
         let sizes = node.inputs[1]
-            .into_value(graph_data)
+            .into_value()
             .as_ref()
             .unwrap()
             .data

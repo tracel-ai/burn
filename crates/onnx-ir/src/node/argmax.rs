@@ -167,6 +167,7 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
+            value_store: None,
         });
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let _ = argmax_config(&node, &mut graph_data);

@@ -89,7 +89,7 @@ pub fn conv_transpose2d_config(
     }
 
     let weight_shape = curr.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("ConvTranspose2d: weight tensor must be present")
         .shape
         .clone();

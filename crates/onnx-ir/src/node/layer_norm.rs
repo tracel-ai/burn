@@ -34,7 +34,7 @@ pub fn layer_norm_config(
     graph_data: &mut crate::from_onnx::GraphData,
 ) -> (LayerNormConfig, bool) {
     let weight_shape = node.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .expect("LayerNorm: weight tensor must be present")
         .shape
         .clone();

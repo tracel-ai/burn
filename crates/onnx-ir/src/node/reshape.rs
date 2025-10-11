@@ -187,7 +187,7 @@ fn get_rank_from_output(node: &Node) -> Option<usize> {
 fn get_static_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
-        && let Some(value) = node.inputs[1].into_value(graph_data)
+        && let Some(value) = node.inputs[1].into_value()
         && let Data::Int64s(shape) = &value.data
     {
         return Some(shape.clone());
@@ -223,7 +223,7 @@ fn extract_shape_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData
 
 /// Extract shape from tensor input
 fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeInput {
-    match node.inputs[1].into_value(graph_data) {
+    match node.inputs[1].into_value() {
         Some(TensorData { data, shape, .. }) => {
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             ReshapeInput::Static(data.clone().into_i64s())

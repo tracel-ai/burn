@@ -28,7 +28,7 @@ pub fn top_k_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
     let k = match node.inputs.get(1) {
         Some(k_tensor) => k_tensor
             .clone()
-            .into_value(graph_data)
+            .into_value()
             .expect("TopK: only constant 'k' tensor is currently supported")
             .data
             .into_i64s()[0],

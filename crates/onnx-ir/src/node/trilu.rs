@@ -31,7 +31,7 @@ pub fn trilu_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
         && let Some(TensorData {
             data: Data::Int64(diagonal_val),
             ..
-        }) = &diagonal_arg.into_value(graph_data)
+        }) = &diagonal_arg.into_value()
     {
         diagonal = *diagonal_val;
     }

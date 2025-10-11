@@ -30,7 +30,7 @@ pub fn dropout_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData)
     }
 
     let ratio = node.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .clone()
         .expect("Dropout ratio must be passed in the second input")
         .data

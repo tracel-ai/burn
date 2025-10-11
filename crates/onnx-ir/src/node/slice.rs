@@ -51,7 +51,7 @@ pub fn slice_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
     ) -> Option<SliceInput> {
         let input = node.inputs.get(index)?;
 
-        match input.into_value(graph_data) {
+        match input.into_value() {
             None => Some(SliceInput::Runtime(input.clone())),
             Some(TensorData {
                 data: Data::Int64s(values),

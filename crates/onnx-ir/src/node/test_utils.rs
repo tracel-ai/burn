@@ -36,6 +36,7 @@ impl NodeBuilder {
         self.inputs.push(Argument {
             name: name.to_string(),
             ty,
+            value_store: None,
         });
         self
     }
@@ -199,6 +200,7 @@ impl NodeBuilder {
                 rank,
                 static_shape: None,
             }),
+            value_store: None,
         };
         self.inputs.push(arg);
         // Store the constant data for later registration in GraphData
@@ -240,6 +242,7 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
+            value_store: None,
         };
         self.inputs.push(arg);
         // If value is provided, store it as constant data
@@ -262,6 +265,7 @@ impl NodeBuilder {
                 rank: 0,
                 static_shape: None,
             }),
+            value_store: None,
         };
         self.inputs.push(arg);
         // If value is provided, store it as constant data
@@ -295,6 +299,7 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty,
+            value_store: None,
         });
         self
     }
@@ -492,6 +497,7 @@ impl NodeBuilder {
         self.outputs.push(Argument {
             name: name.to_string(),
             ty: ArgType::default(),
+            value_store: None,
         });
         self
     }
@@ -510,12 +516,35 @@ impl NodeBuilder {
 
     /// Build the node and register any constant inputs in GraphData.
     /// This is useful for tests that need constant values accessible via GraphData.
+    ///
+    /// Note: After calling this method, the GraphData reference will be wrapped in Rc<RefCell<>>
+    /// and attached to the node's arguments. The original graph_data parameter will be replaced
+    /// with an empty GraphData. This is intentional to prevent confusion about ownership.
     pub fn build_with_graph_data(self, graph_data: &mut crate::from_onnx::GraphData) -> Node {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
         // Register constants in GraphData before building the node
         for (input_name, (data, shape)) in &self.constant_data {
             graph_data.register_test_constant(input_name.clone(), data.clone(), shape.clone());
         }
 
-        self.build()
+        // Build the node first
+        let mut node = self.build();
+
+        // Wrap GraphData in Rc<RefCell<>> and attach to all arguments
+        let graph_data_rc = Rc::new(RefCell::new(std::mem::replace(
+            graph_data,
+            crate::from_onnx::GraphData::new(&[], &[], &[]),
+        )));
+
+        for arg in &mut node.inputs {
+            arg.value_store = Some(graph_data_rc.clone());
+        }
+        for arg in &mut node.outputs {
+            arg.value_store = Some(graph_data_rc.clone());
+        }
+
+        node
     }
 }

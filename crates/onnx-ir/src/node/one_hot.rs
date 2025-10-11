@@ -6,14 +6,14 @@ pub fn one_hot_config(
     graph_data: &mut crate::from_onnx::GraphData,
 ) -> (usize, [f32; 2], i64) {
     let depth = curr.inputs[1]
-        .into_value(graph_data)
+        .into_value()
         .clone()
         .expect("OneHot: Only constant depth is currently supported")
         .data
         .into_i64();
 
     let values = curr.inputs[2]
-        .into_value(graph_data)
+        .into_value()
         .clone()
         .expect("OneHot: Only constant on/off values is currently supported")
         .data

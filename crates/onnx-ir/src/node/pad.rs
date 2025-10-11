@@ -28,7 +28,7 @@ pub fn pad_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> 
             return Vec::new();
         }
 
-        match node.inputs[1].into_value(graph_data) {
+        match node.inputs[1].into_value() {
             Some(TensorData { data, .. }) => data.into_i64s(),
             _ => Vec::new(),
         }
@@ -114,7 +114,7 @@ pub fn pad_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> 
         // TODO: Support int, boolean
         let mut constant_value = node.inputs
                 .get(2)
-                .and_then(|input| match &input.into_value(graph_data).expect("Value input must be present").data {
+                .and_then(|input| match &input.into_value().expect("Value input must be present").data {
                     Data::Float16s(constant_value) => {
                         constant_value.first().map(|&f| f32::from(f))
                     }
@@ -332,6 +332,7 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
+            value_store: None,
         });
         let _ = pad_config(&node, &mut graph_data);
     }

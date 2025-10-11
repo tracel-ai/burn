@@ -81,7 +81,7 @@ impl NodeProcessor for ConcatProcessor {
                         // For constant tensors, use their actual dimension count
                         // For dynamic tensors, assume 1 element (will be corrected after conversion)
                         let contribution = input
-                            .into_value(graph_data)
+                            .into_value()
                             .as_ref()
                             .map(|v| v.shape[0])
                             .unwrap_or(1);

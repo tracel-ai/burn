@@ -76,6 +76,8 @@ pub struct GraphData {
     constant_nodes: HashMap<String, usize>,
     /// Nodes marked for removal
     nodes_to_remove: HashSet<usize>,
+    /// Cached values from consumed constants (constant node removed, but value still accessible)
+    consumed_values: HashMap<String, TensorData>,
 }
 
 impl GraphData {
@@ -112,6 +114,7 @@ impl GraphData {
                     outputs: vec![Argument {
                         name: output_name.clone(),
                         ty: arg.ty.clone(),
+                        value_store: None,
                     }],
                     attrs: HashMap::new(),
                     config: None,
@@ -180,6 +183,7 @@ impl GraphData {
             constant_references,
             constant_nodes,
             nodes_to_remove: HashSet::new(),
+            consumed_values: HashMap::new(),
         }
     }
 
@@ -331,6 +335,66 @@ impl GraphData {
         }
     }
 
+    /// Check if a value is available (either in active constants or consumed cache)
+    pub(crate) fn has_value(&self, name: &str) -> bool {
+        self.constant_nodes.contains_key(name) || self.consumed_values.contains_key(name)
+    }
+
+    /// Get the tensor data value for a constant by name
+    /// Returns cloned data from either active constant node or consumed cache
+    pub(crate) fn get_value(&self, name: &str) -> Option<TensorData> {
+        // Check consumed cache first (faster)
+        if let Some(cached) = self.consumed_values.get(name) {
+            return Some(cached.clone());
+        }
+
+        // Otherwise extract from constant node
+        self.get_constant_value(name).and_then(|node| {
+            node.attrs.get("value").and_then(|attr| {
+                if let crate::ir::AttributeValue::Tensor(tensor) = attr {
+                    Some(tensor.clone())
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
+    /// Mark a constant as consumed, removing it from active nodes and caching its value
+    pub(crate) fn mark_consumed(&mut self, name: &str) {
+        // Extract value from constant node before removing it
+        if let Some(node) = self.get_constant_value(name) {
+            if let Some(crate::ir::AttributeValue::Tensor(tensor)) = node.attrs.get("value") {
+                self.consumed_values.insert(name.to_string(), tensor.clone());
+            }
+        }
+
+        // Decrement reference count and mark for removal
+        self.decrement_constant_ref(name);
+    }
+
+    /// Attach value store reference to an argument
+    /// This allows the argument to access constant values without explicitly passing GraphData
+    pub(crate) fn attach_value_store_to_arg(
+        &self,
+        arg: &mut Argument,
+        store: std::rc::Rc<std::cell::RefCell<GraphData>>,
+    ) {
+        arg.value_store = Some(store);
+    }
+
+    /// Helper to create a shared reference to GraphData
+    /// This is used when converting nodes to attach value stores
+    pub(crate) fn create_shared_ref(self) -> std::rc::Rc<std::cell::RefCell<GraphData>> {
+        std::rc::Rc::new(std::cell::RefCell::new(self))
+    }
+
+    /// Get mutable access to processed nodes
+    /// This is used to clear value_stores before consuming GraphData
+    pub(crate) fn get_processed_nodes_mut(&mut self) -> &mut Vec<Node> {
+        &mut self.processed_nodes
+    }
+
     /// Register a test constant in GraphData. This is used by test utilities to add constant
     /// values that can be retrieved via `into_value()`.
     pub(crate) fn register_test_constant(
@@ -380,6 +444,7 @@ impl GraphData {
                     rank: shape.len(),
                     static_shape: Some(shape),
                 }),
+                value_store: None,
             }],
             attrs: HashMap::new(),
             config: None,
@@ -406,11 +471,18 @@ pub(crate) struct OnnxGraphBuilder {
 
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
-        let mut graph_data = GraphData::new(
+        use std::rc::Rc;
+        use std::cell::RefCell;
+
+        let graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
+
+        // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+
         for t in &model_proto.graph.initializer {
             log::debug!(
                 "init name={:?} dtype={:?} dims={:?} raw_len={} i32={} i64={} f32={} f64={}",
@@ -428,33 +500,56 @@ impl OnnxGraphBuilder {
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
         while let Some(node_proto) = node_iter.next() {
-            let mut node = convert_node_proto(node_proto, &graph_data);
+            let mut node = convert_node_proto(node_proto, &graph_data_rc.borrow());
+
+            // Attach value_store to all arguments in the node
+            for arg in &mut node.inputs {
+                arg.value_store = Some(graph_data_rc.clone());
+            }
+            for arg in &mut node.outputs {
+                arg.value_store = Some(graph_data_rc.clone());
+            }
 
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
-            coalesce(&mut node, &mut node_iter, &mut graph_data);
+            coalesce(&mut node, &mut node_iter, &mut *graph_data_rc.borrow_mut());
             self.handle_identity(&mut node);
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
-            self.handle_unsqueeze(&mut node, &graph_data);
+            self.handle_unsqueeze(&mut node, &graph_data_rc.borrow());
 
             // Infer output types using processor registry
             log::debug!("Inferring rank for node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
             let mut context = ProcessorContext::new(16);
-            processor.process(&mut node, &mut context, &mut graph_data);
+            processor.process(&mut node, &mut context, &mut *graph_data_rc.borrow_mut());
             log::debug!(
                 "Rank inference result for {}: {:?}",
                 node.name,
                 node.outputs
             );
 
-            graph_data.add_node(node);
+            graph_data_rc.borrow_mut().add_node(node);
         }
 
-        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = graph_data.consume();
+        // Clear value_store references from nodes before consuming to avoid circular references
+        // The nodes will still work because they've been cloned into graph_data
+        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
+            let mut graph_data = graph_data_rc.borrow_mut();
+            // Clear value_stores from processed nodes before consuming
+            for node in graph_data.get_processed_nodes_mut() {
+                for arg in &mut node.inputs {
+                    arg.value_store = None;
+                }
+                for arg in &mut node.outputs {
+                    arg.value_store = None;
+                }
+            }
+            // Now we can safely consume (will be moved out after borrow ends)
+            std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume()
+        };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes);
@@ -884,7 +979,7 @@ impl OnnxGraphBuilder {
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Unsqueeze && node.inputs.len() > 1 {
             // Check if rhs is a constant using the new has_value method
-            let rhs_is_constant = node.inputs[1].has_value(graph_data);
+            let rhs_is_constant = node.inputs[1].has_value();
 
             if !rhs_is_constant {
                 // if the output has a shape, it's only because it's a graph output
@@ -1123,6 +1218,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
         let rhs_arg = Argument {
             name: format!("{}_generated_shape", &node.name),
             ty: ArgType::Shape(shape_len),
+            value_store: None,
         };
 
         // Update the node
