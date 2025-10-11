@@ -10,8 +10,8 @@ use std::any::Any;
 pub enum ConstantOfShapeShape {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape that will be determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime shape that will be determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 impl NodeConfig for ConstantOfShapeShape {
@@ -62,7 +62,9 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             }) => ConstantOfShapeShape::Static(shape.clone()),
             None => {
                 // We were unable to statically determine the input value, so we'll need to fetch it at runtime
-                ConstantOfShapeShape::Runtime(node.inputs[0].name.clone())
+                let mut runtime_arg = node.inputs[0].clone();
+                runtime_arg.value_store = None;
+                ConstantOfShapeShape::Runtime(runtime_arg)
             }
             _ => panic!(
                 "ConstantOfShape node {} requires Int64 shape data",

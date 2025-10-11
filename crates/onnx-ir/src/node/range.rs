@@ -25,8 +25,8 @@ impl NodeConfig for RangeConfig {
 pub enum RangeInput {
     /// Static value known at compile time.
     Static(i64),
-    /// Runtime argument determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime argument determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 pub struct RangeProcessor;
@@ -54,7 +54,11 @@ impl NodeProcessor for RangeProcessor {
                 .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
 
             match input.into_value() {
-                None => RangeInput::Runtime(input.name.clone()),
+                None => {
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    RangeInput::Runtime(runtime_arg)
+                }
                 Some(TensorData {
                     data: Data::Int64s(values),
                     ..

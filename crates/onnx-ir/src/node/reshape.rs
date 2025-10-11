@@ -23,8 +23,8 @@ impl NodeConfig for ReshapeConfig {
 pub enum ReshapeInput {
     /// Static shape known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime shape determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
@@ -218,7 +218,12 @@ fn validate_reshape_node(node: &Node) {
 fn extract_shape_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeInput {
     match &node.inputs[1].ty {
         ArgType::Tensor(_) => extract_tensor_shape(node, graph_data),
-        ArgType::Shape(_) => ReshapeInput::Runtime(node.inputs[1].name.clone()),
+        ArgType::Shape(_) => {
+            // Clone argument but clear value_store to maintain Send+Sync
+            let mut runtime_arg = node.inputs[1].clone();
+            runtime_arg.value_store = None;
+            ReshapeInput::Runtime(runtime_arg)
+        }
         _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
     }
 }
@@ -230,7 +235,12 @@ fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphDat
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             ReshapeInput::Static(data.clone().into_i64s())
         }
-        None => ReshapeInput::Runtime(node.inputs[1].name.clone()),
+        None => {
+            // Clone argument but clear value_store to maintain Send+Sync
+            let mut runtime_arg = node.inputs[1].clone();
+            runtime_arg.value_store = None;
+            ReshapeInput::Runtime(runtime_arg)
+        }
     }
 }
 
@@ -359,7 +369,7 @@ mod tests {
             .downcast_ref::<ReshapeConfig>()
             .unwrap();
         match &config.shape {
-            ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
+            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }
@@ -460,7 +470,7 @@ mod tests {
             .downcast_ref::<ReshapeConfig>()
             .unwrap();
         match &config.shape {
-            ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
+            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }

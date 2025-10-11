@@ -24,8 +24,8 @@ impl NodeConfig for GatherConfig {
 pub enum GatherInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime argument determined during execution.
+    Runtime(crate::ir::Argument),
 }
 
 pub struct GatherProcessor;
@@ -96,9 +96,11 @@ impl NodeProcessor for GatherProcessor {
                 other => panic!("Gather indices must be int32 or int64, got {other:?}"),
             }
         } else {
-            // Runtime indices
+            // Runtime indices - clone the argument but clear value_store to maintain Send+Sync
             log::debug!("Gather {} has runtime indices", node.name);
-            GatherInput::Runtime(indices_input.name.clone())
+            let mut runtime_arg = indices_input.clone();
+            runtime_arg.value_store = None;
+            GatherInput::Runtime(runtime_arg)
         };
 
         let config = GatherConfig {
@@ -304,8 +306,8 @@ mod tests {
 
         // Check that indices is runtime
         match &config.indices {
-            GatherInput::Runtime(name) => {
-                assert_eq!(name, "indices");
+            GatherInput::Runtime(arg) => {
+                assert_eq!(arg.name, "indices");
             }
             _ => panic!("Expected runtime indices"),
         }
@@ -555,8 +557,8 @@ mod tests {
 
         // Check that Shape indices are treated as runtime
         match &config.indices {
-            GatherInput::Runtime(name) => {
-                assert_eq!(name, "indices");
+            GatherInput::Runtime(arg) => {
+                assert_eq!(arg.name, "indices");
             }
             _ => panic!("Expected runtime Shape indices"),
         }

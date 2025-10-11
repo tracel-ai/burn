@@ -10,8 +10,8 @@ use std::any::Any;
 pub enum ExpandShape {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape that will be determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime shape that will be determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 impl NodeConfig for ExpandShape {
@@ -58,7 +58,9 @@ impl NodeProcessor for ExpandProcessor {
             }) => ExpandShape::Static(shape.clone()),
             None => {
                 // we were unable to statically determine the input value, so we'll need to fetch it at runtime
-                ExpandShape::Runtime(node.inputs[1].name.clone())
+                let mut runtime_arg = node.inputs[1].clone();
+                runtime_arg.value_store = None;
+                ExpandShape::Runtime(runtime_arg)
             }
             _ => panic!(
                 "Shape data type must be int64, is {:?}",
@@ -311,7 +313,7 @@ mod tests {
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
             ExpandShape::Runtime(name) => {
-                assert_eq!(name, "shape");
+                assert_eq!(name.name, "shape");
             }
         }
     }
@@ -336,7 +338,7 @@ mod tests {
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
             ExpandShape::Runtime(name) => {
-                assert_eq!(name, "shape");
+                assert_eq!(name.name, "shape");
             }
         }
     }

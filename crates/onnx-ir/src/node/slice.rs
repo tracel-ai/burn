@@ -26,8 +26,8 @@ impl NodeConfig for SliceConfig {
 pub enum SliceInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime argument determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 /// Normalize negative axes to positive indices based on tensor rank.
@@ -127,7 +127,11 @@ impl NodeProcessor for SliceProcessor {
             let input = node.inputs.get(index)?;
 
             match input.into_value() {
-                None => Some(SliceInput::Runtime(input.name.clone())),
+                None => {
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Some(SliceInput::Runtime(runtime_arg))
+                }
                 Some(TensorData {
                     data: Data::Int64s(values),
                     ..
@@ -448,8 +452,8 @@ mod tests {
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
             (SliceInput::Runtime(starts), SliceInput::Runtime(ends)) => {
-                assert_eq!(starts, "starts");
-                assert_eq!(ends, "ends");
+                assert_eq!(starts.name, "starts");
+                assert_eq!(ends.name, "ends");
                 // Check axes and steps
                 if let Some(SliceInput::Static(axes)) = &result.axes {
                     assert_eq!(axes, &vec![0]);
@@ -528,7 +532,7 @@ mod tests {
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
             (SliceInput::Runtime(starts), SliceInput::Static(ends)) => {
-                assert_eq!(starts, "starts");
+                assert_eq!(starts.name, "starts");
                 assert_eq!(ends, &vec![3]);
             }
             _ => panic!("Expected mixed config with runtime start and static end"),
@@ -561,7 +565,7 @@ mod tests {
         match (&result.starts, &result.ends) {
             (SliceInput::Static(starts), SliceInput::Runtime(ends)) => {
                 assert_eq!(starts, &vec![1]);
-                assert_eq!(ends, "ends");
+                assert_eq!(ends.name, "ends");
             }
             _ => panic!("Expected mixed config with static start and runtime end"),
         }

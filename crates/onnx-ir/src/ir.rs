@@ -7,7 +7,7 @@ use crate::protos::TensorProto;
 
 /// Trait for node-specific configuration
 /// Each node type can have its own configuration struct that implements this trait
-pub trait NodeConfig: Send + Sync {
+pub trait NodeConfig {
     /// Downcast to Any for type-safe retrieval
     fn as_any(&self) -> &dyn Any;
 

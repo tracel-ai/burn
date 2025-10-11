@@ -17,8 +17,8 @@ use std::any::Any;
 pub enum UnsqueezeConfig {
     /// Static axes known at compile time.
     Static(Vec<i64>),
-    /// Runtime axes that will be determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime axes that will be determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 impl NodeConfig for UnsqueezeConfig {
@@ -71,7 +71,9 @@ impl NodeProcessor for UnsqueezeProcessor {
                 {
                     UnsqueezeConfig::Static(shape.clone())
                 } else {
-                    UnsqueezeConfig::Runtime(node.inputs[1].name.clone())
+                    let mut runtime_arg = node.inputs[1].clone();
+                    runtime_arg.value_store = None;
+                    UnsqueezeConfig::Runtime(runtime_arg)
                 }
             }
             _ => panic!("Arg for unsqueeze must be tensor or scalar"),
@@ -422,7 +424,7 @@ mod tests {
         match config {
             UnsqueezeConfig::Static(_) => panic!("Expected Runtime config"),
             UnsqueezeConfig::Runtime(name) => {
-                assert_eq!(name, "axes");
+                assert_eq!(name.name, "axes");
             }
         }
     }

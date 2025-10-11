@@ -50,8 +50,8 @@ impl NodeConfig for ResizeConfig {
 pub enum ResizeScales {
     /// Static scales known at compile time.
     Static(Vec<f32>),
-    /// Runtime scales determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime scales determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 /// Represents either a static value or a runtime argument for resize sizes.
@@ -59,8 +59,8 @@ pub enum ResizeScales {
 pub enum ResizeSizes {
     /// Static sizes known at compile time.
     Static(Vec<usize>),
-    /// Runtime sizes determined during execution (stores argument name).
-    Runtime(String),
+    /// Runtime sizes determined during execution .
+    Runtime(crate::ir::Argument),
 }
 
 /// Extract scales input as either static or runtime
@@ -91,12 +91,18 @@ fn extract_scales_input(
                             scales = scales.iter().skip(2).cloned().collect();
                             Some(ResizeScales::Static(scales))
                         }
-                        None => Some(ResizeScales::Runtime(input.name.clone())),
+                        None => {
+                            let mut runtime_arg = input.clone();
+                            runtime_arg.value_store = None;
+                            Some(ResizeScales::Runtime(runtime_arg))
+                        }
                     }
                 }
                 ArgType::Shape(_) => {
                     // Shape input for scales - treat as runtime
-                    Some(ResizeScales::Runtime(input.name.clone()))
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Some(ResizeScales::Runtime(runtime_arg))
                 }
                 _ => None,
             }
@@ -138,13 +144,19 @@ fn extract_sizes_input(
                             sizes = sizes.iter().skip(2).cloned().collect();
                             Some(ResizeSizes::Static(sizes))
                         }
-                        None => Some(ResizeSizes::Runtime(input.name.clone())),
+                        None => {
+                            let mut runtime_arg = input.clone();
+                            runtime_arg.value_store = None;
+                            Some(ResizeSizes::Runtime(runtime_arg))
+                        }
                     }
                 }
                 ArgType::Shape(_rank) => {
                     // Shape input for sizes - this is the key case we're fixing
                     // The Shape type represents the shape of a tensor, which is exactly what we need
-                    Some(ResizeSizes::Runtime(input.name.clone()))
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Some(ResizeSizes::Runtime(runtime_arg))
                 }
                 _ => None,
             }
