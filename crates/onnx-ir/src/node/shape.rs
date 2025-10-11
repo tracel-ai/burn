@@ -92,10 +92,6 @@ impl NodeProcessor for ShapeProcessor {
             return;
         }
 
-        let processor = ShapeProcessor;
-
-        processor.process_config(node, _opset);
-
         let config = node.config::<ShapeConfig>();
         let dim = config.end - config.start;
         log::debug!(

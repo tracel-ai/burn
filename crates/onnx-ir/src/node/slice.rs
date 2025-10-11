@@ -178,9 +178,6 @@ impl NodeProcessor for SliceProcessor {
             ArgType::Shape(shape_rank) => {
                 // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
                 log::debug!("Slice input for {} is Shape", node.name);
-                let processor = SliceProcessor;
-                processor.process_config(node, _opset);
-
                 let config = node.config::<SliceConfig>();
 
                 // Only static slicing is supported for Shape inputs
@@ -413,6 +410,7 @@ mod tests {
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(_)));
 
         let processor = SliceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         // After calling, output should be the same type as input
@@ -432,6 +430,7 @@ mod tests {
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(ref t) if t.rank == 0));
 
         let processor = SliceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         // After calling, output should be ArgType::Shape with the calculated length

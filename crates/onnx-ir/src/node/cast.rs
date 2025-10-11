@@ -48,10 +48,6 @@ impl NodeProcessor for CastProcessor {
         }
 
         // Get the cast configuration with the target element type first, before mutable borrows
-        let processor = CastProcessor;
-
-        processor.process_config(node, _opset);
-
         let config = node.config::<CastConfig>();
         let elem_type = config.to.clone();
 
@@ -163,6 +159,7 @@ mod tests {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -179,6 +176,7 @@ mod tests {
         let mut node = create_test_node(0, DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -211,6 +209,7 @@ mod tests {
         });
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
     }
 
@@ -219,6 +218,7 @@ mod tests {
         let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -238,6 +238,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -259,6 +260,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -278,6 +280,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {

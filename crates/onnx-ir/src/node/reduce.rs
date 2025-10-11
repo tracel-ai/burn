@@ -91,9 +91,6 @@ impl NodeProcessor for ReduceProcessor {
             tensor_rank
         );
 
-        let processor = ReduceProcessor;
-        processor.process_config(node, _opset);
-
         let config = node.config::<ReduceConfig>();
 
         log::debug!(
@@ -287,6 +284,7 @@ mod tests {
         // Test that reduce with no axes and keepdims=false produces a scalar output
         let mut node = create_test_node(None, Some(0));
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -307,6 +305,7 @@ mod tests {
         // Test that reduce with all dimensions and keepdims=false produces a scalar output
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -327,6 +326,7 @@ mod tests {
         // Test that reduce with partial dimensions and keepdims=false produces a tensor output
         let mut node = create_test_node(Some(vec![1]), Some(0));
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -348,6 +348,7 @@ mod tests {
         // Test that reduce with keepdims=true always produces a tensor output
         let mut node = create_test_node(None, Some(1));
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -377,6 +378,7 @@ mod tests {
 
         // This should not panic
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -404,6 +406,7 @@ mod tests {
 
         // This should not panic
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -430,6 +433,7 @@ mod tests {
             .build();
 
         let processor = ReduceProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {

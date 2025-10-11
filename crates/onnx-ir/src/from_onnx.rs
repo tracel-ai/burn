@@ -490,6 +490,14 @@ impl OnnxGraphBuilder {
         use std::cell::RefCell;
         use std::rc::Rc;
 
+        // Extract opset version from model (default ONNX domain)
+        let opset_version = model_proto
+            .opset_import
+            .iter()
+            .find(|opset| opset.domain.is_empty())
+            .map(|opset| opset.version as usize)
+            .unwrap_or(MIN_OPSET_VERSION as usize);
+
         let graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
@@ -535,16 +543,24 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data_rc.borrow());
 
-            // Infer output types using processor registry
-            log::debug!("Inferring rank for node: {}", node.name);
+            // Process node using three-phase approach
+            log::debug!("Processing node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
-            processor.first_pass(&mut node, 16);
+
+            // Phase 1: Extract configuration from attributes and inputs
+            processor.process_config(&mut node, opset_version);
+
+            // Phase 2: Infer output types from input types (forward pass)
+            processor.first_pass(&mut node, opset_version);
             log::debug!(
-                "Rank inference result for {}: {:?}",
+                "Forward inference result for {}: {:?}",
                 node.name,
                 node.outputs
             );
+
+            // Phase 3: Propagate type expectations from outputs to inputs (backward pass)
+            processor.second_pass(&mut node, opset_version);
 
             graph_data_rc.borrow_mut().add_node(node);
         }
@@ -567,7 +583,7 @@ impl OnnxGraphBuilder {
         };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
-        self.convert_shape_constants(&mut processed_nodes);
+        self.convert_shape_constants(&mut processed_nodes, opset_version);
 
         // Remove the graph inputs/output that are not used by any node
         let mut i = 0;
@@ -604,7 +620,7 @@ impl OnnxGraphBuilder {
     }
 
     /// Convert Constant nodes to Shape type when used with Shape in operations like Add, Sub, Mul, Div, and Concat
-    fn convert_shape_constants(&self, nodes: &mut [Node]) {
+    fn convert_shape_constants(&self, nodes: &mut [Node], opset: usize) {
         // Find constants that need to be converted to Shape type
         let mut constants_to_convert = self.find_shape_constants(nodes);
 
@@ -617,7 +633,7 @@ impl OnnxGraphBuilder {
         self.update_constant_ranks(nodes, &mut constants_to_convert);
 
         // Apply the conversions to constants and their uses
-        self.apply_shape_conversions(nodes, &constants_to_convert);
+        self.apply_shape_conversions(nodes, &constants_to_convert, opset);
     }
 
     /// Find constants that should be converted to Shape type based on their usage
@@ -780,6 +796,7 @@ impl OnnxGraphBuilder {
         &self,
         nodes: &mut [Node],
         constants_to_convert: &HashMap<String, usize>,
+        opset: usize,
     ) {
         // Track nodes whose outputs have changed type
         let mut changed_outputs = HashSet::new();
@@ -812,7 +829,7 @@ impl OnnxGraphBuilder {
                     if self.update_node_inputs_to_shape(node, constants_to_convert) {
                         // Re-run rank inference for Concat (other ops don't change output type)
                         if node.node_type == NodeType::Concat
-                            && self.reinfer_and_track_changes(node, &mut changed_outputs)
+                            && self.reinfer_and_track_changes(node, &mut changed_outputs, opset)
                         {
                             log::debug!("Concat node {} output type changed", node.name);
                         }
@@ -824,7 +841,7 @@ impl OnnxGraphBuilder {
 
         // Second pass: propagate rank changes through all downstream nodes
         if !changed_outputs.is_empty() {
-            self.propagate_type_changes(nodes, changed_outputs);
+            self.propagate_type_changes(nodes, changed_outputs, opset);
         }
     }
 
@@ -861,13 +878,14 @@ impl OnnxGraphBuilder {
         &self,
         node: &mut Node,
         changed_outputs: &mut HashSet<String>,
+        opset: usize,
     ) -> bool {
         let old_output_type = node.outputs.first().map(|o| o.ty.clone());
 
         // Infer output types using processor registry
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
-        processor.first_pass(node, 16);
+        processor.first_pass(node, opset);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());
@@ -882,7 +900,7 @@ impl OnnxGraphBuilder {
     }
 
     /// Propagate type changes through the graph until no more changes occur
-    fn propagate_type_changes(&self, nodes: &mut [Node], initial_changes: HashSet<String>) {
+    fn propagate_type_changes(&self, nodes: &mut [Node], initial_changes: HashSet<String>, opset: usize) {
         log::debug!(
             "Propagating type changes from outputs: {:?}",
             initial_changes
@@ -937,7 +955,7 @@ impl OnnxGraphBuilder {
                     self.update_node_input_types(node, &output_type_map);
 
                     // Re-run rank inference and check for changes
-                    if self.reinfer_and_track_changes(node, &mut outputs_to_update) {
+                    if self.reinfer_and_track_changes(node, &mut outputs_to_update, opset) {
                         log::debug!("Node {} output changed, will propagate further", node.name);
                         // Remove from processed set so it can be reprocessed if more inputs change
                         processed_nodes.remove(&idx);

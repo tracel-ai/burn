@@ -93,9 +93,6 @@ impl NodeProcessor for ArgMaxProcessor {
         log::debug!("ArgMax input rank for {}: {}", node.name, input_rank);
 
         // Get config to determine output rank
-        let processor = ArgMaxProcessor;
-        processor.process_config(node, _opset);
-
         let keepdims = node.config::<ArgMaxConfig>().keepdims;
 
         // For burn compatibility, argmax always outputs a tensor
@@ -245,6 +242,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
@@ -268,6 +266,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         // Should output tensor with same rank as input (3)
@@ -291,6 +290,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         // Should output scalar (rank 0)

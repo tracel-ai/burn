@@ -165,7 +165,7 @@ pub(crate) fn convert_matmul_to_linear(
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_data);
-        if is_add_node_with_bias(&peek_node, node, graph_data) {
+        if is_add_node_with_bias(&peek_node, node) {
             convert_and_remove_add_node(&peek_node, node);
 
             // You don't have to remove it if it's never stored in the first place
@@ -175,7 +175,7 @@ pub(crate) fn convert_matmul_to_linear(
 }
 
 /// Helper function to check if the peeked node is an Add node with bias
-fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &GraphData) -> bool {
+fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
     peek_node.node_type == NodeType::Add
         && peek_node.inputs.len() == 2
         && ((peek_node.inputs[0].name == current_node.outputs[0].name

@@ -65,9 +65,6 @@ impl NodeProcessor for EyeLikeProcessor {
             _ => panic!("EyeLike operation requires 2D tensor input"),
         };
 
-        let processor = EyeLikeProcessor;
-        processor.process_config(node, _opset);
-
         let config = node.config::<EyeLikeConfig>();
         // Output type is either specified dtype or input type
         let output_type = config.dtype.clone().unwrap_or(input_elem_type);
@@ -97,6 +94,7 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
@@ -156,6 +154,7 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
+        processor.process_config(&mut node, 16);
         processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {

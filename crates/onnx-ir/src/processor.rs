@@ -166,7 +166,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::Sum,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor), // FIXME not binary
         );
 
         // Unary operations
@@ -276,7 +276,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::Gelu,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor), // FIXME has config
         );
 
         // Pooling operations
