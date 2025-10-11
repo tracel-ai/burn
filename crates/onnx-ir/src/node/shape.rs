@@ -54,7 +54,7 @@ impl NodeProcessor for ShapeProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -191,7 +191,7 @@ mod tests {
         let processor = ShapeProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // After update: Shape of Shape(3) should give Shape(1)
         // because [i64; 3] has shape [3] which is 1D
@@ -227,7 +227,7 @@ mod tests {
         let processor = ShapeProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Even with start/end attributes, Shape of Shape always outputs Shape(1)
         // because we're getting the shape of the shape array itself

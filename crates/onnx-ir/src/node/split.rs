@@ -137,7 +137,7 @@ impl NodeProcessor for SplitProcessor {
         (2, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -223,7 +223,7 @@ mod tests {
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 1);
         match &node.outputs[0].ty {
@@ -242,7 +242,7 @@ mod tests {
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 3);
         for output in &node.outputs {
@@ -265,7 +265,7 @@ mod tests {
 
         let processor = SplitProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 
     // Tests for split_config function

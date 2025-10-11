@@ -13,7 +13,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         (7, None) // Most element-wise ops use opset 7+ for broadcasting
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -32,7 +32,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
         (6, None) // Unary ops generally stable from opset 6+
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -78,7 +78,7 @@ mod tests {
             outputs: vec![Argument {
                 name: "c".to_string(),
                 ty: ArgType::default(),
-            value_store: None,
+                value_store: None,
             }],
             attrs: Default::default(),
             config: None,
@@ -86,7 +86,7 @@ mod tests {
 
         let ctx = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &ctx, &mut graph_data);
+        processor.process_forward(&mut node, &ctx, &mut graph_data);
 
         // Output should be rank 2
         match &node.outputs[0].ty {
@@ -115,7 +115,7 @@ mod tests {
             outputs: vec![Argument {
                 name: "b".to_string(),
                 ty: ArgType::default(),
-            value_store: None,
+                value_store: None,
             }],
             attrs: Default::default(),
             config: None,
@@ -123,7 +123,7 @@ mod tests {
 
         let ctx = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &ctx, &mut graph_data);
+        processor.process_forward(&mut node, &ctx, &mut graph_data);
 
         // Output should match input
         match &node.outputs[0].ty {

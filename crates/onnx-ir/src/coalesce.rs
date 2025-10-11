@@ -62,10 +62,7 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
         "Linear node must have at least 2 input"
     );
 
-    assert!(
-        node.inputs[1].has_value(),
-        "Input must have a value"
-    );
+    assert!(node.inputs[1].has_value(), "Input must have a value");
 
     // Get the constant node that holds the weight
     let weight_input_name = &node.inputs[1].name;

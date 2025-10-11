@@ -28,14 +28,8 @@ pub fn clip_config(
     // For Clip Opset 11+ , the min and max values are inputs
     // Get the min and max values from the input values
     if min_result.is_none() && max_result.is_none() {
-        let min = node
-            .inputs
-            .get(1)
-            .and_then(|arg| arg.into_value());
-        let max = node
-            .inputs
-            .get(2)
-            .and_then(|arg| arg.into_value());
+        let min = node.inputs.get(1).and_then(|arg| arg.into_value());
+        let max = node.inputs.get(2).and_then(|arg| arg.into_value());
 
         if min_result.is_none()
             && let Some(min) = min
@@ -80,7 +74,7 @@ impl NodeProcessor for ClipProcessor {
         (6, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

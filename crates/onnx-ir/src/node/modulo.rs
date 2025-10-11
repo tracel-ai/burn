@@ -36,7 +36,7 @@ impl NodeProcessor for ModuloProcessor {
         (10, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

@@ -64,7 +64,7 @@ impl NodeProcessor for LinearProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

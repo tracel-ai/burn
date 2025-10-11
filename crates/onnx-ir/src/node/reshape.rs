@@ -251,7 +251,7 @@ impl NodeProcessor for ReshapeProcessor {
         (5, None) // Reshape supported from opset 5+
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -362,11 +362,14 @@ mod tests {
         // Create a node without pre-registered data for the shape input
         let node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
-            .add_input("shape", ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                rank: 2, // 2D tensor
-                static_shape: Some(vec![2, 1]),
-            }))
+            .add_input(
+                "shape",
+                ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Int64,
+                    rank: 2, // 2D tensor
+                    static_shape: Some(vec![2, 1]),
+                }),
+            )
             .output_tensor_f32("reshaped", 2, None)
             .build_with_graph_data(&mut graph_data);
 

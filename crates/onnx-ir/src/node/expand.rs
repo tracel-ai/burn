@@ -55,7 +55,7 @@ impl NodeProcessor for ExpandProcessor {
         (8, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -208,7 +208,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -227,7 +227,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -249,7 +249,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 
     // Tests for expand_config function
@@ -369,7 +369,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -393,7 +393,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -427,7 +427,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context, &mut graph_data);
+            processor.process_forward(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -460,7 +460,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context, &mut graph_data);
+            processor.process_forward(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -493,7 +493,7 @@ mod tests {
 
             let processor = ExpandProcessor;
             let context = ProcessorContext::new(16);
-            processor.process(&mut node, &context, &mut graph_data);
+            processor.process_forward(&mut node, &context, &mut graph_data);
 
             match &node.outputs[0].ty {
                 ArgType::Tensor(tensor) => {
@@ -522,7 +522,7 @@ mod tests {
 
         let processor = ExpandProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

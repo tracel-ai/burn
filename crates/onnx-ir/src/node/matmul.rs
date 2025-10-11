@@ -9,7 +9,7 @@ impl NodeProcessor for MatMulProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -70,7 +70,7 @@ mod tests {
         let context = ProcessorContext::new(16);
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -89,7 +89,7 @@ mod tests {
         let context = ProcessorContext::new(16);
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -110,7 +110,7 @@ mod tests {
         let context = ProcessorContext::new(16);
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -131,6 +131,6 @@ mod tests {
         let context = ProcessorContext::new(16);
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 }

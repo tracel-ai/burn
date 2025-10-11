@@ -363,10 +363,11 @@ impl GraphData {
     /// Mark a constant as consumed, removing it from active nodes and caching its value
     pub(crate) fn mark_consumed(&mut self, name: &str) {
         // Extract value from constant node before removing it
-        if let Some(node) = self.get_constant_value(name) {
-            if let Some(crate::ir::AttributeValue::Tensor(tensor)) = node.attrs.get("value") {
-                self.consumed_values.insert(name.to_string(), tensor.clone());
-            }
+        if let Some(node) = self.get_constant_value(name)
+            && let Some(crate::ir::AttributeValue::Tensor(tensor)) = node.attrs.get("value")
+        {
+            self.consumed_values
+                .insert(name.to_string(), tensor.clone());
         }
 
         // Decrement reference count and mark for removal
@@ -471,8 +472,8 @@ pub(crate) struct OnnxGraphBuilder {
 
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
-        use std::rc::Rc;
         use std::cell::RefCell;
+        use std::rc::Rc;
 
         let graph_data = GraphData::new(
             &model_proto.graph.input,
@@ -512,7 +513,7 @@ impl OnnxGraphBuilder {
 
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
-            coalesce(&mut node, &mut node_iter, &mut *graph_data_rc.borrow_mut());
+            coalesce(&mut node, &mut node_iter, &mut graph_data_rc.borrow_mut());
             self.handle_identity(&mut node);
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
@@ -524,7 +525,7 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
             let mut context = ProcessorContext::new(16);
-            processor.process(&mut node, &mut context, &mut *graph_data_rc.borrow_mut());
+            processor.process_forward(&mut node, &mut context, &mut graph_data_rc.borrow_mut());
             log::debug!(
                 "Rank inference result for {}: {:?}",
                 node.name,
@@ -857,7 +858,7 @@ impl OnnxGraphBuilder {
         // Create an empty GraphData for type inference
         // During post-processing, we don't need access to constant values
         let mut empty_graph_data = GraphData::new(&[], &[], &[]);
-        processor.process(node, &mut context, &mut empty_graph_data);
+        processor.process_forward(node, &mut context, &mut empty_graph_data);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());

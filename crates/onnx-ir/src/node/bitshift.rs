@@ -39,7 +39,7 @@ impl NodeProcessor for BitShiftProcessor {
         (11, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

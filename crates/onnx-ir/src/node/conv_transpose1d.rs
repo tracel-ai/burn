@@ -137,7 +137,7 @@ impl NodeProcessor for Convtranspose1dProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

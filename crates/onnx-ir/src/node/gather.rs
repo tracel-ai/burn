@@ -92,7 +92,7 @@ impl NodeProcessor for GatherProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -289,7 +289,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output scalar, not tensor
         match &node.outputs[0].ty {
@@ -315,7 +315,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output tensor with rank 2 (1 + 2 - 1)
         match &node.outputs[0].ty {
@@ -344,7 +344,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
         match &node.outputs[0].ty {
@@ -370,7 +370,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output scalar when gathering from shape with scalar indices
         match &node.outputs[0].ty {
@@ -397,7 +397,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output Shape(2) since indices are Shape(2)
         match &node.outputs[0].ty {
@@ -423,7 +423,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output Shape(3) since indices are Shape(3)
         match &node.outputs[0].ty {
@@ -449,7 +449,7 @@ mod tests {
 
         let context = ProcessorContext::new(16);
 
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Should output Shape(1) for 1D tensor indices (indices_rank = 1)
         match &node.outputs[0].ty {

@@ -82,7 +82,7 @@ impl NodeProcessor for AvgPool2dProcessor {
         (7, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

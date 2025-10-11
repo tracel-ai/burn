@@ -160,7 +160,7 @@ impl NodeProcessor for SliceProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -399,7 +399,7 @@ mod tests {
 
         let processor = SliceProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // After calling, output should be the same type as input
         assert!(
@@ -420,7 +420,7 @@ mod tests {
 
         let processor = SliceProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // After calling, output should be ArgType::Shape with the calculated length
         // start = 1, end = 3 => output_len = 3 - 1 = 2

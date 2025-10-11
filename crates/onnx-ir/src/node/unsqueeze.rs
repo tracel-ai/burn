@@ -66,7 +66,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -228,7 +228,7 @@ mod tests {
         let mut node = create_test_node_with_attr(2, vec![0, 3]).build();
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -246,7 +246,7 @@ mod tests {
             .build_with_graph_data(&mut graph_data);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -264,7 +264,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -282,7 +282,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -299,7 +299,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -317,7 +317,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -336,7 +336,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Shape(1);
         let processor = UnsqueezeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 
     // Tests for unsqueeze_config function

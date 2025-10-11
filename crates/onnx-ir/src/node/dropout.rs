@@ -53,7 +53,7 @@ impl NodeProcessor for DropoutProcessor {
         (7, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

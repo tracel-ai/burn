@@ -36,7 +36,10 @@ impl fmt::Debug for Argument {
         f.debug_struct("Argument")
             .field("name", &self.name)
             .field("ty", &self.ty)
-            .field("value_store", &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"))
+            .field(
+                "value_store",
+                &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"),
+            )
             .finish()
     }
 }

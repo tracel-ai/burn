@@ -58,7 +58,30 @@ pub trait NodeProcessor: Send + Sync {
         (16, None)
     }
 
-    /// Infer output types from input types and optionally create node configuration.
+    /// Process node configuration and store it in the node's config field.
+    ///
+    /// This method extracts configuration from node attributes and inputs,
+    /// and stores it in the node's config field for later use during codegen.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to process (mutable to store config)
+    /// * `context` - Processing context with opset version and other metadata
+    /// * `graph_data` - Mutable access to graph data for constant operations
+    ///
+    /// # Default
+    ///
+    /// The default implementation does nothing (no config to store).
+    fn process_config(
+        &self,
+        _node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        // Default: no config to store
+    }
+
+    /// Forward pass: Infer output types from input types.
     ///
     /// This method should update the node's output arguments based on:
     /// - Input argument types
@@ -68,15 +91,38 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `node` - The node to process (mutable to update outputs and store config)
+    /// * `node` - The node to process (mutable to update outputs)
     /// * `context` - Processing context with opset version and other metadata
     /// * `graph_data` - Mutable access to graph data for constant operations
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     );
+
+    /// Backward pass: Process type expectations from outputs back to inputs.
+    ///
+    /// This method allows nodes to propagate type requirements backwards through
+    /// the graph when output types are known but input types need refinement.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to process
+    /// * `context` - Processing context with opset version and expected types
+    /// * `graph_data` - Mutable access to graph data for constant operations
+    ///
+    /// # Default
+    ///
+    /// The default implementation does nothing (no backward inference needed).
+    fn process_back(
+        &self,
+        _node: &mut Node,
+        _context: &ProcessorContext,
+        _graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        // Default: no backward processing
+    }
 }
 
 /// Registry for node processors.
@@ -638,7 +684,7 @@ impl ProcessorRegistry {
 struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -661,7 +707,7 @@ mod tests {
             (13, Some(18))
         }
 
-        fn process(
+        fn process_forward(
             &self,
             node: &mut Node,
             _context: &ProcessorContext,
@@ -716,7 +762,7 @@ mod tests {
 
         let ctx = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &ctx, &mut graph_data);
+        processor.process_forward(&mut node, &ctx, &mut graph_data);
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -772,7 +818,7 @@ mod tests {
 
         let ctx = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &ctx, &mut graph_data);
+        processor.process_forward(&mut node, &ctx, &mut graph_data);
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {

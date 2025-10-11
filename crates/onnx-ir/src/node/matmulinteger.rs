@@ -9,7 +9,7 @@ impl NodeProcessor for MatMulIntegerProcessor {
         (10, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -57,7 +57,7 @@ mod tests {
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -74,7 +74,7 @@ mod tests {
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -93,7 +93,7 @@ mod tests {
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 }
 #[cfg(test)]
@@ -116,7 +116,7 @@ mod tests2 {
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut n, &context, &mut graph_data);
+        processor.process_forward(&mut n, &context, &mut graph_data);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);
@@ -132,7 +132,7 @@ mod tests2 {
         let processor = MatMulIntegerProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut n, &context, &mut graph_data);
+        processor.process_forward(&mut n, &context, &mut graph_data);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);

@@ -120,7 +120,7 @@ impl NodeProcessor for Conv2dProcessor {
         (1, None) // Conv2d supported from opset 1+
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

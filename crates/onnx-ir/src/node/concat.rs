@@ -49,7 +49,7 @@ impl NodeProcessor for ConcatProcessor {
         (4, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -80,11 +80,8 @@ impl NodeProcessor for ConcatProcessor {
                     ArgType::Tensor(t) if t.rank == 1 => {
                         // For constant tensors, use their actual dimension count
                         // For dynamic tensors, assume 1 element (will be corrected after conversion)
-                        let contribution = input
-                            .into_value()
-                            .as_ref()
-                            .map(|v| v.shape[0])
-                            .unwrap_or(1);
+                        let contribution =
+                            input.into_value().as_ref().map(|v| v.shape[0]).unwrap_or(1);
                         provisional_rank += contribution;
 
                         log::debug!(
@@ -238,7 +235,7 @@ mod tests {
         let processor = ConcatProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Check that output is Shape with sum of input ranks
         match &node.outputs[0].ty {
@@ -287,6 +284,6 @@ mod tests {
         let processor = ConcatProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 }

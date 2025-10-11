@@ -72,7 +72,7 @@ impl NodeProcessor for TopKProcessor {
         (1, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -155,7 +155,7 @@ mod tests {
         let processor = TopKProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         assert_eq!(node.outputs.len(), 2);
 
@@ -188,7 +188,7 @@ mod tests {
         let processor = TopKProcessor;
         let context = ProcessorContext::new(16);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 
     // Tests for top_k_config function

@@ -94,7 +94,7 @@ impl NodeProcessor for MaxPool2dProcessor {
         (8, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,

@@ -61,7 +61,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         (9, None)
     }
 
-    fn process(
+    fn process_forward(
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
@@ -193,7 +193,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(3)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -215,7 +215,7 @@ mod tests {
         .build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -239,7 +239,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -257,7 +257,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Scalar(ElementType::Float32)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -286,7 +286,7 @@ mod tests {
 
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         // Verify the output has the correct rank
         match &node.outputs[0].ty {
@@ -305,7 +305,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(0)).build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -327,7 +327,7 @@ mod tests {
         .build();
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -351,7 +351,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -375,7 +375,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -399,7 +399,7 @@ mod tests {
         );
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -418,7 +418,7 @@ mod tests {
         // No value attribute means default Float32
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
-        processor.process(&mut node, &context, &mut graph_data);
+        processor.process_forward(&mut node, &context, &mut graph_data);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
