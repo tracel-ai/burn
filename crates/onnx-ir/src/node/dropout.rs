@@ -27,35 +27,6 @@ impl NodeConfig for DropoutConfig {
     }
 }
 
-/// Create a DropoutConfig from an attribute and state of the node
-pub fn dropout_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> DropoutConfig {
-    // Opset 7 and older store probability as an attribute
-    if node.attrs.contains_key("ratio") {
-        let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
-        return DropoutConfig::new(prob as f64);
-    }
-
-    if node.inputs.len() < 2 {
-        panic!("Dropout configuration must have at least 2 inputs");
-    }
-
-    let ratio = node.inputs[1]
-        .into_value()
-        .clone()
-        .expect("Dropout ratio must be passed in the second input")
-        .data
-        .into_scalar();
-
-    let prob = match ratio {
-        Data::Float16(ratio) => f64::from(f32::from(ratio)),
-        Data::Float32(ratio) => ratio as f64,
-        Data::Float64(ratio) => ratio,
-        _ => panic!("Dropout ratio must be a float"),
-    };
-
-    DropoutConfig::new(prob)
-}
-
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
@@ -69,7 +40,33 @@ impl NodeProcessor for DropoutProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = dropout_config(node, graph_data);
+        // Opset 7 and older store probability as an attribute
+        if node.attrs.contains_key("ratio") {
+            let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
+            let config = DropoutConfig::new(prob as f64);
+            node.config = Some(Box::new(config));
+            return;
+        }
+
+        if node.inputs.len() < 2 {
+            panic!("Dropout configuration must have at least 2 inputs");
+        }
+
+        let ratio = node.inputs[1]
+            .into_value()
+            .clone()
+            .expect("Dropout ratio must be passed in the second input")
+            .data
+            .into_scalar();
+
+        let prob = match ratio {
+            Data::Float16(ratio) => f64::from(f32::from(ratio)),
+            Data::Float32(ratio) => ratio as f64,
+            Data::Float64(ratio) => ratio,
+            _ => panic!("Dropout ratio must be a float"),
+        };
+
+        let config = DropoutConfig::new(prob);
         node.config = Some(Box::new(config));
     }
 
@@ -107,7 +104,17 @@ mod tests {
     fn test_dropout_config_with_attr() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(0.3).build_with_graph_data(&mut graph_data);
-        let config = dropout_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DropoutProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<DropoutConfig>()
+            .unwrap();
         assert!(f64::abs(config.prob - 0.3) < 1e-6);
     }
 
@@ -115,7 +122,17 @@ mod tests {
     fn test_dropout_config_with_input() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
-        let config = dropout_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DropoutProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<DropoutConfig>()
+            .unwrap();
         assert!(f64::abs(config.prob - 0.5) < 1e-6);
     }
 
@@ -126,6 +143,9 @@ mod tests {
         let mut node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
         node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
-        let _ = dropout_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DropoutProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

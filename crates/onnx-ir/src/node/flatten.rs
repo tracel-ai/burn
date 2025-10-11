@@ -19,50 +19,6 @@ impl NodeConfig for FlattenConfig {
     }
 }
 
-/// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> FlattenConfig {
-    // the begin dimension is the first dimension (Default: 1 per ONNX spec)
-    let mut axis: i64 = 1;
-
-    // check if the node has only one input
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Flatten: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
-
-    // extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    // check if the input tensor has at least 2 dimensions
-    if tensor.rank < 2 {
-        panic!(
-            "Flatten: input tensor must have at least 2 dimensions (got {:?})",
-            tensor.rank
-        );
-    }
-
-    // extract the attributes
-    for (key, value) in curr.attrs.iter() {
-        if key.as_str() == "axis" {
-            axis = value.clone().into_i64()
-        }
-    }
-
-    // if beg_dim is negative, it is counted from the end
-    if axis < 0 {
-        axis += tensor.rank as i64;
-    }
-
-    FlattenConfig {
-        axis: axis as usize,
-    }
-}
-
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
@@ -76,7 +32,47 @@ impl NodeProcessor for FlattenProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = flatten_config(node, graph_data);
+        // ALL logic from flatten_config inlined here
+        // the begin dimension is the first dimension (Default: 1 per ONNX spec)
+        let mut axis: i64 = 1;
+
+        // check if the node has only one input
+        if node.inputs.len() != 1 {
+            panic!(
+                "Flatten: multiple inputs are not supported (got {:?})",
+                node.inputs.len()
+            );
+        }
+
+        // extract the shape of the input tensor
+        let tensor = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Only tensor input is valid"),
+        };
+
+        // check if the input tensor has at least 2 dimensions
+        if tensor.rank < 2 {
+            panic!(
+                "Flatten: input tensor must have at least 2 dimensions (got {:?})",
+                tensor.rank
+            );
+        }
+
+        // extract the attributes
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                axis = value.clone().into_i64()
+            }
+        }
+
+        // if beg_dim is negative, it is counted from the end
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        let config = FlattenConfig {
+            axis: axis as usize,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -124,7 +120,17 @@ mod tests {
     fn test_flatten_config_basic() {
         let node = create_test_node(1);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = flatten_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = FlattenProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<FlattenConfig>()
+            .unwrap();
         assert_eq!(config.axis, 1);
     }
 
@@ -132,7 +138,17 @@ mod tests {
     fn test_flatten_config_with_negative_axis() {
         let node = create_test_node(-2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = flatten_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = FlattenProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<FlattenConfig>()
+            .unwrap();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
@@ -149,7 +165,10 @@ mod tests {
             .unwrap();
         node.inputs[0] = input;
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = flatten_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = FlattenProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -165,6 +184,9 @@ mod tests {
             .unwrap();
         node.inputs.push(extra_input);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = flatten_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = FlattenProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

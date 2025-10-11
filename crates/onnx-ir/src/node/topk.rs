@@ -28,54 +28,6 @@ impl TopKConfig {
     }
 }
 
-/// Creates a TopKConfig from the node attributes and inputs.
-pub fn top_k_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> TopKConfig {
-    // Extract the shape of the input data tensor
-    let data_tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    let k = match node.inputs.get(1) {
-        Some(k_tensor) => k_tensor
-            .clone()
-            .into_value()
-            .expect("TopK: only constant 'k' tensor is currently supported")
-            .data
-            .into_i64s()[0],
-        _ => node
-            .attrs
-            .get("k")
-            .expect("TopK: number of top elements 'k' is missing")
-            .clone()
-            .into_i64(),
-    };
-
-    let mut axis = match node.attrs.get("axis") {
-        Some(axis) => axis.clone().into_i64(),
-        None => -1,
-    };
-
-    // If axis is negative, it is counted from the end
-    if axis < 0 {
-        axis += data_tensor.rank as i64;
-    }
-
-    if let Some(largest) = node.attrs.get("largest")
-        && largest.clone().into_i64() != 1
-    {
-        unimplemented!("TopK: only largest elements is supported")
-    };
-
-    if let Some(sorted) = node.attrs.get("sorted")
-        && sorted.clone().into_i64() != 1
-    {
-        unimplemented!("TopK: only sorted elements is supported")
-    };
-
-    TopKConfig::new(axis as usize, k as usize)
-}
-
 pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
@@ -89,7 +41,50 @@ impl NodeProcessor for TopKProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = top_k_config(node, graph_data);
+        // Extract the shape of the input data tensor
+        let data_tensor = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Only tensor input is valid"),
+        };
+
+        let k = match node.inputs.get(1) {
+            Some(k_tensor) => k_tensor
+                .clone()
+                .into_value()
+                .expect("TopK: only constant 'k' tensor is currently supported")
+                .data
+                .into_i64s()[0],
+            _ => node
+                .attrs
+                .get("k")
+                .expect("TopK: number of top elements 'k' is missing")
+                .clone()
+                .into_i64(),
+        };
+
+        let mut axis = match node.attrs.get("axis") {
+            Some(axis) => axis.clone().into_i64(),
+            None => -1,
+        };
+
+        // If axis is negative, it is counted from the end
+        if axis < 0 {
+            axis += data_tensor.rank as i64;
+        }
+
+        if let Some(largest) = node.attrs.get("largest")
+            && largest.clone().into_i64() != 1
+        {
+            unimplemented!("TopK: only largest elements is supported")
+        };
+
+        if let Some(sorted) = node.attrs.get("sorted")
+            && sorted.clone().into_i64() != 1
+        {
+            unimplemented!("TopK: only sorted elements is supported")
+        };
+
+        let config = TopKConfig::new(axis as usize, k as usize);
         node.config = Some(Box::new(config));
     }
 
@@ -223,10 +218,20 @@ mod tests {
         let node = create_test_node(3, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
         // Default axis should be -1 which gets converted to rank-1
-        assert_eq!(config, TopKConfig { axis: 2, k: 10 });
+        assert_eq!(*config, TopKConfig { axis: 2, k: 10 });
     }
 
     #[test]
@@ -235,10 +240,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(4, None, Some(5)).build_with_graph_data(&mut graph_data);
 
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
         // Default axis should be -1 which gets converted to rank-1
-        assert_eq!(config, TopKConfig { axis: 3, k: 5 });
+        assert_eq!(*config, TopKConfig { axis: 3, k: 5 });
     }
 
     #[test]
@@ -250,9 +265,19 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, Some(attrs), None).build();
 
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
-        assert_eq!(config, TopKConfig { axis: 1, k: 3 });
+        assert_eq!(*config, TopKConfig { axis: 1, k: 3 });
     }
 
     #[test]
@@ -265,10 +290,20 @@ mod tests {
         let node = create_test_node(4, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
         // For rank 4, axis -2 should be 2
-        assert_eq!(config, TopKConfig { axis: 2, k: 5 });
+        assert_eq!(*config, TopKConfig { axis: 2, k: 5 });
     }
 
     #[test]
@@ -281,9 +316,19 @@ mod tests {
         let node = create_test_node(2, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
-        assert_eq!(config, TopKConfig { axis: 1, k: 7 });
+        assert_eq!(*config, TopKConfig { axis: 1, k: 7 });
     }
 
     #[test]
@@ -296,9 +341,19 @@ mod tests {
         let node = create_test_node(3, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
-        assert_eq!(config, TopKConfig { axis: 2, k: 2 });
+        assert_eq!(*config, TopKConfig { axis: 2, k: 2 });
     }
 
     #[test]
@@ -312,7 +367,10 @@ mod tests {
         let node = create_test_node(2, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -326,7 +384,10 @@ mod tests {
         let node = create_test_node(2, Some(attrs), None).build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -338,7 +399,10 @@ mod tests {
         node.attrs.insert("k".to_string(), AttributeValue::Int64(3));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
-        let _ = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -348,7 +412,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, None, None).build();
 
-        let _ = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -360,9 +427,19 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, Some(attrs), Some(5)).build_with_graph_data(&mut graph_data);
 
-        let config = top_k_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TopKProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TopKConfig>()
+            .unwrap();
 
         // K from input should be used (5), not from attribute (10)
-        assert_eq!(config, TopKConfig { axis: 2, k: 5 });
+        assert_eq!(*config, TopKConfig { axis: 2, k: 5 });
     }
 }

@@ -19,22 +19,6 @@ impl NodeConfig for LeakyReluConfig {
     }
 }
 
-/// Create a LeakyReluConfig from the alpha attribute of the node
-pub fn leaky_relu_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> LeakyReluConfig {
-    let mut alpha = 0.01;
-
-    for (key, value) in node.attrs.iter() {
-        if key.as_str() == "alpha" {
-            alpha = value.clone().into_f32() as f64
-        }
-    }
-
-    LeakyReluConfig { alpha }
-}
-
 pub struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
@@ -48,7 +32,16 @@ impl NodeProcessor for LeakyReluProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = leaky_relu_config(node, graph_data);
+        // ALL logic from leaky_relu_config inlined here
+        let mut alpha = 0.01;
+
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "alpha" {
+                alpha = value.clone().into_f32() as f64
+            }
+        }
+
+        let config = LeakyReluConfig { alpha };
         node.config = Some(Box::new(config));
     }
 
@@ -80,7 +73,17 @@ mod tests {
     fn test_leaky_relu_config_with_alpha() {
         let node = create_test_node(0.2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = leaky_relu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LeakyReluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LeakyReluConfig>()
+            .unwrap();
         assert!((config.alpha - 0.2).abs() < 1e-6);
     }
 
@@ -89,7 +92,17 @@ mod tests {
         let mut node = create_test_node(0.2);
         node.attrs.clear(); // Remove all attributes
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = leaky_relu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LeakyReluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LeakyReluConfig>()
+            .unwrap();
         assert_eq!(config.alpha, 0.01); // Check default value
     }
 }

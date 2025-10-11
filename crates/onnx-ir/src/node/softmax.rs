@@ -19,42 +19,6 @@ impl NodeConfig for SoftmaxConfig {
     }
 }
 
-/// Create softmax config from the attributes of the node
-pub fn softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SoftmaxConfig {
-    // the axis is the last dimension (Default: 1 per ONNX spec)
-    let mut axis: i64 = -1;
-
-    // check if the node has only one input
-    if node.inputs.len() != 1 {
-        panic!(
-            "Softmax: multiple inputs are not supported (got {:?})",
-            node.inputs.len()
-        );
-    }
-
-    // extract the shape of the input tensor
-    let tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
-    };
-
-    // extract the attributes
-    for (key, value) in node.attrs.iter() {
-        if key.as_str() == "axis" {
-            axis = value.clone().into_i64()
-        }
-    }
-
-    // if axis is negative, it is counted from the end
-    if axis < 0 {
-        axis += tensor.rank as i64;
-    }
-
-    SoftmaxConfig {
-        axis: axis as usize,
-    }
-}
-
 pub struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
@@ -68,7 +32,39 @@ impl NodeProcessor for SoftmaxProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = softmax_config(node, graph_data);
+        // ALL logic from softmax_config inlined here
+        // the axis is the last dimension (Default: 1 per ONNX spec)
+        let mut axis: i64 = -1;
+
+        // check if the node has only one input
+        if node.inputs.len() != 1 {
+            panic!(
+                "Softmax: multiple inputs are not supported (got {:?})",
+                node.inputs.len()
+            );
+        }
+
+        // extract the shape of the input tensor
+        let tensor = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Only tensor input is valid"),
+        };
+
+        // extract the attributes
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                axis = value.clone().into_i64()
+            }
+        }
+
+        // if axis is negative, it is counted from the end
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        let config = SoftmaxConfig {
+            axis: axis as usize,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -100,7 +96,17 @@ mod tests {
     fn test_softmax_config_basic() {
         let node = create_test_node(-1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = softmax_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SoftmaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SoftmaxConfig>()
+            .unwrap();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
@@ -108,7 +114,17 @@ mod tests {
     fn test_softmax_config_explicit_axis() {
         let node = create_test_node(1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = softmax_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SoftmaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SoftmaxConfig>()
+            .unwrap();
         assert_eq!(config.axis, 1);
     }
 
@@ -125,6 +141,9 @@ mod tests {
             .unwrap();
         node.inputs.push(extra_input);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = softmax_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SoftmaxProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

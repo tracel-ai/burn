@@ -27,27 +27,6 @@ impl NodeConfig for TriluConfig {
     }
 }
 
-/// Creates a TriluConfig from the node attributes and inputs.
-pub fn trilu_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> TriluConfig {
-    let mut upper = true;
-    let mut diagonal = 0;
-    for (key, value) in node.attrs.iter() {
-        if key.as_str() == "upper" {
-            upper = value.clone().into_i64() != 0
-        }
-    }
-    // The second input of the Trilu node is the diagonal value, coming from a constant node
-    if let Some(diagonal_arg) = node.inputs.get(1)
-        && let Some(TensorData {
-            data: Data::Int64(diagonal_val),
-            ..
-        }) = &diagonal_arg.into_value()
-    {
-        diagonal = *diagonal_val;
-    }
-    TriluConfig::new(upper, diagonal)
-}
-
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
@@ -61,7 +40,24 @@ impl NodeProcessor for TriluProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = trilu_config(node, graph_data);
+        let mut upper = true;
+        let mut diagonal = 0;
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "upper" {
+                upper = value.clone().into_i64() != 0
+            }
+        }
+        // The second input of the Trilu node is the diagonal value, coming from a constant node
+        if let Some(diagonal_arg) = node.inputs.get(1)
+            && let Some(TensorData {
+                data: Data::Int64(diagonal_val),
+                ..
+            }) = &diagonal_arg.into_value()
+        {
+            diagonal = *diagonal_val;
+        }
+
+        let config = TriluConfig::new(upper, diagonal);
         node.config = Some(Box::new(config));
     }
 
@@ -106,10 +102,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, None).build();
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -123,10 +129,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(1), None).build();
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -140,10 +156,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(0), None).build();
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: false,
                 diagonal: 0
@@ -157,10 +183,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, Some(2)).build_with_graph_data(&mut graph_data);
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: 2
@@ -174,10 +210,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, Some(-3)).build_with_graph_data(&mut graph_data);
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: -3
@@ -191,10 +237,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(0), Some(1)).build_with_graph_data(&mut graph_data);
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: false,
                 diagonal: 1
@@ -209,10 +265,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(42), None).build();
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: 0
@@ -227,10 +293,20 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(-5), None).build();
 
-        let config = trilu_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TriluProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TriluConfig>()
+            .unwrap();
 
         assert_eq!(
-            config,
+            *config,
             TriluConfig {
                 upper: true,
                 diagonal: 0

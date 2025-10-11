@@ -33,114 +33,6 @@ impl SplitConfig {
     }
 }
 
-/// Creates a SplitConfig from the node attributes and inputs.
-pub fn split_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SplitConfig {
-    // Initialize the axis to split along (default is 0 as per ONNX specification)
-    let mut axis: i64 = 0;
-    // Holds the uniform split size if calculated or provided
-    let mut split_size: Option<usize> = None;
-    // Holds the custom split sizes if provided as input
-    let mut split_sizes: Option<Vec<usize>> = None;
-
-    // Extract the input tensor type to determine rank and shape
-    let tensor = match node.inputs.first().unwrap().ty {
-        ArgType::Tensor(ref tensor) => tensor,
-        _ => panic!("Split: Input must be a valid tensor"),
-    };
-
-    // Optionally store the number of outputs if provided as an attribute
-    let mut num_outputs: Option<usize> = None;
-
-    // Iterate through node attributes to extract relevant values
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
-            _ => {}
-        }
-    }
-
-    // Handle the case when num_outputs is provided to calculate uniform split size
-    if let Some(num_outputs) = num_outputs {
-        if num_outputs == 0 {
-            panic!("Split: 'num_outputs' must be a positive value greater than zero");
-        }
-
-        let dim_size = tensor
-            .static_shape
-            .as_ref()
-            .expect("Split: Static shape must be known to calculate split size")[axis as usize];
-
-        // Calculate the split size considering any remainder for non-evenly divisible dimensions
-        let calculated_split_size =
-            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
-
-        if calculated_split_size == 0 {
-            panic!(
-                "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
-            );
-        }
-
-        // Assign the calculated split size
-        split_size = Some(calculated_split_size);
-    }
-
-    // Adjust axis if negative to count from the end as per ONNX spec
-    if axis < 0 {
-        axis += tensor.rank as i64;
-    }
-
-    // Check for custom split sizes provided as a second input
-    if node.inputs.len() > 1 && node.inputs[1].has_value() {
-        let sizes = node.inputs[1]
-            .into_value()
-            .as_ref()
-            .unwrap()
-            .data
-            .clone()
-            .into_usizes();
-
-        if !sizes.is_empty() {
-            split_sizes = Some(sizes);
-        }
-    }
-
-    // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
-    if split_sizes.is_some() && split_size.is_some() {
-        panic!(
-            "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
-        );
-    }
-
-    // Infer split_size if neither custom split_sizes nor split_size is provided
-    if split_sizes.is_none() && split_size.is_none() {
-        let num_outputs = node.outputs.len();
-        let dim_size = tensor
-            .static_shape
-            .as_ref()
-            .expect("Split: Static shape must be known to infer split size")[axis as usize];
-
-        // Calculate inferred split size based on number of outputs
-        let calculated_split_size =
-            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
-
-        if calculated_split_size == 0 {
-            panic!(
-                "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
-            );
-        }
-
-        split_size = Some(calculated_split_size);
-    }
-
-    // Return the configuration for splitting operation
-    SplitConfig {
-        axis: axis as usize,
-        split_size,
-        split_sizes,
-    }
-}
-
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
@@ -154,7 +46,111 @@ impl NodeProcessor for SplitProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = split_config(node, graph_data);
+        // Initialize the axis to split along (default is 0 as per ONNX specification)
+        let mut axis: i64 = 0;
+        // Holds the uniform split size if calculated or provided
+        let mut split_size: Option<usize> = None;
+        // Holds the custom split sizes if provided as input
+        let mut split_sizes: Option<Vec<usize>> = None;
+
+        // Extract the input tensor type to determine rank and shape
+        let tensor = match node.inputs.first().unwrap().ty {
+            ArgType::Tensor(ref tensor) => tensor,
+            _ => panic!("Split: Input must be a valid tensor"),
+        };
+
+        // Optionally store the number of outputs if provided as an attribute
+        let mut num_outputs: Option<usize> = None;
+
+        // Iterate through node attributes to extract relevant values
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
+                _ => {}
+            }
+        }
+
+        // Handle the case when num_outputs is provided to calculate uniform split size
+        if let Some(num_outputs) = num_outputs {
+            if num_outputs == 0 {
+                panic!("Split: 'num_outputs' must be a positive value greater than zero");
+            }
+
+            let dim_size = tensor
+                .static_shape
+                .as_ref()
+                .expect("Split: Static shape must be known to calculate split size")
+                [axis as usize];
+
+            // Calculate the split size considering any remainder for non-evenly divisible dimensions
+            let calculated_split_size =
+                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+            if calculated_split_size == 0 {
+                panic!(
+                    "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
+                );
+            }
+
+            // Assign the calculated split size
+            split_size = Some(calculated_split_size);
+        }
+
+        // Adjust axis if negative to count from the end as per ONNX spec
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        // Check for custom split sizes provided as a second input
+        if node.inputs.len() > 1 && node.inputs[1].has_value() {
+            let sizes = node.inputs[1]
+                .into_value()
+                .as_ref()
+                .unwrap()
+                .data
+                .clone()
+                .into_usizes();
+
+            if !sizes.is_empty() {
+                split_sizes = Some(sizes);
+            }
+        }
+
+        // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
+        if split_sizes.is_some() && split_size.is_some() {
+            panic!(
+                "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
+            );
+        }
+
+        // Infer split_size if neither custom split_sizes nor split_size is provided
+        if split_sizes.is_none() && split_size.is_none() {
+            let num_outputs = node.outputs.len();
+            let dim_size = tensor
+                .static_shape
+                .as_ref()
+                .expect("Split: Static shape must be known to infer split size")[axis as usize];
+
+            // Calculate inferred split size based on number of outputs
+            let calculated_split_size =
+                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+            if calculated_split_size == 0 {
+                panic!(
+                    "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
+                );
+            }
+
+            split_size = Some(calculated_split_size);
+        }
+
+        // Return the configuration for splitting operation
+        let config = SplitConfig {
+            axis: axis as usize,
+            split_size,
+            split_sizes,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -298,7 +294,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 2, static_shape, None, None).build();
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         // Default axis should be 0, and split_size should be calculated
         assert_eq!(config.axis, 0);
@@ -316,7 +322,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 2, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         assert_eq!(config.axis, 1);
         assert_eq!(config.split_size, Some(10)); // 20 / 2 = 10
@@ -333,7 +349,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 3, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
         assert_eq!(config.split_size, Some(10)); // 30 / 3 = 10
@@ -350,7 +376,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 4, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(3)); // 12 / 4 = 3
@@ -367,7 +403,17 @@ mod tests {
         let node = create_test_node(3, 2, static_shape, None, Some(split_sizes.clone()))
             .build_with_graph_data(&mut graph_data);
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
@@ -389,7 +435,10 @@ mod tests {
         let node = create_test_node(3, 2, static_shape, Some(attrs), Some(split_sizes))
             .build_with_graph_data(&mut graph_data);
 
-        let _ = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -403,7 +452,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 0, static_shape, Some(attrs), None).build();
 
-        let _ = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -417,7 +469,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 10, static_shape, Some(attrs), None).build();
 
-        let _ = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -430,7 +485,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 2, None, Some(attrs), None).build();
 
-        let _ = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -441,7 +499,10 @@ mod tests {
         let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
-        let _ = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -454,7 +515,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(3, 3, static_shape, Some(attrs), None).build();
 
-        let config = split_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SplitProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SplitConfig>()
+            .unwrap();
 
         // 11 / (3-1) = 5, since the dimension is not evenly divisible
         assert_eq!(config.split_size, Some(5));

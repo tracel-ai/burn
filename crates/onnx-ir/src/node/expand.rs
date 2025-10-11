@@ -24,41 +24,6 @@ impl NodeConfig for ExpandShape {
     }
 }
 
-/// Creates an ExpandShape configuration from the given Node.
-///
-/// Extracts shape information from the node's second input to determine
-/// whether to use static or runtime shape expansion.
-pub fn expand_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ExpandShape {
-    match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.rank, 1, "Expand: shape tensor must be 1D");
-            assert!(
-                matches!(tensor.elem_type, ElementType::Int64),
-                "Expand: shape tensor must have element type int64"
-            );
-        }
-        ArgType::Shape(_) => {
-            // Shapes are always 1-D int64 data, so nothing to assert here
-        }
-        _ => panic!("Only tensor input is valid for shape"),
-    }
-
-    match node.inputs[1].into_value() {
-        Some(TensorData {
-            data: Data::Int64s(shape),
-            ..
-        }) => ExpandShape::Static(shape.clone()),
-        None => {
-            // we were unable to statically determine the input value, so we'll need to fetch it at runtime
-            ExpandShape::Runtime(node.inputs[1].name.clone())
-        }
-        _ => panic!(
-            "Shape data type must be int64, is {:?}",
-            &node.inputs[1].into_value()
-        ),
-    }
-}
-
 pub struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
@@ -72,7 +37,34 @@ impl NodeProcessor for ExpandProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = expand_config(node, graph_data);
+        match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 1, "Expand: shape tensor must be 1D");
+                assert!(
+                    matches!(tensor.elem_type, ElementType::Int64),
+                    "Expand: shape tensor must have element type int64"
+                );
+            }
+            ArgType::Shape(_) => {
+                // Shapes are always 1-D int64 data, so nothing to assert here
+            }
+            _ => panic!("Only tensor input is valid for shape"),
+        }
+
+        let config = match node.inputs[1].into_value() {
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => ExpandShape::Static(shape.clone()),
+            None => {
+                // we were unable to statically determine the input value, so we'll need to fetch it at runtime
+                ExpandShape::Runtime(node.inputs[1].name.clone())
+            }
+            _ => panic!(
+                "Shape data type must be int64, is {:?}",
+                &node.inputs[1].into_value()
+            ),
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -280,11 +272,21 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(&mut graph_data);
-        let config = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ExpandShape>()
+            .unwrap();
 
         match config {
             ExpandShape::Static(shape) => {
-                assert_eq!(shape, vec![2, 3, 4]);
+                assert_eq!(*shape, vec![2, 3, 4]);
             }
             ExpandShape::Runtime(_) => panic!("Expected Static config, got Runtime"),
         }
@@ -294,7 +296,17 @@ mod tests {
     fn test_expand_config_with_runtime_shape() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(2, None, None).build();
-        let config = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ExpandShape>()
+            .unwrap();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -309,7 +321,17 @@ mod tests {
         let shape_type = ArgType::Shape(3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(2, None, Some(shape_type)).build();
-        let config = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ExpandShape>()
+            .unwrap();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -329,7 +351,10 @@ mod tests {
         });
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(2, None, Some(invalid_shape_type)).build();
-        let _ = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -342,7 +367,10 @@ mod tests {
         });
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(2, None, Some(invalid_shape_type)).build();
-        let _ = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -351,7 +379,10 @@ mod tests {
         let invalid_shape_type = ArgType::Scalar(ElementType::Int64);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(2, None, Some(invalid_shape_type)).build();
-        let _ = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -366,7 +397,10 @@ mod tests {
             .output_tensor_f32("output", 0, None)
             .build_with_graph_data(&mut graph_data);
 
-        let _ = expand_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ExpandProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]

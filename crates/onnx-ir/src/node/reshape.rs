@@ -207,15 +207,6 @@ fn get_static_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
     None
 }
 
-/// Creates a configuration for reshape operation based on the ONNX Reshape operator.
-/// Returns either static shape or runtime argument for reshape.
-pub fn reshape_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeConfig {
-    validate_reshape_node(node);
-
-    let shape = extract_shape_input(node, graph_data);
-    ReshapeConfig { shape }
-}
-
 /// Validate reshape node has correct attributes and inputs
 fn validate_reshape_node(node: &Node) {
     if node.inputs.len() != 2 {
@@ -243,17 +234,6 @@ fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphDat
     }
 }
 
-/// Legacy function that returns shape as `Vec<i64>` - kept for backward compatibility
-pub fn reshape_config_vec(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Vec<i64> {
-    let config = reshape_config(node, graph_data);
-    match config.shape {
-        ReshapeInput::Static(shape) => shape,
-        ReshapeInput::Runtime(_) => {
-            panic!("reshape_config_vec cannot be used with runtime shape inputs")
-        }
-    }
-}
-
 /// Node processor for Reshape operation
 pub struct ReshapeProcessor;
 
@@ -268,7 +248,10 @@ impl NodeProcessor for ReshapeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = reshape_config(node, graph_data);
+        // ALL logic from reshape_config inlined here
+        validate_reshape_node(node);
+        let shape = extract_shape_input(node, graph_data);
+        let config = ReshapeConfig { shape };
         node.config = Some(Box::new(config));
     }
 
@@ -333,10 +316,20 @@ mod tests {
     #[test]
     fn test_reshape_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
-        let config = reshape_config(&node, &mut graph_data);
-        match config.shape {
-            ReshapeInput::Static(shape) => assert_eq!(shape, vec![2, 3]),
+        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReshapeConfig>()
+            .unwrap();
+        match &config.shape {
+            ReshapeInput::Static(shape) => assert_eq!(shape, &vec![2, 3]),
             _ => panic!("Expected static shape"),
         }
     }
@@ -344,16 +337,28 @@ mod tests {
     #[test]
     fn test_reshape_config_allowzero_supported() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1, vec![2, 3]).build_with_graph_data(&mut graph_data);
-        let _ = reshape_config(&node, &mut graph_data);
+        let mut node = create_test_node(1, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
     fn test_reshape_config_runtime() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_runtime_reshape_node().build();
-        let config = reshape_config(&node, &mut graph_data);
-        match config.shape {
+        let mut node = create_runtime_reshape_node().build();
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReshapeConfig>()
+            .unwrap();
+        match &config.shape {
             ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
@@ -365,7 +370,9 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
         node.inputs.pop(); // Remove the shape input
-        let _ = reshape_config(&node, &mut graph_data);
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -394,7 +401,10 @@ mod tests {
             .output_tensor_f32("reshaped", 2, None)
             .build_with_graph_data(&mut graph_data);
 
-        let _ = reshape_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -437,9 +447,19 @@ mod tests {
     #[test]
     fn test_reshape_config_with_shape_type() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_reshape_with_shape_input().build();
-        let config = reshape_config(&node, &mut graph_data);
-        match config.shape {
+        let mut node = create_reshape_with_shape_input().build();
+        let processor = ReshapeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReshapeConfig>()
+            .unwrap();
+        match &config.shape {
             ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
             _ => panic!("Expected runtime shape"),
         }

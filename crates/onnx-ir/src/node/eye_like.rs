@@ -21,31 +21,6 @@ impl NodeConfig for EyeLikeConfig {
     }
 }
 
-/// Create an EyeLike configuration from the node
-pub fn eye_like_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> EyeLikeConfig {
-    let mut dtype = None;
-    let mut k = 0i64; // default to main diagonal
-
-    // Extract attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "dtype" => {
-                let dtype_i32 = value.clone().into_i32();
-                dtype = Some(
-                    element_type_from_proto(dtype_i32)
-                        .unwrap_or_else(|e| panic!("Unsupported dtype for EyeLike: {}", e)),
-                );
-            }
-            "k" => {
-                k = value.clone().into_i64();
-            }
-            _ => {}
-        }
-    }
-
-    EyeLikeConfig { dtype, k }
-}
-
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
@@ -59,7 +34,27 @@ impl NodeProcessor for EyeLikeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = eye_like_config(node, graph_data);
+        let mut dtype = None;
+        let mut k = 0i64; // default to main diagonal
+
+        // Extract attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "dtype" => {
+                    let dtype_i32 = value.clone().into_i32();
+                    dtype = Some(
+                        element_type_from_proto(dtype_i32)
+                            .unwrap_or_else(|e| panic!("Unsupported dtype for EyeLike: {}", e)),
+                    );
+                }
+                "k" => {
+                    k = value.clone().into_i64();
+                }
+                _ => {}
+            }
+        }
+
+        let config = EyeLikeConfig { dtype, k };
         node.config = Some(Box::new(config));
     }
 
@@ -71,23 +66,39 @@ impl NodeProcessor for EyeLikeProcessor {
     ) {
         log::debug!("EyeLike rank inference for node {}", node.name);
 
-        match &node.inputs[0].ty {
+        // Extract tensor info before calling process_config
+        let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
-
-                let config = eye_like_config(node, graph_data);
-                // Output type is either specified dtype or input type
-                let output_type = config.dtype.unwrap_or_else(|| tensor.elem_type.clone());
-
-                node.outputs[0].ty = ArgType::Tensor(TensorType {
-                    elem_type: output_type,
-                    rank: tensor.rank,
-                    static_shape: tensor.static_shape.clone(),
-                });
-                log::debug!("EyeLike output tensor rank: {}", tensor.rank);
+                (
+                    tensor.rank,
+                    tensor.elem_type.clone(),
+                    tensor.static_shape.clone(),
+                )
             }
             _ => panic!("EyeLike operation requires 2D tensor input"),
-        }
+        };
+
+        let processor = EyeLikeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(node, &context, graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<EyeLikeConfig>()
+            .unwrap();
+        // Output type is either specified dtype or input type
+        let output_type = config.dtype.clone().unwrap_or(input_elem_type);
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: output_type,
+            rank: input_rank,
+            static_shape: input_static_shape,
+        });
+        log::debug!("EyeLike output tensor rank: {}", input_rank);
     }
 }
 
@@ -129,7 +140,21 @@ mod tests {
             .build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = eye_like_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = EyeLikeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<EyeLikeConfig>()
+            .unwrap();
         assert_eq!(config.k, 0);
         assert_eq!(config.dtype, None);
     }
@@ -144,7 +169,21 @@ mod tests {
             .build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = eye_like_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = EyeLikeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<EyeLikeConfig>()
+            .unwrap();
         assert_eq!(config.k, -1);
         assert_eq!(config.dtype, Some(ElementType::Int64));
     }

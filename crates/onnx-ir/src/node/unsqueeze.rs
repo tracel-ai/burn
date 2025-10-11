@@ -31,45 +31,6 @@ impl NodeConfig for UnsqueezeConfig {
     }
 }
 
-/// Creates UnsqueezeAxes configuration from the node attributes.
-///
-/// Note: This function should only execute if the second input is a constant.
-/// If it wasn't and the output shape was known, unsqueeze has been remapped to reshape.
-pub fn unsqueeze_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> UnsqueezeConfig {
-    // Check if axes attribute exists
-    for (key, value) in node.attrs.iter() {
-        if key.as_str() == "axes" {
-            return UnsqueezeConfig::Static(value.clone().into_i64s());
-        }
-    }
-
-    assert!(
-        !node.inputs.is_empty(),
-        "Unsqueeze: axes tensor must be present"
-    );
-
-    let input_value = &node.inputs[1];
-
-    match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.rank, 1, "Unsqueeze: axes tensor must be 1D");
-            if let Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) = input_value.into_value().as_ref()
-            {
-                UnsqueezeConfig::Static(shape.clone())
-            } else {
-                UnsqueezeConfig::Runtime(node.inputs[1].name.clone())
-            }
-        }
-        _ => panic!("Arg for unsqueeze must be tensor or scalar"),
-    }
-}
-
 pub struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
@@ -83,7 +44,38 @@ impl NodeProcessor for UnsqueezeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = unsqueeze_config(node, graph_data);
+        // ALL logic from unsqueeze_config inlined here
+        // Check if axes attribute exists
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axes" {
+                let config = UnsqueezeConfig::Static(value.clone().into_i64s());
+                node.config = Some(Box::new(config));
+                return;
+            }
+        }
+
+        assert!(
+            !node.inputs.is_empty(),
+            "Unsqueeze: axes tensor must be present"
+        );
+
+        let input_value = &node.inputs[1];
+
+        let config = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.rank, 1, "Unsqueeze: axes tensor must be 1D");
+                if let Some(TensorData {
+                    data: Data::Int64s(shape),
+                    ..
+                }) = input_value.into_value().as_ref()
+                {
+                    UnsqueezeConfig::Static(shape.clone())
+                } else {
+                    UnsqueezeConfig::Runtime(node.inputs[1].name.clone())
+                }
+            }
+            _ => panic!("Arg for unsqueeze must be tensor or scalar"),
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -369,9 +361,19 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(3, axes.clone()).build();
 
-        let config = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UnsqueezeConfig>()
+            .unwrap();
 
-        assert_eq!(config, UnsqueezeConfig::Static(axes));
+        assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
@@ -382,9 +384,19 @@ mod tests {
         let node = create_test_node_with_input(2, axes.clone(), true)
             .build_with_graph_data(&mut graph_data);
 
-        let config = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UnsqueezeConfig>()
+            .unwrap();
 
-        assert_eq!(config, UnsqueezeConfig::Static(axes));
+        assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
@@ -394,7 +406,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_input(2, axes.clone(), false).build();
 
-        let config = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UnsqueezeConfig>()
+            .unwrap();
 
         // Should return a Runtime config since the axes are only known at runtime
         match config {
@@ -412,9 +434,19 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(3, axes.clone()).build();
 
-        let config = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UnsqueezeConfig>()
+            .unwrap();
 
-        assert_eq!(config, UnsqueezeConfig::Static(axes));
+        assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
@@ -424,9 +456,19 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(2, axes.clone()).build();
 
-        let config = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UnsqueezeConfig>()
+            .unwrap();
 
-        assert_eq!(config, UnsqueezeConfig::Static(axes));
+        assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
 
     #[test]
@@ -438,7 +480,10 @@ mod tests {
         node.attrs.clear(); // Remove the axes attribute
         node.inputs = vec![node.inputs[0].clone()]; // Remove the axes input
 
-        let _ = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -452,7 +497,10 @@ mod tests {
             tensor.rank = 2; // Invalid rank for axes
         }
 
-        let _ = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -463,6 +511,9 @@ mod tests {
         let mut node = create_test_node_with_input(2, vec![0], false).build();
         node.inputs[1].ty = ArgType::Shape(1); // Invalid type for axes
 
-        let _ = unsqueeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = UnsqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

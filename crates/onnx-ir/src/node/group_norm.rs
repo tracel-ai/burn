@@ -36,43 +36,6 @@ impl GroupNormConfig {
     }
 }
 
-/// Create a GroupNormConfig from the attributes of the node
-pub fn group_norm_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> (GroupNormConfig, bool) {
-    let weight_shape = node.inputs[1]
-        .into_value()
-        .as_ref()
-        .expect("GroupNorm: weight tensor must be present")
-        .shape
-        .clone();
-
-    let mut stash_type = 1;
-    let num_features = weight_shape[0];
-    let mut num_groups = None;
-    let mut epsilon = 1e-5;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "epsilon" => epsilon = value.clone().into_f32(),
-            "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
-            "stash_type" => stash_type = value.clone().into_i64(),
-            _ => panic!("Unexpected attribute for GroupNorm: {key}"),
-        }
-    }
-
-    let num_groups = num_groups.expect("GroupNorm: num_groups attribute must be present");
-    if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
-        panic!("GroupNorm: number of features must be divisible by the number of groups");
-    }
-
-    (
-        GroupNormConfig::new(num_features, num_groups, epsilon as f64),
-        stash_type == 1,
-    )
-}
-
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
@@ -84,9 +47,34 @@ impl NodeProcessor for GroupNormProcessor {
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
+        _graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let (config, _stash_type) = group_norm_config(node, graph_data);
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .as_ref()
+            .expect("GroupNorm: weight tensor must be present")
+            .shape
+            .clone();
+
+        let num_features = weight_shape[0];
+        let mut num_groups = None;
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "epsilon" => epsilon = value.clone().into_f32(),
+                "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
+                "stash_type" => {} // stash_type is read but not used in config
+                _ => panic!("Unexpected attribute for GroupNorm: {key}"),
+            }
+        }
+
+        let num_groups = num_groups.expect("GroupNorm: num_groups attribute must be present");
+        if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
+            panic!("GroupNorm: number of features must be divisible by the number of groups");
+        }
+
+        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64);
         node.config = Some(Box::new(config));
     }
 
@@ -128,25 +116,41 @@ mod tests {
     #[test]
     fn test_group_norm_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(&mut graph_data);
-        let (config, full_precision) = group_norm_config(&node, &mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(&mut graph_data);
+        let processor = GroupNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
 
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GroupNormConfig>()
+            .unwrap();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
-        assert!(full_precision);
     }
 
     #[test]
     fn test_group_norm_config_no_stash_type() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(&mut graph_data);
-        let (config, full_precision) = group_norm_config(&node, &mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(&mut graph_data);
+        let processor = GroupNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
 
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GroupNormConfig>()
+            .unwrap();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
-        assert!(!full_precision);
     }
 
     #[test]
@@ -154,7 +158,9 @@ mod tests {
     fn test_group_norm_config_invalid_num_groups() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // num features is not divisible by num groups
-        let node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(&mut graph_data);
-        let _ = group_norm_config(&node, &mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(&mut graph_data);
+        let processor = GroupNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

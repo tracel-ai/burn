@@ -25,26 +25,6 @@ impl TileConfig {
     }
 }
 
-/// Creates a TileConfig from the node attributes and inputs.
-pub fn tile_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> TileConfig {
-    let repeat = node
-        .inputs
-        .get(1)
-        .map(|input| {
-            if let Some(TensorData { data, .. }) = input.into_value() {
-                data.clone()
-                    .into_i64s()
-                    .iter()
-                    .map(|&x| x as usize)
-                    .collect()
-            } else {
-                vec![]
-            }
-        })
-        .unwrap_or_default();
-    TileConfig::new(repeat)
-}
-
 pub struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
@@ -58,7 +38,23 @@ impl NodeProcessor for TileProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = tile_config(node, graph_data);
+        let repeat = node
+            .inputs
+            .get(1)
+            .map(|input| {
+                if let Some(TensorData { data, .. }) = input.into_value() {
+                    data.clone()
+                        .into_i64s()
+                        .iter()
+                        .map(|&x| x as usize)
+                        .collect()
+                } else {
+                    vec![]
+                }
+            })
+            .unwrap_or_default();
+
+        let config = TileConfig::new(repeat);
         node.config = Some(Box::new(config));
     }
 
@@ -100,7 +96,17 @@ mod tests {
         let node =
             create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         // Should extract repeats correctly
         assert_eq!(config.repeats, vec![2, 3, 4]);
@@ -114,7 +120,17 @@ mod tests {
         let node =
             create_test_node(Some(repeats.clone()), 1).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         assert_eq!(config.repeats, vec![5]);
     }
@@ -127,7 +143,17 @@ mod tests {
         let node =
             create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         assert_eq!(config.repeats, vec![0, 1, 0]);
     }
@@ -140,7 +166,17 @@ mod tests {
         let node =
             create_test_node(Some(repeats.clone()), 2).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         assert_eq!(config.repeats, vec![100, 200]);
     }
@@ -151,7 +187,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, 3).build();
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);
@@ -164,7 +210,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         // Negative values get converted to very large positive values due to usize conversion
         // This is expected behavior for this function (though may cause issues elsewhere)
@@ -180,7 +236,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         assert_eq!(config.repeats, vec![]);
     }
@@ -201,7 +267,17 @@ mod tests {
                 .unwrap(),
         );
 
-        let config = tile_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = TileProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TileConfig>()
+            .unwrap();
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);

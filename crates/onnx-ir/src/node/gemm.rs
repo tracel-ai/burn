@@ -54,30 +54,6 @@ pub fn gemm_output_shape(node: &mut Node) {
     });
 }
 
-pub fn gemm_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> GemmConfig {
-    let mut alpha: f32 = 1.0;
-    let mut beta: f32 = 1.0;
-    let mut trans_a: i64 = 0;
-    let mut trans_b: i64 = 0;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "alpha" => alpha = value.clone().into_f32(),
-            "beta" => beta = value.clone().into_f32(),
-            "transA" => trans_a = value.clone().into_i64(),
-            "transB" => trans_b = value.clone().into_i64(),
-            _ => panic!("Unexpected attribute for Gemm: {key}"),
-        }
-    }
-
-    GemmConfig {
-        alpha,
-        beta,
-        trans_a,
-        trans_b,
-    }
-}
-
 pub struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
@@ -91,7 +67,27 @@ impl NodeProcessor for GemmProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = gemm_config(node, graph_data);
+        let mut alpha: f32 = 1.0;
+        let mut beta: f32 = 1.0;
+        let mut trans_a: i64 = 0;
+        let mut trans_b: i64 = 0;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "alpha" => alpha = value.clone().into_f32(),
+                "beta" => beta = value.clone().into_f32(),
+                "transA" => trans_a = value.clone().into_i64(),
+                "transB" => trans_b = value.clone().into_i64(),
+                _ => panic!("Unexpected attribute for Gemm: {key}"),
+            }
+        }
+
+        let config = GemmConfig {
+            alpha,
+            beta,
+            trans_a,
+            trans_b,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -143,7 +139,17 @@ mod tests {
     fn test_gemm_config_defaults() {
         let node = create_test_node(None, None, None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = gemm_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GemmProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GemmConfig>()
+            .unwrap();
         assert_eq!(config.alpha, 1.0);
         assert_eq!(config.beta, 1.0);
         assert_eq!(config.trans_a, 0);
@@ -154,7 +160,17 @@ mod tests {
     fn test_gemm_config_with_attrs() {
         let node = create_test_node(Some(2.0), Some(3.0), Some(1), Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = gemm_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GemmProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GemmConfig>()
+            .unwrap();
         assert_eq!(config.alpha, 2.0);
         assert_eq!(config.beta, 3.0);
         assert_eq!(config.trans_a, 1);
@@ -165,7 +181,17 @@ mod tests {
     fn test_gemm_config_partial_attrs() {
         let node = create_test_node(Some(0.5), None, Some(1), None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = gemm_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GemmProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GemmConfig>()
+            .unwrap();
         assert_eq!(config.alpha, 0.5);
         assert_eq!(config.beta, 1.0); // default
         assert_eq!(config.trans_a, 1);

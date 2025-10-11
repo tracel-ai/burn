@@ -26,21 +26,6 @@ impl NodeConfig for IsInfConfig {
     }
 }
 
-pub fn is_inf_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> IsInfConfig {
-    let mut detect_negative = true;
-    let mut detect_positive = true;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "detect_negative" => detect_negative = value.clone().into_i64() != 0,
-            "detect_positive" => detect_positive = value.clone().into_i64() != 0,
-            _ => panic!("Unexpected attribute for IsInf: {key}"),
-        }
-    }
-
-    IsInfConfig::new(detect_negative, detect_positive)
-}
-
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
@@ -54,7 +39,18 @@ impl NodeProcessor for IsInfProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = is_inf_config(node, graph_data);
+        let mut detect_negative = true;
+        let mut detect_positive = true;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "detect_negative" => detect_negative = value.clone().into_i64() != 0,
+                "detect_positive" => detect_positive = value.clone().into_i64() != 0,
+                _ => panic!("Unexpected attribute for IsInf: {key}"),
+            }
+        }
+
+        let config = IsInfConfig::new(detect_negative, detect_positive);
         node.config = Some(Box::new(config));
     }
 
@@ -94,7 +90,17 @@ mod tests {
     fn test_is_inf_config_default() {
         let node = create_test_node(None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = is_inf_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = IsInfProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<IsInfConfig>()
+            .unwrap();
 
         // Both should default to true if not specified according to the spec
         assert!(config.detect_negative);
@@ -105,7 +111,17 @@ mod tests {
     fn test_is_inf_only_neg() {
         let node = create_test_node(Some(1), Some(0));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = is_inf_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = IsInfProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<IsInfConfig>()
+            .unwrap();
 
         assert!(config.detect_negative);
         assert!(!config.detect_positive);
@@ -115,7 +131,17 @@ mod tests {
     fn test_is_inf_only_pos() {
         let node = create_test_node(Some(0), Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = is_inf_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = IsInfProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<IsInfConfig>()
+            .unwrap();
 
         assert!(!config.detect_negative);
         assert!(config.detect_positive);
@@ -125,7 +151,17 @@ mod tests {
     fn test_is_inf_detect_none() {
         let node = create_test_node(Some(0), Some(0));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = is_inf_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = IsInfProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<IsInfConfig>()
+            .unwrap();
 
         assert!(!config.detect_negative);
         assert!(!config.detect_positive);

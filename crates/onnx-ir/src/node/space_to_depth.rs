@@ -22,29 +22,6 @@ impl NodeConfig for SpaceToDepthConfig {
     }
 }
 
-/// Get the configuration from the attributes of the node
-pub fn space_to_depth_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> SpaceToDepthConfig {
-    let mut block_size: Option<usize> = None;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-            _ => panic!("Unexpected attribute for SpaceToDepth: {key}"),
-        }
-    }
-
-    let block_size = block_size.expect("SpaceToDepth: blocksize must be provided");
-    assert!(
-        block_size > 0,
-        "SpaceToDepth: block_size must be greater than 0"
-    );
-
-    SpaceToDepthConfig { block_size }
-}
-
 pub struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
@@ -58,7 +35,23 @@ impl NodeProcessor for SpaceToDepthProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = space_to_depth_config(node, graph_data);
+        // ALL logic from space_to_depth_config inlined here
+        let mut block_size: Option<usize> = None;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "blocksize" => block_size = Some(value.clone().into_i64() as usize),
+                _ => panic!("Unexpected attribute for SpaceToDepth: {key}"),
+            }
+        }
+
+        let block_size = block_size.expect("SpaceToDepth: blocksize must be provided");
+        assert!(
+            block_size > 0,
+            "SpaceToDepth: block_size must be greater than 0"
+        );
+
+        let config = SpaceToDepthConfig { block_size };
         node.config = Some(Box::new(config));
     }
 
@@ -135,7 +128,17 @@ mod tests {
     fn test_basic_config() {
         let node = create_test_node(4, None, 2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = space_to_depth_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SpaceToDepthProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SpaceToDepthConfig>()
+            .unwrap();
 
         assert_eq!(config.block_size, 2);
     }

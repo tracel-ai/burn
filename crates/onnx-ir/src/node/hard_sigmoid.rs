@@ -18,25 +18,6 @@ impl NodeConfig for HardSigmoidConfig {
     }
 }
 
-/// Create a HardSigmoidConfig from the alpha and beta attributes of the node
-pub fn hard_sigmoid_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> HardSigmoidConfig {
-    let mut alpha = 0.2;
-    let mut beta = 0.5;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "alpha" => alpha = value.clone().into_f32() as f64,
-            "beta" => beta = value.clone().into_f32() as f64,
-            _ => {}
-        }
-    }
-
-    HardSigmoidConfig { alpha, beta }
-}
-
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
@@ -50,7 +31,18 @@ impl NodeProcessor for HardSigmoidProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = hard_sigmoid_config(node, graph_data);
+        let mut alpha = 0.2;
+        let mut beta = 0.5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "alpha" => alpha = value.clone().into_f32() as f64,
+                "beta" => beta = value.clone().into_f32() as f64,
+                _ => {}
+            }
+        }
+
+        let config = HardSigmoidConfig { alpha, beta };
         node.config = Some(Box::new(config));
     }
 
@@ -83,7 +75,17 @@ mod tests {
     fn test_hard_sigmoid_config_with_attrs() {
         let node = create_test_node(0.3, 0.6);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = hard_sigmoid_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = HardSigmoidProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<HardSigmoidConfig>()
+            .unwrap();
         assert!((config.alpha - 0.3).abs() < 1e-6);
         assert!((config.beta - 0.6).abs() < 1e-6);
     }
@@ -93,7 +95,17 @@ mod tests {
         let mut node = create_test_node(0.3, 0.6);
         node.attrs.clear(); // Remove all attributes
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = hard_sigmoid_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = HardSigmoidProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<HardSigmoidConfig>()
+            .unwrap();
         assert_eq!(config.alpha, 0.2); // Check default values
         assert_eq!(config.beta, 0.5);
     }

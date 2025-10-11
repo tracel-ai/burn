@@ -24,47 +24,6 @@ impl NodeConfig for ConstantOfShapeShape {
     }
 }
 
-/// Creates a ConstantOfShapeShape configuration from the given Node.
-///
-/// Extracts shape information from the node's input to determine
-/// whether to use static or runtime shape expansion.
-pub fn constant_of_shape_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> ConstantOfShapeShape {
-    // Validate input type
-    match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => {
-            // For tensor inputs representing shapes, the rank should be 1
-            assert_eq!(tensor.rank, 1, "ConstantOfShape: shape tensor must be 1D");
-            assert!(
-                matches!(tensor.elem_type, ElementType::Int64),
-                "ConstantOfShape: shape tensor must have element type int64"
-            );
-        }
-        ArgType::Shape(_) => {
-            // Shapes are always 1-D int64 data, so nothing to assert here
-        }
-        _ => panic!("ConstantOfShape requires a Tensor or Shape type as input"),
-    }
-
-    // Check if we have static values or need runtime resolution
-    match node.inputs[0].into_value() {
-        Some(TensorData {
-            data: Data::Int64s(shape),
-            ..
-        }) => ConstantOfShapeShape::Static(shape.clone()),
-        None => {
-            // We were unable to statically determine the input value, so we'll need to fetch it at runtime
-            ConstantOfShapeShape::Runtime(node.inputs[0].name.clone())
-        }
-        _ => panic!(
-            "ConstantOfShape node {} requires Int64 shape data",
-            node.name
-        ),
-    }
-}
-
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
@@ -78,7 +37,38 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = constant_of_shape_config(node, graph_data);
+        // ALL logic from constant_of_shape_config inlined here
+        // Validate input type
+        match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                // For tensor inputs representing shapes, the rank should be 1
+                assert_eq!(tensor.rank, 1, "ConstantOfShape: shape tensor must be 1D");
+                assert!(
+                    matches!(tensor.elem_type, ElementType::Int64),
+                    "ConstantOfShape: shape tensor must have element type int64"
+                );
+            }
+            ArgType::Shape(_) => {
+                // Shapes are always 1-D int64 data, so nothing to assert here
+            }
+            _ => panic!("ConstantOfShape requires a Tensor or Shape type as input"),
+        }
+
+        // Check if we have static values or need runtime resolution
+        let config = match node.inputs[0].into_value() {
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => ConstantOfShapeShape::Static(shape.clone()),
+            None => {
+                // We were unable to statically determine the input value, so we'll need to fetch it at runtime
+                ConstantOfShapeShape::Runtime(node.inputs[0].name.clone())
+            }
+            _ => panic!(
+                "ConstantOfShape node {} requires Int64 shape data",
+                node.name
+            ),
+        };
         node.config = Some(Box::new(config));
     }
 

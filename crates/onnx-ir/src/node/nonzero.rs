@@ -17,15 +17,6 @@ impl NodeConfig for NonZeroConfig {
     }
 }
 
-/// Create a NonZero configuration from the node
-pub fn nonzero_config(
-    _node: &Node,
-    _graph_data: &mut crate::from_onnx::GraphData,
-) -> NonZeroConfig {
-    // NonZero operation has no configurable attributes
-    NonZeroConfig::new()
-}
-
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
@@ -39,7 +30,9 @@ impl NodeProcessor for NonZeroProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = nonzero_config(node, graph_data);
+        // NonZero operation has no configurable attributes
+
+        let config = NonZeroConfig::new();
         node.config = Some(Box::new(config));
     }
 
@@ -105,7 +98,17 @@ mod tests {
             .build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = nonzero_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = NonZeroProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<NonZeroConfig>()
+            .unwrap();
         // NonZero has no attributes, so just verify it constructs successfully
         assert!(matches!(config, NonZeroConfig {}));
     }

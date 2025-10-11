@@ -29,47 +29,6 @@ pub enum RangeInput {
     Runtime(String),
 }
 
-/// Extract range configuration from the node.
-pub fn range_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> RangeConfig {
-    fn get_range_input(
-        node: &Node,
-        index: usize,
-        param_name: &str,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) -> RangeInput {
-        let input = node
-            .inputs
-            .get(index)
-            .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
-
-        match input.into_value() {
-            None => RangeInput::Runtime(input.name.clone()),
-            Some(TensorData {
-                data: Data::Int64s(values),
-                ..
-            }) if values.len() == 1 => RangeInput::Static(values[0]),
-            Some(TensorData {
-                data: Data::Int32s(values),
-                ..
-            }) if values.len() == 1 => RangeInput::Static(values[0] as i64),
-            Some(v) => panic!(
-                "Range {} must be a scalar int value, got {:?}",
-                param_name, v
-            ),
-        }
-    }
-
-    let start = get_range_input(node, 0, "start", graph_data);
-    let limit = get_range_input(node, 1, "limit", graph_data);
-    let delta = get_range_input(node, 2, "delta", graph_data);
-
-    RangeConfig {
-        start,
-        limit,
-        delta,
-    }
-}
-
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
@@ -83,7 +42,43 @@ impl NodeProcessor for RangeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = range_config(node, graph_data);
+        fn get_range_input(
+            node: &Node,
+            index: usize,
+            param_name: &str,
+            graph_data: &mut crate::from_onnx::GraphData,
+        ) -> RangeInput {
+            let input = node
+                .inputs
+                .get(index)
+                .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
+
+            match input.into_value() {
+                None => RangeInput::Runtime(input.name.clone()),
+                Some(TensorData {
+                    data: Data::Int64s(values),
+                    ..
+                }) if values.len() == 1 => RangeInput::Static(values[0]),
+                Some(TensorData {
+                    data: Data::Int32s(values),
+                    ..
+                }) if values.len() == 1 => RangeInput::Static(values[0] as i64),
+                Some(v) => panic!(
+                    "Range {} must be a scalar int value, got {:?}",
+                    param_name, v
+                ),
+            }
+        }
+
+        let start = get_range_input(node, 0, "start", graph_data);
+        let limit = get_range_input(node, 1, "limit", graph_data);
+        let delta = get_range_input(node, 2, "delta", graph_data);
+
+        let config = RangeConfig {
+            start,
+            limit,
+            delta,
+        };
         node.config = Some(Box::new(config));
     }
 

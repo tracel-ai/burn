@@ -57,47 +57,6 @@ impl NodeConfig for MaxPool2dConfig {
     }
 }
 
-/// Create a MaxPool2dConfig from the attributes of the node
-pub fn max_pool2d_config(
-    curr: &Node,
-    _graph_data: &mut crate::from_onnx::GraphData,
-) -> MaxPool2dConfig {
-    let mut kernel_shape = Vec::new();
-    let mut strides = vec![1, 1];
-    let mut pads = vec![0, 0, 0, 0];
-    let mut dilations = vec![1, 1];
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            "auto_pad" => {
-                let auto_pad = value.clone().into_string();
-                if auto_pad != "NOTSET" {
-                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
-                }
-            }
-            "ceil_mode" => {
-                if value.clone().into_i64() == 1 {
-                    panic!("ceil_mode is not supported");
-                }
-            }
-            // These are attributes that are allowed but not used in this implementation
-            "storage_order" => {}
-            _ => panic!("Unexpected attribute for MaxPool2d: {key}"),
-        }
-    }
-
-    let padding = padding_config_2d(&pads);
-
-    MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-        .with_strides([strides[0] as usize, strides[1] as usize])
-        .with_padding(padding)
-        .with_dilation([dilations[0] as usize, dilations[1] as usize])
-}
-
 pub struct MaxPool2dProcessor;
 
 impl NodeProcessor for MaxPool2dProcessor {
@@ -109,9 +68,43 @@ impl NodeProcessor for MaxPool2dProcessor {
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
+        _graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = max_pool2d_config(node, graph_data);
+        let mut kernel_shape = Vec::new();
+        let mut strides = vec![1, 1];
+        let mut pads = vec![0, 0, 0, 0];
+        let mut dilations = vec![1, 1];
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => strides = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "dilations" => dilations = value.clone().into_i64s(),
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                    }
+                }
+                "ceil_mode" => {
+                    if value.clone().into_i64() == 1 {
+                        panic!("ceil_mode is not supported");
+                    }
+                }
+                // These are attributes that are allowed but not used in this implementation
+                "storage_order" => {}
+                _ => panic!("Unexpected attribute for MaxPool2d: {key}"),
+            }
+        }
+
+        let padding = padding_config_2d(&pads);
+
+        let config = MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
+            .with_strides([strides[0] as usize, strides[1] as usize])
+            .with_padding(padding)
+            .with_dilation([dilations[0] as usize, dilations[1] as usize]);
+
         node.config = Some(Box::new(config));
     }
 
@@ -164,7 +157,17 @@ mod tests {
             None,
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<MaxPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -183,7 +186,17 @@ mod tests {
             None,
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<MaxPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -202,7 +215,17 @@ mod tests {
             None,
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<MaxPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -221,7 +244,17 @@ mod tests {
             Some("NOTSET"),
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<MaxPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -241,7 +274,10 @@ mod tests {
             Some("SAME_UPPER"),
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -256,6 +292,9 @@ mod tests {
             None,
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _config = max_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = MaxPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

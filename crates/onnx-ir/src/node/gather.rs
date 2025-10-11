@@ -27,73 +27,6 @@ pub enum GatherInput {
     /// Runtime argument determined during execution (stores argument name).
     Runtime(String),
 }
-/// Create a GatherConfig from the attributes of the node
-pub fn gather_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> GatherConfig {
-    // Default: 0 per ONNX spec
-    let mut dim: i64 = 0;
-
-    // check if the node has only one input
-    if curr.inputs.len() != 2 {
-        panic!("Gather: index tensor must be present");
-    }
-
-    // extract the shape of the input tensor
-    let input_dim = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor.rank as i64,
-        ArgType::Shape(shape_rank) => shape_rank as i64, // Shape dimension
-        other => panic!("Only tensor or shape input is valid, got {other:?}"),
-    };
-
-    // extract the attributes
-    for (key, value) in curr.attrs.iter() {
-        if key.as_str() == "axis" {
-            dim = value.clone().into_i64()
-        }
-    }
-
-    // if dim is negative, it is counted from the end
-    if dim < 0 {
-        dim += input_dim;
-    }
-
-    // Get indices input - similar to how slice handles its inputs
-    let indices_input = &curr.inputs[1];
-    log::debug!(
-        "Gather indices input for {}: {:?}",
-        curr.name,
-        indices_input
-    );
-
-    let indices = if let Some(value) = indices_input.into_value() {
-        // Static indices
-        log::debug!("Gather {} has static indices value: {:?}", curr.name, value);
-        match &value.data {
-            Data::Int64s(vals) => {
-                log::debug!("Gather {} static indices: {:?}", curr.name, vals);
-                GatherInput::Static(vals.clone())
-            }
-            Data::Int32s(vals) => {
-                let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
-                log::debug!(
-                    "Gather {} static indices (from int32): {:?}",
-                    curr.name,
-                    int64_vals
-                );
-                GatherInput::Static(int64_vals)
-            }
-            other => panic!("Gather indices must be int32 or int64, got {other:?}"),
-        }
-    } else {
-        // Runtime indices
-        log::debug!("Gather {} has runtime indices", curr.name);
-        GatherInput::Runtime(indices_input.name.clone())
-    };
-
-    GatherConfig {
-        indices,
-        axis: dim as usize,
-    }
-}
 
 pub struct GatherProcessor;
 
@@ -108,7 +41,70 @@ impl NodeProcessor for GatherProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = gather_config(node, graph_data);
+        // Default: 0 per ONNX spec
+        let mut dim: i64 = 0;
+
+        // check if the node has only one input
+        if node.inputs.len() != 2 {
+            panic!("Gather: index tensor must be present");
+        }
+
+        // extract the shape of the input tensor
+        let input_dim = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor.rank as i64,
+            ArgType::Shape(shape_rank) => shape_rank as i64, // Shape dimension
+            other => panic!("Only tensor or shape input is valid, got {other:?}"),
+        };
+
+        // extract the attributes
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                dim = value.clone().into_i64()
+            }
+        }
+
+        // if dim is negative, it is counted from the end
+        if dim < 0 {
+            dim += input_dim;
+        }
+
+        // Get indices input - similar to how slice handles its inputs
+        let indices_input = &node.inputs[1];
+        log::debug!(
+            "Gather indices input for {}: {:?}",
+            node.name,
+            indices_input
+        );
+
+        let indices = if let Some(value) = indices_input.into_value() {
+            // Static indices
+            log::debug!("Gather {} has static indices value: {:?}", node.name, value);
+            match &value.data {
+                Data::Int64s(vals) => {
+                    log::debug!("Gather {} static indices: {:?}", node.name, vals);
+                    GatherInput::Static(vals.clone())
+                }
+                Data::Int32s(vals) => {
+                    let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
+                    log::debug!(
+                        "Gather {} static indices (from int32): {:?}",
+                        node.name,
+                        int64_vals
+                    );
+                    GatherInput::Static(int64_vals)
+                }
+                other => panic!("Gather indices must be int32 or int64, got {other:?}"),
+            }
+        } else {
+            // Runtime indices
+            log::debug!("Gather {} has runtime indices", node.name);
+            GatherInput::Runtime(indices_input.name.clone())
+        };
+
+        let config = GatherConfig {
+            indices,
+            axis: dim as usize,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -219,7 +215,17 @@ mod tests {
     fn test_gather_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(0, 3, false).build();
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 0);
     }
 
@@ -227,7 +233,17 @@ mod tests {
     fn test_gather_config_negative_axis() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(-2, 3, false).build();
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
@@ -235,7 +251,17 @@ mod tests {
     fn test_gather_config_shape_input() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(0, 4, true).build(); // Shape of a 4D tensor
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 0);
     }
 
@@ -245,7 +271,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(0, 3, false).build();
         node.inputs.pop(); // Remove the indices input
-        let _ = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     fn create_runtime_gather_node(axis: i64, input_rank: usize) -> NodeBuilder {
@@ -260,11 +289,21 @@ mod tests {
     fn test_gather_config_runtime_indices() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_runtime_gather_node(0, 3).build();
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 0);
 
         // Check that indices is runtime
-        match config.indices {
+        match &config.indices {
             GatherInput::Runtime(name) => {
                 assert_eq!(name, "indices");
             }
@@ -282,13 +321,23 @@ mod tests {
             .output_tensor_f32("output", 3, None);
 
         let node = builder.build_with_graph_data(&mut graph_data);
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 1);
 
         // Check that indices is static
-        match config.indices {
+        match &config.indices {
             GatherInput::Static(vals) => {
-                assert_eq!(vals, vec![0, 2, 1]);
+                assert_eq!(*vals, vec![0, 2, 1]);
             }
             _ => panic!("Expected static indices"),
         }
@@ -491,11 +540,21 @@ mod tests {
             .output_shape("output", 2)
             .build();
 
-        let config = gather_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = GatherProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<GatherConfig>()
+            .unwrap();
         assert_eq!(config.axis, 0);
 
         // Check that Shape indices are treated as runtime
-        match config.indices {
+        match &config.indices {
             GatherInput::Runtime(name) => {
                 assert_eq!(name, "indices");
             }

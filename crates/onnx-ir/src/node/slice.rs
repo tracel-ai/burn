@@ -47,64 +47,6 @@ fn normalize_axes(axes: &mut [i64], rank: usize, node_name: &str) {
     }
 }
 
-/// Creates a configuration for tensor slicing based on the ONNX Slice operator.
-/// Returns either static ranges or runtime arguments for slicing.
-///
-/// Note: we leave the negative indices as is, but we need to handle them properly when slicing
-/// during the actual slicing operation using the runtime shape information.
-pub fn slice_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SliceConfig {
-    /// Creates a SliceInput from either a static value or runtime argument.
-    fn get_slice_input(
-        node: &Node,
-        index: usize,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) -> Option<SliceInput> {
-        let input = node.inputs.get(index)?;
-
-        match input.into_value() {
-            None => Some(SliceInput::Runtime(input.name.clone())),
-            Some(TensorData {
-                data: Data::Int64s(values),
-                ..
-            }) => Some(SliceInput::Static(values.clone())),
-            Some(v) => panic!(
-                "Slice input at index {} must be int64 but got {:?}",
-                index, v
-            ),
-        }
-    }
-
-    let starts = get_slice_input(node, 1, graph_data)
-        .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
-
-    let ends = get_slice_input(node, 2, graph_data)
-        .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
-
-    let mut axes = get_slice_input(node, 3, graph_data);
-    let steps = get_slice_input(node, 4, graph_data);
-
-    // Validate steps if present - zeros are not allowed
-    if let Some(SliceInput::Static(ref step_values)) = steps
-        && step_values.contains(&0)
-    {
-        panic!("Slice: step values cannot be zero");
-    }
-
-    // Normalize negative axes if we have static axes and know the input rank
-    if let Some(SliceInput::Static(ref mut axes_values)) = axes
-        && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
-    {
-        normalize_axes(axes_values, tensor_type.rank, &node.name);
-    }
-
-    SliceConfig {
-        starts,
-        ends,
-        axes,
-        steps,
-    }
-}
-
 /// Calculate output length for slicing a Shape.
 /// Handles negative indices, special cases, and steps.
 fn calculate_shape_slice_output_len(
@@ -176,7 +118,56 @@ impl NodeProcessor for SliceProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = slice_config(node, graph_data);
+        /// Creates a SliceInput from either a static value or runtime argument.
+        fn get_slice_input(
+            node: &Node,
+            index: usize,
+            graph_data: &mut crate::from_onnx::GraphData,
+        ) -> Option<SliceInput> {
+            let input = node.inputs.get(index)?;
+
+            match input.into_value() {
+                None => Some(SliceInput::Runtime(input.name.clone())),
+                Some(TensorData {
+                    data: Data::Int64s(values),
+                    ..
+                }) => Some(SliceInput::Static(values.clone())),
+                Some(v) => panic!(
+                    "Slice input at index {} must be int64 but got {:?}",
+                    index, v
+                ),
+            }
+        }
+
+        let starts = get_slice_input(node, 1, graph_data)
+            .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
+
+        let ends = get_slice_input(node, 2, graph_data)
+            .unwrap_or_else(|| panic!("Slice: ends parameter is required"));
+
+        let mut axes = get_slice_input(node, 3, graph_data);
+        let steps = get_slice_input(node, 4, graph_data);
+
+        // Validate steps if present - zeros are not allowed
+        if let Some(SliceInput::Static(ref step_values)) = steps
+            && step_values.contains(&0)
+        {
+            panic!("Slice: step values cannot be zero");
+        }
+
+        // Normalize negative axes if we have static axes and know the input rank
+        if let Some(SliceInput::Static(ref mut axes_values)) = axes
+            && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
+        {
+            normalize_axes(axes_values, tensor_type.rank, &node.name);
+        }
+
+        let config = SliceConfig {
+            starts,
+            ends,
+            axes,
+            steps,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -188,17 +179,30 @@ impl NodeProcessor for SliceProcessor {
     ) {
         log::debug!("Slice rank inference for node {}", node.name);
 
-        match &node.inputs[0].ty {
+        // Clone the input type first to avoid borrow issues
+        let input_ty = node.inputs[0].ty.clone();
+
+        match input_ty {
             ArgType::Tensor(_) => {
                 // Slicing a tensor preserves its type and rank during rank inference.
                 // Shape inference pass will handle the actual shape changes.
                 log::debug!("Slice input for {} is Tensor, preserving type", node.name);
-                node.outputs[0].ty = node.inputs[0].ty.clone();
+                node.outputs[0].ty = input_ty;
             }
             ArgType::Shape(shape_rank) => {
                 // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
                 log::debug!("Slice input for {} is Shape", node.name);
-                let config = slice_config(node, graph_data);
+                let processor = SliceProcessor;
+                let context = ProcessorContext::new(16);
+                processor.process_config(node, &context, graph_data);
+
+                let config = node
+                    .config
+                    .as_ref()
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<SliceConfig>()
+                    .unwrap();
 
                 // Only static slicing is supported for Shape inputs
                 let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
@@ -225,11 +229,7 @@ impl NodeProcessor for SliceProcessor {
 
                 let step = if steps.is_empty() { 1 } else { steps[0] };
                 let output_len = calculate_shape_slice_output_len(
-                    starts[0],
-                    ends[0],
-                    step,
-                    *shape_rank,
-                    &node.name,
+                    starts[0], ends[0], step, shape_rank, &node.name,
                 );
                 node.outputs[0].ty = ArgType::Shape(output_len);
             }
@@ -319,7 +319,21 @@ mod tests {
         let node = create_test_node(vec![1, 0], vec![3, 2], Some(vec![0, 2]))
             .build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -344,7 +358,21 @@ mod tests {
         let node = create_test_node(vec![1], vec![3], Some(vec![-3]))
             .build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -367,7 +395,21 @@ mod tests {
         let node =
             create_test_node(vec![1, 2], vec![3, 4], None).build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -387,7 +429,21 @@ mod tests {
         // Test with runtime inputs (no static values)
         let node = create_runtime_slice_node().build();
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
@@ -453,7 +509,21 @@ mod tests {
         // Test with runtime start but static end
         let node = create_mixed_slice_node_runtime_start().build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -471,7 +541,21 @@ mod tests {
         // Test with static start but runtime end
         let node = create_mixed_slice_node_runtime_end().build_with_graph_data(&mut graph_data);
 
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -496,7 +580,21 @@ mod tests {
             .output_default("output");
 
         let node = builder.build_with_graph_data(&mut graph_data);
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that we have static starts, ends, and steps
         match (&result.starts, &result.ends, &result.steps) {
@@ -527,7 +625,13 @@ mod tests {
             .output_default("output");
 
         let node = builder.build_with_graph_data(&mut graph_data);
-        slice_config(&node, &mut graph_data); // Should panic
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data); // Should panic
     }
 
     #[test]
@@ -543,7 +647,21 @@ mod tests {
             .output_default("output");
 
         let node = builder.build_with_graph_data(&mut graph_data);
-        let result = slice_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = SliceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let result = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SliceConfig>()
+            .unwrap();
 
         // Check that negative steps are preserved
         match &result.steps {

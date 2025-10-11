@@ -19,64 +19,6 @@ impl NodeConfig for ShapeConfig {
     }
 }
 
-pub fn shape_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> ShapeConfig {
-    if curr.inputs.len() != 1 {
-        panic!(
-            "Shape: multiple inputs are not supported (got {:?})",
-            curr.inputs.len()
-        );
-    }
-
-    // Extract the rank/dimension count from the input
-    let rank = match &curr.inputs.first().unwrap().ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        ArgType::Shape(rank) => {
-            // When Shape is applied to a Shape type, we're getting the "shape of the shape"
-            // which is just the number of dimensions (rank) as a 1D tensor
-            *rank
-        }
-        _ => panic!(
-            "Shape operation expects Tensor or Shape input, got {:?}",
-            curr.inputs.first().unwrap().ty
-        ),
-    };
-
-    // Default: all axes up to the last one (included)
-    let mut start_dim: i64 = 0;
-    let mut end_dim: i64 = rank as i64;
-
-    // Extract the attributes
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "start" => start_dim = value.clone().into_i64(),
-            "end" => end_dim = value.clone().into_i64(),
-            _ => {}
-        }
-    }
-
-    // If dim is negative, it is counted from the end
-    if start_dim < 0 {
-        start_dim += rank as i64;
-    }
-    if end_dim < 0 {
-        end_dim += rank as i64;
-    }
-
-    ShapeConfig {
-        start: start_dim as usize,
-        end: end_dim as usize,
-    }
-}
-
-/// Legacy function that returns (usize, usize) - kept for backward compatibility
-pub fn shape_config_tuple(
-    curr: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> (usize, usize) {
-    let config = shape_config(curr, graph_data);
-    (config.start, config.end)
-}
-
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
@@ -90,7 +32,53 @@ impl NodeProcessor for ShapeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = shape_config(node, graph_data);
+        // ALL logic from shape_config inlined here
+        if node.inputs.len() != 1 {
+            panic!(
+                "Shape: multiple inputs are not supported (got {:?})",
+                node.inputs.len()
+            );
+        }
+
+        // Extract the rank/dimension count from the input
+        let rank = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            ArgType::Shape(rank) => {
+                // When Shape is applied to a Shape type, we're getting the "shape of the shape"
+                // which is just the number of dimensions (rank) as a 1D tensor
+                *rank
+            }
+            _ => panic!(
+                "Shape operation expects Tensor or Shape input, got {:?}",
+                node.inputs.first().unwrap().ty
+            ),
+        };
+
+        // Default: all axes up to the last one (included)
+        let mut start_dim: i64 = 0;
+        let mut end_dim: i64 = rank as i64;
+
+        // Extract the attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "start" => start_dim = value.clone().into_i64(),
+                "end" => end_dim = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        // If dim is negative, it is counted from the end
+        if start_dim < 0 {
+            start_dim += rank as i64;
+        }
+        if end_dim < 0 {
+            end_dim += rank as i64;
+        }
+
+        let config = ShapeConfig {
+            start: start_dim as usize,
+            end: end_dim as usize,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -118,7 +106,19 @@ impl NodeProcessor for ShapeProcessor {
             return;
         }
 
-        let config = shape_config(node, _graph_data);
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(node, &context, _graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         let dim = config.end - config.start;
         log::debug!(
             "Shape operation for node {}: start={}, end={}, dim={}",
@@ -157,7 +157,21 @@ mod tests {
     fn test_shape_config_defaults() {
         let node = create_test_node(None, None, 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 4);
     }
@@ -166,7 +180,21 @@ mod tests {
     fn test_shape_config_with_start() {
         let node = create_test_node(Some(1), None, 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 4);
     }
@@ -175,7 +203,21 @@ mod tests {
     fn test_shape_config_with_end() {
         let node = create_test_node(None, Some(3), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 3);
     }
@@ -184,7 +226,21 @@ mod tests {
     fn test_shape_config_with_start_and_end() {
         let node = create_test_node(Some(1), Some(3), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 3);
     }
@@ -193,7 +249,21 @@ mod tests {
     fn test_shape_config_negative_dims() {
         let node = create_test_node(Some(-2), Some(-1), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         assert_eq!(config.start, 2); // -2 + 4 = 2
         assert_eq!(config.end, 3); // -1 + 4 = 3
     }
@@ -213,7 +283,13 @@ mod tests {
             value_store: None,
         });
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -247,7 +323,21 @@ mod tests {
             .build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = shape_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ShapeProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ShapeConfig>()
+            .unwrap();
         // Shape(5) means a 5-dimensional shape, so getting its shape
         // would be from 0 to 5 (the full extent)
         assert_eq!(config.start, 0);

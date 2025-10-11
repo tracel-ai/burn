@@ -63,106 +63,6 @@ pub enum ResizeSizes {
     Runtime(String),
 }
 
-pub fn resize_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ResizeConfig {
-    let mut mode: Option<ResizeMode> = None;
-
-    let input = if let ArgType::Tensor(tensor) = &node
-        .inputs
-        .first()
-        .expect("Resize: Input tensor must be present")
-        .ty
-    {
-        tensor
-    } else {
-        panic!("Resize: input must be a tensor")
-    };
-
-    // Note: we are ignoring some attributes because results are approximately the same
-    // and we are not supporting all the attributes of the Resize operator.
-    // However, some attributes are important to be checked and we are checking
-    // against the default values of the attributes.
-    // TODO revisit this when we have more Resize operators in the model
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "antialias" => assert_eq!(
-                value.clone().into_i32(),
-                0,
-                "Resize: antialias other than 0 is not supported"
-            ),
-            "axes" => panic!("Resize: custom axes attribute is not supported"),
-            "coordinate_transformation_mode" => {
-                log::warn!("Resize: coordinate_transformation_mode is ignored")
-            }
-
-            "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
-            "exclude_outside" => assert_eq!(
-                value.clone().into_i32(),
-                0,
-                "Resize: exclude_outside other than 0 is not supported"
-            ),
-            "extrapolation_value" => assert_eq!(
-                value.clone().into_f32(),
-                0.0,
-                "Resize: extrapolation_value other than 0.0 is not supported"
-            ),
-            "keep_aspect_ratio_policy" => {
-                assert_eq!(
-                    value.clone().into_string().to_lowercase(),
-                    "stretch",
-                    "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
-                )
-            }
-            "mode" => {
-                mode = Some(
-                    value
-                        .clone()
-                        .into_string()
-                        .parse::<ResizeMode>()
-                        .expect("Failed to parse resize mode"),
-                )
-            }
-            "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
-
-            _ => {}
-        }
-    }
-
-    let roi: Vec<f32> = node
-        .inputs
-        .get(1)
-        .map(|input| {
-            if let Some(TensorData { data, .. }) = input.into_value() {
-                data.clone().into_f32s()
-            } else {
-                vec![]
-            }
-        })
-        .unwrap_or_default();
-
-    // Extract scales input (3rd input)
-    let scales = extract_scales_input(node, input.rank, graph_data);
-
-    // Extract sizes input (4th input)
-    let sizes = extract_sizes_input(node, input.rank, graph_data);
-
-    let mode = mode.expect("Resize: mode attribute is required");
-
-    if !roi.is_empty() {
-        panic!("Resize: roi input is not supported")
-    }
-
-    // Check that at least one of scales or sizes is provided
-    if scales.is_none() && sizes.is_none() {
-        panic!("Resize: either scales or sizes input is required")
-    }
-
-    ResizeConfig {
-        mode,
-        scales,
-        sizes,
-    }
-}
-
 /// Extract scales input as either static or runtime
 fn extract_scales_input(
     node: &Node,
@@ -266,7 +166,104 @@ impl NodeProcessor for ResizeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = resize_config(node, graph_data);
+        // ALL logic from resize_config inlined here
+        let mut mode: Option<ResizeMode> = None;
+
+        let input = if let ArgType::Tensor(tensor) = &node
+            .inputs
+            .first()
+            .expect("Resize: Input tensor must be present")
+            .ty
+        {
+            tensor
+        } else {
+            panic!("Resize: input must be a tensor")
+        };
+
+        // Note: we are ignoring some attributes because results are approximately the same
+        // and we are not supporting all the attributes of the Resize operator.
+        // However, some attributes are important to be checked and we are checking
+        // against the default values of the attributes.
+        // TODO revisit this when we have more Resize operators in the model
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "antialias" => assert_eq!(
+                    value.clone().into_i32(),
+                    0,
+                    "Resize: antialias other than 0 is not supported"
+                ),
+                "axes" => panic!("Resize: custom axes attribute is not supported"),
+                "coordinate_transformation_mode" => {
+                    log::warn!("Resize: coordinate_transformation_mode is ignored")
+                }
+
+                "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
+                "exclude_outside" => assert_eq!(
+                    value.clone().into_i32(),
+                    0,
+                    "Resize: exclude_outside other than 0 is not supported"
+                ),
+                "extrapolation_value" => assert_eq!(
+                    value.clone().into_f32(),
+                    0.0,
+                    "Resize: extrapolation_value other than 0.0 is not supported"
+                ),
+                "keep_aspect_ratio_policy" => {
+                    assert_eq!(
+                        value.clone().into_string().to_lowercase(),
+                        "stretch",
+                        "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
+                    )
+                }
+                "mode" => {
+                    mode = Some(
+                        value
+                            .clone()
+                            .into_string()
+                            .parse::<ResizeMode>()
+                            .expect("Failed to parse resize mode"),
+                    )
+                }
+                "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
+
+                _ => {}
+            }
+        }
+
+        let roi: Vec<f32> = node
+            .inputs
+            .get(1)
+            .map(|input| {
+                if let Some(TensorData { data, .. }) = input.into_value() {
+                    data.clone().into_f32s()
+                } else {
+                    vec![]
+                }
+            })
+            .unwrap_or_default();
+
+        // Extract scales input (3rd input)
+        let scales = extract_scales_input(node, input.rank, graph_data);
+
+        // Extract sizes input (4th input)
+        let sizes = extract_sizes_input(node, input.rank, graph_data);
+
+        let mode = mode.expect("Resize: mode attribute is required");
+
+        if !roi.is_empty() {
+            panic!("Resize: roi input is not supported")
+        }
+
+        // Check that at least one of scales or sizes is provided
+        if scales.is_none() && sizes.is_none() {
+            panic!("Resize: either scales or sizes input is required")
+        }
+
+        let config = ResizeConfig {
+            mode,
+            scales,
+            sizes,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -337,11 +334,21 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = resize_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ResizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ResizeConfig>()
+            .unwrap();
         assert_eq!(config.mode, ResizeMode::Nearest);
-        match config.scales {
+        match &config.scales {
             Some(ResizeScales::Static(scales)) => {
-                assert_eq!(scales, vec![2.0, 2.0]); // Only the spatial scales (H,W)
+                assert_eq!(*scales, vec![2.0, 2.0]); // Only the spatial scales (H,W)
             }
             _ => panic!("Expected static scales"),
         }
@@ -358,12 +365,22 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = resize_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ResizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ResizeConfig>()
+            .unwrap();
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
-        match config.sizes {
+        match &config.sizes {
             Some(ResizeSizes::Static(sizes)) => {
-                assert_eq!(sizes, vec![224, 224]); // Only the spatial sizes (H,W)
+                assert_eq!(*sizes, vec![224, 224]); // Only the spatial sizes (H,W)
             }
             _ => panic!("Expected static sizes"),
         }
@@ -380,7 +397,10 @@ mod tests {
             Some(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]), // ROI values
         )
         .build_with_graph_data(&mut graph_data);
-        let _ = resize_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ResizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -389,7 +409,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node("nearest", None, None, None).build_with_graph_data(&mut graph_data);
-        let _ = resize_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ResizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -399,6 +422,9 @@ mod tests {
         let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None)
             .build_with_graph_data(&mut graph_data);
         node.attrs.clear(); // Remove all attributes including mode
-        let _ = resize_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ResizeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

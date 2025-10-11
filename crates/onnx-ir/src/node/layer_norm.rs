@@ -39,44 +39,6 @@ impl LayerNormConfig {
     }
 }
 
-/// Create a LayerNormConfig from the attributes of the node
-pub fn layer_norm_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> (LayerNormConfig, bool) {
-    let weight_shape = node.inputs[1]
-        .into_value()
-        .expect("LayerNorm: weight tensor must be present")
-        .shape
-        .clone();
-
-    let num_features = weight_shape[0];
-
-    // When `stash_type` is `1` (default), perform operations in 32-bit float and
-    // cast the results back to original dtype
-    let mut stash_type = 1;
-    let mut axis = -1;
-    let mut epsilon = 1e-5;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axis" => axis = value.clone().into_i64(),
-            "epsilon" => epsilon = value.clone().into_f32(),
-            "stash_type" => stash_type = value.clone().into_i64(),
-            _ => panic!("Unexpected attribute for LayerNorm: {key}"),
-        }
-    }
-
-    if axis != -1 && axis != weight_shape.len() as i64 - 1 {
-        panic!("LayerNorm: normalization is only supported on the last axis right now")
-    }
-
-    (
-        LayerNormConfig::new(num_features).with_epsilon(epsilon as f64),
-        stash_type == 1,
-    )
-}
-
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
@@ -88,9 +50,35 @@ impl NodeProcessor for LayerNormProcessor {
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
+        _graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let (config, _stash_type) = layer_norm_config(node, graph_data);
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .expect("LayerNorm: weight tensor must be present")
+            .shape
+            .clone();
+
+        let num_features = weight_shape[0];
+
+        // When `stash_type` is `1` (default), perform operations in 32-bit float and
+        // cast the results back to original dtype
+        let mut axis = -1;
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                "epsilon" => epsilon = value.clone().into_f32(),
+                "stash_type" => {} // stash_type is read but not used in config
+                _ => panic!("Unexpected attribute for LayerNorm: {key}"),
+            }
+        }
+
+        if axis != -1 && axis != weight_shape.len() as i64 - 1 {
+            panic!("LayerNorm: normalization is only supported on the last axis right now")
+        }
+
+        let config = LayerNormConfig::new(num_features).with_epsilon(epsilon as f64);
         node.config = Some(Box::new(config));
     }
 
@@ -132,22 +120,38 @@ mod tests {
     #[test]
     fn test_layer_norm_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(&mut graph_data);
-        let (config, stash_type_flag) = layer_norm_config(&node, &mut graph_data);
+        let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(&mut graph_data);
+        let processor = LayerNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
 
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LayerNormConfig>()
+            .unwrap();
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
-        assert!(stash_type_flag);
     }
 
     #[test]
     fn test_layer_norm_config_no_stash_type() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(&mut graph_data);
-        let (config, stash_type_flag) = layer_norm_config(&node, &mut graph_data);
+        let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(&mut graph_data);
+        let processor = LayerNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
 
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LayerNormConfig>()
+            .unwrap();
         assert_eq!(config.d_model, 32);
-        assert!(!stash_type_flag);
     }
 
     #[test]
@@ -175,6 +179,9 @@ mod tests {
             .build_with_graph_data(&mut graph_data);
 
         // Now axis=0 should trigger a panic since it's not the last dimension (1)
-        let _ = layer_norm_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LayerNormProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

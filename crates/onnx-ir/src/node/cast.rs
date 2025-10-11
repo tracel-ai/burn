@@ -27,16 +27,6 @@ impl NodeConfig for CastConfig {
     }
 }
 
-/// Create a CastConfig from the node attributes
-pub fn cast_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> CastConfig {
-    let elem_type = match node.attrs.get("to") {
-        Some(AttributeValue::Int64(type_id)) => {
-            element_type_from_proto(*type_id as i32).expect("Cast: unsupported 'to' dtype")
-        }
-        _ => panic!("Cast node must have an Int64 'to' attribute"),
-    };
-    CastConfig::new(elem_type)
-}
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
@@ -50,7 +40,14 @@ impl NodeProcessor for CastProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = cast_config(node, graph_data);
+        // ALL logic from cast_config inlined here
+        let elem_type = match node.attrs.get("to") {
+            Some(AttributeValue::Int64(type_id)) => {
+                element_type_from_proto(*type_id as i32).expect("Cast: unsupported 'to' dtype")
+            }
+            _ => panic!("Cast node must have an Int64 'to' attribute"),
+        };
+        let config = CastConfig::new(elem_type);
         node.config = Some(Box::new(config));
     }
 
@@ -65,8 +62,20 @@ impl NodeProcessor for CastProcessor {
         }
 
         // Get the cast configuration with the target element type first, before mutable borrows
-        let config = cast_config(node, graph_data);
-        let elem_type = config.to;
+        let processor = CastProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(node, &context, graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<CastConfig>()
+            .unwrap();
+        let elem_type = config.to.clone();
 
         let input = &mut node.inputs[0];
         let output = &mut node.outputs[0];
@@ -145,17 +154,59 @@ mod tests {
     fn test_cast_config() {
         let node = create_test_node(2, DataType::INT64.value() as i64);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = cast_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = CastProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<CastConfig>()
+            .unwrap();
         assert_eq!(config.to, ElementType::Int64);
 
         let node = create_test_node(2, DataType::FLOAT.value() as i64);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = cast_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = CastProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<CastConfig>()
+            .unwrap();
         assert_eq!(config.to, ElementType::Float32);
 
         let node = create_test_node(2, DataType::BOOL.value() as i64);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = cast_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = CastProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<CastConfig>()
+            .unwrap();
         assert_eq!(config.to, ElementType::Bool);
     }
 

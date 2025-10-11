@@ -45,31 +45,6 @@ impl NodeConfig for DepthToSpaceConfig {
     }
 }
 
-/// Create a DepthToSpaceConfig from the attributes of the node
-pub fn depth_to_space_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> DepthToSpaceConfig {
-    let mut block_size: Option<usize> = None;
-    let mut mode = DepthToSpaceMode::DCR;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-            "mode" => mode = value.clone().into_string().as_str().into(),
-            _ => panic!("Unexpected attribute for DepthToSpace: {key}"),
-        }
-    }
-
-    let block_size = block_size.expect("DepthToSpace: blocksize must be provided");
-    assert!(
-        block_size > 0,
-        "DepthToSpace: block_size must be greater than 0"
-    );
-
-    DepthToSpaceConfig { mode, block_size }
-}
-
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
@@ -83,7 +58,24 @@ impl NodeProcessor for DepthToSpaceProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = depth_to_space_config(node, graph_data);
+        let mut block_size: Option<usize> = None;
+        let mut mode = DepthToSpaceMode::DCR;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "blocksize" => block_size = Some(value.clone().into_i64() as usize),
+                "mode" => mode = value.clone().into_string().as_str().into(),
+                _ => panic!("Unexpected attribute for DepthToSpace: {key}"),
+            }
+        }
+
+        let block_size = block_size.expect("DepthToSpace: blocksize must be provided");
+        assert!(
+            block_size > 0,
+            "DepthToSpace: block_size must be greater than 0"
+        );
+
+        let config = DepthToSpaceConfig { mode, block_size };
         node.config = Some(Box::new(config));
     }
 
@@ -171,7 +163,17 @@ mod tests {
     fn test_basic_config() {
         let node = create_test_node(4, None, 2, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = depth_to_space_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DepthToSpaceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<DepthToSpaceConfig>()
+            .unwrap();
 
         assert_eq!(config.block_size, 2);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -181,7 +183,17 @@ mod tests {
     fn test_dcr_config() {
         let node = create_test_node(4, None, 3, Some("DCR"));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = depth_to_space_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DepthToSpaceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<DepthToSpaceConfig>()
+            .unwrap();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -191,7 +203,17 @@ mod tests {
     fn test_crd_config() {
         let node = create_test_node(4, None, 3, Some("CRD"));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = depth_to_space_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = DepthToSpaceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<DepthToSpaceConfig>()
+            .unwrap();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::CRD);

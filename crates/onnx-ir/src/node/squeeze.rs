@@ -18,28 +18,6 @@ impl NodeConfig for SqueezeConfig {
     }
 }
 
-pub fn squeeze_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SqueezeConfig {
-    let axes =
-    // In ONNX opset 13+, axes are provided as a second input
-    // When no axes input is provided, return None (meaning squeeze all dims with size 1)
-    if curr.inputs.len() == 2 {
-        // Get axes from the second input (ONNX opset 13+ standard)
-        match curr.inputs[1].into_value() {
-            Some(value) => match &value.data {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => None,
-            },
-            None => None,
-        }
-    } else {
-        // No axes input means squeeze all dimensions with size 1
-        // Return None to indicate empty dims should be passed to squeeze_dims
-        None
-    };
-
-    SqueezeConfig { axes }
-}
-
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
@@ -53,7 +31,26 @@ impl NodeProcessor for SqueezeProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = squeeze_config(node, graph_data);
+        // ALL logic from squeeze_config inlined here
+        let axes =
+        // In ONNX opset 13+, axes are provided as a second input
+        // When no axes input is provided, return None (meaning squeeze all dims with size 1)
+        if node.inputs.len() == 2 {
+            // Get axes from the second input (ONNX opset 13+ standard)
+            match node.inputs[1].into_value() {
+                Some(value) => match &value.data {
+                    Data::Int64s(axes) => Some(axes.clone()),
+                    _ => None,
+                },
+                None => None,
+            }
+        } else {
+            // No axes input means squeeze all dimensions with size 1
+            // Return None to indicate empty dims should be passed to squeeze_dims
+            None
+        };
+
+        let config = SqueezeConfig { axes };
         node.config = Some(Box::new(config));
     }
 
@@ -174,7 +171,17 @@ mod tests {
     fn test_squeeze_config_with_axes_input() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(&mut graph_data);
-        let config = squeeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SqueezeConfig>()
+            .unwrap();
         assert_eq!(config.axes, Some(vec![0, 2]));
     }
 
@@ -182,7 +189,17 @@ mod tests {
     fn test_squeeze_config_no_axes_input() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, 4).build();
-        let config = squeeze_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<SqueezeConfig>()
+            .unwrap();
         assert_eq!(config.axes, None);
     }
 }

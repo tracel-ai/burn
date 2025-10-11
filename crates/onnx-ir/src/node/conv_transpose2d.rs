@@ -60,84 +60,6 @@ impl NodeConfig for ConvTranspose2dConfig {
     }
 }
 
-/// Create a ConvTranspose2dConfig from the attributes of the node
-pub fn conv_transpose2d_config(
-    curr: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> ConvTranspose2dConfig {
-    let mut kernel_shape = Vec::new();
-    let mut stride = vec![1, 1]; // Default stride to 1
-    let mut pads = vec![0, 0, 0, 0]; // Default padding to 0
-    let mut dilations = vec![1, 1]; // Default dilation to 1
-    let mut group: usize = 1; // Default group to 1
-    let mut output_padding = vec![0, 0]; // Default output padding to 0
-
-    // Extract attributes
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => stride = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64() as usize,
-            "output_padding" => output_padding = value.clone().into_i64s(),
-            "auto_pad" => {
-                let auto_pad = value.clone().into_string();
-                if auto_pad != "NOTSET" {
-                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
-                }
-            }
-            _ => panic!("Unexpected attribute for ConvTranspose2d: {key}"),
-        }
-    }
-
-    // Check the pads are symmetric.
-    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
-    if left < 0 || top < 0 || right < 0 || bottom < 0 {
-        panic!("Negative pad values are not supported");
-    } else if (left != right) || (top != bottom) {
-        panic!("Asymmetric padding is not supported");
-    }
-
-    let weight_shape = curr.inputs[1]
-        .into_value()
-        .expect("ConvTranspose2d: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the bias is present
-    let bias = curr.inputs.len() == 3;
-
-    // the channels are inverted in the weight tensor
-    let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
-
-    let kernel_size = if kernel_shape.is_empty() {
-        // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
-        // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
-        if weight_shape.len() != 4 {
-            panic!(
-                "expected to infer kernel shape from a weight tensor of rank 4 but got shape {weight_shape:?}"
-            );
-        }
-
-        [weight_shape[2], weight_shape[3]]
-    } else {
-        // Was set explicitly via attributes- use that
-        [kernel_shape[0] as _, kernel_shape[1] as _]
-    };
-
-    ConvTranspose2dConfig::new(
-        channels,
-        kernel_size,
-        [stride[0] as usize, stride[1] as usize],
-        [dilations[0] as usize, dilations[1] as usize],
-        [pads[0] as usize, pads[1] as usize],
-        [output_padding[0] as usize, output_padding[1] as usize],
-        group,
-        bias,
-    )
-}
-
 pub struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
@@ -149,9 +71,80 @@ impl NodeProcessor for Convtranspose2dProcessor {
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
+        _graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = conv_transpose2d_config(node, graph_data);
+        let mut kernel_shape = Vec::new();
+        let mut stride = vec![1, 1]; // Default stride to 1
+        let mut pads = vec![0, 0, 0, 0]; // Default padding to 0
+        let mut dilations = vec![1, 1]; // Default dilation to 1
+        let mut group: usize = 1; // Default group to 1
+        let mut output_padding = vec![0, 0]; // Default output padding to 0
+
+        // Extract attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => stride = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "dilations" => dilations = value.clone().into_i64s(),
+                "group" => group = value.clone().into_i64() as usize,
+                "output_padding" => output_padding = value.clone().into_i64s(),
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                    }
+                }
+                _ => panic!("Unexpected attribute for ConvTranspose2d: {key}"),
+            }
+        }
+
+        // Check the pads are symmetric.
+        let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
+        if left < 0 || top < 0 || right < 0 || bottom < 0 {
+            panic!("Negative pad values are not supported");
+        } else if (left != right) || (top != bottom) {
+            panic!("Asymmetric padding is not supported");
+        }
+
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .expect("ConvTranspose2d: weight tensor must be present")
+            .shape
+            .clone();
+
+        // check if the bias is present
+        let bias = node.inputs.len() == 3;
+
+        // the channels are inverted in the weight tensor
+        let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
+
+        let kernel_size = if kernel_shape.is_empty() {
+            // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
+            // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
+            if weight_shape.len() != 4 {
+                panic!(
+                    "expected to infer kernel shape from a weight tensor of rank 4 but got shape {weight_shape:?}"
+                );
+            }
+
+            [weight_shape[2], weight_shape[3]]
+        } else {
+            // Was set explicitly via attributes- use that
+            [kernel_shape[0] as _, kernel_shape[1] as _]
+        };
+
+        let config = ConvTranspose2dConfig::new(
+            channels,
+            kernel_size,
+            [stride[0] as usize, stride[1] as usize],
+            [dilations[0] as usize, dilations[1] as usize],
+            [pads[0] as usize, pads[1] as usize],
+            [output_padding[0] as usize, output_padding[1] as usize],
+            group,
+            bias,
+        );
+
         node.config = Some(Box::new(config));
     }
 
@@ -235,7 +228,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2]);
@@ -261,7 +264,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.padding, [1, 1]);
         assert_eq!(config.stride, [2, 2]);
@@ -281,7 +294,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.padding_out, [1, 1]);
     }
@@ -300,7 +323,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [8, 2]); // channels_in is adjusted by groups
@@ -320,7 +353,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert!(config.bias);
     }
@@ -340,7 +383,10 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let _ = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -357,7 +403,17 @@ mod tests {
             Some("NOTSET"),
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2]);
@@ -384,7 +440,10 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(&mut graph_data);
-        let _config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -401,7 +460,17 @@ mod tests {
             None,
         )
         .build_with_graph_data(&mut graph_data);
-        let config = conv_transpose2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = Convtranspose2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ConvTranspose2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [2, 2]); // Inferred via weight tensor shape
     }

@@ -40,34 +40,6 @@ impl NodeConfig for LinearConfig {
     }
 }
 
-/// Create a LinearConfig from the attributes of the node
-pub fn linear_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> LinearConfig {
-    if node.inputs.len() < 2 {
-        panic!("Linear: missing weight tensor");
-    }
-
-    let weight_shape = node.inputs[1]
-        .into_value()
-        .expect("Linear: weight tensor must be present")
-        .shape
-        .clone();
-
-    // check if the weight tensor has at least 2 dimensions
-    if weight_shape.len() < 2 {
-        panic!(
-            "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            weight_shape.len()
-        );
-    }
-
-    let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
-
-    // check if the bias is present
-    let bias = node.inputs.len() == 3 && node.inputs[2].into_value().is_some();
-
-    LinearConfig::new(in_size, out_size).with_bias(bias)
-}
-
 pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
@@ -81,7 +53,30 @@ impl NodeProcessor for LinearProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = linear_config(node, graph_data);
+        if node.inputs.len() < 2 {
+            panic!("Linear: missing weight tensor");
+        }
+
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .expect("Linear: weight tensor must be present")
+            .shape
+            .clone();
+
+        // check if the weight tensor has at least 2 dimensions
+        if weight_shape.len() < 2 {
+            panic!(
+                "Linear: weight tensor must have at least 2 dimensions (got {:?})",
+                weight_shape.len()
+            );
+        }
+
+        let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
+
+        // check if the bias is present
+        let bias = node.inputs.len() == 3 && node.inputs[2].into_value().is_some();
+
+        let config = LinearConfig::new(in_size, out_size).with_bias(bias);
         node.config = Some(Box::new(config));
     }
 
@@ -138,7 +133,17 @@ mod tests {
     fn test_linear_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
-        let config = linear_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LinearProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LinearConfig>()
+            .unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -149,7 +154,17 @@ mod tests {
     fn test_linear_config_with_bias() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(true, vec![10, 5]).build_with_graph_data(&mut graph_data);
-        let config = linear_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LinearProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<LinearConfig>()
+            .unwrap();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -161,7 +176,10 @@ mod tests {
     fn test_linear_config_invalid_weight_dims() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(false, vec![10]).build_with_graph_data(&mut graph_data);
-        let _ = linear_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LinearProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
@@ -170,6 +188,9 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
         node.inputs.remove(1);
-        let _ = linear_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = LinearProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

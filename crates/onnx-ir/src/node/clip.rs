@@ -20,70 +20,6 @@ impl NodeConfig for ClipConfig {
     }
 }
 
-pub fn clip_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ClipConfig {
-    let mut min_result: Option<f64> = None;
-    let mut max_result: Option<f64> = None;
-
-    // For Clip Opset 6+ , the min and max values are attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "min" => {
-                let min = value.clone().into_f32() as f64;
-                min_result = Some(min);
-            }
-            "max" => {
-                let max = value.clone().into_f32();
-                max_result = Some(max as f64);
-            }
-            _ => {}
-        }
-    }
-
-    // For Clip Opset 11+ , the min and max values are inputs
-    // Get the min and max values from the input values
-    if min_result.is_none() && max_result.is_none() {
-        let min = node.inputs.get(1).and_then(|arg| arg.into_value());
-        let max = node.inputs.get(2).and_then(|arg| arg.into_value());
-
-        if min_result.is_none()
-            && let Some(min) = min
-        {
-            let min = min.data.into_scalar();
-            min_result = match min {
-                Data::Float16(min) => Some(f32::from(min) as f64),
-                Data::Float32(min) => Some(min as f64),
-                Data::Float64(min) => Some(min),
-                Data::Int32(min) => Some(min as f64),
-                Data::Int64(min) => Some(min as f64),
-                _ => panic!("Clip: unsupported min data type {:?}", min),
-            };
-        }
-
-        if max_result.is_none()
-            && let Some(max) = max
-        {
-            let max = max.data.into_scalar();
-            max_result = match max {
-                Data::Float16(max) => Some(f32::from(max) as f64),
-                Data::Float32(max) => Some(max as f64),
-                Data::Float64(max) => Some(max),
-                Data::Int32(max) => Some(max as f64),
-                Data::Int64(max) => Some(max as f64),
-                _ => panic!("Clip: unsupported max data type {:?}", max),
-            };
-        }
-    }
-
-    if min_result.is_none() && max_result.is_none() {
-        panic!("Clip: min and max values must be either attributes or inputs");
-    }
-
-    ClipConfig {
-        min: min_result,
-        max: max_result,
-    }
-}
-
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
@@ -97,7 +33,68 @@ impl NodeProcessor for ClipProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = clip_config(node, graph_data);
+        // ALL logic from clip_config inlined here
+        let mut min_result: Option<f64> = None;
+        let mut max_result: Option<f64> = None;
+
+        // For Clip Opset 6+ , the min and max values are attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "min" => {
+                    let min = value.clone().into_f32() as f64;
+                    min_result = Some(min);
+                }
+                "max" => {
+                    let max = value.clone().into_f32();
+                    max_result = Some(max as f64);
+                }
+                _ => {}
+            }
+        }
+
+        // For Clip Opset 11+ , the min and max values are inputs
+        // Get the min and max values from the input values
+        if min_result.is_none() && max_result.is_none() {
+            let min = node.inputs.get(1).and_then(|arg| arg.into_value());
+            let max = node.inputs.get(2).and_then(|arg| arg.into_value());
+
+            if min_result.is_none()
+                && let Some(min) = min
+            {
+                let min = min.data.into_scalar();
+                min_result = match min {
+                    Data::Float16(min) => Some(f32::from(min) as f64),
+                    Data::Float32(min) => Some(min as f64),
+                    Data::Float64(min) => Some(min),
+                    Data::Int32(min) => Some(min as f64),
+                    Data::Int64(min) => Some(min as f64),
+                    _ => panic!("Clip: unsupported min data type {:?}", min),
+                };
+            }
+
+            if max_result.is_none()
+                && let Some(max) = max
+            {
+                let max = max.data.into_scalar();
+                max_result = match max {
+                    Data::Float16(max) => Some(f32::from(max) as f64),
+                    Data::Float32(max) => Some(max as f64),
+                    Data::Float64(max) => Some(max),
+                    Data::Int32(max) => Some(max as f64),
+                    Data::Int64(max) => Some(max as f64),
+                    _ => panic!("Clip: unsupported max data type {:?}", max),
+                };
+            }
+        }
+
+        if min_result.is_none() && max_result.is_none() {
+            panic!("Clip: min and max values must be either attributes or inputs");
+        }
+
+        let config = ClipConfig {
+            min: min_result,
+            max: max_result,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -145,7 +142,17 @@ mod tests {
     fn test_clip_config_with_attributes() {
         let node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, Some(1.0));
     }
@@ -154,7 +161,17 @@ mod tests {
     fn test_clip_config_with_attributes_min_only() {
         let node = create_test_node_with_attributes(Some(-1.0), None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, None);
     }
@@ -163,7 +180,17 @@ mod tests {
     fn test_clip_config_with_attributes_max_only() {
         let node = create_test_node_with_attributes(None, Some(1.0));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, None);
         assert_eq!(config.max, Some(1.0));
     }
@@ -173,7 +200,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_inputs(Some(-1.0), Some(1.0))
             .build_with_graph_data(&mut graph_data);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, Some(1.0));
     }
@@ -183,7 +220,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(&mut graph_data);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, None);
     }
@@ -193,7 +240,17 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(&mut graph_data);
-        let config = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ClipConfig>()
+            .unwrap();
         assert_eq!(config.min, None);
         assert_eq!(config.max, Some(1.0));
     }
@@ -203,6 +260,9 @@ mod tests {
     fn test_clip_config_no_min_max() {
         let node = create_test_node_with_attributes(None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = clip_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = ClipProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

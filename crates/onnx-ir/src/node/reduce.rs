@@ -24,51 +24,6 @@ impl ReduceConfig {
     }
 }
 
-/// Create a Reduce config from the attributes of the node
-pub fn reduce_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReduceConfig {
-    let mut axes = Vec::new();
-    let mut keepdims = 1;
-
-    let tensor = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("{}: Only tensor input is valid", node.node_type),
-    };
-
-    // Extract the attributes
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "axes" => axes = value.clone().into_i64s(),
-            "keepdims" => keepdims = value.clone().into_i64(),
-            _ => {}
-        }
-    }
-
-    // Process axes from additional input (if available)
-    if let Some(value) = node
-        .inputs
-        .get(1)
-        .and_then(|argument| argument.into_value())
-    {
-        axes = value.data.into_i64s();
-    }
-
-    let mut dims: Vec<usize> = axes
-        .into_iter()
-        .map(|mut dim| {
-            if dim < 0 {
-                // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-                dim += tensor.rank as i64;
-            }
-            dim as usize
-        })
-        .collect();
-
-    // Sort the dimensions to ensure consistent order
-    dims.sort();
-
-    ReduceConfig::new(dims, keepdims == 1)
-}
-
 pub struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
@@ -82,7 +37,47 @@ impl NodeProcessor for ReduceProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = reduce_config(node, graph_data);
+        let mut axes = Vec::new();
+        let mut keepdims = 1;
+
+        let tensor = match node.inputs.first().unwrap().clone().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("{}: Only tensor input is valid", node.node_type),
+        };
+
+        // Extract the attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axes" => axes = value.clone().into_i64s(),
+                "keepdims" => keepdims = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        // Process axes from additional input (if available)
+        if let Some(value) = node
+            .inputs
+            .get(1)
+            .and_then(|argument| argument.into_value())
+        {
+            axes = value.data.into_i64s();
+        }
+
+        let mut dims: Vec<usize> = axes
+            .into_iter()
+            .map(|mut dim| {
+                if dim < 0 {
+                    // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
+                    dim += tensor.rank as i64;
+                }
+                dim as usize
+            })
+            .collect();
+
+        // Sort the dimensions to ensure consistent order
+        dims.sort();
+
+        let config = ReduceConfig::new(dims, keepdims == 1);
         node.config = Some(Box::new(config));
     }
 
@@ -94,18 +89,33 @@ impl NodeProcessor for ReduceProcessor {
     ) {
         log::debug!("{} rank inference for node {}", node.node_type, node.name);
 
-        let tensor = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor,
+        // Extract tensor info before calling process_config
+        let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => (
+                tensor.rank,
+                tensor.elem_type.clone(),
+                tensor.static_shape.clone(),
+            ),
             _ => panic!("{}: Only tensor input is valid", node.node_type),
         };
         log::debug!(
             "{} input rank for {}: {}",
             node.node_type,
             node.name,
-            tensor.rank
+            tensor_rank
         );
 
-        let config = reduce_config(node, graph_data);
+        let processor = ReduceProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(node, &context, graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         log::debug!(
             "{} config for {}: keepdims={}, dims={:?}",
@@ -118,27 +128,27 @@ impl NodeProcessor for ReduceProcessor {
             "{} static_shape for {}: {:?}",
             node.node_type,
             node.name,
-            tensor.static_shape
+            tensor_static_shape
         );
 
         // Determine if the output should be a scalar
         let should_be_scalar =
-            !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor.rank);
+            !config.keepdims && (config.dims.is_empty() || config.dims.len() == tensor_rank);
 
         if should_be_scalar {
             // Output is a scalar
             log::debug!("{} output is scalar for node {}", node.node_type, node.name);
-            node.outputs[0].ty = ArgType::Scalar(tensor.elem_type.clone());
+            node.outputs[0].ty = ArgType::Scalar(tensor_elem_type);
         } else {
             // Output is a tensor
             let output_rank = if config.keepdims {
-                tensor.rank
+                tensor_rank
             } else {
-                tensor.rank - config.dims.len()
+                tensor_rank - config.dims.len()
             };
 
             // Infer static shape based if given
-            let output_shape = tensor.static_shape.clone().and_then(|mut shape| {
+            let output_shape = tensor_static_shape.and_then(|mut shape| {
                 log::debug!(
                     "{} processing static_shape for {}: shape.len()={}, dims={:?}",
                     node.node_type,
@@ -148,19 +158,19 @@ impl NodeProcessor for ReduceProcessor {
                 );
 
                 // Only process static shape if it's complete (matches tensor rank)
-                if shape.len() != tensor.rank {
+                if shape.len() != tensor_rank {
                     log::debug!(
                         "{} skipping static_shape for {}: shape.len()={} != rank={}",
                         node.node_type,
                         node.name,
                         shape.len(),
-                        tensor.rank
+                        tensor_rank
                     );
                     return None;
                 }
 
                 if config.keepdims {
-                    for dim in config.dims {
+                    for dim in &config.dims {
                         log::debug!(
                             "{} setting shape[{}] = 1 for {} (shape.len()={})",
                             node.node_type,
@@ -168,7 +178,7 @@ impl NodeProcessor for ReduceProcessor {
                             node.name,
                             shape.len()
                         );
-                        shape[dim] = 1;
+                        shape[*dim] = 1;
                     }
                     Some(shape)
                 } else {
@@ -187,7 +197,7 @@ impl NodeProcessor for ReduceProcessor {
             );
 
             node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: tensor.elem_type.clone(),
+                elem_type: tensor_elem_type,
                 rank: output_rank,
                 static_shape: output_shape,
             });
@@ -222,7 +232,21 @@ mod tests {
     fn test_reduce_config_basic() {
         let node = create_test_node(Some(vec![1]), Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = reduce_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, true);
@@ -232,7 +256,21 @@ mod tests {
     fn test_reduce_config_negative_axis() {
         let node = create_test_node(Some(vec![-2]), Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = reduce_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         assert_eq!(config.dims, [1]); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
@@ -242,7 +280,21 @@ mod tests {
     fn test_reduce_config_no_axes() {
         let node = create_test_node(None, Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = reduce_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         assert_eq!(config.dims, []);
         assert_eq!(config.keepdims, true);
@@ -252,7 +304,21 @@ mod tests {
     fn test_reduce_config_multiple_axes() {
         let node = create_test_node(Some(vec![0, 1]), Some(1));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = reduce_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         assert_eq!(config.dims, [0, 1]);
         assert_eq!(config.keepdims, true);
@@ -262,7 +328,21 @@ mod tests {
     fn test_reduce_config_no_keepdims() {
         let node = create_test_node(Some(vec![1]), Some(0));
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = reduce_config(&node, &mut graph_data);
+        let mut node = node;
+
+        let processor = ReduceProcessor;
+
+        let context = ProcessorContext::new(16);
+
+        processor.process_config(&mut node, &context, &mut graph_data);
+
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ReduceConfig>()
+            .unwrap();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);

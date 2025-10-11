@@ -44,48 +44,6 @@ impl NodeConfig for AvgPool2dConfig {
     }
 }
 
-/// Create a AvgPool2dConfig from the attributes of the node
-pub fn avg_pool2d_config(
-    curr: &Node,
-    _graph_data: &mut crate::from_onnx::GraphData,
-) -> AvgPool2dConfig {
-    let mut kernel_shape = Vec::new();
-    let mut strides = vec![1, 1];
-    let mut pads = vec![0, 0, 0, 0];
-    let mut count_include_pad: i64 = 0;
-    let mut ceil_mode: i64 = 0;
-
-    for (key, value) in curr.attrs.iter() {
-        match key.as_str() {
-            "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-            "strides" => strides = value.clone().into_i64s(),
-            "pads" => pads = value.clone().into_i64s(),
-            "count_include_pad" => count_include_pad = value.clone().into_i64(),
-            "ceil_mode" => ceil_mode = value.clone().into_i64(),
-            "auto_pad" => {
-                let auto_pad = value.clone().into_string();
-                if auto_pad != "NOTSET" {
-                    panic!("Unsupported 'auto_pad' value: {auto_pad}");
-                }
-            }
-            _ => panic!("Unexpected attribute for AvgPool2d: {key}"),
-        }
-    }
-
-    if ceil_mode == 1 {
-        panic!("ceil_mode is not supported");
-    }
-
-    let padding = padding_config_2d(&pads);
-
-    AvgPool2dConfig::new(
-        [kernel_shape[0] as usize, kernel_shape[1] as usize],
-        [strides[0] as usize, strides[1] as usize],
-        padding,
-        count_include_pad == 1,
-    )
-}
-
 pub struct AvgPool2dProcessor;
 
 impl NodeProcessor for AvgPool2dProcessor {
@@ -97,9 +55,44 @@ impl NodeProcessor for AvgPool2dProcessor {
         &self,
         node: &mut Node,
         _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
+        _graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = avg_pool2d_config(node, graph_data);
+        let mut kernel_shape = Vec::new();
+        let mut strides = vec![1, 1];
+        let mut pads = vec![0, 0, 0, 0];
+        let mut count_include_pad: i64 = 0;
+        let mut ceil_mode: i64 = 0;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => strides = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "count_include_pad" => count_include_pad = value.clone().into_i64(),
+                "ceil_mode" => ceil_mode = value.clone().into_i64(),
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                    }
+                }
+                _ => panic!("Unexpected attribute for AvgPool2d: {key}"),
+            }
+        }
+
+        if ceil_mode == 1 {
+            panic!("ceil_mode is not supported");
+        }
+
+        let padding = padding_config_2d(&pads);
+
+        let config = AvgPool2dConfig::new(
+            [kernel_shape[0] as usize, kernel_shape[1] as usize],
+            [strides[0] as usize, strides[1] as usize],
+            padding,
+            count_include_pad == 1,
+        );
+
         node.config = Some(Box::new(config));
     }
 
@@ -141,7 +134,17 @@ mod tests {
     fn test_avg_pool2d_config_basic() {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 0);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = avg_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AvgPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -153,7 +156,17 @@ mod tests {
     fn test_avg_pool2d_config_with_padding() {
         let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], 0, 0);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = avg_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AvgPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -165,7 +178,17 @@ mod tests {
     fn test_avg_pool2d_config_with_count_include_pad() {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![1, 1, 1, 1], 1, 0);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = avg_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AvgPool2dConfig>()
+            .unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -178,6 +201,9 @@ mod tests {
     fn test_avg_pool2d_config_with_ceil_mode() {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 1);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let _ = avg_pool2d_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AvgPool2dProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 }

@@ -52,85 +52,6 @@ pub enum AttentionQkMatmulOutputMode {
     MatmulAfterSoftmax,
 }
 
-pub fn attention_config(
-    node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> AttentionConfig {
-    if node.inputs.len() < 3 {
-        panic!("Attention must have at least 3 inputs")
-    }
-    if node.outputs.is_empty() {
-        panic!("Attention must have at least 1 output")
-    }
-
-    let q = extract_tensor(node.inputs.first(), "Q").unwrap();
-    let k = extract_tensor(node.inputs.get(1), "K").unwrap();
-    let v = extract_tensor(node.inputs.get(2), "V").unwrap();
-    let y = extract_tensor(node.outputs.first(), "Y").unwrap();
-    if q.rank != k.rank || q.rank != v.rank || q.rank != y.rank {
-        panic!("Attention: Q, K, V, Y parameters must have the same rank");
-    }
-    if q.rank != 3 && q.rank != 4 {
-        panic!("Attention: Q, K, V, Y parameters must have rank 3 or 4");
-    }
-
-    if (node.inputs.len() >= 6) != (node.outputs.len() >= 3)
-        || node.inputs.len() == 5
-        || node.outputs.len() == 2
-    {
-        panic!(
-            "Attention: past_key, past_value, present_key, present_value can only be used together"
-        );
-    }
-
-    let mut is_causal = false;
-    let mut kv_num_heads = None;
-    let mut q_num_heads = None;
-    let mut qk_matmul_output_mode = AttentionQkMatmulOutputMode::Matmul;
-    let mut scale = None;
-    let mut softcap = 0.0;
-    let mut softmax_precision = None;
-
-    for (key, value) in node.attrs.iter() {
-        match key.as_str() {
-            "is_causal" => is_causal = value.clone().into_i64() != 0,
-            "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
-            "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
-            "qk_matmul_output_mode" => {
-                qk_matmul_output_mode = match value.clone().into_i64() {
-                    0 => AttentionQkMatmulOutputMode::Matmul,
-                    1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
-                    2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
-                    3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
-                    v => panic!(
-                        "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
-                    ),
-                }
-            }
-            "scale" => scale = Some(value.clone().into_f32() as f64),
-            "softcap" => softcap = value.clone().into_f32() as f64,
-            "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
-            _ => panic!("Unexpected attribute for Attention: {key}"),
-        }
-    }
-
-    if q.rank == 3 && (kv_num_heads.is_none() || q_num_heads.is_none()) {
-        panic!(
-            "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified"
-        )
-    }
-
-    AttentionConfig::new(
-        is_causal,
-        q_num_heads,
-        kv_num_heads,
-        qk_matmul_output_mode,
-        scale,
-        softcap,
-        softmax_precision,
-    )
-}
-
 fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a TensorType> {
     match &arg?.ty {
         ArgType::Tensor(v) => Some(v),
@@ -151,7 +72,79 @@ impl NodeProcessor for AttentionProcessor {
         _context: &ProcessorContext,
         graph_data: &mut crate::from_onnx::GraphData,
     ) {
-        let config = attention_config(node, graph_data);
+        if node.inputs.len() < 3 {
+            panic!("Attention must have at least 3 inputs")
+        }
+        if node.outputs.is_empty() {
+            panic!("Attention must have at least 1 output")
+        }
+
+        let q = extract_tensor(node.inputs.first(), "Q").unwrap();
+        let k = extract_tensor(node.inputs.get(1), "K").unwrap();
+        let v = extract_tensor(node.inputs.get(2), "V").unwrap();
+        let y = extract_tensor(node.outputs.first(), "Y").unwrap();
+        if q.rank != k.rank || q.rank != v.rank || q.rank != y.rank {
+            panic!("Attention: Q, K, V, Y parameters must have the same rank");
+        }
+        if q.rank != 3 && q.rank != 4 {
+            panic!("Attention: Q, K, V, Y parameters must have rank 3 or 4");
+        }
+
+        if (node.inputs.len() >= 6) != (node.outputs.len() >= 3)
+            || node.inputs.len() == 5
+            || node.outputs.len() == 2
+        {
+            panic!(
+                "Attention: past_key, past_value, present_key, present_value can only be used together"
+            );
+        }
+
+        let mut is_causal = false;
+        let mut kv_num_heads = None;
+        let mut q_num_heads = None;
+        let mut qk_matmul_output_mode = AttentionQkMatmulOutputMode::Matmul;
+        let mut scale = None;
+        let mut softcap = 0.0;
+        let mut softmax_precision = None;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "is_causal" => is_causal = value.clone().into_i64() != 0,
+                "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
+                "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
+                "qk_matmul_output_mode" => {
+                    qk_matmul_output_mode = match value.clone().into_i64() {
+                        0 => AttentionQkMatmulOutputMode::Matmul,
+                        1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
+                        2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
+                        3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
+                        v => panic!(
+                            "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
+                        ),
+                    }
+                }
+                "scale" => scale = Some(value.clone().into_f32() as f64),
+                "softcap" => softcap = value.clone().into_f32() as f64,
+                "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
+                _ => panic!("Unexpected attribute for Attention: {key}"),
+            }
+        }
+
+        if q.rank == 3 && (kv_num_heads.is_none() || q_num_heads.is_none()) {
+            panic!(
+                "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified"
+            )
+        }
+
+        let config = AttentionConfig::new(
+            is_causal,
+            q_num_heads,
+            kv_num_heads,
+            qk_matmul_output_mode,
+            scale,
+            softcap,
+            softmax_precision,
+        );
         node.config = Some(Box::new(config));
     }
 
@@ -364,14 +357,27 @@ mod tests {
             None,
         );
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        attention_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AttentionProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
     }
 
     #[test]
     fn test_softcap() {
         let node = create_simple_test_node(None, None, None, None, None, Some(2.0), None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = attention_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AttentionProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AttentionConfig>()
+            .unwrap();
         assert_eq!(config.softcap, 2.0);
     }
 
@@ -379,7 +385,17 @@ mod tests {
     fn test_custom_scale() {
         let node = create_simple_test_node(None, None, None, None, Some(2.0), None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = attention_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AttentionProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AttentionConfig>()
+            .unwrap();
         assert_eq!(config.scale, Some(2.0));
     }
 
@@ -387,7 +403,17 @@ mod tests {
     fn test_is_causal() {
         let node = create_simple_test_node(Some(1), None, None, None, None, None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = attention_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AttentionProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AttentionConfig>()
+            .unwrap();
         assert!(config.is_causal);
     }
 
@@ -399,7 +425,17 @@ mod tests {
     fn test_qk_matmul_output(#[case] raw: i64, #[case] mode: AttentionQkMatmulOutputMode) {
         let node = create_simple_test_node(None, None, None, Some(raw), None, None, None);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let config = attention_config(&node, &mut graph_data);
+        let mut node = node;
+        let processor = AttentionProcessor;
+        let context = ProcessorContext::new(16);
+        processor.process_config(&mut node, &context, &mut graph_data);
+        let config = node
+            .config
+            .as_ref()
+            .unwrap()
+            .as_any()
+            .downcast_ref::<AttentionConfig>()
+            .unwrap();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }
 }
