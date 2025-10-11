@@ -352,13 +352,23 @@ mod tests {
     fn test_reshape_config_invalid_shape_dim() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
 
-        // Create node and register constant with 2D shape
-        let node = create_test_node(0, vec![2, 3]).build();
+        // Register the constant with 2D shape (should trigger panic)
         graph_data.register_test_constant(
             "shape".to_string(),
             crate::ir::Data::Int64s(vec![2, 3]),
-            vec![2, 1],
+            vec![2, 1], // 2D shape - this should cause panic
         );
+
+        // Create a node without pre-registered data for the shape input
+        let node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
+            .input_tensor_f32("data", 4, None)
+            .add_input("shape", ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                rank: 2, // 2D tensor
+                static_shape: Some(vec![2, 1]),
+            }))
+            .output_tensor_f32("reshaped", 2, None)
+            .build_with_graph_data(&mut graph_data);
 
         let _ = reshape_config(&node, &mut graph_data);
     }

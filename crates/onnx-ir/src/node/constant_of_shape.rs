@@ -264,6 +264,14 @@ mod tests {
     fn test_no_static_shapes_with_value_attr() {
         // Simulates the scenario after constant lifting where the input has a value
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+
+        // Register the constant first
+        graph_data.register_test_constant(
+            "constant180_out1".to_string(),
+            Data::Int64s(vec![2, 3, 4]),
+            vec![3],
+        );
+
         let mut node = NodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
             .input_tensor_i64("constant180_out1", 1, None)
             .output_default("/model/encoder/patch_encoder/ConstantOfShape_output_0")
@@ -274,14 +282,7 @@ mod tests {
                     shape: vec![1],
                 },
             )
-            .build();
-
-        // Simulate constant lifting by registering the value in graph_data
-        graph_data.register_test_constant(
-            "constant180_out1".to_string(),
-            Data::Int64s(vec![2, 3, 4]),
-            vec![3],
-        );
+            .build_with_graph_data(&mut graph_data);
 
         let processor = ConstantOfShapeProcessor;
         let context = ProcessorContext::new(16);
