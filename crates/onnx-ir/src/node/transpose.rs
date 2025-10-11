@@ -1,9 +1,29 @@
+use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
-use crate::ir::{ArgType, Node};
+/// Configuration for Transpose operations
+#[derive(Debug, Clone)]
+pub struct TransposeConfig {
+    /// Permutation of dimensions
+    pub perm: Vec<i64>,
+}
 
-pub fn transpose_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> Vec<i64> {
+impl NodeConfig for TransposeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub fn transpose_config(
+    curr: &Node,
+    _graph_data: &mut crate::from_onnx::GraphData,
+) -> TransposeConfig {
     if curr.inputs.len() != 1 {
         panic!(
             "Transpose: multiple inputs are not supported (got {:?})",
@@ -24,7 +44,7 @@ pub fn transpose_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphDa
         perm = axes.clone().into_i64s();
     }
 
-    perm
+    TransposeConfig { perm }
 }
 
 pub struct TransposeProcessor;
@@ -32,6 +52,16 @@ pub struct TransposeProcessor;
 impl NodeProcessor for TransposeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = transpose_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -66,16 +96,16 @@ mod tests {
     fn test_transpose_config_default() {
         let node = create_test_node(None, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let perm = transpose_config(&node, &mut graph_data);
-        assert_eq!(perm, vec![2, 1, 0]); // Default is to reverse the dimensions
+        let config = transpose_config(&node, &mut graph_data);
+        assert_eq!(config.perm, vec![2, 1, 0]); // Default is to reverse the dimensions
     }
 
     #[test]
     fn test_transpose_config_with_perm() {
         let node = create_test_node(Some(vec![0, 2, 1]), 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let perm = transpose_config(&node, &mut graph_data);
-        assert_eq!(perm, vec![0, 2, 1]);
+        let config = transpose_config(&node, &mut graph_data);
+        assert_eq!(config.perm, vec![0, 2, 1]);
     }
 
     #[test]

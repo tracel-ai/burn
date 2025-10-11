@@ -1,6 +1,7 @@
 use crate::from_onnx::element_type_from_proto;
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for EyeLike operations
 #[derive(Debug, Clone, new)]
@@ -9,6 +10,15 @@ pub struct EyeLikeConfig {
     pub dtype: Option<ElementType>,
     /// Diagonal offset (0 = main diagonal, >0 = upper, <0 = lower)
     pub k: i64,
+}
+
+impl NodeConfig for EyeLikeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 /// Create an EyeLike configuration from the node
@@ -41,6 +51,16 @@ pub struct EyeLikeProcessor;
 impl NodeProcessor for EyeLikeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (9, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = eye_like_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

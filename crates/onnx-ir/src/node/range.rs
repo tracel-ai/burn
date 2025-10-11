@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, Argument, Data, ElementType, Node, TensorData, TensorType};
+use crate::ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the Range operation.
 #[derive(Debug, Clone)]
@@ -9,13 +10,23 @@ pub struct RangeConfig {
     pub delta: RangeInput,
 }
 
+impl NodeConfig for RangeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 /// Represents either a static value or a runtime argument for range parameters.
 #[derive(Debug, Clone)]
 pub enum RangeInput {
     /// Static value known at compile time.
     Static(i64),
-    /// Runtime argument determined during execution.
-    Runtime(Argument),
+    /// Runtime argument determined during execution (stores argument name).
+    Runtime(String),
 }
 
 /// Extract range configuration from the node.
@@ -32,7 +43,7 @@ pub fn range_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
             .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
 
         match input.into_value() {
-            None => RangeInput::Runtime(input.clone()),
+            None => RangeInput::Runtime(input.name.clone()),
             Some(TensorData {
                 data: Data::Int64s(values),
                 ..
@@ -64,6 +75,16 @@ pub struct RangeProcessor;
 impl NodeProcessor for RangeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (11, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = range_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

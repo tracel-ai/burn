@@ -1,7 +1,8 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
 /// Configuration for Conv2d operations
 #[derive(Debug, Clone)]
@@ -42,6 +43,16 @@ impl Conv2dConfig {
             groups,
             bias,
         }
+    }
+}
+
+impl NodeConfig for Conv2dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -118,6 +129,16 @@ pub struct Conv2dProcessor;
 impl NodeProcessor for Conv2dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None) // Conv2d supported from opset 1+
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = conv2d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

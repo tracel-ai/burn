@@ -1,5 +1,6 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 pub use self::Direction as BitShiftDirection;
 
@@ -21,15 +22,34 @@ impl Direction {
 }
 
 /// Configuration for BitShift operation
-pub fn bitshift_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Direction {
+#[derive(Debug, Clone)]
+pub struct BitShiftConfig {
+    pub direction: Direction,
+}
+
+impl NodeConfig for BitShiftConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub fn bitshift_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> BitShiftConfig {
     let direction_str = node
         .attrs
         .get("direction")
         .map(|val| val.clone().into_string())
         .unwrap_or_else(|| "left".to_string());
 
-    Direction::from_str(&direction_str)
-        .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"))
+    let direction = Direction::from_str(&direction_str)
+        .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"));
+
+    BitShiftConfig { direction }
 }
 
 pub struct BitShiftProcessor;
@@ -37,6 +57,16 @@ pub struct BitShiftProcessor;
 impl NodeProcessor for BitShiftProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (11, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = bitshift_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -66,7 +96,7 @@ mod tests {
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = bitshift_config(&node, &mut graph_data);
-        assert_eq!(config, Direction::Left);
+        assert_eq!(config.direction, Direction::Left);
     }
 
     #[test]
@@ -80,7 +110,7 @@ mod tests {
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = bitshift_config(&node, &mut graph_data);
-        assert_eq!(config, Direction::Right);
+        assert_eq!(config.direction, Direction::Right);
     }
 
     #[test]
@@ -93,6 +123,6 @@ mod tests {
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = bitshift_config(&node, &mut graph_data);
-        assert_eq!(config, Direction::Left);
+        assert_eq!(config.direction, Direction::Left);
     }
 }

@@ -1,9 +1,26 @@
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
-use crate::ir::{ArgType, Node, TensorType};
+/// Configuration for Flatten operations
+#[derive(Debug, Clone)]
+pub struct FlattenConfig {
+    /// Axis along which to flatten
+    pub axis: usize,
+}
+
+impl NodeConfig for FlattenConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// Create a FlattenConfig from the attributes of the node
-pub fn flatten_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> usize {
+pub fn flatten_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> FlattenConfig {
     // the begin dimension is the first dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = 1;
 
@@ -41,7 +58,9 @@ pub fn flatten_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData
         axis += tensor.rank as i64;
     }
 
-    axis as usize
+    FlattenConfig {
+        axis: axis as usize,
+    }
 }
 
 pub struct FlattenProcessor;
@@ -49,6 +68,16 @@ pub struct FlattenProcessor;
 impl NodeProcessor for FlattenProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = flatten_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -96,7 +125,7 @@ mod tests {
         let node = create_test_node(1);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = flatten_config(&node, &mut graph_data);
-        assert_eq!(config, 1);
+        assert_eq!(config.axis, 1);
     }
 
     #[test]
@@ -104,7 +133,7 @@ mod tests {
         let node = create_test_node(-2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = flatten_config(&node, &mut graph_data);
-        assert_eq!(config, 2); // -2 + 4 = 2
+        assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
     #[test]

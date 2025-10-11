@@ -7,17 +7,28 @@
 
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
-    Argument, TensorData,
-    ir::{ArgType, Data, Node, TensorType},
+    TensorData,
+    ir::{ArgType, Data, Node, NodeConfig, TensorType},
 };
+use std::any::Any;
 
 /// Axes specification for the Unsqueeze operation.
 #[derive(Debug, Clone)]
 pub enum UnsqueezeConfig {
     /// Static axes known at compile time.
     Static(Vec<i64>),
-    /// Runtime axes that will be determined during execution.
-    Runtime(Argument),
+    /// Runtime axes that will be determined during execution (stores argument name).
+    Runtime(String),
+}
+
+impl NodeConfig for UnsqueezeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 /// Creates UnsqueezeAxes configuration from the node attributes.
@@ -52,7 +63,7 @@ pub fn unsqueeze_config(
             {
                 UnsqueezeConfig::Static(shape.clone())
             } else {
-                UnsqueezeConfig::Runtime(node.inputs[1].clone())
+                UnsqueezeConfig::Runtime(node.inputs[1].name.clone())
             }
         }
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),
@@ -64,6 +75,16 @@ pub struct UnsqueezeProcessor;
 impl NodeProcessor for UnsqueezeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = unsqueeze_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -186,7 +207,7 @@ mod tests {
         fn eq(&self, other: &UnsqueezeConfig) -> bool {
             match (self, other) {
                 (UnsqueezeConfig::Static(a), UnsqueezeConfig::Static(b)) => a == b,
-                (UnsqueezeConfig::Runtime(a), UnsqueezeConfig::Runtime(b)) => a.name == b.name,
+                (UnsqueezeConfig::Runtime(a), UnsqueezeConfig::Runtime(b)) => a == b,
                 _ => false,
             }
         }
@@ -378,8 +399,8 @@ mod tests {
         // Should return a Runtime config since the axes are only known at runtime
         match config {
             UnsqueezeConfig::Static(_) => panic!("Expected Runtime config"),
-            UnsqueezeConfig::Runtime(arg) => {
-                assert_eq!(arg.name, "axes");
+            UnsqueezeConfig::Runtime(name) => {
+                assert_eq!(name, "axes");
             }
         }
     }

@@ -1,5 +1,6 @@
-use crate::ir::{AttributeValue, Node};
+use crate::ir::{AttributeValue, Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for Mod operations
 #[derive(Debug, Clone)]
@@ -14,6 +15,15 @@ impl ModConfig {
     /// Create a new ModConfig
     pub fn new(fmod: bool) -> Self {
         Self { fmod }
+    }
+}
+
+impl NodeConfig for ModConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -34,6 +44,16 @@ pub struct ModuloProcessor;
 impl NodeProcessor for ModuloProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (10, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = mod_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

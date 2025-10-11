@@ -1,5 +1,9 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{ArgType, TensorType, ir::Node};
+use crate::{
+    ArgType, TensorType,
+    ir::{Node, NodeConfig},
+};
+use std::any::Any;
 
 /// Mode for DepthToSpace operation
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +33,15 @@ impl DepthToSpaceConfig {
     /// Create a new DepthToSpaceConfig
     pub fn new(mode: DepthToSpaceMode, block_size: usize) -> Self {
         Self { mode, block_size }
+    }
+}
+
+impl NodeConfig for DepthToSpaceConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -62,6 +75,16 @@ pub struct DepthToSpaceProcessor;
 impl NodeProcessor for DepthToSpaceProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = depth_to_space_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

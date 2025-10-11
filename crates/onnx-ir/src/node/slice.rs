@@ -1,6 +1,6 @@
-use crate::Argument;
-use crate::ir::{ArgType, Data, Node, TensorData};
+use crate::ir::{ArgType, Data, Node, NodeConfig, TensorData};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the Slice operation.
 #[derive(Debug, Clone)]
@@ -11,13 +11,23 @@ pub struct SliceConfig {
     pub steps: Option<SliceInput>,
 }
 
+impl NodeConfig for SliceConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 /// Represents either a static value or a runtime argument for slice parameters.
 #[derive(Debug, Clone)]
 pub enum SliceInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution.
-    Runtime(Argument),
+    /// Runtime argument determined during execution (stores argument name).
+    Runtime(String),
 }
 
 /// Normalize negative axes to positive indices based on tensor rank.
@@ -52,7 +62,7 @@ pub fn slice_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -
         let input = node.inputs.get(index)?;
 
         match input.into_value() {
-            None => Some(SliceInput::Runtime(input.clone())),
+            None => Some(SliceInput::Runtime(input.name.clone())),
             Some(TensorData {
                 data: Data::Int64s(values),
                 ..
@@ -158,6 +168,16 @@ pub struct SliceProcessor;
 impl NodeProcessor for SliceProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = slice_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -372,8 +392,8 @@ mod tests {
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
             (SliceInput::Runtime(starts), SliceInput::Runtime(ends)) => {
-                assert_eq!(starts.name, "starts");
-                assert_eq!(ends.name, "ends");
+                assert_eq!(starts, "starts");
+                assert_eq!(ends, "ends");
                 // Check axes and steps
                 if let Some(SliceInput::Static(axes)) = &result.axes {
                     assert_eq!(axes, &vec![0]);
@@ -438,7 +458,7 @@ mod tests {
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
             (SliceInput::Runtime(starts), SliceInput::Static(ends)) => {
-                assert_eq!(starts.name, "starts");
+                assert_eq!(starts, "starts");
                 assert_eq!(ends, &vec![3]);
             }
             _ => panic!("Expected mixed config with runtime start and static end"),
@@ -457,7 +477,7 @@ mod tests {
         match (&result.starts, &result.ends) {
             (SliceInput::Static(starts), SliceInput::Runtime(ends)) => {
                 assert_eq!(starts, &vec![1]);
-                assert_eq!(ends.name, "ends");
+                assert_eq!(ends, "ends");
             }
             _ => panic!("Expected mixed config with static start and runtime end"),
         }

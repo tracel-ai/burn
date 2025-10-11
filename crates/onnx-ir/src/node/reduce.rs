@@ -1,10 +1,21 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{ArgType, Node, TensorType};
+use crate::{ArgType, Node, NodeConfig, TensorType};
+use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct ReduceConfig {
     pub dims: Vec<usize>,
     pub keepdims: bool,
+}
+
+impl NodeConfig for ReduceConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl ReduceConfig {
@@ -63,6 +74,16 @@ pub struct ReduceProcessor;
 impl NodeProcessor for ReduceProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = reduce_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

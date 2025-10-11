@@ -1,7 +1,8 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
 
-use crate::ir::{ArgType, AttributeValue, Data, Node, TensorData};
+use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig, TensorData};
+use std::any::Any;
 
 /// Configuration for the Pad operation.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +19,15 @@ impl PadConfig {
             pads,
             constant_value,
         }
+    }
+}
+
+impl NodeConfig for PadConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -151,6 +161,16 @@ pub struct PadProcessor;
 impl NodeProcessor for PadProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (2, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = pad_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

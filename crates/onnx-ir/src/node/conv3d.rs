@@ -1,7 +1,8 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::node::padding::{PaddingConfig3d, padding_config_3d};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
 /// Configuration for Conv3d operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +43,16 @@ impl Conv3dConfig {
             bias,
             padding,
         }
+    }
+}
+
+impl NodeConfig for Conv3dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -128,6 +139,16 @@ pub struct Conv3dProcessor;
 impl NodeProcessor for Conv3dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = conv3d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

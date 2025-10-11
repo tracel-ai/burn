@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the Split operation.
 #[derive(Clone, Debug)]
@@ -10,6 +11,16 @@ pub struct SplitConfig {
     pub split_size: Option<usize>,
     /// Custom sizes for each split when splitting unevenly.
     pub split_sizes: Option<Vec<usize>>,
+}
+
+impl NodeConfig for SplitConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl SplitConfig {
@@ -135,6 +146,16 @@ pub struct SplitProcessor;
 impl NodeProcessor for SplitProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (2, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = split_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

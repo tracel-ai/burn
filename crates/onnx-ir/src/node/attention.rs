@@ -1,5 +1,6 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{ArgType, Argument, Node, TensorType};
+use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
+use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct AttentionConfig {
@@ -31,6 +32,15 @@ impl AttentionConfig {
             softcap,
             softmax_precision,
         }
+    }
+}
+
+impl NodeConfig for AttentionConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -133,6 +143,16 @@ pub struct AttentionProcessor;
 impl NodeProcessor for AttentionProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = attention_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

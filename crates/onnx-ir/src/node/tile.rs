@@ -1,11 +1,22 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{Node, TensorData};
+use crate::{Node, NodeConfig, TensorData};
+use std::any::Any;
 
 /// Configuration for the Tile operation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
     pub repeats: Vec<usize>,
+}
+
+impl NodeConfig for TileConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl TileConfig {
@@ -39,6 +50,16 @@ pub struct TileProcessor;
 impl NodeProcessor for TileProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (6, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = tile_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

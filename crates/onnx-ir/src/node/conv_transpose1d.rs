@@ -1,6 +1,7 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
 #[derive(Debug, Clone)]
@@ -50,6 +51,16 @@ impl ConvTranspose1dConfig {
             bias,
             padding_out,
         }
+    }
+}
+
+impl NodeConfig for ConvTranspose1dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -135,6 +146,16 @@ pub struct Convtranspose1dProcessor;
 impl NodeProcessor for Convtranspose1dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = conv_transpose1d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

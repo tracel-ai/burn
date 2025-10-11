@@ -1,6 +1,10 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
-use crate::{ir::Node, node::padding::padding_config_1d};
+use crate::{
+    ir::{Node, NodeConfig},
+    node::padding::padding_config_1d,
+};
+use std::any::Any;
 
 use super::padding::PaddingConfig1d;
 
@@ -44,6 +48,16 @@ impl MaxPool1dConfig {
     pub fn with_dilation(mut self, dilation: usize) -> Self {
         self.dilation = dilation;
         self
+    }
+}
+
+impl NodeConfig for MaxPool1dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -103,6 +117,16 @@ pub struct MaxPool1dProcessor;
 impl NodeProcessor for MaxPool1dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (8, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = max_pool1d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

@@ -1,5 +1,6 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{Data, Node, TensorData};
+use crate::{Data, Node, NodeConfig, TensorData};
+use std::any::Any;
 
 /// Configuration for the Trilu operation.
 #[derive(Debug, Clone, PartialEq)]
@@ -14,6 +15,15 @@ impl TriluConfig {
     /// Creates a TriluConfig from the node attributes and inputs.
     pub fn new(upper: bool, diagonal: i64) -> Self {
         Self { upper, diagonal }
+    }
+}
+
+impl NodeConfig for TriluConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -43,6 +53,16 @@ pub struct TriluProcessor;
 impl NodeProcessor for TriluProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (14, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = trilu_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

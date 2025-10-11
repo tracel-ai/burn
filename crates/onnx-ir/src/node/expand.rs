@@ -1,16 +1,27 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
-    Argument, ElementType, TensorData,
-    ir::{ArgType, Data, Node, TensorType},
+    ElementType, TensorData,
+    ir::{ArgType, Data, Node, NodeConfig, TensorType},
 };
+use std::any::Any;
 
 /// Shape information for the Expand operation.
 #[derive(Debug, Clone)]
 pub enum ExpandShape {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape that will be determined during execution.
-    Runtime(Argument),
+    /// Runtime shape that will be determined during execution (stores argument name).
+    Runtime(String),
+}
+
+impl NodeConfig for ExpandShape {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 /// Creates an ExpandShape configuration from the given Node.
@@ -39,7 +50,7 @@ pub fn expand_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         }) => ExpandShape::Static(shape.clone()),
         None => {
             // we were unable to statically determine the input value, so we'll need to fetch it at runtime
-            ExpandShape::Runtime(node.inputs[1].clone())
+            ExpandShape::Runtime(node.inputs[1].name.clone())
         }
         _ => panic!(
             "Shape data type must be int64, is {:?}",
@@ -53,6 +64,16 @@ pub struct ExpandProcessor;
 impl NodeProcessor for ExpandProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (8, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = expand_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -277,15 +298,8 @@ mod tests {
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(arg) => {
-                assert_eq!(arg.name, "shape");
-                match arg.ty {
-                    ArgType::Tensor(tensor) => {
-                        assert_eq!(tensor.elem_type, ElementType::Int64);
-                        assert_eq!(tensor.rank, 1);
-                    }
-                    _ => panic!("Expected tensor type for runtime shape"),
-                }
+            ExpandShape::Runtime(name) => {
+                assert_eq!(name, "shape");
             }
         }
     }
@@ -299,14 +313,8 @@ mod tests {
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
-            ExpandShape::Runtime(arg) => {
-                assert_eq!(arg.name, "shape");
-                match arg.ty {
-                    ArgType::Shape(rank) => {
-                        assert_eq!(rank, 3);
-                    }
-                    _ => panic!("Expected shape type for runtime shape"),
-                }
+            ExpandShape::Runtime(name) => {
+                assert_eq!(name, "shape");
             }
         }
     }

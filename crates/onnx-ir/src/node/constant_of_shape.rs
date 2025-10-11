@@ -1,16 +1,27 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::{
-    Argument, TensorData,
-    ir::{ArgType, Data, ElementType, Node, TensorType},
+    TensorData,
+    ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorType},
 };
+use std::any::Any;
 
 /// Shape information for the ConstantOfShape operation.
 #[derive(Debug, Clone)]
 pub enum ConstantOfShapeShape {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape that will be determined during execution.
-    Runtime(Argument),
+    /// Runtime shape that will be determined during execution (stores argument name).
+    Runtime(String),
+}
+
+impl NodeConfig for ConstantOfShapeShape {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 /// Creates a ConstantOfShapeShape configuration from the given Node.
@@ -45,7 +56,7 @@ pub fn constant_of_shape_config(
         }) => ConstantOfShapeShape::Static(shape.clone()),
         None => {
             // We were unable to statically determine the input value, so we'll need to fetch it at runtime
-            ConstantOfShapeShape::Runtime(node.inputs[0].clone())
+            ConstantOfShapeShape::Runtime(node.inputs[0].name.clone())
         }
         _ => panic!(
             "ConstantOfShape node {} requires Int64 shape data",
@@ -59,6 +70,16 @@ pub struct ConstantOfShapeProcessor;
 impl NodeProcessor for ConstantOfShapeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (9, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = constant_of_shape_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

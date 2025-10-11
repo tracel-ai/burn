@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the TopK operation.
 #[derive(Debug, Clone, PartialEq)]
@@ -8,6 +9,16 @@ pub struct TopKConfig {
     pub axis: usize,
     /// The number of top elements to select.
     pub k: usize,
+}
+
+impl NodeConfig for TopKConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl TopKConfig {
@@ -70,6 +81,16 @@ pub struct TopKProcessor;
 impl NodeProcessor for TopKProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = top_k_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

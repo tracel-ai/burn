@@ -1,8 +1,25 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
+
+/// Configuration for Concat operation
+#[derive(Debug, Clone)]
+pub struct ConcatConfig {
+    pub axis: usize,
+}
+
+impl NodeConfig for ConcatConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// Create concat config from the attributes of the node
-pub fn concat_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
+pub fn concat_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ConcatConfig {
     // Extract the axis attribute (required per ONNX spec)
     let mut axis: Option<i64> = None;
 
@@ -39,7 +56,9 @@ pub fn concat_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) 
         );
     }
 
-    normalized_axis as usize
+    ConcatConfig {
+        axis: normalized_axis as usize,
+    }
 }
 
 pub struct ConcatProcessor;
@@ -47,6 +66,16 @@ pub struct ConcatProcessor;
 impl NodeProcessor for ConcatProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (4, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = concat_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -170,7 +199,7 @@ mod tests {
         let node = create_test_node(1, 3, 2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = concat_config(&node, &mut graph_data);
-        assert_eq!(config, 1);
+        assert_eq!(config.axis, 1);
     }
 
     #[test]
@@ -178,7 +207,7 @@ mod tests {
         let node = create_test_node(-2, 3, 2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = concat_config(&node, &mut graph_data);
-        assert_eq!(config, 1); // -2 + 3 = 1
+        assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
     #[test]
@@ -192,7 +221,7 @@ mod tests {
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = concat_config(&node, &mut graph_data);
-        assert_eq!(config, 0); // Shape concat uses axis 0
+        assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
 
     #[test]
@@ -255,7 +284,7 @@ mod tests {
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = concat_config(&node, &mut graph_data);
-        assert_eq!(config, 0); // -1 + 1 = 0
+        assert_eq!(config.axis, 0); // -1 + 1 = 0
     }
 
     #[test]

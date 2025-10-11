@@ -1,7 +1,8 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
 /// Configuration for MaxPool2d operations
 #[derive(Debug, Clone)]
@@ -43,6 +44,16 @@ impl MaxPool2dConfig {
     pub fn with_dilation(mut self, dilation: [usize; 2]) -> Self {
         self.dilation = dilation;
         self
+    }
+}
+
+impl NodeConfig for MaxPool2dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -92,6 +103,16 @@ pub struct MaxPool2dProcessor;
 impl NodeProcessor for MaxPool2dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (8, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = max_pool2d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

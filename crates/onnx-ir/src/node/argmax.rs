@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for ArgMax operations
 #[derive(Debug, Clone, new)]
@@ -8,6 +9,16 @@ pub struct ArgMaxConfig {
     pub axis: usize,
     /// Whether to keep dimensions after reduction
     pub keepdims: bool,
+}
+
+impl NodeConfig for ArgMaxConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 /// Create argmax config from the attributes of the node
@@ -67,6 +78,16 @@ pub struct ArgMaxProcessor;
 impl NodeProcessor for ArgMaxProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = argmax_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

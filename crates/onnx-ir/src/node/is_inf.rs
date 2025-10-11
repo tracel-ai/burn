@@ -1,5 +1,6 @@
-use crate::Node;
 use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::{Node, NodeConfig};
+use std::any::Any;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsInfConfig {
@@ -13,6 +14,15 @@ impl IsInfConfig {
             detect_negative,
             detect_positive,
         }
+    }
+}
+
+impl NodeConfig for IsInfConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -36,6 +46,16 @@ pub struct IsInfProcessor;
 impl NodeProcessor for IsInfProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (10, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = is_inf_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

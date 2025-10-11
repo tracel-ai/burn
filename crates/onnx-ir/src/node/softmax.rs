@@ -1,8 +1,26 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
+
+/// Configuration for Softmax operations
+#[derive(Debug, Clone)]
+pub struct SoftmaxConfig {
+    /// Axis along which to apply softmax
+    pub axis: usize,
+}
+
+impl NodeConfig for SoftmaxConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// Create softmax config from the attributes of the node
-pub fn softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
+pub fn softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> SoftmaxConfig {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = -1;
 
@@ -32,7 +50,9 @@ pub fn softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData)
         axis += tensor.rank as i64;
     }
 
-    axis as usize
+    SoftmaxConfig {
+        axis: axis as usize,
+    }
 }
 
 pub struct SoftmaxProcessor;
@@ -40,6 +60,16 @@ pub struct SoftmaxProcessor;
 impl NodeProcessor for SoftmaxProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = softmax_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -71,7 +101,7 @@ mod tests {
         let node = create_test_node(-1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = softmax_config(&node, &mut graph_data);
-        assert_eq!(config, 2); // -1 + 3 = 2 (last dimension)
+        assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
     #[test]
@@ -79,7 +109,7 @@ mod tests {
         let node = create_test_node(1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = softmax_config(&node, &mut graph_data);
-        assert_eq!(config, 1);
+        assert_eq!(config.axis, 1);
     }
 
     #[test]

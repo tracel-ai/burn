@@ -1,7 +1,8 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
 
-use crate::ir::{Data, Node};
+use crate::ir::{Data, Node, NodeConfig};
+use std::any::Any;
 
 /// Configuration for Dropout operations
 #[derive(Debug, Clone)]
@@ -14,6 +15,15 @@ impl DropoutConfig {
     /// Create a new DropoutConfig
     pub fn new(prob: f64) -> Self {
         Self { prob }
+    }
+}
+
+impl NodeConfig for DropoutConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -51,6 +61,16 @@ pub struct DropoutProcessor;
 impl NodeProcessor for DropoutProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (7, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = dropout_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

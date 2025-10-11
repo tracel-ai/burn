@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, Argument, Data, Node, TensorData, TensorType};
+use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, TensorData, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the Reshape operation.
 #[derive(Debug, Clone)]
@@ -7,13 +8,23 @@ pub struct ReshapeConfig {
     pub shape: ReshapeInput,
 }
 
+impl NodeConfig for ReshapeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 /// Represents either a static value or a runtime argument for reshape shape.
 #[derive(Debug, Clone)]
 pub enum ReshapeInput {
     /// Static shape known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape determined during execution.
-    Runtime(Argument),
+    /// Runtime shape determined during execution (stores argument name).
+    Runtime(String),
 }
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
@@ -216,7 +227,7 @@ fn validate_reshape_node(node: &Node) {
 fn extract_shape_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeInput {
     match &node.inputs[1].ty {
         ArgType::Tensor(_) => extract_tensor_shape(node, graph_data),
-        ArgType::Shape(_) => ReshapeInput::Runtime(node.inputs[1].clone()),
+        ArgType::Shape(_) => ReshapeInput::Runtime(node.inputs[1].name.clone()),
         _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
     }
 }
@@ -228,7 +239,7 @@ fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphDat
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             ReshapeInput::Static(data.clone().into_i64s())
         }
-        None => ReshapeInput::Runtime(node.inputs[1].clone()),
+        None => ReshapeInput::Runtime(node.inputs[1].name.clone()),
     }
 }
 
@@ -249,6 +260,16 @@ pub struct ReshapeProcessor;
 impl NodeProcessor for ReshapeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (5, None) // Reshape supported from opset 5+
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = reshape_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -333,7 +354,7 @@ mod tests {
         let node = create_runtime_reshape_node().build();
         let config = reshape_config(&node, &mut graph_data);
         match config.shape {
-            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }
@@ -419,7 +440,7 @@ mod tests {
         let node = create_reshape_with_shape_input().build();
         let config = reshape_config(&node, &mut graph_data);
         match config.shape {
-            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            ReshapeInput::Runtime(name) => assert_eq!(name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }

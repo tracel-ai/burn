@@ -1,8 +1,29 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
+
+/// Configuration for LogSoftmax operations
+#[derive(Debug, Clone)]
+pub struct LogSoftmaxConfig {
+    /// Axis along which to apply log softmax
+    pub axis: usize,
+}
+
+impl NodeConfig for LogSoftmaxConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// Create log_softmax config from the attributes of the node
-pub fn log_softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
+pub fn log_softmax_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> LogSoftmaxConfig {
     // the axis is the last dimension (Default: 1 per ONNX spec)
     let mut axis: i64 = -1;
 
@@ -32,7 +53,9 @@ pub fn log_softmax_config(node: &Node, graph_data: &mut crate::from_onnx::GraphD
         axis += tensor.rank as i64;
     }
 
-    axis as usize
+    LogSoftmaxConfig {
+        axis: axis as usize,
+    }
 }
 
 pub struct LogSoftmaxProcessor;
@@ -40,6 +63,16 @@ pub struct LogSoftmaxProcessor;
 impl NodeProcessor for LogSoftmaxProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = log_softmax_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -71,7 +104,7 @@ mod tests {
         let node = create_test_node(-1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = log_softmax_config(&node, &mut graph_data);
-        assert_eq!(config, 2); // -1 + 3 = 2 (last dimension)
+        assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
     #[test]
@@ -79,7 +112,7 @@ mod tests {
         let node = create_test_node(1, 3);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let config = log_softmax_config(&node, &mut graph_data);
-        assert_eq!(config, 1);
+        assert_eq!(config.axis, 1);
     }
 
     #[test]

@@ -1,6 +1,8 @@
+use crate::ir::NodeConfig;
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
 use crate::{ir::Node, node::padding::padding_config_1d};
+use std::any::Any;
 
 use super::padding::PaddingConfig1d;
 
@@ -31,6 +33,16 @@ impl AvgPool1dConfig {
             padding,
             count_include_pad,
         }
+    }
+}
+
+impl NodeConfig for AvgPool1dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -88,6 +100,16 @@ pub struct AvgPool1dProcessor;
 impl NodeProcessor for AvgPool1dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (7, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = avg_pool1d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

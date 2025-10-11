@@ -1,7 +1,25 @@
-use crate::ir::{ArgType, Node};
+use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
-pub fn shape_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> (usize, usize) {
+/// Configuration for the Shape operation.
+#[derive(Debug, Clone)]
+pub struct ShapeConfig {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl NodeConfig for ShapeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub fn shape_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) -> ShapeConfig {
     if curr.inputs.len() != 1 {
         panic!(
             "Shape: multiple inputs are not supported (got {:?})",
@@ -44,7 +62,19 @@ pub fn shape_config(curr: &Node, _graph_data: &mut crate::from_onnx::GraphData) 
         end_dim += rank as i64;
     }
 
-    (start_dim as usize, end_dim as usize)
+    ShapeConfig {
+        start: start_dim as usize,
+        end: end_dim as usize,
+    }
+}
+
+/// Legacy function that returns (usize, usize) - kept for backward compatibility
+pub fn shape_config_tuple(
+    curr: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> (usize, usize) {
+    let config = shape_config(curr, graph_data);
+    (config.start, config.end)
 }
 
 pub struct ShapeProcessor;
@@ -52,6 +82,16 @@ pub struct ShapeProcessor;
 impl NodeProcessor for ShapeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = shape_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -78,13 +118,13 @@ impl NodeProcessor for ShapeProcessor {
             return;
         }
 
-        let (start, end) = shape_config(node, _graph_data);
-        let dim = end - start;
+        let config = shape_config(node, _graph_data);
+        let dim = config.end - config.start;
         log::debug!(
             "Shape operation for node {}: start={}, end={}, dim={}",
             node.name,
-            start,
-            end,
+            config.start,
+            config.end,
             dim
         );
         node.outputs[0].ty = ArgType::Shape(dim);
@@ -117,45 +157,45 @@ mod tests {
     fn test_shape_config_defaults() {
         let node = create_test_node(None, None, 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
-        assert_eq!(start, 0);
-        assert_eq!(end, 4);
+        let config = shape_config(&node, &mut graph_data);
+        assert_eq!(config.start, 0);
+        assert_eq!(config.end, 4);
     }
 
     #[test]
     fn test_shape_config_with_start() {
         let node = create_test_node(Some(1), None, 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
-        assert_eq!(start, 1);
-        assert_eq!(end, 4);
+        let config = shape_config(&node, &mut graph_data);
+        assert_eq!(config.start, 1);
+        assert_eq!(config.end, 4);
     }
 
     #[test]
     fn test_shape_config_with_end() {
         let node = create_test_node(None, Some(3), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
-        assert_eq!(start, 0);
-        assert_eq!(end, 3);
+        let config = shape_config(&node, &mut graph_data);
+        assert_eq!(config.start, 0);
+        assert_eq!(config.end, 3);
     }
 
     #[test]
     fn test_shape_config_with_start_and_end() {
         let node = create_test_node(Some(1), Some(3), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
-        assert_eq!(start, 1);
-        assert_eq!(end, 3);
+        let config = shape_config(&node, &mut graph_data);
+        assert_eq!(config.start, 1);
+        assert_eq!(config.end, 3);
     }
 
     #[test]
     fn test_shape_config_negative_dims() {
         let node = create_test_node(Some(-2), Some(-1), 4);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
-        assert_eq!(start, 2); // -2 + 4 = 2
-        assert_eq!(end, 3); // -1 + 4 = 3
+        let config = shape_config(&node, &mut graph_data);
+        assert_eq!(config.start, 2); // -2 + 4 = 2
+        assert_eq!(config.end, 3); // -1 + 4 = 3
     }
 
     #[test]
@@ -207,11 +247,11 @@ mod tests {
             .build();
 
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let (start, end) = shape_config(&node, &mut graph_data);
+        let config = shape_config(&node, &mut graph_data);
         // Shape(5) means a 5-dimensional shape, so getting its shape
         // would be from 0 to 5 (the full extent)
-        assert_eq!(start, 0);
-        assert_eq!(end, 5);
+        assert_eq!(config.start, 0);
+        assert_eq!(config.end, 5);
     }
 
     #[test]

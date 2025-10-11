@@ -1,8 +1,32 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
-use crate::{ArgType, TensorType, ir::Node};
+use crate::{
+    ArgType, TensorType,
+    ir::{Node, NodeConfig},
+};
+use std::any::Any;
+
+/// Configuration for SpaceToDepth operations
+#[derive(Debug, Clone)]
+pub struct SpaceToDepthConfig {
+    /// Block size for space-to-depth transformation
+    pub block_size: usize,
+}
+
+impl NodeConfig for SpaceToDepthConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
 
 /// Get the configuration from the attributes of the node
-pub fn space_to_depth_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
+pub fn space_to_depth_config(
+    node: &Node,
+    graph_data: &mut crate::from_onnx::GraphData,
+) -> SpaceToDepthConfig {
     let mut block_size: Option<usize> = None;
 
     for (key, value) in node.attrs.iter() {
@@ -18,7 +42,7 @@ pub fn space_to_depth_config(node: &Node, graph_data: &mut crate::from_onnx::Gra
         "SpaceToDepth: block_size must be greater than 0"
     );
 
-    block_size
+    SpaceToDepthConfig { block_size }
 }
 
 pub struct SpaceToDepthProcessor;
@@ -26,6 +50,16 @@ pub struct SpaceToDepthProcessor;
 impl NodeProcessor for SpaceToDepthProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = space_to_depth_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -101,9 +135,9 @@ mod tests {
     fn test_basic_config() {
         let node = create_test_node(4, None, 2);
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let block_size = space_to_depth_config(&node, &mut graph_data);
+        let config = space_to_depth_config(&node, &mut graph_data);
 
-        assert_eq!(block_size, 2);
+        assert_eq!(config.block_size, 2);
     }
 
     #[test]

@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, Argument, Node, TensorData};
+use crate::ir::{ArgType, Node, NodeConfig, TensorData};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 use std::str::FromStr;
 
 /// Interpolation mode for resize operation
@@ -34,13 +35,23 @@ pub struct ResizeConfig {
     pub sizes: Option<ResizeSizes>,
 }
 
+impl NodeConfig for ResizeConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 /// Represents either a static value or a runtime argument for resize scales.
 #[derive(Debug, Clone)]
 pub enum ResizeScales {
     /// Static scales known at compile time.
     Static(Vec<f32>),
-    /// Runtime scales determined during execution.
-    Runtime(Argument),
+    /// Runtime scales determined during execution (stores argument name).
+    Runtime(String),
 }
 
 /// Represents either a static value or a runtime argument for resize sizes.
@@ -48,8 +59,8 @@ pub enum ResizeScales {
 pub enum ResizeSizes {
     /// Static sizes known at compile time.
     Static(Vec<usize>),
-    /// Runtime sizes determined during execution.
-    Runtime(Argument),
+    /// Runtime sizes determined during execution (stores argument name).
+    Runtime(String),
 }
 
 pub fn resize_config(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ResizeConfig {
@@ -180,12 +191,12 @@ fn extract_scales_input(
                             scales = scales.iter().skip(2).cloned().collect();
                             Some(ResizeScales::Static(scales))
                         }
-                        None => Some(ResizeScales::Runtime(input.clone())),
+                        None => Some(ResizeScales::Runtime(input.name.clone())),
                     }
                 }
                 ArgType::Shape(_) => {
                     // Shape input for scales - treat as runtime
-                    Some(ResizeScales::Runtime(input.clone()))
+                    Some(ResizeScales::Runtime(input.name.clone()))
                 }
                 _ => None,
             }
@@ -227,13 +238,13 @@ fn extract_sizes_input(
                             sizes = sizes.iter().skip(2).cloned().collect();
                             Some(ResizeSizes::Static(sizes))
                         }
-                        None => Some(ResizeSizes::Runtime(input.clone())),
+                        None => Some(ResizeSizes::Runtime(input.name.clone())),
                     }
                 }
                 ArgType::Shape(_rank) => {
                     // Shape input for sizes - this is the key case we're fixing
                     // The Shape type represents the shape of a tensor, which is exactly what we need
-                    Some(ResizeSizes::Runtime(input.clone()))
+                    Some(ResizeSizes::Runtime(input.name.clone()))
                 }
                 _ => None,
             }
@@ -247,6 +258,16 @@ pub struct ResizeProcessor;
 impl NodeProcessor for ResizeProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (10, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = resize_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

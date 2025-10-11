@@ -1,6 +1,7 @@
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
+use std::any::Any;
 
 use super::padding::{PaddingConfig1d, padding_config_1d};
 
@@ -48,6 +49,16 @@ impl Conv1dConfig {
             groups,
             bias,
         }
+    }
+}
+
+impl NodeConfig for Conv1dConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -123,6 +134,16 @@ pub struct Conv1dProcessor;
 impl NodeProcessor for Conv1dProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = conv1d_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

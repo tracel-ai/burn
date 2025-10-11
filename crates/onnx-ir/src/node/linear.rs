@@ -1,5 +1,6 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for Linear operations
 #[derive(Debug, Clone)]
@@ -26,6 +27,16 @@ impl LinearConfig {
     pub fn with_bias(mut self, bias: bool) -> Self {
         self.bias = bias;
         self
+    }
+}
+
+impl NodeConfig for LinearConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -62,6 +73,16 @@ pub struct LinearProcessor;
 impl NodeProcessor for LinearProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = linear_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

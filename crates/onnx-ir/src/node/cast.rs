@@ -1,6 +1,8 @@
 use crate::from_onnx::element_type_from_proto;
-use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
+use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
+
 /// Configuration for Cast operations
 #[derive(Debug, Clone)]
 pub struct CastConfig {
@@ -12,6 +14,16 @@ impl CastConfig {
     /// Create a new CastConfig
     pub fn new(to: ElementType) -> Self {
         Self { to }
+    }
+}
+
+impl NodeConfig for CastConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
     }
 }
 
@@ -30,6 +42,16 @@ pub struct CastProcessor;
 impl NodeProcessor for CastProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (6, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = cast_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

@@ -1,10 +1,25 @@
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
-pub fn one_hot_config(
-    curr: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> (usize, [f32; 2], i64) {
+/// Configuration for OneHot operation
+#[derive(Debug, Clone)]
+pub struct OneHotConfig {
+    pub depth: usize,
+    pub values: [f32; 2],
+    pub axis: i64,
+}
+
+impl NodeConfig for OneHotConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
+pub fn one_hot_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> OneHotConfig {
     let depth = curr.inputs[1]
         .into_value()
         .clone()
@@ -25,7 +40,11 @@ pub fn one_hot_config(
         .map(|val| val.clone().into_i64())
         .unwrap_or(-1);
 
-    (depth as usize, values.try_into().unwrap(), axis)
+    OneHotConfig {
+        depth: depth as usize,
+        values: values.try_into().unwrap(),
+        axis,
+    }
 }
 
 /// Update output rank for OneHot (input rank + 1).
@@ -53,6 +72,16 @@ pub struct OneHotProcessor;
 impl NodeProcessor for OneHotProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (9, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = one_hot_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -89,10 +118,10 @@ mod tests {
     fn test_one_hot_config_basic() {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(5, vec![0.0, 1.0], None).build_with_graph_data(&mut graph_data);
-        let (depth, values, axis) = one_hot_config(&node, &mut graph_data);
-        assert_eq!(depth, 5);
-        assert_eq!(values, [0.0, 1.0]);
-        assert_eq!(axis, -1); // default axis
+        let config = one_hot_config(&node, &mut graph_data);
+        assert_eq!(config.depth, 5);
+        assert_eq!(config.values, [0.0, 1.0]);
+        assert_eq!(config.axis, -1); // default axis
     }
 
     #[test]
@@ -100,10 +129,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node(5, vec![0.0, 1.0], Some(1)).build_with_graph_data(&mut graph_data);
-        let (depth, values, axis) = one_hot_config(&node, &mut graph_data);
-        assert_eq!(depth, 5);
-        assert_eq!(values, [0.0, 1.0]);
-        assert_eq!(axis, 1);
+        let config = one_hot_config(&node, &mut graph_data);
+        assert_eq!(config.depth, 5);
+        assert_eq!(config.values, [0.0, 1.0]);
+        assert_eq!(config.axis, 1);
     }
 
     #[test]
@@ -111,10 +140,10 @@ mod tests {
         let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node =
             create_test_node(10, vec![-1.0, 2.0], None).build_with_graph_data(&mut graph_data);
-        let (depth, values, axis) = one_hot_config(&node, &mut graph_data);
-        assert_eq!(depth, 10);
-        assert_eq!(values, [-1.0, 2.0]); // custom off/on values
-        assert_eq!(axis, -1);
+        let config = one_hot_config(&node, &mut graph_data);
+        assert_eq!(config.depth, 10);
+        assert_eq!(config.values, [-1.0, 2.0]); // custom off/on values
+        assert_eq!(config.axis, -1);
     }
 
     #[test]

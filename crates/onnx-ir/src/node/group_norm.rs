@@ -1,7 +1,8 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
 
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
+use std::any::Any;
 
 /// Configuration for GroupNorm operations
 #[derive(Debug, Clone)]
@@ -12,6 +13,16 @@ pub struct GroupNormConfig {
     pub num_groups: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
+}
+
+impl NodeConfig for GroupNormConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl GroupNormConfig {
@@ -67,6 +78,16 @@ pub struct GroupNormProcessor;
 impl NodeProcessor for GroupNormProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (18, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let (config, _stash_type) = group_norm_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

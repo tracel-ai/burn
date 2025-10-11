@@ -1,7 +1,8 @@
 use crate::processor::{NodeProcessor, ProcessorContext};
 use crate::util::same_as_input;
 
-use crate::ir::Node;
+use crate::ir::{Node, NodeConfig};
+use std::any::Any;
 
 /// Configuration for LayerNorm operations
 #[derive(Debug, Clone)]
@@ -10,6 +11,16 @@ pub struct LayerNormConfig {
     pub d_model: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
+}
+
+impl NodeConfig for LayerNormConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
 }
 
 impl LayerNormConfig {
@@ -71,6 +82,16 @@ pub struct LayerNormProcessor;
 impl NodeProcessor for LayerNormProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (17, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let (config, _stash_type) = layer_norm_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(

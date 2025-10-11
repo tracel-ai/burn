@@ -1,6 +1,6 @@
-use crate::Argument;
-use crate::ir::{ArgType, Data, Node, TensorType};
+use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, ProcessorContext};
+use std::any::Any;
 
 /// Configuration for the Gather operation.
 #[derive(Debug, Clone)]
@@ -9,13 +9,23 @@ pub struct GatherConfig {
     pub axis: usize,
 }
 
+impl NodeConfig for GatherConfig {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn clone_box(&self) -> Box<dyn NodeConfig> {
+        Box::new(self.clone())
+    }
+}
+
 /// Represents either a static value or a runtime argument for gather indices.
 #[derive(Debug, Clone)]
 pub enum GatherInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution.
-    Runtime(Argument),
+    /// Runtime argument determined during execution (stores argument name).
+    Runtime(String),
 }
 /// Create a GatherConfig from the attributes of the node
 pub fn gather_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) -> GatherConfig {
@@ -76,7 +86,7 @@ pub fn gather_config(curr: &Node, graph_data: &mut crate::from_onnx::GraphData) 
     } else {
         // Runtime indices
         log::debug!("Gather {} has runtime indices", curr.name);
-        GatherInput::Runtime(indices_input.clone())
+        GatherInput::Runtime(indices_input.name.clone())
     };
 
     GatherConfig {
@@ -90,6 +100,16 @@ pub struct GatherProcessor;
 impl NodeProcessor for GatherProcessor {
     fn supported_opset_range(&self) -> (i64, Option<i64>) {
         (1, None)
+    }
+
+    fn process_config(
+        &self,
+        node: &mut Node,
+        _context: &ProcessorContext,
+        graph_data: &mut crate::from_onnx::GraphData,
+    ) {
+        let config = gather_config(node, graph_data);
+        node.config = Some(Box::new(config));
     }
 
     fn process_forward(
@@ -245,8 +265,8 @@ mod tests {
 
         // Check that indices is runtime
         match config.indices {
-            GatherInput::Runtime(arg) => {
-                assert_eq!(arg.name, "indices");
+            GatherInput::Runtime(name) => {
+                assert_eq!(name, "indices");
             }
             _ => panic!("Expected runtime indices"),
         }
@@ -476,12 +496,8 @@ mod tests {
 
         // Check that Shape indices are treated as runtime
         match config.indices {
-            GatherInput::Runtime(arg) => {
-                assert_eq!(arg.name, "indices");
-                match arg.ty {
-                    ArgType::Shape(rank) => assert_eq!(rank, 2),
-                    _ => panic!("Expected Shape(2) indices"),
-                }
+            GatherInput::Runtime(name) => {
+                assert_eq!(name, "indices");
             }
             _ => panic!("Expected runtime Shape indices"),
         }
