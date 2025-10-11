@@ -27,7 +27,7 @@ pub struct Argument {
     /// The type of the argument.
     pub ty: ArgType,
 
-    /// Reference to the value store for lazy constant lookup
+    /// Reference to the value store for lazy constant lookup and type expectations
     pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphData>>>,
 }
 
@@ -326,12 +326,12 @@ impl Argument {
     /// Indicate that this argument is expected to be a specific type
     /// This allows processors to declare type expectations for their inputs,
     /// which can be used for type inference of upstream nodes
-    pub fn should_be(
-        &self,
-        context: &mut crate::processor::ProcessorContext,
-        expected_ty: ArgType,
-    ) {
-        context.set_expected_type(self.name.clone(), expected_ty);
+    pub fn should_be(&self, expected_ty: ArgType) {
+        if let Some(store) = &self.value_store {
+            store
+                .borrow_mut()
+                .set_expected_type(self.name.clone(), expected_ty);
+        }
     }
 }
 

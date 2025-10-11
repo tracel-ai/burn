@@ -78,6 +78,9 @@ pub struct GraphData {
     nodes_to_remove: HashSet<usize>,
     /// Cached values from consumed constants (constant node removed, but value still accessible)
     consumed_values: HashMap<String, TensorData>,
+    /// Type expectations set via should_be() method
+    /// Maps argument names to their expected types
+    expected_types: HashMap<String, ArgType>,
 }
 
 impl GraphData {
@@ -184,6 +187,7 @@ impl GraphData {
             constant_nodes,
             nodes_to_remove: HashSet::new(),
             consumed_values: HashMap::new(),
+            expected_types: HashMap::new(),
         }
     }
 
@@ -462,6 +466,17 @@ impl GraphData {
         self.constant_references.insert(name.clone(), 0);
 
         self.processed_nodes.push(constant_node);
+    }
+
+    /// Set the expected type for an argument
+    /// This is called by Argument::should_be() to record type expectations
+    pub(crate) fn set_expected_type(&mut self, arg_name: String, expected_ty: ArgType) {
+        self.expected_types.insert(arg_name, expected_ty);
+    }
+
+    /// Get the expected type for an argument, if any
+    pub(crate) fn get_expected_type(&self, arg_name: &str) -> Option<&ArgType> {
+        self.expected_types.get(arg_name)
     }
 }
 
