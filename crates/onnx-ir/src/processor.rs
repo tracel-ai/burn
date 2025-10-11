@@ -37,90 +37,42 @@ impl ProcessorContext {
         self.expected_types.get(arg_name)
     }
 }
-
 /// Node-specific processing logic trait.
 ///
-/// Each node type implements this trait to declare:
-/// - Which opset versions it supports
-/// - How to infer output types from input types
-/// - Any special processing requirements
+/// Each node type implements this trait to declare how to process nodes
+/// during type inference and configuration extraction.
 pub trait NodeProcessor: Send + Sync {
-    /// Get the supported opset version range for this node type.
-    ///
-    /// Returns (min_version, max_version) where:
-    /// - min_version: minimum opset version required
-    /// - max_version: maximum opset version supported (None = no upper limit)
-    ///
-    /// # Default
-    ///
-    /// The default implementation supports opset 16 and above.
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (16, None)
-    }
-
-    /// Process node configuration and store it in the node's config field.
-    ///
-    /// This method extracts configuration from node attributes and inputs,
-    /// and stores it in the node's config field for later use during codegen.
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to process (mutable to store config)
-    /// * `context` - Processing context with opset version and other metadata
-    /// * `graph_data` - Mutable access to graph data for constant operations
-    ///
-    /// # Default
-    ///
-    /// The default implementation does nothing (no config to store).
-    fn process_config(
-        &self,
-        _node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
-        // Default: no config to store
-    }
-
-    /// Forward pass: Infer output types from input types.
-    ///
-    /// This method should update the node's output arguments based on:
-    /// - Input argument types
-    /// - Node attributes
-    /// - The provided context (including opset version)
-    /// - Access to graph data for constant values
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to process (mutable to update outputs)
-    /// * `context` - Processing context with opset version and other metadata
-    /// * `graph_data` - Mutable access to graph data for constant operations
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    );
-
-    /// Backward pass: Process type expectations from outputs back to inputs.
-    ///
-    /// This method allows nodes to propagate type requirements backwards through
-    /// the graph when output types are known but input types need refinement.
+    /// Extracts and stores node configuration from attributes and inputs.
     ///
     /// # Arguments
     ///
     /// * `node` - The node to process
-    /// * `context` - Processing context with opset version and expected types
-    /// * `graph_data` - Mutable access to graph data for constant operations
+    /// * `opset` - ONNX opset version
+    fn process_config(&self, _node: &mut Node, _opset: usize) {
+        // Default: no config to store
+    }
+
+    /// Infers output types from input types.
     ///
-    /// # Default
+    /// Updates the node's output arguments based on input types,
+    /// node attributes, and opset version.
     ///
-    /// The default implementation does nothing (no backward inference needed).
-    fn process_back(
-        &self,
-        _node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    /// # Arguments
+    ///
+    /// * `node` - The node to process
+    /// * `opset` - ONNX opset version
+    fn first_pass(&self, node: &mut Node, opset: usize);
+
+    /// Propagates type expectations from outputs to inputs.
+    ///
+    /// Allows backward propagation of type requirements when output
+    /// types are known but input types need refinement.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to process
+    /// * `opset` - ONNX opset version
+    fn second_pass(&self, _node: &mut Node, _opset: usize) {
         // Default: no backward processing
     }
 }
@@ -680,16 +632,11 @@ impl ProcessorRegistry {
 
 /// Default processor for nodes without specific implementations.
 ///
-/// This processor uses the default opset range and passes through the input type to output.
+/// This processor passes through the input type to output.
 struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         // Default: preserve input type
         crate::util::same_as_input(node);
     }
@@ -703,16 +650,7 @@ mod tests {
     struct TestProcessor;
 
     impl NodeProcessor for TestProcessor {
-        fn supported_opset_range(&self) -> (i64, Option<i64>) {
-            (13, Some(18))
-        }
-
-        fn process_forward(
-            &self,
-            node: &mut Node,
-            _context: &ProcessorContext,
-            _graph_data: &mut crate::from_onnx::GraphData,
-        ) {
+        fn first_pass(&self, node: &mut Node, _opset: usize) {
             // Simple test: copy input type to output
             if !node.inputs.is_empty() && !node.outputs.is_empty() {
                 node.outputs[0].ty = node.inputs[0].ty.clone();
@@ -727,17 +665,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_opset_range() {
-        let processor = TestProcessor;
-        let (min, max) = processor.supported_opset_range();
-        assert_eq!(min, 13);
-        assert_eq!(max, Some(18));
-    }
-
-    #[test]
     fn test_infer_outputs() {
-        use crate::protos::TensorProto;
-
         let processor = TestProcessor;
         let mut node = Node {
             node_type: NodeType::Add,
@@ -760,9 +688,7 @@ mod tests {
             config: None,
         };
 
-        let ctx = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &ctx, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -778,18 +704,6 @@ mod tests {
         // Check if processor is registered
         assert!(registry.has_processor(&NodeType::Add));
         assert!(!registry.has_processor(&NodeType::Sub));
-
-        // Get registered processor
-        let processor = registry.get(&NodeType::Add);
-        let (min, max) = processor.supported_opset_range();
-        assert_eq!(min, 13);
-        assert_eq!(max, Some(18));
-
-        // Get default processor for unregistered type
-        let default_proc = registry.get(&NodeType::Sub);
-        let (def_min, def_max) = default_proc.supported_opset_range();
-        assert_eq!(def_min, 16);
-        assert_eq!(def_max, None);
     }
 
     #[test]
@@ -816,9 +730,7 @@ mod tests {
             config: None,
         };
 
-        let ctx = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &ctx, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {

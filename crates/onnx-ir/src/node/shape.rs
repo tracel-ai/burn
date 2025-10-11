@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for the Shape operation.
@@ -22,16 +22,7 @@ impl NodeConfig for ShapeConfig {
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from shape_config inlined here
         if node.inputs.len() != 1 {
             panic!(
@@ -82,12 +73,7 @@ impl NodeProcessor for ShapeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         if node.inputs.len() != 1 {
             panic!("Shape: multiple inputs are not supported: {node:?}");
         }
@@ -108,9 +94,7 @@ impl NodeProcessor for ShapeProcessor {
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(node, &context, _graph_data);
+        processor.process_config(node, _opset);
 
         let config = node
             .config
@@ -156,14 +140,11 @@ mod tests {
     #[test]
     fn test_shape_config_defaults() {
         let node = create_test_node(None, None, 4);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -179,14 +160,11 @@ mod tests {
     #[test]
     fn test_shape_config_with_start() {
         let node = create_test_node(Some(1), None, 4);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -202,14 +180,11 @@ mod tests {
     #[test]
     fn test_shape_config_with_end() {
         let node = create_test_node(None, Some(3), 4);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -225,14 +200,11 @@ mod tests {
     #[test]
     fn test_shape_config_with_start_and_end() {
         let node = create_test_node(Some(1), Some(3), 4);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -248,14 +220,11 @@ mod tests {
     #[test]
     fn test_shape_config_negative_dims() {
         let node = create_test_node(Some(-2), Some(-1), 4);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -282,14 +251,11 @@ mod tests {
             }),
             value_store: None,
         });
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
@@ -305,9 +271,7 @@ mod tests {
 
         // Apply processor
         let processor = ShapeProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // After update: Shape of Shape(3) should give Shape(1)
         // because [i64; 3] has shape [3] which is 1D
@@ -322,14 +286,11 @@ mod tests {
             .output_tensor_i64("output", 1, None)
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ShapeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -355,9 +316,7 @@ mod tests {
             .build();
 
         let processor = ShapeProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Even with start/end attributes, Shape of Shape always outputs Shape(1)
         // because we're getting the shape of the shape array itself

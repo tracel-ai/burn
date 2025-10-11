@@ -1,5 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for HardSigmoid operation
@@ -21,16 +21,7 @@ impl NodeConfig for HardSigmoidConfig {
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut alpha = 0.2;
         let mut beta = 0.5;
 
@@ -46,12 +37,7 @@ impl NodeProcessor for HardSigmoidProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -74,11 +60,9 @@ mod tests {
     #[test]
     fn test_hard_sigmoid_config_with_attrs() {
         let node = create_test_node(0.3, 0.6);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = HardSigmoidProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -94,11 +78,9 @@ mod tests {
     fn test_hard_sigmoid_config_default() {
         let mut node = create_test_node(0.3, 0.6);
         node.attrs.clear(); // Remove all attributes
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = HardSigmoidProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

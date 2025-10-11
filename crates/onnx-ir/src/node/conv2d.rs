@@ -1,6 +1,6 @@
 use crate::ir::{Node, NodeConfig};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use std::any::Any;
 
@@ -60,16 +60,7 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None) // Conv2d supported from opset 1+
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];
@@ -137,12 +128,7 @@ impl NodeProcessor for Conv2dProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         // Conv2d preserves rank (same as input)
         same_as_input(node);
     }
@@ -196,7 +182,6 @@ mod tests {
 
     #[test]
     fn test_conv2d_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2],
             vec![1, 1],
@@ -206,11 +191,10 @@ mod tests {
             false,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -230,7 +214,6 @@ mod tests {
 
     #[test]
     fn test_conv2d_config_with_padding() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![3, 3],
             vec![1, 1],
@@ -240,11 +223,10 @@ mod tests {
             false,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -259,7 +241,6 @@ mod tests {
 
     #[test]
     fn test_conv2d_config_with_groups() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2],
             vec![1, 1],
@@ -269,11 +250,10 @@ mod tests {
             false,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -288,7 +268,6 @@ mod tests {
 
     #[test]
     fn test_conv2d_config_with_bias() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![2, 2],
             vec![1, 1],
@@ -298,11 +277,10 @@ mod tests {
             true,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -316,7 +294,6 @@ mod tests {
 
     #[test]
     fn test_conv2d_config_autopad_not_set() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![3, 3],
             vec![1, 1],
@@ -326,11 +303,10 @@ mod tests {
             false,
             Some("NOTSET"),
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -346,7 +322,6 @@ mod tests {
     #[test]
     #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv2d_config_autopad_not_supported() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![3, 3],
             vec![1, 1],
@@ -356,16 +331,14 @@ mod tests {
             false,
             Some("SAME_UPPER"),
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_conv2d_config_kernel_shape_not_set() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             vec![],
             vec![1, 1],
@@ -375,11 +348,10 @@ mod tests {
             false,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

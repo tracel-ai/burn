@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for ArgMax operations
@@ -24,16 +24,7 @@ impl NodeConfig for ArgMaxConfig {
 pub struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from argmax_config inlined here
         let mut axis: i64 = 0;
         let mut keepdims = true; // default value per ONNX spec
@@ -86,12 +77,7 @@ impl NodeProcessor for ArgMaxProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("ArgMax rank inference for node {}", node.name);
 
         if node.inputs.len() != 1 {
@@ -108,8 +94,7 @@ impl NodeProcessor for ArgMaxProcessor {
 
         // Get config to determine output rank
         let processor = ArgMaxProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(node, &context, graph_data);
+        processor.process_config(node, _opset);
 
         let config = node
             .config
@@ -169,15 +154,11 @@ mod tests {
 
     #[test]
     fn test_argmax_config_basic() {
-        let node = create_test_node(0, 0, 1);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(0, 0, 1);
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -192,15 +173,11 @@ mod tests {
 
     #[test]
     fn test_argmax_config_negative_axis() {
-        let node = create_test_node(-2, 0, 1);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(-2, 0, 1);
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -226,27 +203,19 @@ mod tests {
             }),
             value_store: None,
         });
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_argmax_config_keepdims_supported() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node_keepdims_0 = create_test_node(0, 0, 0);
-        let mut node_keepdims_0 = node_keepdims_0;
+        let mut node_keepdims_0 = create_test_node(0, 0, 0);
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node_keepdims_0, &context, &mut graph_data);
+        processor.process_config(&mut node_keepdims_0, 16);
 
         let config_0 = node_keepdims_0
             .config
@@ -258,14 +227,11 @@ mod tests {
         assert_eq!(config_0.axis, 0);
         assert_eq!(config_0.keepdims, false);
 
-        let node_keepdims_1 = create_test_node(0, 0, 1);
-        let mut node_keepdims_1 = node_keepdims_1;
+        let mut node_keepdims_1 = create_test_node(0, 0, 1);
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node_keepdims_1, &context, &mut graph_data);
+        processor.process_config(&mut node_keepdims_1, 16);
 
         let config_1 = node_keepdims_1
             .config
@@ -281,29 +247,21 @@ mod tests {
     #[test]
     #[should_panic(expected = "Only keepdims=0 or keepdims=1 is supported for argmax in burn")]
     fn test_argmax_config_keepdims_invalid() {
-        let node = create_test_node(0, 0, 2); // Invalid keepdims value
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "select_last_index=1 is not supported for argmax in burn")]
     fn test_argmax_config_select_last_index_invalid() {
-        let node = create_test_node(0, 1, 1); // Invalid select_last_index value
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMaxProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
@@ -317,9 +275,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
         match &node.outputs[0].ty {
@@ -342,9 +298,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Should output tensor with same rank as input (3)
         match &node.outputs[0].ty {
@@ -367,9 +321,7 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {

@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for NonZero operations
@@ -20,28 +20,14 @@ impl NodeConfig for NonZeroConfig {
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (9, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // NonZero operation has no configurable attributes
 
         let config = NonZeroConfig::new();
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("NonZero rank inference for node {}", node.name);
 
         match &node.inputs[0].ty {
@@ -76,9 +62,7 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -97,11 +81,9 @@ mod tests {
             .output_tensor_i64("output", 2, None)
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = NonZeroProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -121,9 +103,7 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -143,9 +123,7 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

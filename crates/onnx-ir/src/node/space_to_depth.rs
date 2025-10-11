@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{
     ArgType, TensorType,
     ir::{Node, NodeConfig},
@@ -25,16 +25,7 @@ impl NodeConfig for SpaceToDepthConfig {
 pub struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from space_to_depth_config inlined here
         let mut block_size: Option<usize> = None;
 
@@ -55,12 +46,7 @@ impl NodeProcessor for SpaceToDepthProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("SpaceToDepth rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
@@ -127,11 +113,9 @@ mod tests {
     #[test]
     fn test_basic_config() {
         let node = create_test_node(4, None, 2);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = SpaceToDepthProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -147,9 +131,7 @@ mod tests {
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
         let processor = SpaceToDepthProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

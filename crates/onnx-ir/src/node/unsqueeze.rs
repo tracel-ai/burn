@@ -5,7 +5,7 @@
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in
 //! ONNX models.
 
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{
     TensorData,
     ir::{ArgType, Data, Node, NodeConfig, TensorType},
@@ -34,16 +34,7 @@ impl NodeConfig for UnsqueezeConfig {
 pub struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from unsqueeze_config inlined here
         // Check if axes attribute exists
         for (key, value) in node.attrs.iter() {
@@ -81,12 +72,7 @@ impl NodeProcessor for UnsqueezeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Unsqueeze rank inference for node {}", node.name);
 
         let axes = if node.inputs.len() == 2 {
@@ -239,11 +225,9 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_with_attr() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(2, vec![0, 3]).build();
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -256,12 +240,10 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_with_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node_with_input(3, vec![1, 2, 4], true)
-            .build_with_graph_data(&mut graph_data);
+        let mut node =
+            create_test_node_with_input(3, vec![1, 2, 4], true).build_with_graph_data(16);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -274,12 +256,10 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_float() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(0, vec![0]).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -292,12 +272,10 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_int_to_shape() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(0, vec![0]).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -309,12 +287,10 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_scalar_int32_to_shape() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(0, vec![0]).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -327,12 +303,10 @@ mod tests {
     #[test]
     fn test_unsqueeze_scalar_int_multiple_axes() {
         // Test that Int scalar with multiple axes produces a tensor, not shape
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(0, vec![0, 1]).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -346,12 +320,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "Unsqueeze: invalid input type")]
     fn test_unsqueeze_invalid_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(2, vec![0]).build();
         node.inputs[0].ty = ArgType::Shape(1);
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
     }
 
     // Tests for unsqueeze_config function
@@ -360,13 +332,11 @@ mod tests {
     fn test_unsqueeze_config_with_attr() {
         // Test with axes provided as attribute
         let axes = vec![0, 2, 4];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(3, axes.clone()).build();
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -382,14 +352,11 @@ mod tests {
     fn test_unsqueeze_config_with_static_input() {
         // Test with axes provided as input tensor with static value
         let axes = vec![1, 3];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node_with_input(2, axes.clone(), true)
-            .build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_input(2, axes.clone(), true).build_with_graph_data(16);
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -405,13 +372,11 @@ mod tests {
     fn test_unsqueeze_config_with_runtime_input() {
         // Test with axes provided as input tensor but without static value
         let axes = vec![0, 2];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_input(2, axes.clone(), false).build();
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -433,13 +398,11 @@ mod tests {
     fn test_unsqueeze_config_negative_axes() {
         // Test with negative axes (should be handled by the caller)
         let axes = vec![-1, -3];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(3, axes.clone()).build();
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -455,13 +418,11 @@ mod tests {
     fn test_unsqueeze_config_empty_axes() {
         // Test with empty axes array (edge case)
         let axes = vec![];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node_with_attr(2, axes.clone()).build();
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -477,45 +438,38 @@ mod tests {
     #[should_panic(expected = "index out of bounds")]
     fn test_unsqueeze_config_missing_axes() {
         // Test with neither axes attribute nor input
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_attr(2, vec![0]).build();
         node.attrs.clear(); // Remove the axes attribute
         node.inputs = vec![node.inputs[0].clone()]; // Remove the axes input
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Unsqueeze: axes tensor must be 1D")]
     fn test_unsqueeze_config_invalid_axes_rank() {
         // Test with axes tensor that is not 1D
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node =
-            create_test_node_with_input(2, vec![0, 1], true).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node_with_input(2, vec![0, 1], true).build_with_graph_data(16);
         if let ArgType::Tensor(ref mut tensor) = node.inputs[1].ty {
             tensor.rank = 2; // Invalid rank for axes
         }
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Arg for unsqueeze must be tensor or scalar")]
     fn test_unsqueeze_config_invalid_axes_type() {
         // Test with axes input that is not a tensor
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node_with_input(2, vec![0], false).build();
         node.inputs[1].ty = ArgType::Shape(1); // Invalid type for axes
 
         let mut node = node;
         let processor = UnsqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

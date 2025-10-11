@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{Data, Node, NodeConfig, TensorData};
 use std::any::Any;
 
@@ -30,16 +30,7 @@ impl NodeConfig for TriluConfig {
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (14, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut upper = true;
         let mut diagonal = 0;
         for (key, value) in node.attrs.iter() {
@@ -61,12 +52,7 @@ impl NodeProcessor for TriluProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -99,13 +85,11 @@ mod tests {
     #[test]
     fn test_trilu_config_default() {
         // Test with no attributes or inputs - should use defaults (upper=true, diagonal=0)
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, None).build();
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -126,13 +110,11 @@ mod tests {
     #[test]
     fn test_trilu_config_upper_true() {
         // Test with upper=1 attribute
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(1), None).build();
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -153,13 +135,11 @@ mod tests {
     #[test]
     fn test_trilu_config_upper_false() {
         // Test with upper=0 attribute (lower triangular)
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(0), None).build();
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -180,13 +160,11 @@ mod tests {
     #[test]
     fn test_trilu_config_with_diagonal() {
         // Test with diagonal=2 input (offset 2 above main diagonal)
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(None, Some(2)).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(None, Some(2)).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -207,13 +185,11 @@ mod tests {
     #[test]
     fn test_trilu_config_with_negative_diagonal() {
         // Test with diagonal=-3 input (offset 3 below main diagonal)
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(None, Some(-3)).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(None, Some(-3)).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -234,13 +210,11 @@ mod tests {
     #[test]
     fn test_trilu_config_both_params() {
         // Test with both upper attribute and diagonal input
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(Some(0), Some(1)).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(0), Some(1)).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -262,13 +236,11 @@ mod tests {
     fn test_trilu_config_non_binary_upper() {
         // Test with non-binary values for the upper attribute
         // Any non-zero value should be treated as true
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(42), None).build();
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -290,13 +262,11 @@ mod tests {
     fn test_trilu_config_negative_non_binary_upper() {
         // Test with negative values for the upper attribute
         // Any non-zero value should be treated as true
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(-5), None).build();
 
         let mut node = node;
         let processor = TriluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -39,16 +39,7 @@ impl GroupNormConfig {
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (18, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let weight_shape = node.inputs[1]
             .into_value()
             .as_ref()
@@ -78,12 +69,7 @@ impl NodeProcessor for GroupNormProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -115,11 +101,9 @@ mod tests {
 
     #[test]
     fn test_group_norm_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(16);
         let processor = GroupNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -135,11 +119,9 @@ mod tests {
 
     #[test]
     fn test_group_norm_config_no_stash_type() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(16);
         let processor = GroupNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -156,11 +138,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_group_norm_config_invalid_num_groups() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // num features is not divisible by num groups
-        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(16);
         let processor = GroupNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

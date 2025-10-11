@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for Flatten operations
@@ -22,16 +22,7 @@ impl NodeConfig for FlattenConfig {
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from flatten_config inlined here
         // the begin dimension is the first dimension (Default: 1 per ONNX spec)
         let mut axis: i64 = 1;
@@ -76,12 +67,7 @@ impl NodeProcessor for FlattenProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         if node.inputs.len() != 1 {
             panic!("Flatten: multiple inputs are not supported");
         }
@@ -119,11 +105,9 @@ mod tests {
     #[test]
     fn test_flatten_config_basic() {
         let node = create_test_node(1);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = FlattenProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -137,11 +121,9 @@ mod tests {
     #[test]
     fn test_flatten_config_with_negative_axis() {
         let node = create_test_node(-2);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = FlattenProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -164,11 +146,9 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs[0] = input;
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = FlattenProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
@@ -183,10 +163,8 @@ mod tests {
             .pop()
             .unwrap();
         node.inputs.push(extra_input);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = FlattenProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

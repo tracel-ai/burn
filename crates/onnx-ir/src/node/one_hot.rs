@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for OneHot operation
@@ -42,16 +42,7 @@ pub fn one_hot_output_shape(node: &mut Node) {
 pub struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (9, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let depth = node.inputs[1]
             .into_value()
             .clone()
@@ -80,12 +71,7 @@ impl NodeProcessor for OneHotProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::node::one_hot::one_hot_output_shape(node);
     }
 }
@@ -112,12 +98,10 @@ mod tests {
 
     #[test]
     fn test_one_hot_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(5, vec![0.0, 1.0], None).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(5, vec![0.0, 1.0], None).build_with_graph_data(16);
         let mut node = node;
         let processor = OneHotProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -132,13 +116,10 @@ mod tests {
 
     #[test]
     fn test_one_hot_config_with_axis() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(5, vec![0.0, 1.0], Some(1)).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(5, vec![0.0, 1.0], Some(1)).build_with_graph_data(16);
         let mut node = node;
         let processor = OneHotProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -153,13 +134,10 @@ mod tests {
 
     #[test]
     fn test_one_hot_config_custom_values() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(10, vec![-1.0, 2.0], None).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(10, vec![-1.0, 2.0], None).build_with_graph_data(16);
         let mut node = node;
         let processor = OneHotProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -175,34 +153,30 @@ mod tests {
     #[test]
     #[should_panic(expected = "Only constant depth is currently supported")]
     fn test_one_hot_config_no_depth_value() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create node without registering depth constant in GraphData
         let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", None) // No depth value
             .input_tensor_f32_data("values", vec![0.0, 1.0], vec![2])
             .output_tensor_f32("output", 3, None)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = OneHotProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Only constant on/off values is currently supported")]
     fn test_one_hot_config_no_values() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create node without registering values constant in GraphData
         let node = NodeBuilder::new(NodeType::OneHot, "test_one_hot")
             .input_tensor_i64("indices", 2, None)
             .input_scalar_tensor_i64("depth", Some(5))
             .input_tensor_f32("values", 1, None) // No values data
             .output_tensor_f32("output", 3, None)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = OneHotProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

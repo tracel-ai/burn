@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for Linear operations
@@ -43,16 +43,7 @@ impl NodeConfig for LinearConfig {
 pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         if node.inputs.len() < 2 {
             panic!("Linear: missing weight tensor");
         }
@@ -80,12 +71,7 @@ impl NodeProcessor for LinearProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Linear rank inference for node {}", node.name);
 
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
@@ -131,12 +117,10 @@ mod tests {
 
     #[test]
     fn test_linear_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(false, vec![10, 5]).build_with_graph_data(16);
         let mut node = node;
         let processor = LinearProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -152,12 +136,10 @@ mod tests {
 
     #[test]
     fn test_linear_config_with_bias() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(true, vec![10, 5]).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(true, vec![10, 5]).build_with_graph_data(16);
         let mut node = node;
         let processor = LinearProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -174,23 +156,19 @@ mod tests {
     #[test]
     #[should_panic(expected = "Linear: weight tensor must have at least 2 dimensions")]
     fn test_linear_config_invalid_weight_dims() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(false, vec![10]).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(false, vec![10]).build_with_graph_data(16);
         let mut node = node;
         let processor = LinearProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Linear: missing weight tensor")]
     fn test_linear_config_missing_weight() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(false, vec![10, 5]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(false, vec![10, 5]).build_with_graph_data(16);
         node.inputs.remove(1);
         let mut node = node;
         let processor = LinearProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

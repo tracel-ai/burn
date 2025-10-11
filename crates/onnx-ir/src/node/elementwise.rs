@@ -1,7 +1,7 @@
 //! Processors for element-wise operations (Add, Sub, Mul, Div, etc.)
 
 use crate::ir::Node;
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input_broadcast;
 
 /// Node processor for element-wise binary operations that support broadcasting
@@ -9,16 +9,7 @@ use crate::util::same_as_input_broadcast;
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (7, None) // Most element-wise ops use opset 7+ for broadcasting
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input_broadcast(node);
     }
 }
@@ -28,16 +19,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 pub struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None) // Unary ops generally stable from opset 6+
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -50,7 +32,6 @@ mod tests {
     #[test]
     fn test_elementwise_binary_processor() {
         let processor = ElementwiseBinaryProcessor;
-        assert_eq!(processor.supported_opset_range(), (7, None));
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Add,
@@ -84,9 +65,7 @@ mod tests {
             config: None,
         };
 
-        let ctx = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &ctx, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Output should be rank 2
         match &node.outputs[0].ty {
@@ -98,7 +77,6 @@ mod tests {
     #[test]
     fn test_elementwise_unary_processor() {
         let processor = ElementwiseUnaryProcessor;
-        assert_eq!(processor.supported_opset_range(), (6, None));
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Neg,
@@ -121,9 +99,7 @@ mod tests {
             config: None,
         };
 
-        let ctx = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &ctx, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         // Output should match input
         match &node.outputs[0].ty {

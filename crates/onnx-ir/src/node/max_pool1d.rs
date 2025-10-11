@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use crate::{
     ir::{Node, NodeConfig},
@@ -64,16 +64,7 @@ impl NodeConfig for MaxPool1dConfig {
 pub struct MaxPool1dProcessor;
 
 impl NodeProcessor for MaxPool1dProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (8, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1];
         let mut pads = vec![0, 0];
@@ -122,12 +113,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -162,11 +148,9 @@ mod tests {
     #[test]
     fn test_max_pool1d_config_basic() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -184,11 +168,9 @@ mod tests {
     #[test]
     fn test_max_pool1d_config_with_padding() {
         let node = create_test_node(vec![4], vec![2], vec![2, 2], vec![1], 0, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -206,11 +188,9 @@ mod tests {
     #[test]
     fn test_max_pool1d_config_with_dilation() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![2], 0, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -229,21 +209,17 @@ mod tests {
     #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_max_pool1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 0, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_max_pool1d_config_auto_pad_not_set() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, Some("NOTSET"));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -262,21 +238,17 @@ mod tests {
     #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_max_pool1d_config_auto_pad_not_supported() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 0, Some("SAME_UPPER"));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "ceil_mode is not supported")]
     fn test_max_pool1d_config_with_ceil_mode() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], vec![1], 1, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = MaxPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

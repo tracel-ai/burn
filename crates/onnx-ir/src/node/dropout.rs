@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 
 use crate::ir::{Data, Node, NodeConfig};
@@ -30,16 +30,7 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (7, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
             let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
@@ -70,12 +61,7 @@ impl NodeProcessor for DropoutProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -102,12 +88,10 @@ mod tests {
 
     #[test]
     fn test_dropout_config_with_attr() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node_with_attr(0.3).build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_attr(0.3).build_with_graph_data(16);
         let mut node = node;
         let processor = DropoutProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -120,12 +104,10 @@ mod tests {
 
     #[test]
     fn test_dropout_config_with_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_input(0.5).build_with_graph_data(16);
         let mut node = node;
         let processor = DropoutProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -139,13 +121,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "Dropout configuration must have at least 2 inputs")]
     fn test_dropout_config_missing_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node_with_input(0.5).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node_with_input(0.5).build_with_graph_data(16);
         node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
         let mut node = node;
         let processor = DropoutProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

@@ -1,5 +1,5 @@
 use crate::ir::{Data, Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use std::any::Any;
 
@@ -23,16 +23,7 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from clip_config inlined here
         let mut min_result: Option<f64> = None;
         let mut max_result: Option<f64> = None;
@@ -98,12 +89,7 @@ impl NodeProcessor for ClipProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -141,11 +127,9 @@ mod tests {
     #[test]
     fn test_clip_config_with_attributes() {
         let node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -160,11 +144,9 @@ mod tests {
     #[test]
     fn test_clip_config_with_attributes_min_only() {
         let node = create_test_node_with_attributes(Some(-1.0), None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -179,11 +161,9 @@ mod tests {
     #[test]
     fn test_clip_config_with_attributes_max_only() {
         let node = create_test_node_with_attributes(None, Some(1.0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -197,13 +177,10 @@ mod tests {
 
     #[test]
     fn test_clip_config_with_inputs() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node_with_inputs(Some(-1.0), Some(1.0))
-            .build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -217,13 +194,10 @@ mod tests {
 
     #[test]
     fn test_clip_config_with_inputs_min_only() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -237,13 +211,10 @@ mod tests {
 
     #[test]
     fn test_clip_config_with_inputs_max_only() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(&mut graph_data);
+        let node = create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -259,10 +230,8 @@ mod tests {
     #[should_panic(expected = "Clip: min and max values must be either attributes or inputs")]
     fn test_clip_config_no_min_max() {
         let node = create_test_node_with_attributes(None, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ClipProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

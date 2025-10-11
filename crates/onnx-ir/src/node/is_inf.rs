@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{Node, NodeConfig};
 use std::any::Any;
 
@@ -29,16 +29,7 @@ impl NodeConfig for IsInfConfig {
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (10, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut detect_negative = true;
         let mut detect_positive = true;
 
@@ -54,12 +45,7 @@ impl NodeProcessor for IsInfProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::node::comparison::elementwise_comparison_outputs(node);
     }
 }
@@ -89,11 +75,9 @@ mod tests {
     #[test]
     fn test_is_inf_config_default() {
         let node = create_test_node(None, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = IsInfProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -110,11 +94,9 @@ mod tests {
     #[test]
     fn test_is_inf_only_neg() {
         let node = create_test_node(Some(1), Some(0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = IsInfProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -130,11 +112,9 @@ mod tests {
     #[test]
     fn test_is_inf_only_pos() {
         let node = create_test_node(Some(0), Some(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = IsInfProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -150,11 +130,9 @@ mod tests {
     #[test]
     fn test_is_inf_detect_none() {
         let node = create_test_node(Some(0), Some(0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = IsInfProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

@@ -10,7 +10,7 @@ use crate::util::verify_opsets;
 use super::{
     coalesce::coalesce,
     ir::{ElementType, OnnxGraph, TensorData},
-    processor::{ProcessorContext, ProcessorRegistry},
+    processor::ProcessorRegistry,
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
@@ -539,8 +539,7 @@ impl OnnxGraphBuilder {
             log::debug!("Inferring rank for node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
-            let mut context = ProcessorContext::new(16);
-            processor.process_forward(&mut node, &mut context, &mut graph_data_rc.borrow_mut());
+            processor.first_pass(&mut node, 16);
             log::debug!(
                 "Rank inference result for {}: {:?}",
                 node.name,
@@ -868,12 +867,7 @@ impl OnnxGraphBuilder {
         // Infer output types using processor registry
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
-        let mut context = ProcessorContext::new(16);
-
-        // Create an empty GraphData for type inference
-        // During post-processing, we don't need access to constant values
-        let mut empty_graph_data = GraphData::new(&[], &[], &[]);
-        processor.process_forward(node, &mut context, &mut empty_graph_data);
+        processor.first_pass(node, 16);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());

@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorData};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 use std::str::FromStr;
 
@@ -64,11 +64,7 @@ pub enum ResizeSizes {
 }
 
 /// Extract scales input as either static or runtime
-fn extract_scales_input(
-    node: &Node,
-    input_rank: usize,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> Option<ResizeScales> {
+fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
@@ -112,11 +108,7 @@ fn extract_scales_input(
 }
 
 /// Extract sizes input as either static or runtime
-fn extract_sizes_input(
-    node: &Node,
-    input_rank: usize,
-    graph_data: &mut crate::from_onnx::GraphData,
-) -> Option<ResizeSizes> {
+fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
             // Skip empty inputs (those with empty names are placeholders)
@@ -168,16 +160,7 @@ fn extract_sizes_input(
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (10, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from resize_config inlined here
         let mut mode: Option<ResizeMode> = None;
 
@@ -255,10 +238,10 @@ impl NodeProcessor for ResizeProcessor {
             .unwrap_or_default();
 
         // Extract scales input (3rd input)
-        let scales = extract_scales_input(node, input.rank, graph_data);
+        let scales = extract_scales_input(node, input.rank);
 
         // Extract sizes input (4th input)
-        let sizes = extract_sizes_input(node, input.rank, graph_data);
+        let sizes = extract_sizes_input(node, input.rank);
 
         let mode = mode.expect("Resize: mode attribute is required");
 
@@ -279,12 +262,7 @@ impl NodeProcessor for ResizeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -338,18 +316,16 @@ mod tests {
 
     #[test]
     fn test_resize_config_with_scales() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "nearest",
             Some(vec![1.0, 1.0, 2.0, 2.0]), // Keep N,C same, double H,W
             None,
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -369,18 +345,16 @@ mod tests {
 
     #[test]
     fn test_resize_config_with_sizes() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "linear",
             None,
             Some(vec![1, 3, 224, 224]), // Fixed output size
             None,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -401,42 +375,35 @@ mod tests {
     #[test]
     #[should_panic(expected = "Resize: roi input is not supported")]
     fn test_resize_config_with_roi() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(
             "nearest",
             Some(vec![1.0, 1.0, 2.0, 2.0]),
             None,
             Some(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]), // ROI values
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Resize: either scales or sizes input is required")]
     fn test_resize_config_no_scales_or_sizes() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node("nearest", None, None, None).build_with_graph_data(&mut graph_data);
+        let node = create_test_node("nearest", None, None, None).build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Resize: mode attribute is required")]
     fn test_resize_config_no_mode() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         node.attrs.clear(); // Remove all attributes including mode
         let mut node = node;
         let processor = ResizeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

@@ -1,19 +1,10 @@
 use crate::ir::{ArgType, ElementType, Node};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 
 pub struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Size rank inference for node {}", node.name);
 
         assert_eq!(
@@ -46,9 +37,7 @@ mod tests {
         let mut node = create_test_node(4);
 
         let processor = SizeProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         assert!(matches!(
             &node.outputs[0].ty,

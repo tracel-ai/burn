@@ -1,6 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for Cast operations
@@ -30,16 +30,7 @@ impl NodeConfig for CastConfig {
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from cast_config inlined here
         let elem_type = match node.attrs.get("to") {
             Some(AttributeValue::Int64(type_id)) => {
@@ -51,12 +42,7 @@ impl NodeProcessor for CastProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         if node.inputs.len() != 1 {
             panic!("Cast: multiple inputs are not supported");
         }
@@ -64,9 +50,7 @@ impl NodeProcessor for CastProcessor {
         // Get the cast configuration with the target element type first, before mutable borrows
         let processor = CastProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(node, &context, graph_data);
+        processor.process_config(node, _opset);
 
         let config = node
             .config
@@ -152,15 +136,11 @@ mod tests {
 
     #[test]
     fn test_cast_config() {
-        let node = create_test_node(2, DataType::INT64.value() as i64);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(2, DataType::INT64.value() as i64);
 
         let processor = CastProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -171,15 +151,11 @@ mod tests {
             .unwrap();
         assert_eq!(config.to, ElementType::Int64);
 
-        let node = create_test_node(2, DataType::FLOAT.value() as i64);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
 
         let processor = CastProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -190,15 +166,11 @@ mod tests {
             .unwrap();
         assert_eq!(config.to, ElementType::Float32);
 
-        let node = create_test_node(2, DataType::BOOL.value() as i64);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = node;
+        let mut node = create_test_node(2, DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -215,9 +187,7 @@ mod tests {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -233,9 +203,7 @@ mod tests {
         let mut node = create_test_node(0, DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -267,9 +235,7 @@ mod tests {
         });
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
     }
 
     #[test]
@@ -277,9 +243,7 @@ mod tests {
         let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -298,9 +262,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -321,9 +283,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -342,9 +302,7 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

@@ -1,5 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use std::any::Any;
 
@@ -38,16 +38,7 @@ impl NodeConfig for BatchNormConfig {
 pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("BatchNorm: weight tensor must be present")
@@ -70,12 +61,7 @@ impl NodeProcessor for BatchNormProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -103,12 +89,10 @@ mod tests {
 
     #[test]
     fn test_batch_norm_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, 0.9, 64).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(1e-5, 0.9, 64).build_with_graph_data(16);
         let mut node = node;
         let processor = BatchNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -124,12 +108,10 @@ mod tests {
 
     #[test]
     fn test_batch_norm_config_default_values() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(0.0, 0.0, 32).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(0.0, 0.0, 32).build_with_graph_data(16);
         let mut node = node;
         let processor = BatchNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

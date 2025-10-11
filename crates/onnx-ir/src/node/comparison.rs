@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
@@ -48,16 +48,7 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
 pub struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (7, None)
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Elementwise comparison for node {}", node.name);
 
         // Check if both inputs are Shape types
@@ -120,9 +111,7 @@ mod tests {
         let mut node = create_test_node(2, 3);
 
         let processor = ComparisonProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -142,9 +131,7 @@ mod tests {
         node.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
 
         let processor = ComparisonProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -161,9 +148,7 @@ mod tests {
         // node.inputs[1] remains as Tensor with rank 2
 
         let processor = ComparisonProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -181,9 +166,7 @@ mod tests {
         node.inputs[1].ty = ArgType::Shape(3);
 
         let processor = ComparisonProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Shape(dim) => {

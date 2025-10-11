@@ -1,5 +1,5 @@
 use crate::ir::NodeConfig;
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use crate::{ir::Node, node::padding::padding_config_1d};
 use std::any::Any;
@@ -49,16 +49,7 @@ impl NodeConfig for AvgPool1dConfig {
 pub struct AvgPool1dProcessor;
 
 impl NodeProcessor for AvgPool1dProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (7, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];
@@ -105,12 +96,7 @@ impl NodeProcessor for AvgPool1dProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -142,11 +128,9 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_basic() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 0);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AvgPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -164,11 +148,9 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_with_padding() {
         let node = create_test_node(vec![4], vec![2], vec![2, 2], 0, 0);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AvgPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -186,11 +168,9 @@ mod tests {
     #[test]
     fn test_avg_pool1d_config_with_count_include_pad() {
         let node = create_test_node(vec![4], vec![1], vec![2, 2], 1, 0);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AvgPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -209,10 +189,8 @@ mod tests {
     #[should_panic(expected = "ceil_mode is not supported")]
     fn test_avg_pool1d_config_with_ceil_mode() {
         let node = create_test_node(vec![4], vec![1], vec![0, 0], 0, 1);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AvgPool1dProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

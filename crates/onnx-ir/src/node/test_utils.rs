@@ -517,12 +517,14 @@ impl NodeBuilder {
     /// Build the node and register any constant inputs in GraphData.
     /// This is useful for tests that need constant values accessible via GraphData.
     ///
-    /// Note: After calling this method, the GraphData reference will be wrapped in Rc<RefCell<>>
-    /// and attached to the node's arguments. The original graph_data parameter will be replaced
-    /// with an empty GraphData. This is intentional to prevent confusion about ownership.
-    pub fn build_with_graph_data(self, graph_data: &mut crate::from_onnx::GraphData) -> Node {
+    /// Note: After calling this method, the GraphData will be wrapped in Rc<RefCell<>>
+    /// and attached to the node's arguments.
+    pub fn build_with_graph_data(self, _opset: usize) -> Node {
         use std::cell::RefCell;
         use std::rc::Rc;
+
+        // Create a new GraphData for this test
+        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
 
         // Register constants in GraphData before building the node
         for (input_name, (data, shape)) in &self.constant_data {
@@ -533,10 +535,7 @@ impl NodeBuilder {
         let mut node = self.build();
 
         // Wrap GraphData in Rc<RefCell<>> and attach to all arguments
-        let graph_data_rc = Rc::new(RefCell::new(std::mem::replace(
-            graph_data,
-            crate::from_onnx::GraphData::new(&[], &[], &[]),
-        )));
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
 
         for arg in &mut node.inputs {
             arg.value_store = Some(graph_data_rc.clone());

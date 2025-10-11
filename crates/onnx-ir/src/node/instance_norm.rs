@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -36,16 +36,7 @@ impl NodeConfig for InstanceNormConfig {
 pub struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("InstanceNorm: weight tensor must be present")
@@ -66,12 +57,7 @@ impl NodeProcessor for InstanceNormProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -96,12 +82,10 @@ mod tests {
 
     #[test]
     fn test_instance_norm_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(1e-5, 64).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(1e-5, 64).build_with_graph_data(16);
         let mut node = node;
         let processor = InstanceNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

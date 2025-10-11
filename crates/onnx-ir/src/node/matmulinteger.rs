@@ -1,20 +1,11 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use core::cmp::max;
 
 pub struct MatMulIntegerProcessor;
 
 impl NodeProcessor for MatMulIntegerProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (10, None)
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
                 let mut out_rank = max(a.rank, b.rank);
@@ -55,9 +46,7 @@ mod tests {
     fn test_update_outputs_standard_case() {
         let mut node = create_test_node(2, 2);
         let processor = MatMulIntegerProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -72,9 +61,7 @@ mod tests {
     fn test_update_outputs_vector_matrix() {
         let mut node = create_test_node(1, 2);
         let processor = MatMulIntegerProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -91,9 +78,7 @@ mod tests {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = MatMulIntegerProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
     }
 }
 #[cfg(test)]
@@ -114,9 +99,7 @@ mod tests2 {
     fn out_rank_2x2_is_2() {
         let mut n = mk(2, 2);
         let processor = MatMulIntegerProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut n, &context, &mut graph_data);
+        processor.first_pass(&mut n, 16);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);
@@ -130,9 +113,7 @@ mod tests2 {
     fn vector_matrix_is_rank1() {
         let mut n = mk(1, 2);
         let processor = MatMulIntegerProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut n, &context, &mut graph_data);
+        processor.first_pass(&mut n, 16);
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);

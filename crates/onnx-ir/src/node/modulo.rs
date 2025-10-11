@@ -1,5 +1,5 @@
 use crate::ir::{AttributeValue, Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for Mod operations
@@ -30,16 +30,7 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (10, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => *value != 0,
             _ => false, // Default value as per ONNX spec
@@ -49,12 +40,7 @@ impl NodeProcessor for ModuloProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input_broadcast(node);
     }
 }
@@ -77,11 +63,9 @@ mod tests {
     #[test]
     fn test_mod_config_default() {
         let node = create_test_node();
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ModuloProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -97,11 +81,9 @@ mod tests {
         let mut node = create_test_node();
         node.attrs
             .insert("fmod".to_string(), AttributeValue::Int64(0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ModuloProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -117,11 +99,9 @@ mod tests {
         let mut node = create_test_node();
         node.attrs
             .insert("fmod".to_string(), AttributeValue::Int64(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = ModuloProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

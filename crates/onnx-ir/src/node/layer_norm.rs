@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -42,16 +42,7 @@ impl LayerNormConfig {
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (17, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, __opset: usize) {
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("LayerNorm: weight tensor must be present")
@@ -82,12 +73,7 @@ impl NodeProcessor for LayerNormProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -119,11 +105,9 @@ mod tests {
 
     #[test]
     fn test_layer_norm_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(16);
         let processor = LayerNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -138,11 +122,9 @@ mod tests {
 
     #[test]
     fn test_layer_norm_config_no_stash_type() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(16);
         let processor = LayerNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -159,7 +141,6 @@ mod tests {
         expected = "LayerNorm: normalization is only supported on the last axis right now"
     )]
     fn test_layer_norm_config_invalid_axis() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 1D weight tensor with shape [num_features],
         // both axis=0 (the first and only dim) and axis=-1 (the last dim) are valid
         // So we need to use a 2D weight tensor to test the invalid axis case
@@ -176,12 +157,11 @@ mod tests {
             .attr_float("epsilon", 1e-5)
             .attr_int("axis", 0) // axis=0 is NOT the last dimension for 2D weight
             .attr_int("stash_type", 1)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
 
         // Now axis=0 should trigger a panic since it's not the last dimension (1)
         let mut node = node;
         let processor = LayerNormProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

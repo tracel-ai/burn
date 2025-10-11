@@ -1,6 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for EyeLike operations
@@ -24,16 +24,7 @@ impl NodeConfig for EyeLikeConfig {
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (9, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut dtype = None;
         let mut k = 0i64; // default to main diagonal
 
@@ -58,12 +49,7 @@ impl NodeProcessor for EyeLikeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("EyeLike rank inference for node {}", node.name);
 
         // Extract tensor info before calling process_config
@@ -80,8 +66,7 @@ impl NodeProcessor for EyeLikeProcessor {
         };
 
         let processor = EyeLikeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(node, &context, graph_data);
+        processor.process_config(node, _opset);
 
         let config = node
             .config
@@ -118,9 +103,7 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -139,14 +122,11 @@ mod tests {
             .output_tensor_f32("output", 2, None)
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = EyeLikeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -168,14 +148,11 @@ mod tests {
             .attr_int("dtype", DataType::INT64.value() as i64)
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = EyeLikeProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -197,9 +174,7 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

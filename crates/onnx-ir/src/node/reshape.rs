@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, TensorData, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for the Reshape operation.
@@ -28,12 +28,12 @@ pub enum ReshapeInput {
 }
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
-pub fn reshape_update_outputs(node: &mut Node, graph_data: &mut crate::from_onnx::GraphData) {
+pub fn reshape_update_outputs(node: &mut Node) {
     // Extract input information
     let input_info = extract_input_info(&node.inputs[0]);
 
     // Determine output rank
-    let output_rank = infer_reshape_output_rank(node, graph_data);
+    let output_rank = infer_reshape_output_rank(node);
 
     // Get static shape if available
     let static_shape = match &node.outputs[0].ty {
@@ -42,8 +42,7 @@ pub fn reshape_update_outputs(node: &mut Node, graph_data: &mut crate::from_onnx
     };
 
     // Set output type based on rank and input type
-    node.outputs[0].ty =
-        determine_output_type(&input_info, output_rank, static_shape, node, graph_data);
+    node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
 }
 
 /// Extract relevant information from input argument
@@ -78,7 +77,6 @@ fn determine_output_type(
     output_rank: usize,
     static_shape: Option<Vec<usize>>,
     node: &Node,
-    graph_data: &mut crate::from_onnx::GraphData,
 ) -> ArgType {
     // Case 1: Scalar output (rank 0)
     if output_rank == 0 {
@@ -89,12 +87,8 @@ fn determine_output_type(
     // Case 2: Shape input -> Shape output (optimization)
     if input_info.is_shape && output_rank == 1 && input_info.elem_type == crate::ElementType::Int64
     {
-        let output_size = calculate_shape_output_size(
-            input_info.shape_size.unwrap_or(1),
-            node,
-            &static_shape,
-            graph_data,
-        );
+        let output_size =
+            calculate_shape_output_size(input_info.shape_size.unwrap_or(1), node, &static_shape);
 
         log::debug!(
             "Reshape node {} with Shape({}) input outputs Shape({})",
@@ -118,10 +112,9 @@ fn calculate_shape_output_size(
     input_size: usize,
     node: &Node,
     static_shape: &Option<Vec<usize>>,
-    graph_data: &mut crate::from_onnx::GraphData,
 ) -> usize {
     // Try to get size from static reshape parameter
-    if let Some(shape_values) = get_static_shape(node, graph_data)
+    if let Some(shape_values) = get_static_shape(node)
         && shape_values.len() == 1
     {
         return match shape_values[0] {
@@ -143,11 +136,11 @@ fn calculate_shape_output_size(
 }
 
 /// Infer output rank for reshape operation from available information
-fn infer_reshape_output_rank(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> usize {
+fn infer_reshape_output_rank(node: &Node) -> usize {
     // Try sources in order of preference
 
     // 1. Static shape from constant shape input
-    if let Some(shape) = get_static_shape(node, graph_data) {
+    if let Some(shape) = get_static_shape(node) {
         return shape.len();
     }
 
@@ -195,7 +188,7 @@ fn get_rank_from_output(node: &Node) -> Option<usize> {
 }
 
 /// Extract static shape from reshape node if available
-fn get_static_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Option<Vec<i64>> {
+fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
         && let Some(value) = node.inputs[1].into_value()
@@ -215,9 +208,9 @@ fn validate_reshape_node(node: &Node) {
 }
 
 /// Extract shape input as either static or runtime
-fn extract_shape_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeInput {
+fn extract_shape_input(node: &Node) -> ReshapeInput {
     match &node.inputs[1].ty {
-        ArgType::Tensor(_) => extract_tensor_shape(node, graph_data),
+        ArgType::Tensor(_) => extract_tensor_shape(node),
         ArgType::Shape(_) => {
             // Clone argument but clear value_store to maintain Send+Sync
             let mut runtime_arg = node.inputs[1].clone();
@@ -229,7 +222,7 @@ fn extract_shape_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData
 }
 
 /// Extract shape from tensor input
-fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> ReshapeInput {
+fn extract_tensor_shape(node: &Node) -> ReshapeInput {
     match node.inputs[1].into_value() {
         Some(TensorData { data, shape, .. }) => {
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
@@ -248,34 +241,20 @@ fn extract_tensor_shape(node: &Node, graph_data: &mut crate::from_onnx::GraphDat
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (5, None) // Reshape supported from opset 5+
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from reshape_config inlined here
         validate_reshape_node(node);
-        let shape = extract_shape_input(node, graph_data);
+        let shape = extract_shape_input(node);
         let config = ReshapeConfig { shape };
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         // Extract input information
         let input_info = extract_input_info(&node.inputs[0]);
 
         // Determine output rank
-        let output_rank = infer_reshape_output_rank(node, graph_data);
+        let output_rank = infer_reshape_output_rank(node);
 
         // Get static shape if available
         let static_shape = match &node.outputs[0].ty {
@@ -284,8 +263,7 @@ impl NodeProcessor for ReshapeProcessor {
         };
 
         // Set output type based on rank and input type
-        node.outputs[0].ty =
-            determine_output_type(&input_info, output_rank, static_shape, node, graph_data);
+        node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
     }
 }
 
@@ -325,11 +303,9 @@ mod tests {
 
     #[test]
     fn test_reshape_config_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -346,20 +322,16 @@ mod tests {
 
     #[test]
     fn test_reshape_config_allowzero_supported() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(1, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(1, vec![2, 3]).build_with_graph_data(16);
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_reshape_config_runtime() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_runtime_reshape_node().build();
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -377,52 +349,38 @@ mod tests {
     #[test]
     #[should_panic(expected = "Reshape requires exactly 2 inputs")]
     fn test_reshape_config_no_shape_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         node.inputs.pop(); // Remove the shape input
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "shape tensor must be 1D")]
     fn test_reshape_config_invalid_shape_dim() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-
-        // Register the constant with 2D shape (should trigger panic)
-        graph_data.register_test_constant(
-            "shape".to_string(),
-            crate::ir::Data::Int64s(vec![2, 3]),
-            vec![2, 1], // 2D shape - this should cause panic
-        );
-
-        // Create a node without pre-registered data for the shape input
+        // Create a node with 2D shape tensor (should trigger panic)
         let node = NodeBuilder::new(NodeType::Reshape, "test_reshape")
             .input_tensor_f32("data", 4, None)
-            .add_input(
+            .input_tensor_with_data(
                 "shape",
-                ArgType::Tensor(TensorType {
-                    elem_type: ElementType::Int64,
-                    rank: 2, // 2D tensor
-                    static_shape: Some(vec![2, 1]),
-                }),
+                ElementType::Int64,
+                2, // 2D tensor (rank 2)
+                crate::ir::Data::Int64s(vec![2, 3]),
+                vec![2, 1], // 2D shape - this should cause panic
             )
             .output_tensor_f32("reshaped", 2, None)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
 
         let mut node = node;
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_reshape_update_outputs_basic() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
 
-        reshape_update_outputs(&mut node, &mut graph_data);
+        reshape_update_outputs(&mut node);
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
@@ -435,15 +393,14 @@ mod tests {
 
     #[test]
     fn test_reshape_update_outputs_int() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         node.inputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: ElementType::Int32,
             rank: 4,
             static_shape: None,
         });
 
-        reshape_update_outputs(&mut node, &mut graph_data);
+        reshape_update_outputs(&mut node);
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
@@ -456,11 +413,9 @@ mod tests {
 
     #[test]
     fn test_reshape_config_with_shape_type() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_reshape_with_shape_input().build();
         let processor = ReshapeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -477,10 +432,9 @@ mod tests {
 
     #[test]
     fn test_reshape_update_outputs_with_shape_type() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_reshape_with_shape_input().build();
 
-        reshape_update_outputs(&mut node, &mut graph_data);
+        reshape_update_outputs(&mut node);
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
                 assert_eq!(tensor.static_shape, None);
@@ -494,14 +448,13 @@ mod tests {
     #[test]
     fn test_reshape_to_scalar() {
         // Test reshaping to a scalar (rank 0)
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = NodeBuilder::new(NodeType::Reshape, "test_reshape_scalar")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("shape", vec![], vec![0]) // Empty shape = scalar
             .output_tensor_f32("reshaped", 0, None)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
 
-        reshape_update_outputs(&mut node, &mut graph_data);
+        reshape_update_outputs(&mut node);
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
                 assert_eq!(*elem_type, ElementType::Float32);

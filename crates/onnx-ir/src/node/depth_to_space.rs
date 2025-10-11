@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{
     ArgType, TensorType,
     ir::{Node, NodeConfig},
@@ -48,16 +48,7 @@ impl NodeConfig for DepthToSpaceConfig {
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut block_size: Option<usize> = None;
         let mut mode = DepthToSpaceMode::DCR;
 
@@ -79,12 +70,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("DepthToSpace rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
@@ -162,11 +148,9 @@ mod tests {
     #[test]
     fn test_basic_config() {
         let node = create_test_node(4, None, 2, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -182,11 +166,9 @@ mod tests {
     #[test]
     fn test_dcr_config() {
         let node = create_test_node(4, None, 3, Some("DCR"));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -202,11 +184,9 @@ mod tests {
     #[test]
     fn test_crd_config() {
         let node = create_test_node(4, None, 3, Some("CRD"));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -223,9 +203,7 @@ mod tests {
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{ArgType, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -27,16 +27,7 @@ impl ReduceConfig {
 pub struct ReduceProcessor;
 
 impl NodeProcessor for ReduceProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let mut axes = Vec::new();
         let mut keepdims = 1;
 
@@ -81,12 +72,7 @@ impl NodeProcessor for ReduceProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("{} rank inference for node {}", node.node_type, node.name);
 
         // Extract tensor info before calling process_config
@@ -106,8 +92,7 @@ impl NodeProcessor for ReduceProcessor {
         );
 
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(node, &context, graph_data);
+        processor.process_config(node, _opset);
 
         let config = node
             .config
@@ -231,14 +216,11 @@ mod tests {
     #[test]
     fn test_reduce_config_basic() {
         let node = create_test_node(Some(vec![1]), Some(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ReduceProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -255,14 +237,11 @@ mod tests {
     #[test]
     fn test_reduce_config_negative_axis() {
         let node = create_test_node(Some(vec![-2]), Some(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ReduceProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -279,14 +258,11 @@ mod tests {
     #[test]
     fn test_reduce_config_no_axes() {
         let node = create_test_node(None, Some(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ReduceProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -303,14 +279,11 @@ mod tests {
     #[test]
     fn test_reduce_config_multiple_axes() {
         let node = create_test_node(Some(vec![0, 1]), Some(1));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ReduceProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -327,14 +300,11 @@ mod tests {
     #[test]
     fn test_reduce_config_no_keepdims() {
         let node = create_test_node(Some(vec![1]), Some(0));
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
 
         let processor = ReduceProcessor;
 
-        let context = ProcessorContext::new(16);
-
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
 
         let config = node
             .config
@@ -353,9 +323,7 @@ mod tests {
         // Test that reduce with no axes and keepdims=false produces a scalar output
         let mut node = create_test_node(None, Some(0));
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -375,9 +343,7 @@ mod tests {
         // Test that reduce with all dimensions and keepdims=false produces a scalar output
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(_) => {
@@ -397,9 +363,7 @@ mod tests {
         // Test that reduce with partial dimensions and keepdims=false produces a tensor output
         let mut node = create_test_node(Some(vec![1]), Some(0));
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -420,9 +384,7 @@ mod tests {
         // Test that reduce with keepdims=true always produces a tensor output
         let mut node = create_test_node(None, Some(1));
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -451,9 +413,7 @@ mod tests {
 
         // This should not panic
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -480,9 +440,7 @@ mod tests {
 
         // This should not panic
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -508,9 +466,7 @@ mod tests {
             .build();
 
         let processor = ReduceProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{Node, NodeConfig, TensorData};
 use std::any::Any;
 
@@ -28,16 +28,7 @@ impl TileConfig {
 pub struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let repeat = node
             .inputs
             .get(1)
@@ -58,12 +49,7 @@ impl NodeProcessor for TileProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -92,14 +78,11 @@ mod tests {
     fn test_tile_config_with_repeats() {
         // Test with normal repeats values
         let repeats = vec![2, 3, 4];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats.clone()), 3).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -116,14 +99,11 @@ mod tests {
     fn test_tile_config_with_single_repeat() {
         // Test with single repeat value
         let repeats = vec![5];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(Some(repeats.clone()), 1).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats.clone()), 1).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -139,14 +119,11 @@ mod tests {
     fn test_tile_config_with_zero_repeats() {
         // Test with repeats including zeros
         let repeats = vec![0, 1, 0];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(Some(repeats.clone()), 3).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats.clone()), 3).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -162,14 +139,11 @@ mod tests {
     fn test_tile_config_with_large_repeats() {
         // Test with large repeats values
         let repeats = vec![100, 200];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node =
-            create_test_node(Some(repeats.clone()), 2).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats.clone()), 2).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -184,13 +158,11 @@ mod tests {
     #[test]
     fn test_tile_config_without_repeats_input() {
         // Test when repeats input is missing
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, 3).build();
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -207,13 +179,11 @@ mod tests {
     fn test_tile_config_with_negative_repeats() {
         // Test with negative repeats values (will be converted to usize)
         let repeats = vec![-1, 2, -3];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats), 3).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -233,13 +203,11 @@ mod tests {
     fn test_tile_config_with_empty_repeats() {
         // Test with empty repeats array
         let repeats = vec![];
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(Some(repeats), 3).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(repeats), 3).build_with_graph_data(16);
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -254,7 +222,6 @@ mod tests {
     #[test]
     fn test_tile_config_with_missing_value() {
         // Test with repeats input that has no value
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(None, 3).build();
 
         // Add repeats input with no value
@@ -269,8 +236,7 @@ mod tests {
 
         let mut node = node;
         let processor = TileProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

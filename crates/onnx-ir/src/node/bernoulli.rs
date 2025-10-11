@@ -1,21 +1,12 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 pub struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (15, None)
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Bernoulli rank inference for node {}", node.name);
 
         // Get the tensor type and its rank
@@ -75,9 +66,7 @@ mod tests {
     fn test_bernoulli_int() {
         let mut node = create_test_node(Some(DataType::INT32.value()), Some(vec![3, 4, 2]));
         let processor = BernoulliProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -93,9 +82,7 @@ mod tests {
     fn test_bernoulli_no_cast() {
         let mut node = create_test_node(None, Some(vec![3, 4, 2]));
         let processor = BernoulliProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -110,9 +97,7 @@ mod tests {
     fn test_bernoulli_no_static_shape() {
         let mut node = create_test_node(None, None);
         let processor = BernoulliProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -129,8 +114,6 @@ mod tests {
         let mut node = create_test_node(Some(DataType::FLOAT.value()), None);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = BernoulliProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
     }
 }

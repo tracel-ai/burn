@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use std::any::Any;
@@ -21,16 +21,7 @@ impl NodeConfig for SqueezeConfig {
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from squeeze_config inlined here
         let axes =
         // In ONNX opset 13+, axes are provided as a second input
@@ -54,12 +45,7 @@ impl NodeProcessor for SqueezeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Squeeze rank inference for node {}", node.name);
 
         let axes = if node.inputs.len() == 2 {
@@ -169,12 +155,10 @@ mod tests {
 
     #[test]
     fn test_squeeze_config_with_axes_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(&mut graph_data);
+        let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(16);
         let mut node = node;
         let processor = SqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -187,12 +171,10 @@ mod tests {
 
     #[test]
     fn test_squeeze_config_no_axes_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(None, 4).build();
         let mut node = node;
         let processor = SqueezeProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

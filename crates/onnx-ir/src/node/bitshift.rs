@@ -1,5 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 pub use self::Direction as BitShiftDirection;
@@ -39,16 +39,7 @@ impl NodeConfig for BitShiftConfig {
 pub struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (11, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         let direction_str = node
             .attrs
             .get("direction")
@@ -62,12 +53,7 @@ impl NodeProcessor for BitShiftProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input_broadcast(node);
     }
 }
@@ -87,11 +73,9 @@ mod tests {
             .attr_string("direction", "left")
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = BitShiftProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -111,11 +95,9 @@ mod tests {
             .attr_string("direction", "right")
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = BitShiftProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -134,11 +116,9 @@ mod tests {
             .output_tensor_i32("Z", 2, None)
             .build();
 
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = BitShiftProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

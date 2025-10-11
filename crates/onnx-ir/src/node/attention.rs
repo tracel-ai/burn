@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -62,16 +62,7 @@ fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a Tenso
 pub struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         if node.inputs.len() < 3 {
             panic!("Attention must have at least 3 inputs")
         }
@@ -148,12 +139,7 @@ impl NodeProcessor for AttentionProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         let q = extract_tensor(node.inputs.first(), "Q").unwrap();
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -356,21 +342,17 @@ mod tests {
             None,
             None,
         );
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AttentionProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     fn test_softcap() {
         let node = create_simple_test_node(None, None, None, None, None, Some(2.0), None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AttentionProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -384,11 +366,9 @@ mod tests {
     #[test]
     fn test_custom_scale() {
         let node = create_simple_test_node(None, None, None, None, Some(2.0), None, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AttentionProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -402,11 +382,9 @@ mod tests {
     #[test]
     fn test_is_causal() {
         let node = create_simple_test_node(Some(1), None, None, None, None, None, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AttentionProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -424,11 +402,9 @@ mod tests {
     #[case(3, AttentionQkMatmulOutputMode::MatmulAfterSoftmax)]
     fn test_qk_matmul_output(#[case] raw: i64, #[case] mode: AttentionQkMatmulOutputMode) {
         let node = create_simple_test_node(None, None, None, Some(raw), None, None, None);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = AttentionProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

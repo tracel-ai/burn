@@ -1,5 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use std::any::Any;
 
 /// Configuration for LeakyRelu operations
@@ -22,16 +22,7 @@ impl NodeConfig for LeakyReluConfig {
 pub struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (6, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
         // ALL logic from leaky_relu_config inlined here
         let mut alpha = 0.01;
 
@@ -45,12 +36,7 @@ impl NodeProcessor for LeakyReluProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         crate::util::same_as_input(node);
     }
 }
@@ -72,11 +58,9 @@ mod tests {
     #[test]
     fn test_leaky_relu_config_with_alpha() {
         let node = create_test_node(0.2);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = LeakyReluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -91,11 +75,9 @@ mod tests {
     fn test_leaky_relu_config_default() {
         let mut node = create_test_node(0.2);
         node.attrs.clear(); // Remove all attributes
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = node;
         let processor = LeakyReluProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()

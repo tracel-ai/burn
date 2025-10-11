@@ -1,4 +1,4 @@
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 
 use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig, TensorData};
@@ -34,17 +34,8 @@ impl NodeConfig for PadConfig {
 pub struct PadProcessor;
 
 impl NodeProcessor for PadProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (2, None)
-    }
-
-    fn process_config(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        graph_data: &mut crate::from_onnx::GraphData,
-    ) {
-        fn get_pads_input(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Vec<i64> {
+    fn process_config(&self, node: &mut Node, _opset: usize) {
+        fn get_pads_input(node: &Node) -> Vec<i64> {
             if node.inputs.len() <= 1 {
                 return Vec::new();
             }
@@ -54,7 +45,7 @@ impl NodeProcessor for PadProcessor {
                 _ => Vec::new(),
             }
         }
-        fn get_pads(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> Vec<usize> {
+        fn get_pads(node: &Node) -> Vec<usize> {
             if node.inputs.is_empty() {
                 panic!("Pad: must provide data as input")
             }
@@ -68,7 +59,7 @@ impl NodeProcessor for PadProcessor {
             };
 
             // TODO: Handle more possible attributes
-            let mut pads: Vec<usize> = get_pads_input(node, graph_data)
+            let mut pads: Vec<usize> = get_pads_input(node)
                 .into_iter()
                 .map(|x| x as usize)
                 .collect();
@@ -131,7 +122,7 @@ impl NodeProcessor for PadProcessor {
             let bottom = pads[bottom_index];
             vec![left, right, top, bottom]
         }
-        fn get_constant_value(node: &Node, graph_data: &mut crate::from_onnx::GraphData) -> f32 {
+        fn get_constant_value(node: &Node) -> f32 {
             // TODO: Support int, boolean
             let mut constant_value = node.inputs
                         .get(2)
@@ -161,19 +152,14 @@ impl NodeProcessor for PadProcessor {
             constant_value
         }
 
-        let pads = get_pads(node, graph_data);
-        let constant_value = get_constant_value(node, graph_data);
+        let pads = get_pads(node);
+        let constant_value = get_constant_value(node);
 
         let config = PadConfig::new(pads, constant_value);
         node.config = Some(Box::new(config));
     }
 
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         same_as_input(node);
     }
 }
@@ -225,7 +211,6 @@ mod tests {
 
     #[test]
     fn test_pad_config_with_attrs() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Test for 2D tensor (rank 2)
         let pads = vec![0, 0, 1, 1];
         let node = create_test_node(
@@ -236,11 +221,10 @@ mod tests {
             Some("constant"),
             2,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -259,15 +243,13 @@ mod tests {
 
     #[test]
     fn test_pad_config_with_inputs() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 2D tensor, pads should have 4 values (2*rank)
         let pads = vec![0, 0, 1, 1];
         let node = create_test_node(None, Some(pads.clone()), None, Some(1.0), None, 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -286,7 +268,6 @@ mod tests {
 
     #[test]
     fn test_pad_config_with_3d_tensor() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 3D tensor, pads should have 6 values (2*rank)
         let pads = vec![0, 0, 0, 0, 1, 1];
         let node = create_test_node(
@@ -297,11 +278,10 @@ mod tests {
             Some("constant"),
             3,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -320,7 +300,6 @@ mod tests {
 
     #[test]
     fn test_pad_config_attrs_override_inputs() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Attributes should override inputs
         let attr_pads = vec![0, 0, 2, 2];
         let input_pads = vec![0, 0, 1, 1];
@@ -332,11 +311,10 @@ mod tests {
             Some("constant"),
             2,
         )
-        .build_with_graph_data(&mut graph_data);
+        .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
         let config = node
             .config
             .as_ref()
@@ -356,36 +334,30 @@ mod tests {
     #[test]
     #[should_panic(expected = "Pad: must provide data as input")]
     fn test_pad_config_no_inputs() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let mut node = create_test_node(None, None, None, None, None, 2)
-            .build_with_graph_data(&mut graph_data);
+        let mut node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         node.inputs = vec![];
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: Only tensor input is valid")]
     fn test_pad_config_invalid_input_type() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: axes input is not supported")]
     fn test_pad_config_with_axes_input() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // Create node with 4 inputs (including axes)
         let mut node = create_test_node(None, Some(vec![0, 0, 1, 1]), None, Some(0.0), None, 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         node.inputs.push(Argument {
             name: "axes".to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -397,80 +369,66 @@ mod tests {
         });
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: Negative pad is not supported")]
     fn test_pad_config_negative_pad() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(vec![0, 0, -1, 1]), None, None, None, None, 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "only constant mode is supported")]
     fn test_pad_config_unsupported_mode() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: pads should be given as attribute or as input")]
     fn test_pad_config_no_pads() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(None, None, None, None, None, 2)
-            .build_with_graph_data(&mut graph_data);
+        let node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: pads should be a 1D tensor of shape [2 * num_axes]")]
     fn test_pad_config_invalid_pads_length() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         let node = create_test_node(Some(vec![0, 0, 1]), None, None, None, None, 2)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: input tensor should be rank 2 or higher")]
     fn test_pad_config_invalid_tensor_rank() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        let node = create_test_node(Some(vec![0, 1]), None, None, None, None, 1)
-            .build_with_graph_data(&mut graph_data);
+        let node =
+            create_test_node(Some(vec![0, 1]), None, None, None, None, 1).build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 
     #[test]
     #[should_panic(expected = "Pad: padding will only be applied to the last two dimensions")]
     fn test_pad_config_non_zero_padding_on_other_dimensions() {
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
         // For a 3D tensor, we try to set non-zero padding on first dimension
         let node = create_test_node(Some(vec![1, 0, 0, 0, 1, 1]), None, None, None, None, 3)
-            .build_with_graph_data(&mut graph_data);
+            .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        let context = ProcessorContext::new(16);
-        processor.process_config(&mut node, &context, &mut graph_data);
+        processor.process_config(&mut node, 16);
     }
 }

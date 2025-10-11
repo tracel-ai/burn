@@ -1,19 +1,10 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
-use crate::processor::{NodeProcessor, ProcessorContext};
+use crate::processor::NodeProcessor;
 
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
-    fn supported_opset_range(&self) -> (i64, Option<i64>) {
-        (1, None)
-    }
-
-    fn process_forward(
-        &self,
-        node: &mut Node,
-        _context: &ProcessorContext,
-        _graph_data: &mut crate::from_onnx::GraphData,
-    ) {
+    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Constant rank inference for node {}", node.name);
 
         let keys = [
@@ -98,9 +89,7 @@ mod tests {
             .insert("value_float".to_string(), AttributeValue::Float32(6.14));
 
         let processor = ConstantProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -122,9 +111,7 @@ mod tests {
         );
 
         let processor = ConstantProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -141,8 +128,6 @@ mod tests {
         let mut node = create_test_node();
 
         let processor = ConstantProcessor;
-        let context = ProcessorContext::new(16);
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
-        processor.process_forward(&mut node, &context, &mut graph_data);
+        processor.first_pass(&mut node, 16);
     }
 }
