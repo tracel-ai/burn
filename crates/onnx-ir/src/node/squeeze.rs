@@ -159,13 +159,7 @@ mod tests {
         let mut node = node;
         let processor = SqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SqueezeConfig>()
-            .unwrap();
+        let config = node.config::<SqueezeConfig>();
         assert_eq!(config.axes, Some(vec![0, 2]));
     }
 
@@ -175,13 +169,7 @@ mod tests {
         let mut node = node;
         let processor = SqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SqueezeConfig>()
-            .unwrap();
+        let config = node.config::<SqueezeConfig>();
         assert_eq!(config.axes, None);
     }
 }

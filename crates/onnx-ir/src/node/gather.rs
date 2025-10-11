@@ -205,13 +205,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
 
@@ -221,13 +215,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
@@ -237,13 +225,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
 
@@ -271,13 +253,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
 
         // Check that indices is runtime
@@ -301,13 +277,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 1);
 
         // Check that indices is static
@@ -497,13 +467,7 @@ mod tests {
         let mut node = node;
         let processor = GatherProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GatherConfig>()
-            .unwrap();
+        let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
 
         // Check that Shape indices are treated as runtime

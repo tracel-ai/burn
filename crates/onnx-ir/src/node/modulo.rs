@@ -66,13 +66,7 @@ mod tests {
         let mut node = node;
         let processor = ModuloProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ModConfig>()
-            .unwrap();
+        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false); // Should default to false
     }
 
@@ -84,13 +78,7 @@ mod tests {
         let mut node = node;
         let processor = ModuloProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ModConfig>()
-            .unwrap();
+        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false);
     }
 
@@ -102,13 +90,7 @@ mod tests {
         let mut node = node;
         let processor = ModuloProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ModConfig>()
-            .unwrap();
+        let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, true);
     }
 }

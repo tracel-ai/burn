@@ -109,13 +109,7 @@ mod tests {
         let processor = LayerNormProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LayerNormConfig>()
-            .unwrap();
+        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
     }
@@ -126,13 +120,7 @@ mod tests {
         let processor = LayerNormProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LayerNormConfig>()
-            .unwrap();
+        let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
     }
 

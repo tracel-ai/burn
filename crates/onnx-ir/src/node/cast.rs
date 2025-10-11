@@ -52,13 +52,7 @@ impl NodeProcessor for CastProcessor {
 
         processor.process_config(node, _opset);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<CastConfig>()
-            .unwrap();
+        let config = node.config::<CastConfig>();
         let elem_type = config.to.clone();
 
         let input = &mut node.inputs[0];
@@ -142,13 +136,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<CastConfig>()
-            .unwrap();
+        let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Int64);
 
         let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
@@ -157,13 +145,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<CastConfig>()
-            .unwrap();
+        let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Float32);
 
         let mut node = create_test_node(2, DataType::BOOL.value() as i64);
@@ -172,13 +154,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<CastConfig>()
-            .unwrap();
+        let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Bool);
     }
 

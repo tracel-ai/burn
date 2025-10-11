@@ -78,13 +78,7 @@ mod tests {
         let mut node = node;
         let processor = TransposeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TransposeConfig>()
-            .unwrap();
+        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![2, 1, 0]); // Default is to reverse the dimensions
     }
 
@@ -94,13 +88,7 @@ mod tests {
         let mut node = node;
         let processor = TransposeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TransposeConfig>()
-            .unwrap();
+        let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![0, 2, 1]);
     }
 

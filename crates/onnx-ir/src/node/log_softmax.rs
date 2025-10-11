@@ -84,13 +84,7 @@ mod tests {
         let mut node = node;
         let processor = LogSoftmaxProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LogSoftmaxConfig>()
-            .unwrap();
+        let config = node.config::<LogSoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
 
@@ -100,13 +94,7 @@ mod tests {
         let mut node = node;
         let processor = LogSoftmaxProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LogSoftmaxConfig>()
-            .unwrap();
+        let config = node.config::<LogSoftmaxConfig>();
         assert_eq!(config.axis, 1);
     }
 

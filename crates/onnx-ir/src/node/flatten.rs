@@ -108,13 +108,7 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<FlattenConfig>()
-            .unwrap();
+        let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 1);
     }
 
@@ -124,13 +118,7 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<FlattenConfig>()
-            .unwrap();
+        let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 

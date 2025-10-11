@@ -96,13 +96,7 @@ impl NodeProcessor for ShapeProcessor {
 
         processor.process_config(node, _opset);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         let dim = config.end - config.start;
         log::debug!(
             "Shape operation for node {}: start={}, end={}, dim={}",
@@ -146,13 +140,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 4);
     }
@@ -166,13 +154,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 4);
     }
@@ -186,13 +168,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 3);
     }
@@ -206,13 +182,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
         assert_eq!(config.end, 3);
     }
@@ -226,13 +196,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 2); // -2 + 4 = 2
         assert_eq!(config.end, 3); // -1 + 4 = 3
     }
@@ -292,13 +256,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ShapeConfig>()
-            .unwrap();
+        let config = node.config::<ShapeConfig>();
         // Shape(5) means a 5-dimensional shape, so getting its shape
         // would be from 0 to 5 (the full extent)
         assert_eq!(config.start, 0);

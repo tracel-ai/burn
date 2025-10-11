@@ -68,13 +68,7 @@ impl NodeProcessor for EyeLikeProcessor {
         let processor = EyeLikeProcessor;
         processor.process_config(node, _opset);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<EyeLikeConfig>()
-            .unwrap();
+        let config = node.config::<EyeLikeConfig>();
         // Output type is either specified dtype or input type
         let output_type = config.dtype.clone().unwrap_or(input_elem_type);
 
@@ -128,13 +122,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<EyeLikeConfig>()
-            .unwrap();
+        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, 0);
         assert_eq!(config.dtype, None);
     }
@@ -154,13 +142,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<EyeLikeConfig>()
-            .unwrap();
+        let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, -1);
         assert_eq!(config.dtype, Some(ElementType::Int64));
     }

@@ -307,13 +307,7 @@ mod tests {
         let processor = ReshapeProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReshapeConfig>()
-            .unwrap();
+        let config = node.config::<ReshapeConfig>();
         match &config.shape {
             ReshapeInput::Static(shape) => assert_eq!(shape, &vec![2, 3]),
             _ => panic!("Expected static shape"),
@@ -333,13 +327,7 @@ mod tests {
         let processor = ReshapeProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReshapeConfig>()
-            .unwrap();
+        let config = node.config::<ReshapeConfig>();
         match &config.shape {
             ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
             _ => panic!("Expected runtime shape"),
@@ -417,13 +405,7 @@ mod tests {
         let processor = ReshapeProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReshapeConfig>()
-            .unwrap();
+        let config = node.config::<ReshapeConfig>();
         match &config.shape {
             ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
             _ => panic!("Expected runtime shape"),

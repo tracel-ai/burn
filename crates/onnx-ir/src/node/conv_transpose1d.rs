@@ -219,13 +219,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose1dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -254,13 +248,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose1dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 4); // weight_shape[1] * group = 2 * 2
         assert_eq!(config.channels_out, 2);
@@ -308,13 +296,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose1dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 2);
         assert_eq!(config.channels_out, 2);
@@ -362,13 +344,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose1dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape
     }

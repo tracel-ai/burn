@@ -181,13 +181,7 @@ impl NodeProcessor for SliceProcessor {
                 let processor = SliceProcessor;
                 processor.process_config(node, _opset);
 
-                let config = node
-                    .config
-                    .as_ref()
-                    .unwrap()
-                    .as_any()
-                    .downcast_ref::<SliceConfig>()
-                    .unwrap();
+                let config = node.config::<SliceConfig>();
 
                 // Only static slicing is supported for Shape inputs
                 let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
@@ -309,13 +303,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -344,13 +332,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -377,13 +359,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have static starts and ends
         match (&result.starts, &result.ends) {
@@ -408,13 +384,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have runtime starts and ends
         match (&result.starts, &result.ends) {
@@ -480,13 +450,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -509,13 +473,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have mixed starts and ends
         match (&result.starts, &result.ends) {
@@ -545,13 +503,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that we have static starts, ends, and steps
         match (&result.starts, &result.ends, &result.steps) {
@@ -606,13 +558,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let result = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SliceConfig>()
-            .unwrap();
+        let result = node.config::<SliceConfig>();
 
         // Check that negative steps are preserved
         match &result.steps {

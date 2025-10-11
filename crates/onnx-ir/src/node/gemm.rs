@@ -127,13 +127,7 @@ mod tests {
         let mut node = node;
         let processor = GemmProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GemmConfig>()
-            .unwrap();
+        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 1.0);
         assert_eq!(config.beta, 1.0);
         assert_eq!(config.trans_a, 0);
@@ -146,13 +140,7 @@ mod tests {
         let mut node = node;
         let processor = GemmProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GemmConfig>()
-            .unwrap();
+        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 2.0);
         assert_eq!(config.beta, 3.0);
         assert_eq!(config.trans_a, 1);
@@ -165,13 +153,7 @@ mod tests {
         let mut node = node;
         let processor = GemmProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GemmConfig>()
-            .unwrap();
+        let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 0.5);
         assert_eq!(config.beta, 1.0); // default
         assert_eq!(config.trans_a, 1);

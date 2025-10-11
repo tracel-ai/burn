@@ -78,13 +78,7 @@ mod tests {
         let mut node = node;
         let processor = IsInfProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<IsInfConfig>()
-            .unwrap();
+        let config = node.config::<IsInfConfig>();
 
         // Both should default to true if not specified according to the spec
         assert!(config.detect_negative);
@@ -97,13 +91,7 @@ mod tests {
         let mut node = node;
         let processor = IsInfProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<IsInfConfig>()
-            .unwrap();
+        let config = node.config::<IsInfConfig>();
 
         assert!(config.detect_negative);
         assert!(!config.detect_positive);
@@ -115,13 +103,7 @@ mod tests {
         let mut node = node;
         let processor = IsInfProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<IsInfConfig>()
-            .unwrap();
+        let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);
         assert!(config.detect_positive);
@@ -133,13 +115,7 @@ mod tests {
         let mut node = node;
         let processor = IsInfProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<IsInfConfig>()
-            .unwrap();
+        let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);
         assert!(!config.detect_positive);

@@ -63,13 +63,7 @@ mod tests {
         let mut node = node;
         let processor = HardSigmoidProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<HardSigmoidConfig>()
-            .unwrap();
+        let config = node.config::<HardSigmoidConfig>();
         assert!((config.alpha - 0.3).abs() < 1e-6);
         assert!((config.beta - 0.6).abs() < 1e-6);
     }
@@ -81,13 +75,7 @@ mod tests {
         let mut node = node;
         let processor = HardSigmoidProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<HardSigmoidConfig>()
-            .unwrap();
+        let config = node.config::<HardSigmoidConfig>();
         assert_eq!(config.alpha, 0.2); // Check default values
         assert_eq!(config.beta, 0.5);
     }

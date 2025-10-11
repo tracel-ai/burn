@@ -182,13 +182,7 @@ mod tests {
         let mut node = node;
         let processor = ConcatProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConcatConfig>()
-            .unwrap();
+        let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1);
     }
 
@@ -198,13 +192,7 @@ mod tests {
         let mut node = node;
         let processor = ConcatProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConcatConfig>()
-            .unwrap();
+        let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
 
@@ -220,13 +208,7 @@ mod tests {
         let mut node = node;
         let processor = ConcatProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConcatConfig>()
-            .unwrap();
+        let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
 
@@ -291,13 +273,7 @@ mod tests {
         let mut node = node;
         let processor = ConcatProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConcatConfig>()
-            .unwrap();
+        let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // -1 + 1 = 0
     }
 

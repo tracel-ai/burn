@@ -102,13 +102,7 @@ mod tests {
         let mut node = node;
         let processor = OneHotProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<OneHotConfig>()
-            .unwrap();
+        let config = node.config::<OneHotConfig>();
         assert_eq!(config.depth, 5);
         assert_eq!(config.values, [0.0, 1.0]);
         assert_eq!(config.axis, -1); // default axis
@@ -120,13 +114,7 @@ mod tests {
         let mut node = node;
         let processor = OneHotProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<OneHotConfig>()
-            .unwrap();
+        let config = node.config::<OneHotConfig>();
         assert_eq!(config.depth, 5);
         assert_eq!(config.values, [0.0, 1.0]);
         assert_eq!(config.axis, 1);
@@ -138,13 +126,7 @@ mod tests {
         let mut node = node;
         let processor = OneHotProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<OneHotConfig>()
-            .unwrap();
+        let config = node.config::<OneHotConfig>();
         assert_eq!(config.depth, 10);
         assert_eq!(config.values, [-1.0, 2.0]); // custom off/on values
         assert_eq!(config.axis, -1);

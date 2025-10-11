@@ -427,6 +427,43 @@ pub struct Node {
     pub config: Option<Box<dyn NodeConfig>>,
 }
 
+impl Node {
+    /// Get a reference to the node's configuration with automatic downcasting.
+    /// Returns None if the config is not set or cannot be downcast to type T.
+    ///
+    /// # Example
+    /// ```ignore
+    /// if let Some(config) = node.get_config::<ArgMaxConfig>() {
+    ///     // use config
+    /// }
+    /// ```
+    pub fn get_config<T: NodeConfig + 'static>(&self) -> Option<&T> {
+        self.config.as_ref()?.as_any().downcast_ref::<T>()
+    }
+
+    /// Get a reference to the node's configuration with automatic downcasting.
+    /// Panics if the config is not set or cannot be downcast to type T.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let config = node.config::<ArgMaxConfig>();
+    /// // use config
+    /// ```
+    ///
+    /// # Panics
+    /// Panics if the config is not set or is the wrong type.
+    pub fn config<T: NodeConfig + 'static>(&self) -> &T {
+        self.get_config::<T>().unwrap_or_else(|| {
+            panic!(
+                "Node '{}' ({:?}) config is not set or has wrong type. Expected {}",
+                self.name,
+                self.node_type,
+                std::any::type_name::<T>()
+            )
+        })
+    }
+}
+
 // Custom Clone implementation since Box<dyn NodeConfig> doesn't auto-derive Clone
 impl Clone for Node {
     fn clone(&self) -> Self {

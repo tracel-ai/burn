@@ -76,13 +76,7 @@ mod tests {
         let mut node = node;
         let processor = BitShiftProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BitShiftConfig>()
-            .unwrap();
+        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }
 
@@ -98,13 +92,7 @@ mod tests {
         let mut node = node;
         let processor = BitShiftProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BitShiftConfig>()
-            .unwrap();
+        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Right);
     }
 
@@ -119,13 +107,7 @@ mod tests {
         let mut node = node;
         let processor = BitShiftProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BitShiftConfig>()
-            .unwrap();
+        let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }
 }

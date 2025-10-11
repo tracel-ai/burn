@@ -90,13 +90,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -115,13 +109,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -140,13 +128,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -165,13 +147,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -190,13 +166,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -215,13 +185,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -241,13 +205,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,
@@ -267,13 +225,7 @@ mod tests {
         let mut node = node;
         let processor = TriluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TriluConfig>()
-            .unwrap();
+        let config = node.config::<TriluConfig>();
 
         assert_eq!(
             *config,

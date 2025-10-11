@@ -337,13 +337,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UnsqueezeConfig>()
-            .unwrap();
+        let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
@@ -357,13 +351,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UnsqueezeConfig>()
-            .unwrap();
+        let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
@@ -377,13 +365,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UnsqueezeConfig>()
-            .unwrap();
+        let config = node.config::<UnsqueezeConfig>();
 
         // Should return a Runtime config since the axes are only known at runtime
         match config {
@@ -403,13 +385,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UnsqueezeConfig>()
-            .unwrap();
+        let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }
@@ -423,13 +399,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UnsqueezeConfig>()
-            .unwrap();
+        let config = node.config::<UnsqueezeConfig>();
 
         assert_eq!(*config, UnsqueezeConfig::Static(axes));
     }

@@ -96,17 +96,11 @@ impl NodeProcessor for ArgMaxProcessor {
         let processor = ArgMaxProcessor;
         processor.process_config(node, _opset);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ArgMaxConfig>()
-            .unwrap();
+        let keepdims = node.config::<ArgMaxConfig>().keepdims;
 
         // For burn compatibility, argmax always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank
-        if config.keepdims {
+        if keepdims {
             // keepdims=true: output rank same as input rank (dimension becomes 1)
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
@@ -128,7 +122,7 @@ impl NodeProcessor for ArgMaxProcessor {
         log::debug!(
             "ArgMax output for {} (keepdims={}): {:?}",
             node.name,
-            config.keepdims,
+            keepdims,
             node.outputs[0].ty
         );
     }
@@ -160,13 +154,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ArgMaxConfig>()
-            .unwrap();
+        let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 0);
         assert_eq!(config.keepdims, true);
     }
@@ -179,13 +167,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ArgMaxConfig>()
-            .unwrap();
+        let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
     }
@@ -217,13 +199,7 @@ mod tests {
 
         processor.process_config(&mut node_keepdims_0, 16);
 
-        let config_0 = node_keepdims_0
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ArgMaxConfig>()
-            .unwrap();
+        let config_0 = node_keepdims_0.config::<ArgMaxConfig>();
         assert_eq!(config_0.axis, 0);
         assert_eq!(config_0.keepdims, false);
 
@@ -233,13 +209,7 @@ mod tests {
 
         processor.process_config(&mut node_keepdims_1, 16);
 
-        let config_1 = node_keepdims_1
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ArgMaxConfig>()
-            .unwrap();
+        let config_1 = node_keepdims_1.config::<ArgMaxConfig>();
         assert_eq!(config_1.axis, 0);
         assert_eq!(config_1.keepdims, true);
     }

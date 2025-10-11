@@ -326,13 +326,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ResizeConfig>()
-            .unwrap();
+        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Nearest);
         match &config.scales {
             Some(ResizeScales::Static(scales)) => {
@@ -355,13 +349,7 @@ mod tests {
         let mut node = node;
         let processor = ResizeProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ResizeConfig>()
-            .unwrap();
+        let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
         match &config.sizes {

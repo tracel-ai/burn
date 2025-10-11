@@ -121,13 +121,7 @@ mod tests {
         let mut node = node;
         let processor = LinearProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LinearConfig>()
-            .unwrap();
+        let config = node.config::<LinearConfig>();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);
@@ -140,13 +134,7 @@ mod tests {
         let mut node = node;
         let processor = LinearProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LinearConfig>()
-            .unwrap();
+        let config = node.config::<LinearConfig>();
 
         assert_eq!(config.d_input, 10);
         assert_eq!(config.d_output, 5);

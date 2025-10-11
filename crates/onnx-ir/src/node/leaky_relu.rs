@@ -61,13 +61,7 @@ mod tests {
         let mut node = node;
         let processor = LeakyReluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LeakyReluConfig>()
-            .unwrap();
+        let config = node.config::<LeakyReluConfig>();
         assert!((config.alpha - 0.2).abs() < 1e-6);
     }
 
@@ -78,13 +72,7 @@ mod tests {
         let mut node = node;
         let processor = LeakyReluProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<LeakyReluConfig>()
-            .unwrap();
+        let config = node.config::<LeakyReluConfig>();
         assert_eq!(config.alpha, 0.01); // Check default value
     }
 }

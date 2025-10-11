@@ -130,13 +130,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, Some(1.0));
     }
@@ -147,13 +141,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, None);
     }
@@ -164,13 +152,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, None);
         assert_eq!(config.max, Some(1.0));
     }
@@ -181,13 +163,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, Some(1.0));
     }
@@ -198,13 +174,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, Some(-1.0));
         assert_eq!(config.max, None);
     }
@@ -215,13 +185,7 @@ mod tests {
         let mut node = node;
         let processor = ClipProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ClipConfig>()
-            .unwrap();
+        let config = node.config::<ClipConfig>();
         assert_eq!(config.min, None);
         assert_eq!(config.max, Some(1.0));
     }

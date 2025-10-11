@@ -253,13 +253,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ExpandShape>()
-            .unwrap();
+        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(shape) => {
@@ -275,13 +269,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ExpandShape>()
-            .unwrap();
+        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),
@@ -298,13 +286,7 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ExpandShape>()
-            .unwrap();
+        let config = node.config::<ExpandShape>();
 
         match config {
             ExpandShape::Static(_) => panic!("Expected Runtime config, got Static"),

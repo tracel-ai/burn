@@ -93,13 +93,7 @@ mod tests {
         let mut node = node;
         let processor = BatchNormProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BatchNormConfig>()
-            .unwrap();
+        let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -112,13 +106,7 @@ mod tests {
         let mut node = node;
         let processor = BatchNormProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BatchNormConfig>()
-            .unwrap();
+        let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 32);
         assert!(f64::abs(config.epsilon - 0.0) < 1e-6);

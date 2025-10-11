@@ -92,13 +92,7 @@ mod tests {
         let mut node = node;
         let processor = DropoutProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<DropoutConfig>()
-            .unwrap();
+        let config = node.config::<DropoutConfig>();
         assert!(f64::abs(config.prob - 0.3) < 1e-6);
     }
 
@@ -108,13 +102,7 @@ mod tests {
         let mut node = node;
         let processor = DropoutProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<DropoutConfig>()
-            .unwrap();
+        let config = node.config::<DropoutConfig>();
         assert!(f64::abs(config.prob - 0.5) < 1e-6);
     }
 

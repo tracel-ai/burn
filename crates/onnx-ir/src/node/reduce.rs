@@ -94,13 +94,7 @@ impl NodeProcessor for ReduceProcessor {
         let processor = ReduceProcessor;
         processor.process_config(node, _opset);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         log::debug!(
             "{} config for {}: keepdims={}, dims={:?}",
@@ -222,13 +216,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, true);
@@ -243,13 +231,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]); // -2 + 3 = 1
         assert_eq!(config.keepdims, true);
@@ -264,13 +246,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, []);
         assert_eq!(config.keepdims, true);
@@ -285,13 +261,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [0, 1]);
         assert_eq!(config.keepdims, true);
@@ -306,13 +276,7 @@ mod tests {
 
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ReduceConfig>()
-            .unwrap();
+        let config = node.config::<ReduceConfig>();
 
         assert_eq!(config.dims, [1]);
         assert_eq!(config.keepdims, false);

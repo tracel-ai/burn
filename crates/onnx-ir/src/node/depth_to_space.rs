@@ -151,13 +151,7 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<DepthToSpaceConfig>()
-            .unwrap();
+        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 2);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -169,13 +163,7 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<DepthToSpaceConfig>()
-            .unwrap();
+        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::DCR);
@@ -187,13 +175,7 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<DepthToSpaceConfig>()
-            .unwrap();
+        let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
         assert_eq!(config.mode, DepthToSpaceMode::CRD);

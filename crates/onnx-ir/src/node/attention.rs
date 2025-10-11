@@ -353,13 +353,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AttentionConfig>()
-            .unwrap();
+        let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
     }
 
@@ -369,13 +363,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AttentionConfig>()
-            .unwrap();
+        let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
     }
 
@@ -385,13 +373,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AttentionConfig>()
-            .unwrap();
+        let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
     }
 
@@ -405,13 +387,7 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AttentionConfig>()
-            .unwrap();
+        let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }
 }

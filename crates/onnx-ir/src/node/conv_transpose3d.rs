@@ -230,13 +230,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -264,13 +258,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.padding, [1, 1, 1]);
         assert_eq!(config.stride, [2, 2, 2]);
@@ -292,13 +280,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.padding_out, [1, 1, 1]);
     }
@@ -319,13 +301,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.groups, 2);
         assert_eq!(config.channels, [8, 2]); // channels_in is adjusted by groups
@@ -347,13 +323,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert!(config.bias);
     }
@@ -393,13 +363,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.channels, [4, 2]);
         assert_eq!(config.kernel_size, [2, 2, 2]);
@@ -446,13 +410,7 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose3dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ConvTranspose3dConfig>()
-            .unwrap();
+        let config = node.config::<ConvTranspose3dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2, 2]); // Inferred via weight tensor shape
     }

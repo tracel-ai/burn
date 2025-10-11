@@ -199,13 +199,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(*config, TopKConfig { axis: 2, k: 10 });
@@ -219,13 +213,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
         assert_eq!(*config, TopKConfig { axis: 3, k: 5 });
@@ -242,13 +230,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         assert_eq!(*config, TopKConfig { axis: 1, k: 3 });
     }
@@ -264,13 +246,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         // For rank 4, axis -2 should be 2
         assert_eq!(*config, TopKConfig { axis: 2, k: 5 });
@@ -287,13 +263,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         assert_eq!(*config, TopKConfig { axis: 1, k: 7 });
     }
@@ -309,13 +279,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         assert_eq!(*config, TopKConfig { axis: 2, k: 2 });
     }
@@ -383,13 +347,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TopKConfig>()
-            .unwrap();
+        let config = node.config::<TopKConfig>();
 
         // K from input should be used (5), not from attribute (10)
         assert_eq!(*config, TopKConfig { axis: 2, k: 5 });

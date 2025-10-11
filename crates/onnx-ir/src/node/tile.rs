@@ -83,13 +83,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         // Should extract repeats correctly
         assert_eq!(config.repeats, vec![2, 3, 4]);
@@ -104,13 +98,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         assert_eq!(config.repeats, vec![5]);
     }
@@ -124,13 +112,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         assert_eq!(config.repeats, vec![0, 1, 0]);
     }
@@ -144,13 +126,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         assert_eq!(config.repeats, vec![100, 200]);
     }
@@ -163,13 +139,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);
@@ -184,13 +154,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         // Negative values get converted to very large positive values due to usize conversion
         // This is expected behavior for this function (though may cause issues elsewhere)
@@ -208,13 +172,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         assert_eq!(config.repeats, vec![]);
     }
@@ -237,13 +195,7 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TileConfig>()
-            .unwrap();
+        let config = node.config::<TileConfig>();
 
         // Should return empty repeats
         assert_eq!(config.repeats, vec![]);

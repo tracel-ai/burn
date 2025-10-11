@@ -131,13 +131,7 @@ mod tests {
         let mut node = node;
         let processor = AvgPool1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AvgPool1dConfig>()
-            .unwrap();
+        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
@@ -151,13 +145,7 @@ mod tests {
         let mut node = node;
         let processor = AvgPool1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AvgPool1dConfig>()
-            .unwrap();
+        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
@@ -171,13 +159,7 @@ mod tests {
         let mut node = node;
         let processor = AvgPool1dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<AvgPool1dConfig>()
-            .unwrap();
+        let config = node.config::<AvgPool1dConfig>();
 
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);

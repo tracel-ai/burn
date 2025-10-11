@@ -225,13 +225,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<PadConfig>()
-            .unwrap();
+        let config = node.config::<PadConfig>();
         assert_eq!(
             *config,
             PadConfig {
@@ -250,13 +244,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<PadConfig>()
-            .unwrap();
+        let config = node.config::<PadConfig>();
         assert_eq!(
             *config,
             PadConfig {
@@ -282,13 +270,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<PadConfig>()
-            .unwrap();
+        let config = node.config::<PadConfig>();
         assert_eq!(
             *config,
             PadConfig {
@@ -315,13 +297,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<PadConfig>()
-            .unwrap();
+        let config = node.config::<PadConfig>();
         assert_eq!(
             *config,
             PadConfig {

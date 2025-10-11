@@ -145,13 +145,7 @@ mod tests {
         let mut node = node;
         let processor = MaxPool2dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<MaxPool2dConfig>()
-            .unwrap();
+        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -172,13 +166,7 @@ mod tests {
         let mut node = node;
         let processor = MaxPool2dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<MaxPool2dConfig>()
-            .unwrap();
+        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.strides, [2, 2]);
@@ -199,13 +187,7 @@ mod tests {
         let mut node = node;
         let processor = MaxPool2dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<MaxPool2dConfig>()
-            .unwrap();
+        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);
@@ -226,13 +208,7 @@ mod tests {
         let mut node = node;
         let processor = MaxPool2dProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<MaxPool2dConfig>()
-            .unwrap();
+        let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
         assert_eq!(config.strides, [1, 1]);

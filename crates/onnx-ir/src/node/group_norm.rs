@@ -105,13 +105,7 @@ mod tests {
         let processor = GroupNormProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GroupNormConfig>()
-            .unwrap();
+        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
@@ -123,13 +117,7 @@ mod tests {
         let processor = GroupNormProcessor;
         processor.process_config(&mut node, 16);
 
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<GroupNormConfig>()
-            .unwrap();
+        let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);

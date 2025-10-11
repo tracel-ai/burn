@@ -276,13 +276,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         // Default axis should be 0, and split_size should be calculated
         assert_eq!(config.axis, 0);
@@ -302,13 +296,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 1);
         assert_eq!(config.split_size, Some(10)); // 20 / 2 = 10
@@ -327,13 +315,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
         assert_eq!(config.split_size, Some(10)); // 30 / 3 = 10
@@ -352,13 +334,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(3)); // 12 / 4 = 3
@@ -377,13 +353,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
@@ -477,13 +447,7 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
-        let config = node
-            .config
-            .as_ref()
-            .unwrap()
-            .as_any()
-            .downcast_ref::<SplitConfig>()
-            .unwrap();
+        let config = node.config::<SplitConfig>();
 
         // 11 / (3-1) = 5, since the dimension is not evenly divisible
         assert_eq!(config.split_size, Some(5));
