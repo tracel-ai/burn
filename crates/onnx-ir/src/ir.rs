@@ -260,11 +260,17 @@ impl Default for ArgType {
 }
 
 impl ArgType {
+    /// Check if this argument is a scalar
     pub fn is_scalar(&self) -> bool {
         matches!(self, Self::Scalar(_))
     }
+    /// Check if this argument is a tensor
     pub fn is_tensor(&self) -> bool {
         matches!(self, Self::Tensor(_))
+    }
+    /// Check if this argument is a shape
+    pub fn is_shape(&self) -> bool {
+        matches!(self, Self::Shape(_))
     }
 
     /// returns the rank (dimension) of the Arg

@@ -900,7 +900,12 @@ impl OnnxGraphBuilder {
     }
 
     /// Propagate type changes through the graph until no more changes occur
-    fn propagate_type_changes(&self, nodes: &mut [Node], initial_changes: HashSet<String>, opset: usize) {
+    fn propagate_type_changes(
+        &self,
+        nodes: &mut [Node],
+        initial_changes: HashSet<String>,
+        opset: usize,
+    ) {
         log::debug!(
             "Propagating type changes from outputs: {:?}",
             initial_changes
