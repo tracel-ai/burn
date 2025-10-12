@@ -51,7 +51,7 @@ pub fn full_device<R: CubeRuntime, E: CubeElement>(
         &empty.client,
         cube_count,
         cube_dim,
-        linear_view(&empty, &line_size),
+        linear_view(&empty, line_size),
         ScalarArg::new(value),
     );
 

@@ -62,8 +62,8 @@ pub fn mask_fill<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
         calculate_cube_count_elemwise(input.shape.num_elements() / line_size as usize, cube_dim);
 
     let out_arg = match strategy {
-        MaskFillStrategy::Readonly => linear_view(&output, &line_size),
-        MaskFillStrategy::Inplace => linear_view_alias(&output, &line_size, 0),
+        MaskFillStrategy::Readonly => linear_view(&output, line_size),
+        MaskFillStrategy::Inplace => linear_view_alias(&output, line_size, 0),
     };
 
     unsafe {
@@ -71,8 +71,8 @@ pub fn mask_fill<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
             &input.client,
             cube_count,
             cube_dim,
-            linear_view(&input, &line_size),
-            linear_view_ref(&mask, &input, &line_size),
+            linear_view(&input, line_size),
+            linear_view_ref(&mask, &input, line_size),
             out_arg,
             ScalarArg::new(value),
         );

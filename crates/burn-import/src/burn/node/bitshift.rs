@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -79,6 +79,19 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BitShiftNode {
 
     fn into_node(self) -> Node<PS> {
         Node::BitShift(self)
+    }
+}
+
+impl OnnxIntoNode for BitShiftNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let inputs = node.inputs.iter().map(Type::from).collect();
+        let output = Type::from(node.outputs.first().unwrap());
+        let onnx_direction = onnx_ir::node::bitshift::bitshift_config(&node);
+        let direction = match onnx_direction {
+            onnx_ir::node::bitshift::Direction::Left => Direction::Left,
+            onnx_ir::node::bitshift::Direction::Right => Direction::Right,
+        };
+        Self::new(inputs, output, direction)
     }
 }
 

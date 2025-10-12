@@ -101,12 +101,12 @@ where
     }
 
     let rank = input.shape.num_dims();
-    let batch_size = input.shape.dims[0];
+    let batch_size = input.shape[0];
     let dim_c = rank - 1;
-    let shape = &input.shape.dims[1..dim_c];
+    let shape = &input.shape[1..dim_c];
 
-    let out_channels = weight.shape.dims[0];
-    let weight_shape = &weight.shape.dims[1..dim_c];
+    let out_channels = weight.shape[0];
+    let weight_shape = &weight.shape[1..dim_c];
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,

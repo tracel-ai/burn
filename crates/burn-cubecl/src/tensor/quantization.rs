@@ -50,6 +50,9 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     dtype: DType::I8,
                     qparams: None,
                 },
+                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    unimplemented!("Not yet supported")
+                }
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     panic!("Can't store native sub-byte values")
                 }
@@ -57,7 +60,7 @@ impl<R: CubeRuntime> CubeTensor<R> {
             QuantStore::U32 => {
                 let rank = self.shape.num_dims();
                 let mut shape = self.shape.clone();
-                shape.dims[rank - 1] /= scheme.num_quants();
+                shape[rank - 1] /= scheme.num_quants();
 
                 CubeTensor {
                     client: self.client.clone(),

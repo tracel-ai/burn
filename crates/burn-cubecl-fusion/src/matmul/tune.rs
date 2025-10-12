@@ -152,8 +152,8 @@ pub(crate) fn create_key<R: Runtime>(
 
     let key = MatmulAutotuneKey::generate::<R>(
         &opt.info.client,
-        &lhs.shape,
-        &rhs.shape,
+        &lhs.shape.dims,
+        &rhs.shape.dims,
         &lhs_strides,
         &rhs_strides,
         lhs.dtype.into(),

@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen, SerializationBackend};
+use super::{Node, NodeCodegen, OnnxIntoNode, SerializationBackend, extract_node_data};
 use crate::burn::{BurnImports, OtherType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::{ConstantRecord, Param, ParamId},
@@ -70,7 +70,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
     }
 
     fn into_node(self) -> Node<PS> {
-        Node::InstanceNorm(self)
+        Node::InstanceNormalization(self)
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -111,6 +111,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for InstanceNormNode {
 
         let item = Record::into_item::<PS>(record);
         item.serialize(serializer)
+    }
+}
+
+impl OnnxIntoNode for InstanceNormNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::instance_norm::instance_norm_config(&node);
+
+        // Scale tensor (aka gamma)
+        let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
+        // Bias (B) tensor
+        let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
+
+        let name = &node.name;
+        Self::new(name, input, output, gamma, beta, config)
     }
 }
 

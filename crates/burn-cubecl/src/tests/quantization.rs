@@ -15,7 +15,7 @@ mod tests {
         shape: S,
     ) {
         let shape = shape.into();
-        assert_eq!(shape.dims.len(), 2); // 2D tests
+        assert_eq!(shape.rank(), 2); // 2D tests
 
         let scheme = QuantScheme::default().with_value(value).with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
@@ -48,7 +48,7 @@ mod tests {
     ) {
         let scheme = QuantScheme::default()
             .with_value(value)
-            .with_level(QuantLevel::Block(block_size))
+            .with_level(QuantLevel::block([block_size as u8]))
             .with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
@@ -80,7 +80,7 @@ mod tests {
     ) {
         let scheme = QuantScheme::default()
             .with_value(value)
-            .with_level(QuantLevel::Block(block_size))
+            .with_level(QuantLevel::block([block_size as u8]))
             .with_store(store);
         let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 

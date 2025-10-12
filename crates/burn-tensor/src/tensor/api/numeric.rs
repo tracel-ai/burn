@@ -2325,7 +2325,7 @@ where
     ) -> Tensor<B, D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
         // Initialize shape from the current tensor dimensions and prepare for modification
-        let mut shape = self.shape().dims::<D>().to_vec();
+        let mut shape = self.shape();
         let device = self.device();
         let rank = self.dims().len();
 

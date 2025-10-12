@@ -849,7 +849,7 @@ where
         let num_ones = D2 - D;
         let shape = self.shape();
 
-        dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
+        dims[num_ones..(D + num_ones)].copy_from_slice(&shape[..D]);
 
         let shape = Shape::new(dims);
         self.reshape(shape)
@@ -879,11 +879,11 @@ where
         let mut dims = [1; D2];
         let shape = self.shape();
 
-        dims[0..dim].copy_from_slice(&shape.dims[0..dim]);
+        dims[0..dim].copy_from_slice(&shape[0..dim]);
 
         if dim < D {
             dims[dim] = 1;
-            dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
+            dims[(dim + 1)..].copy_from_slice(&shape[dim..]);
         } else {
             dims[dim] = 1;
         }
@@ -2012,11 +2012,7 @@ where
     /// }
     /// ```
     pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
-        check!(TensorCheck::split::<D>(
-            self.shape().dims.as_ref(),
-            split_size,
-            dim
-        ));
+        check!(TensorCheck::split::<D>(&self.shape(), split_size, dim));
         let size = self.shape().dims[dim];
         let mut tensors = Vec::new();
 
@@ -2063,7 +2059,7 @@ where
     /// ```
     pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split_with_sizes::<D>(
-            self.shape().dims.as_ref(),
+            &self.shape(),
             &split_sizes,
             dim
         ));
@@ -2858,13 +2854,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For filling values in a tensor, users should prefer the [Tensor::slice_fill](Tensor::slice_fill) function,
     /// which is more high-level and designed for public use.
     fn slice_fill(tensor: Self::Primitive, slices: &[Slice], value: Self::Elem) -> Self::Primitive {
-        use crate::tensor::api::slice::calculate_slice_output_shape;
-
-        let tensor_shape = tensor.shape();
-        let slice_shape_vec = calculate_slice_output_shape(slices, &tensor_shape.dims);
-        let slice_shape = Shape::from(slice_shape_vec);
-
-        let value = Self::from_data(TensorData::from([value]), &Self::device(&tensor));
+        let slice_shape = tensor.shape().slice(slices).unwrap();
+        let value = Self::from_data_dtype(
+            TensorData::from([value]),
+            &Self::device(&tensor),
+            Self::dtype(&tensor),
+        );
         let value = Self::expand(value, slice_shape);
         Self::slice_assign(tensor, slices, value)
     }
@@ -3382,7 +3377,7 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        match data.dtype {
+        match &data.dtype {
             DType::QFloat(_scheme) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
         }
@@ -3951,7 +3946,7 @@ impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E;
                 }
                 primitive
             })
-            .zip(shape.dims.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
+            .zip(shape.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
             .map(|(x, &y)| if x == -1 { y } else { x as usize })
             .collect::<Vec<_>>()
             .into_iter()

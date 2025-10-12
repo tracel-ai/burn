@@ -161,8 +161,8 @@ fn main(
 Now, let's move on to the next step, which involves implementing the remaining code to launch the
 kernel. The initial part entails loading the template and populating it with the appropriate
 variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the
-above WGSL code with some other string before it is compilated. In order to use templating
-utilities, you will have to activate the `template` feature of Burn in your `cargo.toml`.
+above WGSL code with some other string before it is compiled. In order to use templating utilities,
+you will have to activate the `template` feature of Burn in your `cargo.toml`.
 
 ```rust, ignore
 // Source the kernel written in WGSL.
@@ -200,7 +200,9 @@ the raw `WgpuBackend` type.
 
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement> Backend for CubeBackend<WgpuRuntime, F, I> {
+impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for CubeBackend<WgpuRuntime, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -219,14 +221,14 @@ impl<F: FloatElement, I: IntElement> Backend for CubeBackend<WgpuRuntime, F, I> 
 
         // Get the matmul relevant shapes.
         let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape.dims[ndims - 2];
-        let num_cols = rhs.shape.dims[ndims - 1];
+        let num_rows = lhs.shape[ndims - 2];
+        let num_cols = rhs.shape[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -264,13 +266,13 @@ impl<F: FloatElement, I: IntElement> Backend for CubeBackend<WgpuRuntime, F, I> 
         lhs.client.execute(
             Box::new(SourceKernel::new(kernel, cube_dim)),
             cube_count,
-            vec![
+            Bindings::new().with_buffers(vec![
                 lhs.handle.binding(),
                 rhs.handle.binding(),
                 bias.handle.binding(),
                 output.handle.clone().binding(),
                 info_handle.binding(),
-            ],
+            ]),
         );
 
         // Return the output tensor.
@@ -439,7 +441,8 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<WgpuBackend<G, F, I>>
+impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<CubeBackend<WgpuRuntime, F, I, BT>>
 {
 }
 ```

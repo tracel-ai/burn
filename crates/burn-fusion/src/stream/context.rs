@@ -1,4 +1,5 @@
 use burn_ir::*;
+use burn_tensor::Shape;
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -995,7 +996,7 @@ impl RelativeOps for TensorIr {
         let relative_id = self.id.to_relative(converter);
 
         // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
-        let mut relative_shape = Vec::with_capacity(self.shape.len());
+        let mut relative_shape = Vec::with_capacity(self.shape.rank());
         for dim in self.shape.iter() {
             if let Some(dim_id) = converter.shapes_global2relative.get(dim) {
                 // We already saw that dim value before, so we retrieve its ID.
@@ -1012,7 +1013,7 @@ impl RelativeOps for TensorIr {
         // We create the relative tensor.
         let relative_tensor = TensorIr {
             id: relative_id,
-            shape: relative_shape,
+            shape: Shape::from(relative_shape),
             status: self.status,
             dtype: self.dtype,
         };
@@ -1067,13 +1068,13 @@ mod tests {
     fn tensor_description_to_relative() {
         let tensor1 = TensorIr {
             id: TensorId::new(500),
-            shape: vec![512, 32, 2048],
+            shape: Shape::new([512, 32, 2048]),
             status: TensorStatus::ReadOnly,
             dtype: DType::F32,
         };
         let tensor2 = TensorIr {
             id: TensorId::new(501),
-            shape: vec![512, 128, 2048],
+            shape: Shape::new([512, 128, 2048]),
             status: TensorStatus::ReadOnly,
             dtype: DType::F32,
         };
@@ -1085,7 +1086,7 @@ mod tests {
             tensor1_local,
             TensorIr {
                 id: TensorId::new(0),
-                shape: vec![1, 2, 3],
+                shape: Shape::new([1, 2, 3]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }
@@ -1094,7 +1095,7 @@ mod tests {
             tensor2_local,
             TensorIr {
                 id: TensorId::new(1),
-                shape: vec![1, 4, 3],
+                shape: Shape::new([1, 4, 3]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }

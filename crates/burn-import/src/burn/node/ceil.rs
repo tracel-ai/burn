@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -30,6 +30,20 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CeilNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Ceil(self)
+    }
+}
+
+impl OnnxIntoNode for CeilNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = match Type::from(node.inputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("CeilNode expects tensor input"),
+        };
+        let output = match Type::from(node.outputs.first().unwrap()) {
+            Type::Tensor(t) => t,
+            _ => panic!("CeilNode expects tensor output"),
+        };
+        Self::new(input, output)
     }
 }
 

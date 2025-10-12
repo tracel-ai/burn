@@ -1,19 +1,19 @@
 /// Macro for running a function in parallel.
-#[cfg(feature = "rayon")]
+#[cfg(feature = "multi-threads")]
 #[macro_export(local_inner_macros)]
 macro_rules! run_par {
     (
         $func:expr
     ) => {{
-        use $crate::rayon::prelude::*;
+        use burn_common::rayon::prelude::*;
 
         #[allow(clippy::redundant_closure_call)]
-        $crate::rayon::scope(|_| $func())
+        burn_common::rayon::scope(|_| $func())
     }};
 }
 
 /// Macro for running a function in parallel.
-#[cfg(not(feature = "rayon"))]
+#[cfg(not(feature = "multi-threads"))]
 #[macro_export(local_inner_macros)]
 macro_rules! run_par {
     (
@@ -22,7 +22,7 @@ macro_rules! run_par {
 }
 
 /// Macro for iterating in parallel.
-#[cfg(not(feature = "rayon"))]
+#[cfg(not(feature = "multi-threads"))]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_par {
     (
@@ -31,7 +31,7 @@ macro_rules! iter_par {
 }
 
 /// Macro for iterating in parallel.
-#[cfg(feature = "rayon")]
+#[cfg(feature = "multi-threads")]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_par {
     (
@@ -40,7 +40,7 @@ macro_rules! iter_par {
 }
 
 /// Macro for iterating in parallel.
-#[cfg(feature = "rayon")]
+#[cfg(feature = "multi-threads")]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_slice_par {
     (
@@ -49,7 +49,7 @@ macro_rules! iter_slice_par {
 }
 
 /// Macro for iterating in parallel.
-#[cfg(not(feature = "rayon"))]
+#[cfg(not(feature = "multi-threads"))]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_slice_par {
     (
@@ -58,7 +58,7 @@ macro_rules! iter_slice_par {
 }
 
 /// Macro for iterating over a range in parallel.
-#[cfg(feature = "rayon")]
+#[cfg(feature = "multi-threads")]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_range_par {
     (
@@ -67,7 +67,7 @@ macro_rules! iter_range_par {
 }
 
 /// Macro for iterating over a range in parallel.
-#[cfg(not(feature = "rayon"))]
+#[cfg(not(feature = "multi-threads"))]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_range_par {
     (

@@ -94,9 +94,9 @@ pub trait Backend:
         false
     }
 
-    /// Sets the current allocation mode to static. Useful to load model weights.
+    /// Sets the current allocation mode to persistent.
     #[allow(unused_variables)]
-    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
         device: &Self::Device,
         input: Input,
         func: Func,

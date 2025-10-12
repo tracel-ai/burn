@@ -12,6 +12,7 @@ fn main() {
         .input("tests/add/add_broadcast.onnx")
         .input("tests/initializer_to_const/initializer_to_const.onnx")
         .input("tests/and/and.onnx")
+        .input("tests/and/and_broadcast.onnx")
         .input("tests/and/and_scalar.onnx")
         .input("tests/add/add_int.onnx")
         .input("tests/add/add_shape_tensor.onnx")
@@ -218,6 +219,7 @@ fn main() {
         .input("tests/one_hot/one_hot.onnx")
         .input("tests/or/or.onnx")
         .input("tests/or/or_scalar.onnx")
+        .input("tests/or/or_broadcast.onnx")
         .input("tests/pad/pad.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
@@ -317,6 +319,7 @@ fn main() {
         .input("tests/split/split.onnx")
         .input("tests/xor/xor.onnx")
         .input("tests/xor/xor_scalar.onnx")
+        .input("tests/xor/xor_broadcast.onnx")
         .out_dir("model/")
         .run_from_script();
 

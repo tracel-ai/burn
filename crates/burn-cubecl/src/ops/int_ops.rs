@@ -79,7 +79,7 @@ where
             let simple_ranges: Vec<Range<usize>> = slices
                 .iter()
                 .enumerate()
-                .map(|(i, slice)| slice.to_range(tensor.shape.dims[i]))
+                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
                 .collect();
 
             execute_with_dtype!(
@@ -562,7 +562,7 @@ where
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
         tensor.strides.swap(dim1, dim2);
-        tensor.shape.dims.swap(dim1, dim2);
+        tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
 
         tensor
     }
@@ -644,7 +644,7 @@ where
         execute_with_dtype!(
             int(tensor.dtype),
             I,
-            unary_basic_int::launch::<R, _, I>(tensor, |_| &BasicIntUnaryKind::BitwiseNot)
+            unary_basic_int::launch::<R, _, I>(tensor, |_| BasicIntUnaryKind::BitwiseNot)
         )
     }
 

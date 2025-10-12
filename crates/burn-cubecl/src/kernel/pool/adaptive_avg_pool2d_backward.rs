@@ -91,7 +91,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
     let [batches, channels, height, width] = x.shape.dims();
 
     let out_grad = into_contiguous(permute_nchw_to_nhwc(out_grad));
-    let line_size = max_line_size(&x);
+    let line_size = max_line_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), out_shape);

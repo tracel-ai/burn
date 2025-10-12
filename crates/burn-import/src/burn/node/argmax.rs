@@ -1,4 +1,4 @@
-use super::{Node, NodeCodegen};
+use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{TensorKind, TensorType, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
@@ -74,6 +74,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ArgMaxNode {
 
     fn into_node(self) -> super::Node<PS> {
         Node::ArgMax(self)
+    }
+}
+
+impl OnnxIntoNode for ArgMaxNode {
+    fn from_onnx(node: onnx_ir::Node) -> Self {
+        let input = crate::burn::TensorType::from(node.inputs.first().unwrap());
+        let output = crate::burn::Type::from(node.outputs.first().unwrap());
+        let config = onnx_ir::node::argmax::argmax_config(&node);
+        Self::new(input, output, config.axis, config.keepdims)
     }
 }
 

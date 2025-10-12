@@ -161,7 +161,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.repeat_dim(dim, times)`              | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
 | `tensor.repeat(sizes)`                       | `tensor.repeat(sizes)`                                                    |
 | `tensor.reshape(shape)`                      | `tensor.view(shape)`                                                      |
-| `tensor.roll(shfts, dims)`                   | `tensor.roll(shifts, dims)`                                               |
+| `tensor.roll(shifts, dims)`                  | `tensor.roll(shifts, dims)`                                               |
 | `tensor.roll_dim(shift, dim)`                | `tensor.roll([shift], [dim])`                                             |
 | `tensor.select(dim, indices)`                | `tensor.index_select(dim, indices)`                                       |
 | `tensor.select_assign(dim, indices, values)` | N/A                                                                       |
@@ -398,12 +398,14 @@ strategies.
 
 ## Linalg Functions
 
-| Burn API                               | PyTorch Equivalent                              |
-| -------------------------------------- | ----------------------------------------------- |
-| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`      |
-| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                            |
-| `linalg::trace(tensor)`                | `torch.trace(tensor)`                           |
-| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)` |
+
+| Burn API                               | PyTorch Equivalent                                 |
+|----------------------------------------|----------------------------------------------------|
+| `linalg::vector_norm(tensors, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`         |
+| `linalg::diag(tensor)`                 | `torch.diag(tensor)`                               |
+| `linalg::trace(tensor)`                | `torch.trace(tensor)`                              |
+| `linalg::outer(x, y)`                  | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)`    |
+| `linalg::lu_decomposition(tensor)`     | `torch.linalg.lu(tensor)`                          |
 
 ## Displaying Tensor Details
 

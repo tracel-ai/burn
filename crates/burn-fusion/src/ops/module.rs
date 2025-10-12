@@ -5,7 +5,7 @@ use crate::{
 };
 use burn_ir::*;
 use burn_tensor::{
-    Element,
+    Element, Shape,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
         IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
@@ -73,7 +73,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], weight.shape[0], size];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let description = Conv1dOpIr {
             x: x.into_ir(),
@@ -137,7 +139,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             streams.tensor(bias)
         }
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = Conv2dOpIr {
             x: x.into_ir(),
@@ -215,7 +219,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = DeformConv2dOpIr {
             x: x.into_ir(),
@@ -396,7 +402,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1, size_2];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = Conv3dOpIr {
             x: x.into_ir(),
@@ -456,7 +464,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = ConvTranspose1dOpIr {
             x: x.into_ir(),
@@ -524,7 +534,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = ConvTranspose2dOpIr {
             x: x.into_ir(),
@@ -606,7 +618,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             size_1,
             size_2,
         ];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = ConvTranspose3dOpIr {
             x: x.into_ir(),
@@ -654,7 +668,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = AvgPool1dOpIr {
             x: x.into_ir(),
@@ -706,7 +722,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = AvgPool2dOpIr {
             x: x.into_ir(),
@@ -861,7 +879,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = MaxPool1dOpIr {
             x: x.into_ir(),
@@ -923,7 +943,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = MaxPool2dOpIr {
             x: x.into_ir(),
@@ -974,8 +996,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x
             .client
-            .tensor_uninitialized(shape.clone(), B::FloatElem::dtype());
-        let out_indices = x.client.tensor_uninitialized(shape, B::IntElem::dtype());
+            .tensor_uninitialized(Shape::from(shape.clone()), B::FloatElem::dtype());
+        let out_indices = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::IntElem::dtype());
 
         let desc = MaxPool1dWithIndicesOpIr {
             x: x.into_ir(),
@@ -1041,8 +1065,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x
             .client
-            .tensor_uninitialized(shape.clone(), B::FloatElem::dtype());
-        let out_indices = x.client.tensor_uninitialized(shape, B::IntElem::dtype());
+            .tensor_uninitialized(Shape::from(shape.clone()), B::FloatElem::dtype());
+        let out_indices = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::IntElem::dtype());
 
         let desc = MaxPool2dWithIndicesOpIr {
             x: x.into_ir(),
@@ -1198,7 +1224,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], output_size];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = AdaptiveAvgPool1dOpIr {
             x: x.into_ir(),
@@ -1230,7 +1258,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = AdaptiveAvgPool2dOpIr {
             x: x.into_ir(),
@@ -1341,7 +1371,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         streams.tensor(&x);
 
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
-        let out = x.client.tensor_uninitialized(shape, B::FloatElem::dtype());
+        let out = x
+            .client
+            .tensor_uninitialized(Shape::from(shape), B::FloatElem::dtype());
 
         let desc = InterpolateOpIr {
             x: x.into_ir(),

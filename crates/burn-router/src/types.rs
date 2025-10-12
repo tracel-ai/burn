@@ -137,7 +137,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
+                fn register_empty_tensor(&self, shape: Shape, dtype: DType) -> RouterTensor<Self> {
                     match self {
                         Self::$DefaultBackend(runner) => {
                             let desc = runner.register_empty_tensor_desc(shape, dtype);
@@ -152,7 +152,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_float_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
+                fn register_float_tensor(&self, shape: Shape, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
                     match self {
                         Self::$DefaultBackend(runner) => {
                             let desc = runner.register_float_tensor_desc(shape, dtype);
@@ -233,7 +233,7 @@ macro_rules! impl_multi_backend_types {
                 fn register_tensor(
                     client: &Self::Client,
                     handle: <Self::Bridge as MultiBackendBridge>::TensorHandle,
-                    shape: Vec<usize>,
+                    shape: Shape,
                     dtype: DType,
                 ) -> RouterTensor<Self::Client> {
                     match client {

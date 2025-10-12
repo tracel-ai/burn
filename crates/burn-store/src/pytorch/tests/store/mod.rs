@@ -255,8 +255,7 @@ mod conv_model_tests {
 
         let result = store.apply_to::<TestBackend, _>(&mut model);
 
-        if result.is_ok() {
-            let result = result.unwrap();
+        if let Ok(result) = result {
             assert!(!result.applied.is_empty(), "No conv tensors applied");
 
             // Check for conv weights
@@ -356,8 +355,7 @@ mod complex_model_tests {
 
         let result = store.apply_to::<TestBackend, _>(&mut model);
 
-        if result.is_ok() {
-            let result = result.unwrap();
+        if let Ok(result) = result {
             // Check that remapped names were applied
             assert!(
                 !result.applied.is_empty(),

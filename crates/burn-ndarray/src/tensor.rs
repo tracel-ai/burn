@@ -507,8 +507,11 @@ impl NdArrayQTensor {
                 value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
+                    | QuantValue::E4M3
+                    | QuantValue::E5M2
                     | QuantValue::Q4F
                     | QuantValue::Q4S
+                    | QuantValue::E2M1
                     | QuantValue::Q2F
                     | QuantValue::Q2S,
                 ..
@@ -522,8 +525,11 @@ impl NdArrayQTensor {
                 value:
                     QuantValue::Q8F
                     | QuantValue::Q8S
+                    | QuantValue::E4M3
+                    | QuantValue::E5M2
                     | QuantValue::Q4F
                     | QuantValue::Q4S
+                    | QuantValue::E2M1
                     | QuantValue::Q2F
                     | QuantValue::Q2S,
                 ..

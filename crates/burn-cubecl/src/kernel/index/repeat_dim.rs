@@ -24,14 +24,13 @@ pub(crate) fn repeat_dim<R: CubeRuntime, E: CubeElement>(
     dim: usize,
     times: usize,
 ) -> CubeTensor<R> {
-    if input.shape.dims[dim] == 1 {
+    if input.shape[dim] == 1 {
         input.strides[dim] = 0;
-        input.shape.dims[dim] *= times;
+        input.shape = input.shape.repeat(dim, times);
         return input;
     }
 
-    let mut shape = input.shape.clone();
-    shape.dims[dim] *= times;
+    let shape = input.shape.clone().repeat(dim, times);
 
     // Create output handle
     let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape);

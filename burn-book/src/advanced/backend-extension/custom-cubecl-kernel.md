@@ -132,7 +132,9 @@ automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusio
 
 ```rust, ignore
 /// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, F, I> {
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for CubeBackend<R, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -151,14 +153,14 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, 
 
         // Get the matmul relevant shapes.
         let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape.dims[ndims - 2];
-        let num_cols = rhs.shape.dims[ndims - 1];
+        let num_rows = lhs.shape[ndims - 2];
+        let num_cols = rhs.shape[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
+            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -170,7 +172,6 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, 
             .client
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
-        // Create the output tensor primitive.
         // Create the output tensor primitive.
         let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
@@ -362,8 +363,8 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our JIT Backend.
 
 ```rust, ignore
-impl<R: CubeRuntime, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<CubeBackend<R, F, I>>
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<CubeBackend<R, F, I, BT>>
 {
 }
 ```

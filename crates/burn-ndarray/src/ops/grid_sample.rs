@@ -1,10 +1,9 @@
-use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use burn_tensor::ops::InterpolateMode;
 
 use ndarray::Array4;
 
-use crate::{FloatNdArrayElement, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, UnsafeSharedRef, iter_range_par, run_par};
 use crate::{SharedArray, ops::interpolate::bilinear_interpolate_single};
 
 /// Sample a tensor
