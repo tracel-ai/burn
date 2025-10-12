@@ -575,6 +575,12 @@ impl BurnpackReader {
                 )));
             }
 
+            // Restore param_id if it was saved, otherwise generate
+            let tensor_id = descriptor
+                .param_id
+                .map(ParamId::from)
+                .unwrap_or_else(ParamId::new);
+
             // Create lazy TensorSnapshot
             let snapshot = TensorSnapshot::from_closure(
                 Rc::new(move || {
@@ -598,8 +604,8 @@ impl BurnpackReader {
                 dtype,
                 shape,
                 name.split('.').map(|s| s.to_string()).collect(),
-                vec![],         // empty container_stack
-                ParamId::new(), // new unique id
+                vec![],    // empty container_stack
+                tensor_id, // restored or newly generated param id
             );
 
             snapshots.push(snapshot);

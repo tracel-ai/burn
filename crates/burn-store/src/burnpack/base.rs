@@ -1,40 +1,6 @@
-// Burnpack File Format Specification
-// ===================================
-//
-// The Burnpack format is a binary file format designed specifically for Burn tensors.
-//
-// File Structure:
-// ┌──────────────────────────────────┐
-// │  Header (10 bytes)               │
-// ├──────────────────────────────────┤
-// │  - Magic number (4 bytes)        │  (0x4E525542) - Little Endian
-// │  - Version (2 bytes)             │  Format version (0x0001)
-// │  - Metadata size (4 bytes)       │  Size of CBOR metadata in bytes (u32)
-// ├──────────────────────────────────┤
-// │  Metadata (CBOR)                 │
-// ├──────────────────────────────────┤
-// │  - Tensor descriptors (BTreeMap) │  Sorted map of tensor metadata
-// │    Key: tensor name (string)     │  Tensor identifier (e.g., "model.layer1.weight")
-// │    Value: TensorDescriptor       │
-// │      - dtype: enum               │  Data type (F32, F64, I32, I64, U32, U64, U8, Bool)
-// │      - shape: Vec<u64>           │  Tensor dimensions
-// │      - data_offsets: (u64, u64)  │  (start, end) byte offsets relative to data section
-// │  - Additional metadata(BTreeMap) │  User-defined key-value pairs (string -> string)
-// ├──────────────────────────────────┤
-// │  Tensor Data Section             │
-// ├──────────────────────────────────┤
-// │  Raw tensor bytes                │  Contiguous tensor data (little-endian)
-// │  (in order of offsets)           │  Each tensor's data at specified offsets
-// └──────────────────────────────────┘
-//
-// Implementation Details:
-// - Tensors are stored in a BTreeMap for O(log n) lookup by name and consistent ordering
-// - Data offsets are relative to the start of the data section (offset 0)
-// - All multi-byte values are stored in little-endian format
-// - The reader supports multiple storage backends:
-//   * Memory: Full file loaded into RAM
-//   * Mmap: Memory-mapped file for efficient large file access
-//   * FileBuffered: Direct file I/O with seeking for memory-constrained environments
+//! Core types and constants for the Burnpack file format.
+//!
+//! See the [parent module](crate::burnpack) for the complete file format specification.
 
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -182,12 +148,16 @@ pub struct BurnpackMetadata {
 /// Individual tensor descriptor
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TensorDescriptor {
-    /// Data type
+    /// Data type of the tensor
     pub dtype: DType,
     /// Tensor shape dimensions
     pub shape: Vec<u64>,
     /// Byte offsets in data section (start, end)
     pub data_offsets: (u64, u64),
+    /// Parameter ID for training state persistence matching.
+    /// Generated automatically if not present during loading.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param_id: Option<u64>,
 }
 
 /// Error types for Burnpack operations

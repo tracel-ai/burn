@@ -10,6 +10,7 @@
 //!
 //! ## Key Features
 //!
+//! - **Burnpack Format**: Native Burn format with CBOR metadata, ParamId persistence for stateful training, and no-std support
 //! - **SafeTensors Format**: Industry-standard format for secure and efficient tensor serialization
 //! - **PyTorch Compatibility**: Load PyTorch models directly into Burn with automatic weight transformation
 //! - **Zero-Copy Loading**: Memory-mapped files and lazy tensor materialization for optimal performance
@@ -62,6 +63,7 @@
 //! ## Core Components
 //!
 //! - [`ModuleSnapshot`]: Extension trait for Burn modules providing `collect()` and `apply()` methods
+//! - [`BurnpackStore`]: Native Burn format with ParamId persistence for stateful training workflows
 //! - [`SafetensorsStore`]: Primary storage implementation supporting the SafeTensors format
 //! - [`PytorchStore`]: PyTorch model loader supporting .pth and .pt files
 //! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving

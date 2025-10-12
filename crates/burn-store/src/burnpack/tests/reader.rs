@@ -507,6 +507,7 @@ fn test_reader_corrupted_shape_returns_error() {
                 dtype: DType::F32,
                 shape: vec![u64::MAX, 2, 3], // First dimension exceeds usize::MAX on 32-bit
                 data_offsets: (0, 100),
+                param_id: None,
             },
         );
 
@@ -561,6 +562,7 @@ fn test_reader_corrupted_offsets_returns_error() {
                 dtype: DType::F32,
                 shape: vec![2, 2],
                 data_offsets: (u64::MAX - 10, u64::MAX), // Offsets that exceed usize::MAX on 32-bit
+                param_id: None,
             },
         );
 
@@ -604,6 +606,7 @@ fn test_reader_corrupted_offsets_returns_error() {
                 dtype: DType::F32,
                 shape: vec![2, 2],
                 data_offsets: (0, 100),
+                param_id: None,
             },
         );
 
@@ -646,6 +649,7 @@ fn test_reader_inverted_offsets_returns_error() {
             dtype: DType::F32,
             shape: vec![2, 2],
             data_offsets: (100, 50), // End offset < start offset
+            param_id: None,
         },
     );
 

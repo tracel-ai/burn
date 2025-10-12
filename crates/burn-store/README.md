@@ -11,7 +11,8 @@ interoperability, and advanced tensor management.
 
 ### Core Capabilities
 
-- **Burnpack Format** - Native Burn format with CBOR metadata, memory-mapped loading, and no-std support
+- **Burnpack Format** - Native Burn format with CBOR metadata, memory-mapped loading, ParamId
+  persistence for stateful training, and no-std support
 - **SafeTensors Format** - Industry-standard format for secure and efficient tensor serialization
 - **PyTorch Support** - Direct loading of PyTorch .pth/.pt files with automatic weight
   transformation
@@ -51,7 +52,9 @@ let mut store = BurnpackStore::from_file("model.bpk");
 model.load_from(&mut store)?;
 ```
 
-**Performance**: Burnpack provides 2x faster loading than SafeTensors with identical memory efficiency through automatic memory mapping.
+**Performance**: Burnpack provides faster loading times and reduced memory overhead compared to other formats.
+
+**Training State Persistence**: Burnpack automatically preserves parameter identifiers (ParamId) for stateful training continuation.
 
 #### SafeTensors
 

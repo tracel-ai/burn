@@ -62,6 +62,7 @@ impl BurnpackWriter {
                     dtype: snapshot.dtype,
                     shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
                     data_offsets: (start, end),
+                    param_id: snapshot.tensor_id.map(|id| id.val()),
                 },
             );
 

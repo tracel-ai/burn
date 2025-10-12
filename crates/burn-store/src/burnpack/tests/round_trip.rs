@@ -435,3 +435,172 @@ fn test_round_trip_empty_shapes() {
         snapshots.push(empty_snapshot);
     });
 }
+
+#[test]
+fn test_param_id_persistence() {
+    use burn_core::module::ParamId;
+
+    // Create a specific ParamId with a known value
+    let original_param_id = ParamId::from(123456789u64);
+
+    let data = vec![1.0f32, 2.0, 3.0, 4.0];
+    let bytes: Vec<u8> = data.iter().flat_map(|f| f.to_le_bytes()).collect();
+    let snapshot = TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32),
+        vec!["weights".to_string()],
+        vec![],
+        original_param_id,
+    );
+
+    // Write to burnpack
+    let writer = BurnpackWriter::new(vec![snapshot]);
+    let bytes = writer.to_bytes().unwrap();
+
+    // Read back from burnpack
+    let reader = BurnpackReader::from_bytes(bytes).unwrap();
+    let loaded_snapshot = reader.get_tensor_snapshot("weights").unwrap();
+
+    // Verify ParamId was preserved
+    assert!(
+        loaded_snapshot.tensor_id.is_some(),
+        "ParamId should be present"
+    );
+    let loaded_param_id = loaded_snapshot.tensor_id.unwrap();
+    assert_eq!(
+        loaded_param_id.val(),
+        original_param_id.val(),
+        "ParamId value should be preserved: expected {}, got {}",
+        original_param_id.val(),
+        loaded_param_id.val()
+    );
+}
+
+#[test]
+fn test_param_id_backward_compatibility() {
+    use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
+    use alloc::collections::BTreeMap;
+
+    // Create metadata without param_id (simulating old burnpack format)
+    let mut tensors = BTreeMap::new();
+    tensors.insert(
+        "old_tensor".to_string(),
+        TensorDescriptor {
+            dtype: DType::F32,
+            shape: vec![2, 2],
+            data_offsets: (0, 16),
+            param_id: None, // No param_id stored (old format)
+        },
+    );
+
+    let metadata = BurnpackMetadata {
+        tensors,
+        metadata: BTreeMap::new(),
+    };
+
+    // Serialize metadata
+    let mut metadata_bytes = Vec::new();
+    ciborium::ser::into_writer(&metadata, &mut metadata_bytes).unwrap();
+
+    // Create a complete burnpack with header and data
+    use crate::burnpack::base::{BurnpackHeader, FORMAT_VERSION, MAGIC_NUMBER};
+
+    let metadata_size = metadata_bytes.len() as u32;
+    let header = BurnpackHeader {
+        magic: MAGIC_NUMBER,
+        version: FORMAT_VERSION,
+        metadata_size,
+    };
+
+    let mut full_bytes = Vec::new();
+    full_bytes.extend_from_slice(&header.into_bytes());
+    full_bytes.extend_from_slice(&metadata_bytes);
+
+    // Add tensor data (4 f32 values = 16 bytes)
+    let tensor_data = vec![1.0f32, 2.0, 3.0, 4.0];
+    for value in tensor_data {
+        full_bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    // Read the old format burnpack
+    let reader =
+        BurnpackReader::from_bytes(burn_tensor::Bytes::from_bytes_vec(full_bytes)).unwrap();
+    let loaded_snapshot = reader.get_tensor_snapshot("old_tensor").unwrap();
+
+    // Verify that a new ParamId was generated (backward compatibility)
+    assert!(
+        loaded_snapshot.tensor_id.is_some(),
+        "ParamId should be generated for old format"
+    );
+
+    // The generated ParamId should be different each time (it's new), but we can't test the exact value
+    // We just verify it exists and has a valid u64 value
+    let generated_param_id = loaded_snapshot.tensor_id.unwrap();
+    assert!(
+        generated_param_id.val() > 0,
+        "Generated ParamId should have a valid value"
+    );
+}
+
+#[test]
+fn test_multiple_tensors_preserve_distinct_param_ids() {
+    use burn_core::module::ParamId;
+
+    // Create multiple tensors with distinct ParamIds
+    let param_id_1 = ParamId::from(111111u64);
+    let param_id_2 = ParamId::from(222222u64);
+    let param_id_3 = ParamId::from(333333u64);
+
+    let mut snapshots = Vec::new();
+
+    let data1 = vec![1.0f32, 2.0];
+    let bytes1: Vec<u8> = data1.iter().flat_map(|f| f.to_le_bytes()).collect();
+    snapshots.push(TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(bytes1, vec![2], DType::F32),
+        vec!["tensor1".to_string()],
+        vec![],
+        param_id_1,
+    ));
+
+    let data2 = vec![3.0f32, 4.0];
+    let bytes2: Vec<u8> = data2.iter().flat_map(|f| f.to_le_bytes()).collect();
+    snapshots.push(TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(bytes2, vec![2], DType::F32),
+        vec!["tensor2".to_string()],
+        vec![],
+        param_id_2,
+    ));
+
+    let data3 = vec![5.0f32, 6.0];
+    let bytes3: Vec<u8> = data3.iter().flat_map(|f| f.to_le_bytes()).collect();
+    snapshots.push(TensorSnapshot::from_data(
+        TensorData::from_bytes_vec(bytes3, vec![2], DType::F32),
+        vec!["tensor3".to_string()],
+        vec![],
+        param_id_3,
+    ));
+
+    // Write to burnpack
+    let writer = BurnpackWriter::new(snapshots);
+    let bytes = writer.to_bytes().unwrap();
+
+    // Read back
+    let reader = BurnpackReader::from_bytes(bytes).unwrap();
+
+    let snapshot1 = reader.get_tensor_snapshot("tensor1").unwrap();
+    let snapshot2 = reader.get_tensor_snapshot("tensor2").unwrap();
+    let snapshot3 = reader.get_tensor_snapshot("tensor3").unwrap();
+
+    // Verify each ParamId was preserved correctly
+    assert_eq!(snapshot1.tensor_id.unwrap().val(), param_id_1.val());
+    assert_eq!(snapshot2.tensor_id.unwrap().val(), param_id_2.val());
+    assert_eq!(snapshot3.tensor_id.unwrap().val(), param_id_3.val());
+
+    // Verify they are distinct
+    let id1 = snapshot1.tensor_id.unwrap().val();
+    let id2 = snapshot2.tensor_id.unwrap().val();
+    let id3 = snapshot3.tensor_id.unwrap().val();
+
+    assert_ne!(id1, id2, "ParamIds should be distinct");
+    assert_ne!(id2, id3, "ParamIds should be distinct");
+    assert_ne!(id1, id3, "ParamIds should be distinct");
+}
