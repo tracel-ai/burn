@@ -1,4 +1,8 @@
 //! Processor for Add operation
+//!
+//! The Add operation performs element-wise addition with broadcasting support.
+//! This processor includes special handling for type propagation when adding
+//! constants to Shape or Scalar types.
 
 use crate::ir::Node;
 use crate::processor::NodeProcessor;
@@ -9,21 +13,34 @@ pub struct AddProcessor;
 
 impl NodeProcessor for AddProcessor {
     fn first_pass(&self, node: &mut Node, _opset: usize) {
-        // make sure there are two only inputs
+        // Add operation requires exactly two inputs
         assert_eq!(node.inputs.len(), 2);
 
-        // if the first input is Shape and the second is Constant
-        // then make the second arg Should be Shape
+        // Type propagation for Shape arithmetic:
+
+        // Case 1: Shape + Constant => Shape + Shape
         if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
             node.inputs[1].should_be(node.inputs[0].ty.clone());
         }
 
-        // if the first input is Constant and the second is Shape
-        // then make the first arg Should be Shape
+        // Case 2: Constant + Shape => Shape + Shape
         if node.inputs[1].ty.is_shape() && node.inputs[0].has_value() {
             node.inputs[0].should_be(node.inputs[1].ty.clone());
         }
 
+        // Type propagation for Scalar arithmetic:
+
+        // Case 3: Scalar + Constant => Scalar + Scalar
+        if node.inputs[0].ty.is_scalar() && node.inputs[1].has_value() {
+            node.inputs[1].should_be(node.inputs[0].ty.clone());
+        }
+
+        // Case 4: Constant + Scalar => Scalar + Scalar
+        if node.inputs[1].ty.is_scalar() && node.inputs[0].has_value() {
+            node.inputs[0].should_be(node.inputs[1].ty.clone());
+        }
+
+        // Apply standard broadcasting rules to infer output type
         same_as_input_broadcast(node);
     }
 }

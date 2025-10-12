@@ -333,6 +333,7 @@ impl Argument {
     /// This allows processors to declare type expectations for their inputs,
     /// which can be used for type inference of upstream nodes
     pub fn should_be(&self, expected_ty: ArgType) {
+        // TODO mark that output as that type and after marking, mark the input as that type
         if let Some(store) = &self.value_store {
             store
                 .borrow_mut()
