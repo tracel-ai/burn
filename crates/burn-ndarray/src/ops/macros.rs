@@ -51,42 +51,56 @@ pub(crate) fn prod_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) ->
         .into_shared()
 }
 
-/// Macro to generate cumulative operation functions with minimal code duplication.
+/// Generic cumulative operation function with closure-based operation.
 ///
-/// Generates the boilerplate for cumulative operations (cumsum, cumprod, cummin, cummax)
-/// by only requiring the operation-specific logic to be specified.
-macro_rules! cumulative_fn {
-    ($fn_name:ident, $op:expr) => {
-        pub(crate) fn $fn_name<E: NdArrayElement>(
-            tensor: SharedArray<E>,
-            dim: usize,
-        ) -> SharedArray<E> {
-            let axis = Axis(dim);
-            let shape = tensor.shape().to_vec();
-            let mut result = tensor.to_owned();
-            let dim_size = shape[dim];
+/// Reduces code duplication for cumulative operations (cumsum, cumprod, cummin, cummax)
+/// by accepting a closure that defines the operation-specific logic.
+///
+/// # Arguments
+///
+/// * `tensor` - The input tensor
+/// * `dim` - The dimension along which to apply the cumulative operation
+/// * `op` - A closure that takes mutable current value and previous value references
+pub(crate) fn cumulative_with_op<E, F>(tensor: SharedArray<E>, dim: usize, op: F) -> SharedArray<E>
+where
+    E: NdArrayElement,
+    F: Fn(&mut E, &E),
+{
+    let axis = Axis(dim);
+    let shape = tensor.shape().to_vec();
+    let mut result = tensor.to_owned();
+    let dim_size = shape[dim];
 
-            for i in 1..dim_size {
-                let prev = result.index_axis(axis, i - 1).to_owned();
-                let mut current = result.index_axis_mut(axis, i);
-                Zip::from(&mut current).and(&prev).for_each($op);
-            }
+    for i in 1..dim_size {
+        let prev = result.index_axis(axis, i - 1).to_owned();
+        let mut current = result.index_axis_mut(axis, i);
+        Zip::from(&mut current).and(&prev).for_each(&op);
+    }
 
-            result.into_shared()
-        }
-    };
+    result.into_shared()
 }
 
-// Generate all cumulative operation functions using the macro
-cumulative_fn!(cumsum_dim, |c, &p| *c = c.add(p.elem()));
-cumulative_fn!(cumprod_dim, |c, &p| *c = c.mul(p.elem()));
-cumulative_fn!(cummin_dim, |c, &p| {
-    if p < *c {
-        *c = p;
-    }
-});
-cumulative_fn!(cummax_dim, |c, &p| {
-    if p > *c {
-        *c = p;
-    }
-});
+// Define all cumulative operation functions using the generic function
+pub(crate) fn cumsum_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+    cumulative_with_op(tensor, dim, |c, &p| *c = c.add(p.elem()))
+}
+
+pub(crate) fn cumprod_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+    cumulative_with_op(tensor, dim, |c, &p| *c = c.mul(p.elem()))
+}
+
+pub(crate) fn cummin_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+    cumulative_with_op(tensor, dim, |c, &p| {
+        if p < *c {
+            *c = p;
+        }
+    })
+}
+
+pub(crate) fn cummax_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+    cumulative_with_op(tensor, dim, |c, &p| {
+        if p > *c {
+            *c = p;
+        }
+    })
+}
