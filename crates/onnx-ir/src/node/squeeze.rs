@@ -3,10 +3,19 @@ use crate::processor::NodeProcessor;
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use std::any::Any;
 
+/// Represents either a static value or a runtime argument for squeeze axes.
+#[derive(Debug, Clone)]
+pub enum SqueezeInput {
+    /// Static axes known at compile time.
+    Static(Vec<i64>),
+    /// Runtime axes determined during execution.
+    Runtime(crate::ir::Argument),
+}
+
 /// Configuration for Squeeze operation
 #[derive(Debug, Clone)]
 pub struct SqueezeConfig {
-    pub axes: Option<Vec<i64>>,
+    pub axes: Option<SqueezeInput>,
 }
 
 impl NodeConfig for SqueezeConfig {
@@ -22,25 +31,28 @@ pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
     fn process_config(&self, node: &mut Node, _opset: usize) {
-        // ALL logic from squeeze_config inlined here
-        let axes =
-        // In ONNX opset 13+, axes are provided as a second input
-        // When no axes input is provided, return None (meaning squeeze all dims with size 1)
-        if node.inputs.len() == 2 {
-            // Get axes from the second input (ONNX opset 13+ standard)
-            match node.inputs[1].into_value() {
-                Some(value) => match &value.data {
-                    Data::Int64s(axes) => Some(axes.clone()),
-                    _ => None,
-                },
-                None => None,
+        fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
+            // In ONNX opset 13+, axes are provided as a second input
+            if node.inputs.len() < 2 {
+                return None; // No axes input means squeeze all dims with size 1
             }
-        } else {
-            // No axes input means squeeze all dimensions with size 1
-            // Return None to indicate empty dims should be passed to squeeze_dims
-            None
-        };
 
+            let input = &node.inputs[1];
+            match input.into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Some(SqueezeInput::Runtime(runtime_arg))
+                }
+                Some(value) => match &value.data {
+                    Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
+                    _ => panic!("Squeeze: axes must be int64 type"),
+                },
+            }
+        }
+
+        let axes = get_squeeze_axes(node);
         let config = SqueezeConfig { axes };
         node.config = Some(Box::new(config));
     }
@@ -48,16 +60,16 @@ impl NodeProcessor for SqueezeProcessor {
     fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Squeeze rank inference for node {}", node.name);
 
-        let axes = if node.inputs.len() == 2 {
-            match node.inputs[1].into_value().as_ref() {
-                Some(value) => match &value.data {
-                    Data::Int64s(axes) => Some(axes.clone()),
-                    _ => panic!("Squeeze: invalid input types"),
-                },
-                None => None,
+        // Extract axes from config
+        let config = node.config::<SqueezeConfig>();
+        // TODO mark axes input as Shape input if constant
+        let axes = match &config.axes {
+            Some(SqueezeInput::Static(axes_vec)) => Some(axes_vec.clone()),
+            Some(SqueezeInput::Runtime(_)) => {
+                // Runtime axes - cannot infer rank without static information
+                None
             }
-        } else {
-            None
+            None => None,
         };
 
         log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
@@ -153,6 +165,13 @@ mod tests {
         builder
     }
 
+    fn create_runtime_squeeze_node() -> NodeBuilder {
+        NodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
+            .input_tensor_f32("data", 4, None)
+            .input_tensor_i64("axes", 0, None) // Runtime input - no static value
+            .output_tensor_f32("squeezed", 2, None)
+    }
+
     #[test]
     fn test_squeeze_config_with_axes_input() {
         let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(16);
@@ -160,7 +179,7 @@ mod tests {
         let processor = SqueezeProcessor;
         processor.process_config(&mut node, 16);
         let config = node.config::<SqueezeConfig>();
-        assert_eq!(config.axes, Some(vec![0, 2]));
+        assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
     }
 
     #[test]
@@ -170,6 +189,16 @@ mod tests {
         let processor = SqueezeProcessor;
         processor.process_config(&mut node, 16);
         let config = node.config::<SqueezeConfig>();
-        assert_eq!(config.axes, None);
+        assert!(config.axes.is_none());
+    }
+
+    #[test]
+    fn test_squeeze_config_runtime_axes() {
+        let node = create_runtime_squeeze_node().build();
+        let mut node = node;
+        let processor = SqueezeProcessor;
+        processor.process_config(&mut node, 16);
+        let config = node.config::<SqueezeConfig>();
+        assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
     }
 }
