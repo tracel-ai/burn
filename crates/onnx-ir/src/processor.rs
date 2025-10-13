@@ -141,13 +141,31 @@ impl ProcessorRegistry {
             Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
         );
 
-        // Other element-wise binary operations
-        registry.register(NodeType::Pow, Box::new(crate::node::pow::PowProcessor));
-        registry.register(NodeType::Max, Box::new(crate::node::max::MaxProcessor));
-        registry.register(NodeType::Min, Box::new(crate::node::min::MinProcessor));
-        registry.register(NodeType::And, Box::new(crate::node::and::AndProcessor));
-        registry.register(NodeType::Or, Box::new(crate::node::or::OrProcessor));
-        registry.register(NodeType::Xor, Box::new(crate::node::xor::XorProcessor));
+        // Other element-wise binary operations (simple broadcasting, no special type handling)
+        registry.register(
+            NodeType::Pow,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Max,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Min,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
+        registry.register(
+            NodeType::And,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Or,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Xor,
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+        );
         registry.register(NodeType::Sum, Box::new(crate::node::sum::SumProcessor));
 
         // Unary operations
@@ -564,15 +582,15 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::BitwiseAnd,
-            Box::new(crate::node::bitwise_and::BitwiseAndProcessor),
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
         registry.register(
             NodeType::BitwiseOr,
-            Box::new(crate::node::bitwise_or::BitwiseOrProcessor),
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
         registry.register(
             NodeType::BitwiseXor,
-            Box::new(crate::node::bitwise_xor::BitwiseXorProcessor),
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
         registry.register(
             NodeType::BitwiseNot,
@@ -604,7 +622,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::PRelu,
-            Box::new(crate::node::prelu::PReluProcessor),
+            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
         );
 
         registry
