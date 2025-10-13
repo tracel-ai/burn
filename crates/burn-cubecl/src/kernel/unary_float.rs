@@ -115,6 +115,7 @@ pub(crate) mod unary_basic {
         Round,
         Floor,
         Ceil,
+        Trunc,
         Erf,
         Recip,
     }
@@ -143,6 +144,7 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Round => Line::round(input),
                 BasicFloatUnaryKind::Floor => Line::floor(input),
                 BasicFloatUnaryKind::Ceil => Line::ceil(input),
+                BasicFloatUnaryKind::Trunc => Line::trunc(input),
                 BasicFloatUnaryKind::Erf => Line::erf(input),
                 BasicFloatUnaryKind::Recip => Line::recip(input),
             }

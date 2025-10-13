@@ -475,6 +475,10 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Trunc(desc) => FloatOperationIr::Ceil(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             FloatOperationIr::IsNan(desc) => FloatOperationIr::IsNan(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
