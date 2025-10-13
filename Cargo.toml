@@ -136,7 +136,7 @@ derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.11.1", default-features = false }
 bon = "3.7.0"
-half = { version = "2.6.0", features = [
+half = { version = "2.7.0", features = [
     "alloc",
     "num-traits",
     "serde",
