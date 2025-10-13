@@ -123,11 +123,25 @@ impl ProcessorRegistry {
     pub fn with_standard_processors() -> Self {
         let mut registry = Self::new();
 
-        // Element-wise binary operations
-        registry.register(NodeType::Add, Box::new(crate::node::add::AddProcessor));
-        registry.register(NodeType::Sub, Box::new(crate::node::sub::SubProcessor));
-        registry.register(NodeType::Mul, Box::new(crate::node::mul::MulProcessor));
-        registry.register(NodeType::Div, Box::new(crate::node::div::DivProcessor));
+        // Basic arithmetic binary operations (with Shape/Scalar type propagation)
+        registry.register(
+            NodeType::Add,
+            Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Sub,
+            Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Mul,
+            Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
+        );
+        registry.register(
+            NodeType::Div,
+            Box::new(crate::node::arithmetic::ArithmeticBinaryProcessor),
+        );
+
+        // Other element-wise binary operations
         registry.register(NodeType::Pow, Box::new(crate::node::pow::PowProcessor));
         registry.register(NodeType::Max, Box::new(crate::node::max::MaxProcessor));
         registry.register(NodeType::Min, Box::new(crate::node::min::MinProcessor));
