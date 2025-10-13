@@ -304,49 +304,31 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        use super::macros::cumulative_op;
         // Convert to float for computation, then convert back
         let dtype = tensor.tensor.dtype();
         let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
 
-        let result_float = cumulative_op!(
-            tensor_float,
-            dim,
-            tensor_float.narrow(dim, 0, 1).unwrap(),
-            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
-                prev.broadcast_mul(curr).unwrap()
-            }
-        );
+        let result_float = super::utils::cumulative_with_op(&tensor_float, dim, |prev, curr| {
+            prev.broadcast_mul(curr)
+        });
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
     fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        use super::macros::cumulative_op;
         // Convert to float for computation, then convert back
         let dtype = tensor.tensor.dtype();
         let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
 
-        let result_float = cumulative_op!(
-            tensor_float,
-            dim,
-            tensor_float.narrow(dim, 0, 1).unwrap(),
-            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
-                prev.broadcast_minimum(curr).unwrap()
-            }
-        );
+        let result_float = super::utils::cumulative_with_op(&tensor_float, dim, |prev, curr| {
+            prev.broadcast_minimum(curr)
+        });
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
     fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        use super::macros::cumulative_op;
-        let result = cumulative_op!(
-            tensor.tensor,
-            dim,
-            tensor.tensor.narrow(dim, 0, 1).unwrap(),
-            |prev: &candle_core::Tensor, curr: &candle_core::Tensor| {
-                prev.broadcast_maximum(curr).unwrap()
-            }
-        );
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_maximum(curr)
+        });
         CandleTensor::new(result)
     }
 
