@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -42,7 +44,10 @@ impl LayerNormConfig {
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // LayerNormalization implementation supports opset 17+
+        validate_opset(&node.node_type, opset, 17);
+
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("LayerNorm: weight tensor must be present")
@@ -105,9 +110,9 @@ mod tests {
 
     #[test]
     fn test_layer_norm_config_basic() {
-        let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(16);
+        let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(17);
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 17);
 
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
@@ -116,9 +121,9 @@ mod tests {
 
     #[test]
     fn test_layer_norm_config_no_stash_type() {
-        let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(16);
+        let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(17);
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 17);
 
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
@@ -145,11 +150,11 @@ mod tests {
             .attr_float("epsilon", 1e-5)
             .attr_int("axis", 0) // axis=0 is NOT the last dimension for 2D weight
             .attr_int("stash_type", 1)
-            .build_with_graph_data(16);
+            .build_with_graph_data(17);
 
         // Now axis=0 should trigger a panic since it's not the last dimension (1)
         let mut node = node;
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 17);
     }
 }

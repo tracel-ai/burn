@@ -1,4 +1,6 @@
 use crate::ir::{Node, NodeConfig};
+use crate::util::validate_opset;
+
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
 use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
@@ -60,7 +62,10 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Conv implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
         let mut pads = vec![0, 0, 0, 0];

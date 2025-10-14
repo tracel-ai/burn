@@ -1,11 +1,16 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use core::cmp::max;
 
 pub struct MatMulIntegerProcessor;
 
 impl NodeProcessor for MatMulIntegerProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // MatMulInteger implementation supports opset 10+
+        validate_opset(&node.node_type, opset, 10);
+
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
                 let mut out_rank = max(a.rank, b.rank);

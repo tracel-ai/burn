@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::util::same_as_input;
 use crate::{
     ir::{Node, NodeConfig},
@@ -64,7 +66,10 @@ impl NodeConfig for MaxPool1dConfig {
 pub struct MaxPool1dProcessor;
 
 impl NodeProcessor for MaxPool1dProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // MaxPool implementation supports opset 11+ (for enhanced calculations)
+        validate_opset(&node.node_type, opset, 11);
+
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1];
         let mut pads = vec![0, 0];

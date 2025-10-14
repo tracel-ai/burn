@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::{
     ArgType, TensorType,
     ir::{Node, NodeConfig},
@@ -25,7 +27,10 @@ impl NodeConfig for SpaceToDepthConfig {
 pub struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // SpaceToDepth implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         // ALL logic from space_to_depth_config inlined here
         let mut block_size: Option<usize> = None;
 

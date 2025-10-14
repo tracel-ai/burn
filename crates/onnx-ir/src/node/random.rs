@@ -1,12 +1,16 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
 use crate::protos::tensor_proto::DataType;
+use crate::util::validate_opset;
 use protobuf::Enum;
 
 pub struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Random operations support opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         log::debug!("Random rank inference for node {}", node.name);
 
         let dtype = node

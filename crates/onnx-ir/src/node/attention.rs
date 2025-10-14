@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -62,7 +64,10 @@ fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a Tenso
 pub struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Attention implementation supports opset 23+
+        validate_opset(&node.node_type, opset, 23);
+
         if node.inputs.len() < 3 {
             panic!("Attention must have at least 3 inputs")
         }
@@ -344,7 +349,7 @@ mod tests {
         );
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 23);
     }
 
     #[test]
@@ -352,7 +357,7 @@ mod tests {
         let node = create_simple_test_node(None, None, None, None, None, Some(2.0), None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 23);
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
     }
@@ -362,7 +367,7 @@ mod tests {
         let node = create_simple_test_node(None, None, None, None, Some(2.0), None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 23);
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
     }
@@ -372,7 +377,7 @@ mod tests {
         let node = create_simple_test_node(Some(1), None, None, None, None, None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 23);
         let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
     }
@@ -386,7 +391,7 @@ mod tests {
         let node = create_simple_test_node(None, None, None, Some(raw), None, None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 23);
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }

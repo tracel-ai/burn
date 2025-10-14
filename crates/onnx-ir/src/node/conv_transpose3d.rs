@@ -1,4 +1,5 @@
 use crate::ir::{Node, NodeConfig};
+
 use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use std::any::Any;

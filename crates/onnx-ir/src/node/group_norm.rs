@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -39,7 +41,10 @@ impl GroupNormConfig {
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // GroupNormalization implementation supports opset 18+
+        validate_opset(&node.node_type, opset, 18);
+
         let weight_shape = node.inputs[1]
             .into_value()
             .as_ref()
@@ -101,9 +106,9 @@ mod tests {
 
     #[test]
     fn test_group_norm_config_basic() {
-        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(16);
+        let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 18);
 
         let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
@@ -113,9 +118,9 @@ mod tests {
 
     #[test]
     fn test_group_norm_config_no_stash_type() {
-        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(16);
+        let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 18);
 
         let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
@@ -127,8 +132,8 @@ mod tests {
     #[should_panic]
     fn test_group_norm_config_invalid_num_groups() {
         // num features is not divisible by num groups
-        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(16);
+        let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 16);
+        processor.process_config(&mut node, 18);
     }
 }

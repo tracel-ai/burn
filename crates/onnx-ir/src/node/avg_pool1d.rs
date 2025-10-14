@@ -1,4 +1,6 @@
 use crate::ir::NodeConfig;
+use crate::util::validate_opset;
+
 use crate::processor::NodeProcessor;
 use crate::util::same_as_input;
 use crate::{ir::Node, node::padding::padding_config_1d};
@@ -49,7 +51,10 @@ impl NodeConfig for AvgPool1dConfig {
 pub struct AvgPool1dProcessor;
 
 impl NodeProcessor for AvgPool1dProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // AveragePool implementation supports opset 11+ (for dilation support)
+        validate_opset(&node.node_type, opset, 11);
+
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1];
         let mut pads = vec![0, 0];

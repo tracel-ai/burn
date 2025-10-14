@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::{
     ArgType, TensorType,
     ir::{Node, NodeConfig},
@@ -48,7 +50,10 @@ impl NodeConfig for DepthToSpaceConfig {
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // DepthToSpace implementation supports opset 11+ (for mode attribute)
+        validate_opset(&node.node_type, opset, 11);
+
         let mut block_size: Option<usize> = None;
         let mut mode = DepthToSpaceMode::DCR;
 
