@@ -2,13 +2,22 @@ use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
 use std::any::Any;
 
+/// Represents either a static value or a runtime argument for TopK k parameter.
+#[derive(Debug, Clone)]
+pub enum TopKInput {
+    /// Static k known at compile time.
+    Static(usize),
+    /// Runtime k determined during execution.
+    Runtime(crate::ir::Argument),
+}
+
 /// Configuration for the TopK operation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct TopKConfig {
     /// The axis along which to perform the top-k selection.
     pub axis: usize,
     /// The number of top elements to select.
-    pub k: usize,
+    pub k: TopKInput,
 }
 
 impl NodeConfig for TopKConfig {
@@ -18,13 +27,6 @@ impl NodeConfig for TopKConfig {
 
     fn clone_box(&self) -> Box<dyn NodeConfig> {
         Box::new(self.clone())
-    }
-}
-
-impl TopKConfig {
-    /// Creates a new TopKConfig.
-    pub fn new(axis: usize, k: usize) -> Self {
-        Self { axis, k }
     }
 }
 
@@ -39,18 +41,30 @@ impl NodeProcessor for TopKProcessor {
         };
 
         let k = match node.inputs.get(1) {
-            Some(k_tensor) => k_tensor
-                .clone()
-                .into_value()
-                .expect("TopK: only constant 'k' tensor is currently supported")
-                .data
-                .into_i64s()[0],
-            _ => node
-                .attrs
-                .get("k")
-                .expect("TopK: number of top elements 'k' is missing")
-                .clone()
-                .into_i64(),
+            Some(k_tensor) => {
+                match k_tensor.into_value() {
+                    None => {
+                        // Runtime input - no static value available
+                        let mut runtime_arg = k_tensor.clone();
+                        runtime_arg.value_store = None;
+                        TopKInput::Runtime(runtime_arg)
+                    }
+                    Some(tensor_data) => {
+                        let k_value = tensor_data.data.into_i64s()[0];
+                        TopKInput::Static(k_value as usize)
+                    }
+                }
+            }
+            _ => {
+                // Fall back to attribute
+                let k_value = node
+                    .attrs
+                    .get("k")
+                    .expect("TopK: number of top elements 'k' is missing")
+                    .clone()
+                    .into_i64();
+                TopKInput::Static(k_value as usize)
+            }
         };
 
         let mut axis = match node.attrs.get("axis") {
@@ -75,7 +89,10 @@ impl NodeProcessor for TopKProcessor {
             unimplemented!("TopK: only sorted elements is supported")
         };
 
-        let config = TopKConfig::new(axis as usize, k as usize);
+        let config = TopKConfig {
+            axis: axis as usize,
+            k,
+        };
         node.config = Some(Box::new(config));
     }
 
@@ -202,7 +219,8 @@ mod tests {
         let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
-        assert_eq!(*config, TopKConfig { axis: 2, k: 10 });
+        assert_eq!(config.axis, 2);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 10));
     }
 
     #[test]
@@ -216,7 +234,8 @@ mod tests {
         let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
-        assert_eq!(*config, TopKConfig { axis: 3, k: 5 });
+        assert_eq!(config.axis, 3);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 5));
     }
 
     #[test]
@@ -232,7 +251,8 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TopKConfig>();
 
-        assert_eq!(*config, TopKConfig { axis: 1, k: 3 });
+        assert_eq!(config.axis, 1);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 3));
     }
 
     #[test]
@@ -249,7 +269,8 @@ mod tests {
         let config = node.config::<TopKConfig>();
 
         // For rank 4, axis -2 should be 2
-        assert_eq!(*config, TopKConfig { axis: 2, k: 5 });
+        assert_eq!(config.axis, 2);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 5));
     }
 
     #[test]
@@ -265,7 +286,8 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TopKConfig>();
 
-        assert_eq!(*config, TopKConfig { axis: 1, k: 7 });
+        assert_eq!(config.axis, 1);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 7));
     }
 
     #[test]
@@ -281,7 +303,8 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TopKConfig>();
 
-        assert_eq!(*config, TopKConfig { axis: 2, k: 2 });
+        assert_eq!(config.axis, 2);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 2));
     }
 
     #[test]
@@ -350,6 +373,26 @@ mod tests {
         let config = node.config::<TopKConfig>();
 
         // K from input should be used (5), not from attribute (10)
-        assert_eq!(*config, TopKConfig { axis: 2, k: 5 });
+        assert_eq!(config.axis, 2);
+        assert!(matches!(&config.k, TopKInput::Static(k) if *k == 5));
+    }
+
+    #[test]
+    fn test_top_k_config_with_runtime_k() {
+        // Test when k is provided as a runtime input (no static value)
+        let node = NodeBuilder::new(NodeType::TopK, "test_topk")
+            .input_tensor_f32("X", 3, None)
+            .input_tensor_i64("K", 0, None) // Runtime input - no static value
+            .output_tensor_f32("Values", 0, None)
+            .output_tensor_i64("Indices", 0, None)
+            .build();
+
+        let mut node = node;
+        let processor = TopKProcessor;
+        processor.process_config(&mut node, 16);
+        let config = node.config::<TopKConfig>();
+
+        assert_eq!(config.axis, 2); // Default axis -1 becomes 2 for rank 3
+        assert!(matches!(&config.k, TopKInput::Runtime(arg) if arg.name == "K"));
     }
 }
