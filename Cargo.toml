@@ -74,7 +74,7 @@ quote = "1.0.41"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = { version = "1.11.3", default-features = false, features = [
+regex = { version = "1.12.1", default-features = false, features = [
     "perf",
     "unicode",
 ] }
@@ -136,7 +136,7 @@ derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.11.1", default-features = false }
 bon = "3.7.0"
-half = { version = "2.6.0", features = [
+half = { version = "2.7.0", features = [
     "alloc",
     "num-traits",
     "serde",
@@ -158,7 +158,7 @@ serde_json = { version = "1.0.145", default-features = false }
 uuid = { version = "1.18.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.175"
+libc = "0.2.177"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.36.1"
 systemstat = "0.2.5"
