@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
@@ -48,7 +49,16 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
 pub struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Validate opset based on operation type
+        let min_opset = match node.node_type {
+            crate::ir::NodeType::Equal => 7,
+            crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 9,
+            crate::ir::NodeType::GreaterOrEqual | crate::ir::NodeType::LessOrEqual => 12,
+            _ => return, // Other comparison operations
+        };
+        validate_opset(&node.node_type, opset, min_opset);
+
         log::debug!("Elementwise comparison for node {}", node.name);
 
         // Check if both inputs are Shape types

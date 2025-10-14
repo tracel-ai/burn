@@ -36,7 +36,7 @@ pub struct TopKProcessor;
 impl NodeProcessor for TopKProcessor {
     fn process_config(&self, node: &mut Node, opset: usize) {
         // TopK implementation supports opset 10+ (k as input)
-        validate_opset("TopK", opset, 10);
+        validate_opset(&node.node_type, opset, 10);
 
         // Extract the shape of the input data tensor
         let data_tensor = match node.inputs.first().unwrap().clone().ty {

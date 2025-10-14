@@ -6,7 +6,7 @@
 
 use crate::ir::Node;
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input_broadcast;
+use crate::util::{same_as_input_broadcast, validate_opset};
 
 /// Node processor for basic arithmetic binary operations
 ///
@@ -20,7 +20,10 @@ use crate::util::same_as_input_broadcast;
 pub struct ArithmeticBinaryProcessor;
 
 impl NodeProcessor for ArithmeticBinaryProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Arithmetic operations (Add, Sub, Mul, Div, Pow) require opset 7+ for numpy-style broadcasting
+        validate_opset(&node.node_type, opset, 7);
+
         // Arithmetic binary operations require exactly two inputs
         assert_eq!(node.inputs.len(), 2);
 

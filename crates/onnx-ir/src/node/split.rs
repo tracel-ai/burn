@@ -38,7 +38,7 @@ pub struct SplitProcessor;
 impl NodeProcessor for SplitProcessor {
     fn process_config(&self, node: &mut Node, opset: usize) {
         // Split implementation supports opset 11+
-        validate_opset("Split", opset, 11);
+        validate_opset(&node.node_type, opset, 11);
 
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;

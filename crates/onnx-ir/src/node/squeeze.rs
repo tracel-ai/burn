@@ -33,7 +33,7 @@ pub struct SqueezeProcessor;
 impl NodeProcessor for SqueezeProcessor {
     fn process_config(&self, node: &mut Node, opset: usize) {
         // Squeeze implementation supports opset 13+ (axes as input)
-        validate_opset("Squeeze", opset, 13);
+        validate_opset(&node.node_type, opset, 13);
 
         fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input

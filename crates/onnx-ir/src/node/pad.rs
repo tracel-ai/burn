@@ -1,5 +1,5 @@
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::util::{same_as_input, validate_opset};
 
 use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig};
 use std::any::Any;
@@ -45,7 +45,10 @@ pub struct PadProcessor;
 impl NodeProcessor for PadProcessor {
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Pad implementation supports opset 11+
+        validate_opset(&node.node_type, opset, 11);
+
         fn get_pads(node: &Node) -> PadInput {
             if node.inputs.is_empty() {
                 panic!("Pad: must provide data as input")

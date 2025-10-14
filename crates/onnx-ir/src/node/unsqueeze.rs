@@ -6,6 +6,7 @@
 //! ONNX models.
 
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{
     TensorData,
     ir::{ArgType, Data, Node, NodeConfig, TensorType},
@@ -34,7 +35,10 @@ impl NodeConfig for UnsqueezeConfig {
 pub struct UnsqueezeProcessor;
 
 impl NodeProcessor for UnsqueezeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Unsqueeze implementation supports opset 13+ (axes as input)
+        validate_opset(&node.node_type, opset, 13);
+
         // ALL logic from unsqueeze_config inlined here
         // Check if axes attribute exists
         for (key, value) in node.attrs.iter() {

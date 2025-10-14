@@ -79,7 +79,7 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
 ///
 /// # Arguments
 ///
-/// * `op_name` - The name of the ONNX operator (e.g., "Clip", "Reshape")
+/// * `node_type` - The ONNX operator type (e.g., NodeType::Clip, NodeType::Reshape)
 /// * `opset` - The opset version being used
 /// * `min_version` - The minimum opset version that supports this operator
 ///
@@ -96,15 +96,15 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
 ///
 /// ```ignore
 /// // In Clip processor
-/// validate_opset("Clip", opset, 11);  // Clip requires opset >= 11 for min/max as inputs
+/// validate_opset(&node.node_type, opset, 11);  // Clip requires opset >= 11 for min/max as inputs
 /// ```
 #[track_caller]
-pub fn validate_opset(op_name: &str, opset: usize, min_version: usize) {
+pub fn validate_opset(node_type: &crate::ir::NodeType, opset: usize, min_version: usize) {
     if opset < min_version {
         panic!(
-            "ONNX operator '{}' requires opset version >= {}, but model uses opset version {}. \
+            "ONNX operator '{:?}' requires opset version >= {}, but model uses opset version {}. \
              Please use a newer version of the model or update the ONNX export to use a compatible opset version.",
-            op_name, min_version, opset
+            node_type, min_version, opset
         );
     }
 }

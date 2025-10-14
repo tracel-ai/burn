@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{Node, NodeConfig};
 use std::any::Any;
 
@@ -31,7 +32,10 @@ impl NodeConfig for TileConfig {
 pub struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Tile implementation supports opset 6+ (repeats as input)
+        validate_opset(&node.node_type, opset, 6);
+
         fn get_repeats(node: &Node) -> TileInput {
             if let Some(input) = node.inputs.get(1) {
                 match input.into_value() {

@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, TensorData, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for the Reshape operation.
@@ -241,7 +242,10 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Reshape implementation supports opset 5+ (shape as input)
+        validate_opset(&node.node_type, opset, 5);
+
         // ALL logic from reshape_config inlined here
         validate_reshape_node(node);
         let shape = extract_shape_input(node);

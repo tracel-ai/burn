@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorData};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for the Slice operation.
@@ -108,7 +109,10 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Slice implementation supports opset 10+ (starts/ends/axes/steps as inputs)
+        validate_opset(&node.node_type, opset, 10);
+
         /// Creates a SliceInput from either a static value or runtime argument.
         fn get_slice_input(node: &Node, index: usize) -> Option<SliceInput> {
             let input = node.inputs.get(index)?;

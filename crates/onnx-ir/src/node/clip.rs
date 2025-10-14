@@ -34,7 +34,7 @@ pub struct ClipProcessor;
 impl NodeProcessor for ClipProcessor {
     fn process_config(&self, node: &mut Node, opset: usize) {
         // Clip implementation supports opset 6+ (attributes) and opset 11+ (inputs)
-        validate_opset("Clip", opset, 6);
+        validate_opset(&node.node_type, opset, 6);
 
         fn get_clip_input(node: &Node, index: usize, param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;

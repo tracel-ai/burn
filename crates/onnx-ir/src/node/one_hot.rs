@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for OneHot depth.
@@ -60,7 +61,10 @@ pub fn one_hot_output_shape(node: &mut Node) {
 pub struct OneHotProcessor;
 
 impl NodeProcessor for OneHotProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // OneHot implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
+
         let depth = match node.inputs[1].into_value() {
             None => {
                 // Runtime input - no static value available

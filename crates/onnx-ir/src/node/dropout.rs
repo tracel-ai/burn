@@ -1,5 +1,5 @@
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::util::{same_as_input, validate_opset};
 
 use crate::ir::{Data, Node, NodeConfig};
 use std::any::Any;
@@ -32,7 +32,10 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Dropout implementation supports opset 7+ (attributes) and opset 12+ (inputs)
+        validate_opset(&node.node_type, opset, 7);
+
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
             let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
