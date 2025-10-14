@@ -177,6 +177,12 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
     fn optimizations(
         device: Self::FusionDevice,
     ) -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+
+    /// Flushes current work.
+    fn flush(device: &Self::FusionDevice);
+
+    /// Ensure the device can be used on the current thread without blocking.
+    fn device_guard(device: &Self::FusionDevice);
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using

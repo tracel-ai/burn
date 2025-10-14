@@ -41,17 +41,21 @@ where
     where
         O: Operation<R> + 'static,
     {
+        R::device_guard(&self.device);
+
         self.server
             .lock()
-            .register(streams, repr, Arc::new(operation))
+            .register(streams, repr, Arc::new(operation));
     }
 
     fn drain(&self) {
+        R::device_guard(&self.device);
         let id = StreamId::current();
         self.server.lock().drain_stream(id);
     }
 
     fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
+        R::device_guard(&self.device);
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
@@ -68,6 +72,7 @@ where
         stream: StreamId,
         dtype: DType,
     ) -> FusionTensor<R> {
+        R::device_guard(&self.device);
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(id, handle);
@@ -84,6 +89,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         self.server.lock().read_float::<B>(tensor, stream)
     }
 
@@ -95,6 +101,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         self.server.lock().read_int::<B>(tensor, id)
     }
 
@@ -106,6 +113,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         self.server.lock().read_bool::<B>(tensor, stream)
     }
 
@@ -117,6 +125,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         self.server.lock().read_quantized::<B>(tensor, stream)
     }
 
@@ -129,6 +138,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
+        R::device_guard(&client.device);
+
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -155,6 +167,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
+        R::device_guard(&client.device);
+
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -181,6 +196,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
+        R::device_guard(&client.device);
+
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -207,6 +225,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
+        R::device_guard(&client.device);
+
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
@@ -224,6 +245,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_float::<B>(&tensor.into_ir())
@@ -233,6 +255,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_int::<B>(&tensor.into_ir())
@@ -242,6 +265,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        R::device_guard(&self.device);
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_bool::<B>(&tensor.into_ir())

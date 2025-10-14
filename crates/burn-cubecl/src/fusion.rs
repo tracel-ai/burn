@@ -147,6 +147,17 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
             )),
         ]
     }
+
+    fn flush(device: &R::Device) {
+        let client = R::client(device);
+        let fut = client.sync();
+        burn_common::future::block_on(fut);
+    }
+
+    fn device_guard(device: &R::Device) {
+        let client = R::client(device);
+        client.profile_guard();
+    }
 }
 
 /// Fusion runtime for JIT runtimes.

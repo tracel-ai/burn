@@ -60,6 +60,11 @@ where
         futures_lite::future::block_on(client.sync());
     }
 
+    fn flush(device: &Self::Device) {
+        let client = R::client(device);
+        client.flush();
+    }
+
     fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
         device: &Self::Device,
         input: Input,

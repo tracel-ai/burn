@@ -121,6 +121,13 @@ pub trait Backend:
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) {}
+
+    /// Flush the backend, ensure that all computation are enqueued.
+    ///
+    /// # Notes
+    ///
+    /// This may be useful to control a bit more the boundaries of fused graphs.
+    fn flush(_device: &Self::Device) {}
 }
 
 /// Trait that allows a backend to support autodiff.

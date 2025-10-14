@@ -195,6 +195,11 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(stream) = self.streams.get_mut(&id) {
+            // Make sure all work enqueued on the previous thread/stream on this device are
+            // flushed, so that it is safe to remap the stream id to fake being executed on the
+            // stream where the operations were enqueued.
+            R::flush(&self.device);
+
             let old = unsafe { StreamId::swap(id) };
             let num_executed = stream.queue.global.len();
             stream.processor.process(
