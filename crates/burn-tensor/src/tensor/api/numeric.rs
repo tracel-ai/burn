@@ -2888,16 +2888,7 @@ where
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where each element is the cumulative product
-    /// Computes the cumulative minimum of elements along a dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to compute the cumulative minimum of.
-    /// * `dim` - The dimension along which to compute the cumulative minimum.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as the input tensor, where each element is the minimum    /// of all elements up to and including that position along the specified dimension.
+    /// of all elements up to and including that position along the specified dimension.
     ///
     /// # Remarks
     ///
@@ -2908,6 +2899,25 @@ where
     /// For computing the cumulative product of elements along a dimension, users should prefer
     /// the [Tensor::cumprod](Tensor::cumprod) function, which is more high-level and designed for public use.
     fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the minimum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
     /// For computing the cumulative minimum of elements along a dimension, users should prefer
     /// the [Tensor::cummin](Tensor::cummin) function, which is more high-level and designed for public use.
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
