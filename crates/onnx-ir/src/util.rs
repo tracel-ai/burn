@@ -74,6 +74,41 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
     }
 }
 
+/// Validate that the operator is supported in the given opset version.
+/// This function panics with a clear error message if the version is too old.
+///
+/// # Arguments
+///
+/// * `op_name` - The name of the ONNX operator (e.g., "Clip", "Reshape")
+/// * `opset` - The opset version being used
+/// * `min_version` - The minimum opset version that supports this operator
+///
+/// # Panics
+///
+/// Panics if `opset` is less than `min_version`, with a message indicating
+/// the operator name, the version provided, and the minimum required version.
+///
+/// The `#[track_caller]` attribute ensures that panic messages show the location
+/// where this function was called, making it easy to identify which operator
+/// caused the validation failure.
+///
+/// # Examples
+///
+/// ```ignore
+/// // In Clip processor
+/// validate_opset("Clip", opset, 11);  // Clip requires opset >= 11 for min/max as inputs
+/// ```
+#[track_caller]
+pub fn validate_opset(op_name: &str, opset: usize, min_version: usize) {
+    if opset < min_version {
+        panic!(
+            "ONNX operator '{}' requires opset version >= {}, but model uses opset version {}. \
+             Please use a newer version of the model or update the ONNX export to use a compatible opset version.",
+            op_name, min_version, opset
+        );
+    }
+}
+
 /// Verify that all operator sets in a model are supported.
 ///
 /// # Arguments

@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for TopK k parameter.
@@ -33,7 +34,10 @@ impl NodeConfig for TopKConfig {
 pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // TopK implementation supports opset 10+ (k as input)
+        validate_opset("TopK", opset, 10);
+
         // Extract the shape of the input data tensor
         let data_tensor = match node.inputs.first().unwrap().clone().ty {
             ArgType::Tensor(tensor) => tensor,

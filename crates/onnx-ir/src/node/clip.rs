@@ -1,6 +1,6 @@
 use crate::ir::{Data, Node, NodeConfig};
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::util::{same_as_input, validate_opset};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
@@ -32,7 +32,10 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Clip implementation supports opset 6+ (attributes) and opset 11+ (inputs)
+        validate_opset("Clip", opset, 6);
+
         fn get_clip_input(node: &Node, index: usize, param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
 

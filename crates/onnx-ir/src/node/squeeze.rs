@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use std::any::Any;
@@ -30,7 +31,10 @@ impl NodeConfig for SqueezeConfig {
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Squeeze implementation supports opset 13+ (axes as input)
+        validate_opset("Squeeze", opset, 13);
+
         fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
             if node.inputs.len() < 2 {

@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for Split sizes.
@@ -35,7 +36,10 @@ impl NodeConfig for SplitConfig {
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Split implementation supports opset 11+
+        validate_opset("Split", opset, 11);
+
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;
         // Holds the uniform split size if calculated or provided
