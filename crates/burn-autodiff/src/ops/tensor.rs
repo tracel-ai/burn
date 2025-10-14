@@ -1671,8 +1671,16 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let output = B::float_cumprod(input.clone(), dim);
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // Gradient of cumprod: grad_input[i] = sum(grad_output[j] * output[j] / input[i]) for all j >= i
-                    // Use negative step slicing instead of flip for better performance
+                    // Gradient of cumprod using negative step slicing
+                    // Formula: grad_input[i] = sum_{j>=i}(grad_output[j] * output[j] / input[i])
+                    //        = (1 / input[i]) * sum_{j>=i}(grad_output[j] * output[j])
+                    //        = (1 / input) * reverse_cumsum(grad * output)
+                    //
+                    // LIMITATION: This produces NaN when input contains zeros.
+                    // A proper zero-safe implementation requires more sophisticated algorithms
+                    // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
+                    // TODO: Implement zero-safe gradient computation.
+
                     let grad_times_output = B::float_mul(grad, output.clone());
 
                     // Create slices to reverse along the specified dimension
