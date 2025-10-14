@@ -729,11 +729,6 @@ where
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
     ///
-    /// # Note
-    ///
-    /// This operation is **not supported for the autodiff backend** and will panic.
-    /// Proper gradient computation requires scatter_add which is not yet implemented.
-    ///
     /// # Example
     ///
     /// ```rust
@@ -761,11 +756,6 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
-    ///
-    /// # Note
-    ///
-    /// This operation is **not supported for the autodiff backend** and will panic.
-    /// Proper gradient computation requires scatter_add which is not yet implemented.
     ///
     /// # Example
     ///
