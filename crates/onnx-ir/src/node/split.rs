@@ -2,6 +2,15 @@ use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
 use std::any::Any;
 
+/// Represents either a static value or a runtime argument for Split sizes.
+#[derive(Debug, Clone)]
+pub enum SplitSizesInput {
+    /// Static split sizes known at compile time.
+    Static(Vec<usize>),
+    /// Runtime split sizes determined during execution.
+    Runtime(crate::ir::Argument),
+}
+
 /// Configuration for the Split operation.
 #[derive(Clone, Debug)]
 pub struct SplitConfig {
@@ -9,8 +18,8 @@ pub struct SplitConfig {
     pub axis: usize,
     /// The uniform size of each split when splitting evenly.
     pub split_size: Option<usize>,
-    /// Custom sizes for each split when splitting unevenly.
-    pub split_sizes: Option<Vec<usize>>,
+    /// Custom sizes for each split when splitting unevenly (Static or Runtime).
+    pub split_sizes: Option<SplitSizesInput>,
 }
 
 impl NodeConfig for SplitConfig {
@@ -23,16 +32,6 @@ impl NodeConfig for SplitConfig {
     }
 }
 
-impl SplitConfig {
-    pub fn new(axis: usize, split_size: Option<usize>, split_sizes: Option<Vec<usize>>) -> Self {
-        SplitConfig {
-            axis,
-            split_size,
-            split_sizes,
-        }
-    }
-}
-
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
@@ -41,8 +40,8 @@ impl NodeProcessor for SplitProcessor {
         let mut axis: i64 = 0;
         // Holds the uniform split size if calculated or provided
         let mut split_size: Option<usize> = None;
-        // Holds the custom split sizes if provided as input
-        let mut split_sizes: Option<Vec<usize>> = None;
+        // Holds the custom split sizes if provided as input (Static or Runtime)
+        let mut split_sizes: Option<SplitSizesInput> = None;
 
         // Extract the input tensor type to determine rank and shape
         let tensor = match node.inputs.first().unwrap().ty {
@@ -94,18 +93,23 @@ impl NodeProcessor for SplitProcessor {
         }
 
         // Check for custom split sizes provided as a second input
-        if node.inputs.len() > 1 && node.inputs[1].has_value() {
-            let sizes = node.inputs[1]
-                .into_value()
-                .as_ref()
-                .unwrap()
-                .data
-                .clone()
-                .into_usizes();
-
-            if !sizes.is_empty() {
-                split_sizes = Some(sizes);
-            }
+        if node.inputs.len() > 1 {
+            split_sizes = match node.inputs[1].into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = node.inputs[1].clone();
+                    runtime_arg.value_store = None;
+                    Some(SplitSizesInput::Runtime(runtime_arg))
+                }
+                Some(tensor_data) => {
+                    let sizes = tensor_data.data.clone().into_usizes();
+                    if !sizes.is_empty() {
+                        Some(SplitSizesInput::Static(sizes))
+                    } else {
+                        None
+                    }
+                }
+            };
         }
 
         // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
@@ -281,7 +285,7 @@ mod tests {
         // Default axis should be 0, and split_size should be calculated
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(5)); // 10 / 2 = 5
-        assert_eq!(config.split_sizes, None);
+        assert!(config.split_sizes.is_none());
     }
 
     #[test]
@@ -300,7 +304,7 @@ mod tests {
 
         assert_eq!(config.axis, 1);
         assert_eq!(config.split_size, Some(10)); // 20 / 2 = 10
-        assert_eq!(config.split_sizes, None);
+        assert!(config.split_sizes.is_none());
     }
 
     #[test]
@@ -319,7 +323,7 @@ mod tests {
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
         assert_eq!(config.split_size, Some(10)); // 30 / 3 = 10
-        assert_eq!(config.split_sizes, None);
+        assert!(config.split_sizes.is_none());
     }
 
     #[test]
@@ -338,7 +342,7 @@ mod tests {
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, Some(3)); // 12 / 4 = 3
-        assert_eq!(config.split_sizes, None);
+        assert!(config.split_sizes.is_none());
     }
 
     #[test]
@@ -357,7 +361,9 @@ mod tests {
 
         assert_eq!(config.axis, 0);
         assert_eq!(config.split_size, None);
-        assert_eq!(config.split_sizes, Some(vec![5, 15]));
+        assert!(
+            matches!(&config.split_sizes, Some(SplitSizesInput::Static(sizes)) if sizes == &vec![5, 15])
+        );
     }
 
     #[test]
@@ -433,6 +439,29 @@ mod tests {
         let mut node = node;
         let processor = SplitProcessor;
         processor.process_config(&mut node, 16);
+    }
+
+    #[test]
+    fn test_split_config_with_runtime_split_sizes() {
+        // Test with runtime split sizes (no static value)
+        let static_shape = Some(vec![20, 30, 40]);
+        let node = NodeBuilder::new(NodeType::Split, "test_split")
+            .input_tensor_f32("input", 3, static_shape)
+            .input_tensor_i64("split", 1, Some(vec![2])) // Runtime input - no static value
+            .output_tensor_f32("output_0", 0, None)
+            .output_tensor_f32("output_1", 0, None)
+            .build();
+
+        let mut node = node;
+        let processor = SplitProcessor;
+        processor.process_config(&mut node, 16);
+        let config = node.config::<SplitConfig>();
+
+        assert_eq!(config.axis, 0);
+        assert_eq!(config.split_size, None);
+        assert!(
+            matches!(&config.split_sizes, Some(SplitSizesInput::Runtime(arg)) if arg.name == "split")
+        );
     }
 
     #[test]
