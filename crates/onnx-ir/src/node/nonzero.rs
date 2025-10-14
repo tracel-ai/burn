@@ -1,32 +1,9 @@
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
-use std::any::Any;
-
-/// Configuration for NonZero operations
-#[derive(Debug, Clone, new)]
-pub struct NonZeroConfig {
-    // NonZero ONNX operation has no attributes
-}
-
-impl NodeConfig for NonZeroConfig {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn clone_box(&self) -> Box<dyn NodeConfig> {
-        Box::new(self.clone())
-    }
-}
 
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
-        // NonZero operation has no configurable attributes
-
-        let config = NonZeroConfig::new();
-        node.config = Some(Box::new(config));
-    }
-
     fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("NonZero rank inference for node {}", node.name);
 
@@ -72,21 +49,6 @@ mod tests {
             }
             _ => panic!("Expected tensor output"),
         }
-    }
-
-    #[test]
-    fn test_nonzero_config() {
-        let node = NodeBuilder::new(NodeType::NonZero, "test_nonzero")
-            .input_tensor_f32("input", 2, Some(vec![3, 3]))
-            .output_tensor_i64("output", 2, None)
-            .build();
-
-        let mut node = node;
-        let processor = NonZeroProcessor;
-        processor.process_config(&mut node, 16);
-        let config = node.config::<NonZeroConfig>();
-        // NonZero has no attributes, so just verify it constructs successfully
-        assert!(matches!(config, NonZeroConfig {}));
     }
 
     #[test]
