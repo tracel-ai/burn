@@ -359,7 +359,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor.unary_ops(|mut tensor| tensor.log1p_(), |tensor| tensor.log1p())
     }
 
-    fn float_powf_scalar_fallback(tensor: TchTensor, value: f32) -> TchTensor {
+    fn float_powf_scalar_impl(tensor: TchTensor, value: f32) -> TchTensor {
         tensor.unary_ops(
             |mut tensor| tensor.f_pow_(value as f64).unwrap(),
             |tensor| tensor.pow_tensor_scalar(value as f64),

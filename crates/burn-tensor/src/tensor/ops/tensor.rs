@@ -167,8 +167,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -179,8 +179,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -239,8 +239,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -251,8 +251,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -266,8 +266,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -278,8 +278,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -290,8 +290,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -302,8 +302,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -313,8 +313,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// Computes the modulus of a tensor given a scalar.
     ///
     /// # Arguments
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -325,8 +325,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -337,8 +337,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     /// * `dim` - The dimension to compute the cross product along.
     ///
     /// # Returns
@@ -546,8 +546,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -558,8 +558,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -573,8 +573,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -585,8 +585,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -600,8 +600,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -612,8 +612,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -624,8 +624,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -636,8 +636,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -648,8 +648,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -660,8 +660,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -672,8 +672,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -684,8 +684,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -849,8 +849,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -861,8 +861,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side floatTensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side floatTensor.
     ///
     /// # Returns
     ///
@@ -873,13 +873,20 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Raises a tensor to the power of an int scalar.
     ///
-    /// Handles a number of common cases, then dispatches
-    /// to [`Self::float_powi_scalar_fallback`].
+    /// # Backend Implementors Note
+    ///
+    /// A number of common exponent cases can be implemented with operations
+    /// which are much cheaper than generic exponentiation.
+    ///
+    /// This (`Backend` impl overridable) operation handles generic optimizations
+    /// for several common integer exponent cases; and then dispatches to
+    /// the (`Backend` impl overridable) [`Self::float_powi_scalar_impl`]
+    /// operation to handle the generic case.
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -892,29 +899,40 @@ pub trait FloatTensorOps<B: Backend> {
             2 => B::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),
             -2 => Self::float_recip(B::float_mul(lhs.clone(), lhs)),
-            _ => Self::float_powi_scalar_fallback(lhs, rhs),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
         }
     }
 
     /// Raises a tensor to the power of an int scalar.
     ///
-    /// Called by [`Self::float_powi_scalar`] in the fallback case.
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powi_scalar`] in the fallback case.
+    ///
+    /// As a general rule, this should not be called directly.
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn float_powi_scalar_fallback(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
-        Self::float_powf_scalar_fallback(lhs, rhs.elem::<f32>())
+    fn float_powi_scalar_impl(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
+        // Avoid a recursive loop by deferring directly to float_powf_scalar_impl.
+        Self::float_powf_scalar_impl(lhs, rhs.elem::<f32>())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
     ///
-    /// Handles a number of special cases, and then calls [`Self::float_powf_scalar_fallback`].
+    /// # Backend Implementors Note
+    ///
+    /// This (`Backend` impl overridable) operation dispatches integer exponentiation
+    /// to [`Self::float_powi_scalar`], and the remaining non-integer exponent cases to
+    /// the (`Backend` impl overridable) [`Self::float_powf_scalar_impl`]
+    /// operation to handle the generic case.
     ///
     /// # Arguments
     ///
@@ -926,16 +944,25 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
     fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B> {
         if num_traits::Float::floor(value) == value {
+            // When the exponent is an integer, use the integer exponentiation implementation.
             let exp = B::IntElem::from_elem(value as i32);
             Self::float_powi_scalar(tensor, exp)
         } else {
-            Self::float_powf_scalar_fallback(tensor, value)
+            Self::float_powf_scalar_impl(tensor, value)
         }
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
     ///
-    /// Called by [`Self::float_powf_scalar`].
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powf_scalar`] in the fallback case.
+    ///
+    /// This is the minimal required support a `Backend` must implement
+    /// for exponentiation.
+    ///
+    /// As a general rule, this should not be called directly.
     ///
     /// # Arguments
     ///
@@ -945,7 +972,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn float_powf_scalar_fallback(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
+    fn float_powf_scalar_impl(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
 
     /// Returns a new tensor with square root values.
     ///
