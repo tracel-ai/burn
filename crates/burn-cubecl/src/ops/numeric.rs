@@ -320,6 +320,18 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 }
 
 /// Generic cumulative operation kernel
+///
+/// # Limitations
+///
+/// This is a **naive sequential implementation** along the cumulative dimension:
+/// - Each output element sequentially reads all previous elements along the dimension
+/// - Computational complexity: O(n^2) memory reads where n is the size of the cumulative dimension
+/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
+///   performance will degrade significantly compared to an optimized parallel scan algorithm.
+///
+/// # TODO
+///
+/// Implement an efficient GPU-optimized parallel scan algorithm.
 #[cube(launch)]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
@@ -354,69 +366,21 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
 }
 
 /// Compute the cumulative sum along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the sum dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the sum dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
 pub fn cumsum<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
     cumulative_op::<R, E, SumOp>(input, dim)
 }
 
 /// Compute the cumulative product along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the product dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the product dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
 pub fn cumprod<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
     cumulative_op::<R, E, ProdOp>(input, dim)
 }
 
 /// Compute the cumulative minimum along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the minimum dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the minimum dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
 pub fn cummin<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
     cumulative_op::<R, E, MinOp>(input, dim)
 }
 
 /// Compute the cumulative maximum along a dimension
-///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the maximum dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n²) memory reads where n is the size of the maximum dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
 pub fn cummax<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>, dim: usize) -> CubeTensor<R> {
     cumulative_op::<R, E, MaxOp>(input, dim)
 }
