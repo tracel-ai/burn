@@ -1,10 +1,14 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Constant implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
+
         log::debug!("Constant rank inference for node {}", node.name);
 
         let keys = [

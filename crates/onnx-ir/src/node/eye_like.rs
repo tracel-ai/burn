@@ -1,6 +1,8 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for EyeLike operations
@@ -24,7 +26,10 @@ impl NodeConfig for EyeLikeConfig {
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // EyeLike implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
+
         let mut dtype = None;
         let mut k = 0i64; // default to main diagonal
 

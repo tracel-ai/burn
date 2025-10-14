@@ -1,5 +1,7 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for ArgMax operations
@@ -24,7 +26,10 @@ impl NodeConfig for ArgMaxConfig {
 pub struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // ArgMax implementation supports opset 11+ (for select_last_index and empty tensor constraint)
+        validate_opset(&node.node_type, opset, 11);
+
         // ALL logic from argmax_config inlined here
         let mut axis: i64 = 0;
         let mut keepdims = true; // default value per ONNX spec

@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{
     ElementType, TensorData,
     ir::{ArgType, Data, Node, NodeConfig, TensorType},
@@ -61,7 +62,10 @@ impl NodeProcessor for ExpandProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Expand implementation supports opset 8+
+        validate_opset(&node.node_type, opset, 8);
+
         log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
         if node.inputs.len() >= 2 {
             log::debug!(

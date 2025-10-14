@@ -1,10 +1,14 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // NonZero implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
+
         log::debug!("NonZero rank inference for node {}", node.name);
 
         match &node.inputs[0].ty {

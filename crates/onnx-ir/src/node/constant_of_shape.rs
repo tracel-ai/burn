@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{
     TensorData,
     ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorType},
@@ -65,7 +66,10 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // ConstantOfShape implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
+
         log::debug!("ConstantOfShape rank inference for node {}", node.name);
 
         let value_type = node

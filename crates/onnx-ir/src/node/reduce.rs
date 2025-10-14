@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{ArgType, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -72,7 +73,10 @@ impl NodeProcessor for ReduceProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Reduce implementation supports opset 11+ (for rank-zero tensor support)
+        validate_opset(&node.node_type, opset, 11);
+
         log::debug!("{} rank inference for node {}", node.node_type, node.name);
 
         // Extract tensor info before calling process_config

@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for the Range operation.
@@ -72,7 +73,10 @@ impl NodeProcessor for RangeProcessor {
         node.config = Some(Box::new(config));
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Range implementation supports opset 11+
+        validate_opset(&node.node_type, opset, 11);
+
         log::debug!("Range rank inference for node {}", node.name);
 
         if node.inputs.len() != 3 {

@@ -1,5 +1,7 @@
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for LogSoftmax operations
@@ -22,7 +24,10 @@ impl NodeConfig for LogSoftmaxConfig {
 pub struct LogSoftmaxProcessor;
 
 impl NodeProcessor for LogSoftmaxProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // LogSoftmax implementation supports opset 13+ (for default axis change from 1 to -1)
+        validate_opset(&node.node_type, opset, 13);
+
         // ALL logic from log_softmax_config inlined here
         // the axis is the last dimension (Default: 1 per ONNX spec)
         let mut axis: i64 = -1;
