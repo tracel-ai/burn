@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use core::cmp::max;
 use std::any::Any;
 
@@ -57,7 +58,9 @@ pub fn gemm_output_shape(node: &mut Node) {
 pub struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Gemm implementation supports opset 11+ (optional C input)
+        validate_opset(&node.node_type, opset, 11);
         let mut alpha: f32 = 1.0;
         let mut beta: f32 = 1.0;
         let mut trans_a: i64 = 0;

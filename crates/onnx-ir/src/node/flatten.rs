@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for Flatten operations
@@ -22,7 +23,9 @@ impl NodeConfig for FlattenConfig {
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Flatten implementation supports opset 9+ (refined axis definition)
+        validate_opset(&node.node_type, opset, 9);
         // ALL logic from flatten_config inlined here
         // the begin dimension is the first dimension (Default: 1 per ONNX spec)
         let mut axis: i64 = 1;

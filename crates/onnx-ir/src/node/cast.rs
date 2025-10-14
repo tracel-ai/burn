@@ -1,6 +1,7 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for Cast operations
@@ -30,7 +31,10 @@ impl NodeConfig for CastConfig {
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Cast implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         // ALL logic from cast_config inlined here
         let elem_type = match node.attrs.get("to") {
             Some(AttributeValue::Int64(type_id)) => {

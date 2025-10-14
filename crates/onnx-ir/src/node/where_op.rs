@@ -1,4 +1,5 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use crate::{
     ir::{ArgType, ElementType, Node, TensorType},
     util::{compute_broadcast_rank, compute_broadcast_static_shape},
@@ -40,7 +41,9 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 pub struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Where implementation supports opset 9+
+        validate_opset(&node.node_type, opset, 9);
         log::debug!("Where rank inference for node {}", node.name);
 
         let condition = &node.inputs[0].ty;

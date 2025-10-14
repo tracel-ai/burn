@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for Softmax operations
@@ -22,7 +23,9 @@ impl NodeConfig for SoftmaxConfig {
 pub struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Softmax implementation supports opset 13+ (default axis change)
+        validate_opset(&node.node_type, opset, 13);
         // ALL logic from softmax_config inlined here
         // the axis is the last dimension (Default: 1 per ONNX spec)
         let mut axis: i64 = -1;

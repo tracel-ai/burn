@@ -1,11 +1,15 @@
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use core::cmp::max;
 
 pub struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // MatMul implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         log::debug!("MatMul rank inference for node {}", node.name);
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {

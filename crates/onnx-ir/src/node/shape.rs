@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for the Shape operation.
@@ -22,7 +23,9 @@ impl NodeConfig for ShapeConfig {
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Shape implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
         // ALL logic from shape_config inlined here
         if node.inputs.len() != 1 {
             panic!(

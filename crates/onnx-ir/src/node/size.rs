@@ -1,10 +1,14 @@
 use crate::ir::{ArgType, ElementType, Node};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 
 pub struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Size implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         log::debug!("Size rank inference for node {}", node.name);
 
         assert_eq!(

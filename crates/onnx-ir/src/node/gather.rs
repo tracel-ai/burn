@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for the Gather operation.
@@ -31,7 +32,9 @@ pub enum GatherInput {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Gather implementation supports opset 11+ (refined documentation)
+        validate_opset(&node.node_type, opset, 11);
         // Default: 0 per ONNX spec
         let mut dim: i64 = 0;
 

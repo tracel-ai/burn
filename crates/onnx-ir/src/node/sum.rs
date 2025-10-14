@@ -2,14 +2,17 @@
 
 use crate::ir::Node;
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input_broadcast;
+use crate::util::{same_as_input_broadcast, validate_opset};
 
 /// Node processor for Sum operation
 /// Note: Sum is variadic (can take multiple inputs), not strictly binary
 pub struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Sum implementation supports opset 8+ (numpy broadcasting)
+        validate_opset(&node.node_type, opset, 8);
+
         same_as_input_broadcast(node);
     }
 }
