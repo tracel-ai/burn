@@ -4,18 +4,20 @@ use crate::util::same_as_input;
 use crate::ir::{Data, Node, NodeConfig};
 use std::any::Any;
 
+/// Represents either a static value or a runtime argument for dropout ratio.
+#[derive(Debug, Clone)]
+pub enum DropoutInput {
+    /// Static ratio known at compile time.
+    Static(f64),
+    /// Runtime ratio determined during execution.
+    Runtime(crate::ir::Argument),
+}
+
 /// Configuration for Dropout operations
 #[derive(Debug, Clone)]
 pub struct DropoutConfig {
     /// Probability of dropping out a unit
-    pub prob: f64,
-}
-
-impl DropoutConfig {
-    /// Create a new DropoutConfig
-    pub fn new(prob: f64) -> Self {
-        Self { prob }
-    }
+    pub prob: DropoutInput,
 }
 
 impl NodeConfig for DropoutConfig {
@@ -34,7 +36,9 @@ impl NodeProcessor for DropoutProcessor {
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
             let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
-            let config = DropoutConfig::new(prob as f64);
+            let config = DropoutConfig {
+                prob: DropoutInput::Static(prob as f64),
+            };
             node.config = Some(Box::new(config));
             return;
         }
@@ -43,21 +47,26 @@ impl NodeProcessor for DropoutProcessor {
             panic!("Dropout configuration must have at least 2 inputs");
         }
 
-        let ratio = node.inputs[1]
-            .into_value()
-            .clone()
-            .expect("Dropout ratio must be passed in the second input")
-            .data
-            .into_scalar();
-
-        let prob = match ratio {
-            Data::Float16(ratio) => f64::from(f32::from(ratio)),
-            Data::Float32(ratio) => ratio as f64,
-            Data::Float64(ratio) => ratio,
-            _ => panic!("Dropout ratio must be a float"),
+        let prob = match node.inputs[1].into_value() {
+            None => {
+                // Runtime input - no static value available
+                let mut runtime_arg = node.inputs[1].clone();
+                runtime_arg.value_store = None;
+                DropoutInput::Runtime(runtime_arg)
+            }
+            Some(tensor_data) => {
+                let ratio = tensor_data.data.into_scalar();
+                let prob_value = match ratio {
+                    Data::Float16(ratio) => f64::from(f32::from(ratio)),
+                    Data::Float32(ratio) => ratio as f64,
+                    Data::Float64(ratio) => ratio,
+                    _ => panic!("Dropout ratio must be a float"),
+                };
+                DropoutInput::Static(prob_value)
+            }
         };
 
-        let config = DropoutConfig::new(prob);
+        let config = DropoutConfig { prob };
         node.config = Some(Box::new(config));
     }
 
@@ -93,7 +102,7 @@ mod tests {
         let processor = DropoutProcessor;
         processor.process_config(&mut node, 16);
         let config = node.config::<DropoutConfig>();
-        assert!(f64::abs(config.prob - 0.3) < 1e-6);
+        assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.3) < 1e-6));
     }
 
     #[test]
@@ -103,7 +112,24 @@ mod tests {
         let processor = DropoutProcessor;
         processor.process_config(&mut node, 16);
         let config = node.config::<DropoutConfig>();
-        assert!(f64::abs(config.prob - 0.5) < 1e-6);
+        assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
+    }
+
+    fn create_test_node_with_runtime_input() -> NodeBuilder {
+        NodeBuilder::new(NodeType::Dropout, "test_dropout")
+            .input_tensor_f32("data", 3, None)
+            .input_tensor_f32("ratio", 0, None) // Runtime input - no static value
+            .output_tensor_f32("output", 3, None)
+    }
+
+    #[test]
+    fn test_dropout_config_with_runtime_input() {
+        let node = create_test_node_with_runtime_input().build();
+        let mut node = node;
+        let processor = DropoutProcessor;
+        processor.process_config(&mut node, 16);
+        let config = node.config::<DropoutConfig>();
+        assert!(matches!(&config.prob, DropoutInput::Runtime(arg) if arg.name == "ratio"));
     }
 
     #[test]

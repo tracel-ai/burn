@@ -1,12 +1,21 @@
 use crate::processor::NodeProcessor;
-use crate::{Node, NodeConfig, TensorData};
+use crate::{Node, NodeConfig};
 use std::any::Any;
 
+/// Represents either a static value or a runtime argument for tile repeats.
+#[derive(Debug, Clone)]
+pub enum TileInput {
+    /// Static repeats known at compile time.
+    Static(Vec<usize>),
+    /// Runtime repeats determined during execution.
+    Runtime(crate::ir::Argument),
+}
+
 /// Configuration for the Tile operation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct TileConfig {
     /// The number of times to repeat each dimension.
-    pub repeats: Vec<usize>,
+    pub repeats: TileInput,
 }
 
 impl NodeConfig for TileConfig {
@@ -19,33 +28,37 @@ impl NodeConfig for TileConfig {
     }
 }
 
-impl TileConfig {
-    pub fn new(repeats: Vec<usize>) -> Self {
-        TileConfig { repeats }
-    }
-}
-
 pub struct TileProcessor;
 
 impl NodeProcessor for TileProcessor {
     fn process_config(&self, node: &mut Node, _opset: usize) {
-        let repeat = node
-            .inputs
-            .get(1)
-            .map(|input| {
-                if let Some(TensorData { data, .. }) = input.into_value() {
-                    data.clone()
-                        .into_i64s()
-                        .iter()
-                        .map(|&x| x as usize)
-                        .collect()
-                } else {
-                    vec![]
+        fn get_repeats(node: &Node) -> TileInput {
+            if let Some(input) = node.inputs.get(1) {
+                match input.into_value() {
+                    None => {
+                        // Runtime input - no static value available
+                        let mut runtime_arg = input.clone();
+                        runtime_arg.value_store = None;
+                        TileInput::Runtime(runtime_arg)
+                    }
+                    Some(tensor_data) => {
+                        let repeats = tensor_data
+                            .data
+                            .into_i64s()
+                            .iter()
+                            .map(|&x| x as usize)
+                            .collect();
+                        TileInput::Static(repeats)
+                    }
                 }
-            })
-            .unwrap_or_default();
+            } else {
+                // No repeats input provided - default to empty
+                TileInput::Static(vec![])
+            }
+        }
 
-        let config = TileConfig::new(repeat);
+        let repeats = get_repeats(node);
+        let config = TileConfig { repeats };
         node.config = Some(Box::new(config));
     }
 
@@ -86,7 +99,7 @@ mod tests {
         let config = node.config::<TileConfig>();
 
         // Should extract repeats correctly
-        assert_eq!(config.repeats, vec![2, 3, 4]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![2, 3, 4]));
     }
 
     #[test]
@@ -100,7 +113,7 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TileConfig>();
 
-        assert_eq!(config.repeats, vec![5]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![5]));
     }
 
     #[test]
@@ -114,7 +127,7 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TileConfig>();
 
-        assert_eq!(config.repeats, vec![0, 1, 0]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![0, 1, 0]));
     }
 
     #[test]
@@ -128,7 +141,7 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TileConfig>();
 
-        assert_eq!(config.repeats, vec![100, 200]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r == &vec![100, 200]));
     }
 
     #[test]
@@ -142,7 +155,7 @@ mod tests {
         let config = node.config::<TileConfig>();
 
         // Should return empty repeats
-        assert_eq!(config.repeats, vec![]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r.is_empty()));
     }
 
     #[test]
@@ -158,9 +171,13 @@ mod tests {
 
         // Negative values get converted to very large positive values due to usize conversion
         // This is expected behavior for this function (though may cause issues elsewhere)
-        assert!(config.repeats[0] > 0);
-        assert_eq!(config.repeats[1], 2);
-        assert!(config.repeats[2] > 0);
+        if let TileInput::Static(r) = &config.repeats {
+            assert!(r[0] > 0);
+            assert_eq!(r[1], 2);
+            assert!(r[2] > 0);
+        } else {
+            panic!("Expected Static repeats");
+        }
     }
 
     #[test]
@@ -174,12 +191,12 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TileConfig>();
 
-        assert_eq!(config.repeats, vec![]);
+        assert!(matches!(&config.repeats, TileInput::Static(r) if r.is_empty()));
     }
 
     #[test]
-    fn test_tile_config_with_missing_value() {
-        // Test with repeats input that has no value
+    fn test_tile_config_with_runtime_repeats() {
+        // Test with repeats input that has no static value (runtime)
         let mut node = create_test_node(None, 3).build();
 
         // Add repeats input with no value
@@ -197,7 +214,7 @@ mod tests {
         processor.process_config(&mut node, 16);
         let config = node.config::<TileConfig>();
 
-        // Should return empty repeats
-        assert_eq!(config.repeats, vec![]);
+        // Should return Runtime repeats
+        assert!(matches!(&config.repeats, TileInput::Runtime(arg) if arg.name == "repeats"));
     }
 }
