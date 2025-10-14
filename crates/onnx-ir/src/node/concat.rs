@@ -1,5 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
 use std::any::Any;
 
 /// Configuration for Concat operation
@@ -21,7 +22,10 @@ impl NodeConfig for ConcatConfig {
 pub struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Concat implementation supports opset 4+ (expanded types)
+        validate_opset(&node.node_type, opset, 4);
+
         // ALL logic from concat_config inlined here
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;

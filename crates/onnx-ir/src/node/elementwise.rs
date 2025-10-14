@@ -2,7 +2,7 @@
 
 use crate::ir::Node;
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input_broadcast;
+use crate::util::{same_as_input_broadcast, validate_opset};
 
 /// Node processor for element-wise binary operations with broadcasting
 ///
@@ -33,7 +33,39 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
 pub struct ElementwiseUnaryProcessor;
 
 impl NodeProcessor for ElementwiseUnaryProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Validate opset based on operation type
+        let min_opset = match node.node_type {
+            // Opset 6 operations (shape inference improvements)
+            crate::ir::NodeType::Abs
+            | crate::ir::NodeType::Ceil
+            | crate::ir::NodeType::Floor
+            | crate::ir::NodeType::Exp
+            | crate::ir::NodeType::Log
+            | crate::ir::NodeType::Neg
+            | crate::ir::NodeType::Reciprocal
+            | crate::ir::NodeType::Sqrt => 6,
+            // Opset 7 operations (trigonometric functions)
+            crate::ir::NodeType::Acos
+            | crate::ir::NodeType::Asin
+            | crate::ir::NodeType::Atan
+            | crate::ir::NodeType::Cos
+            | crate::ir::NodeType::Sin
+            | crate::ir::NodeType::Tan => 7,
+            // Opset 9 operations
+            crate::ir::NodeType::Erf | crate::ir::NodeType::Sign => 9,
+            // Opset 11 operations
+            crate::ir::NodeType::Round => 11,
+            // Opset 1 operations
+            crate::ir::NodeType::Not => 1,
+            // Other unary operations - no validation
+            _ => {
+                crate::util::same_as_input(node);
+                return;
+            }
+        };
+        validate_opset(&node.node_type, opset, min_opset);
+
         crate::util::same_as_input(node);
     }
 }

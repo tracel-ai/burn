@@ -1,6 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::util::{same_as_input, validate_opset};
 use std::any::Any;
 
 /// Configuration for Transpose operations
@@ -23,7 +23,10 @@ impl NodeConfig for TransposeConfig {
 pub struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Transpose implementation supports opset 1+
+        validate_opset(&node.node_type, opset, 1);
+
         // ALL logic from transpose_config inlined here
         if node.inputs.len() != 1 {
             panic!(
