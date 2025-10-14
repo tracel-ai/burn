@@ -163,9 +163,9 @@ fn index_offset_with_quant_layout(
 
     // Handle packed representation in last dim
     let ogwl = offset_ref / locals.ref_strides[end];
-    let shape_last = tensor.tensor.shape(end) / num_quants;
+    let shape_last = tensor.tensor.shape(end).div_ceil(num_quants);
     let stride_last = tensor.tensor.stride(end);
-    offset += (ogwl / num_quants) % shape_last * stride_last;
+    offset += (ogwl.div_ceil(num_quants)) % shape_last * stride_last;
 
     offset / tensor.tensor.line_size()
 }

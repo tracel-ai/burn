@@ -102,7 +102,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_strided<R: CubeRuntime, E: CubeElement>(
+pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,

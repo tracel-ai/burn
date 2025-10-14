@@ -1,6 +1,6 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, element::MatmulElement, tensor::CubeTensor};
-use burn_tensor::{DType, quantization::QuantAcc};
+use burn_tensor::quantization::QTensorPrimitive;
 use cubecl::matmul::{
     MatmulInputHandleRef,
     components::{AccG, MatmulSetupError},
@@ -39,17 +39,7 @@ pub fn matmul<R: CubeRuntime, E: MatmulElement>(
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output::<R, AccG<E>>(&lhs, &rhs));
-
-            let client = &lhs.client;
-
-            cubecl::matmul::launch_ref::<R, E>(
-                &Default::default(),
-                client,
-                &MatmulInputHandleRef::Normal(lhs.as_handle_ref()),
-                &MatmulInputHandleRef::Normal(rhs.as_handle_ref()),
-                &out.as_handle_ref(),
-            )?;
-
+            launch_matmul::<R, E>(&Default::default(), lhs, rhs, out.clone())?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
@@ -57,56 +47,43 @@ pub fn matmul<R: CubeRuntime, E: MatmulElement>(
     }
 }
 
-/// Launch a quantized matmul kernel using the given strategy.
-pub fn q_matmul<R: CubeRuntime>(
-    mut lhs: CubeTensor<R>,
-    mut rhs: CubeTensor<R>,
-    out: Option<CubeTensor<R>>,
-    _strategy: MatmulStrategy,
-) -> Result<CubeTensor<R>, MatmulSetupError> {
-    let out = out.unwrap_or_else(|| init_matmul_output::<R, half::f16>(&lhs, &rhs));
-
+pub(crate) fn launch_matmul<R: CubeRuntime, E: MatmulElement>(
+    strategy: &cubecl::matmul::Strategy,
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), MatmulSetupError> {
     let client = &lhs.client;
 
-    lhs.dtype = DType::I8;
-    rhs.dtype = DType::I8;
+    let lhs_quant_handles = lhs.quantized_handles();
+    let lhs_handle = match &lhs_quant_handles {
+        None => MatmulInputHandleRef::new(lhs.as_handle_ref()),
+        Some((data, scale)) => MatmulInputHandleRef::quantized(
+            data.as_handle_ref(),
+            scale.as_handle_ref(),
+            &lhs.shape.dims,
+            lhs.scheme(),
+        ),
+    };
 
-    let lhs_scales = lhs.scales().unwrap();
-    let rhs_scales = rhs.scales().unwrap();
+    let rhs_quant_handles = rhs.quantized_handles();
+    let rhs_handle = match &rhs_quant_handles {
+        None => MatmulInputHandleRef::new(rhs.as_handle_ref()),
+        Some((data, scale)) => MatmulInputHandleRef::quantized(
+            data.as_handle_ref(),
+            scale.as_handle_ref(),
+            &rhs.shape.dims,
+            rhs.scheme(),
+        ),
+    };
 
-    match QuantAcc::default() {
-        QuantAcc::F32 => {
-            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, f32, half::f16)>(
-                &Default::default(),
-                client,
-                &MatmulInputHandleRef::Quantized {
-                    data: lhs.as_handle_ref(),
-                    scale: lhs_scales.as_handle_ref(),
-                },
-                &MatmulInputHandleRef::Quantized {
-                    data: rhs.as_handle_ref(),
-                    scale: rhs_scales.as_handle_ref(),
-                },
-                &out.as_handle_ref(),
-            )?;
-        }
-        QuantAcc::F16 => {
-            cubecl::matmul::launch_ref::<R, (i8, i8, half::f16, half::f16, half::f16, half::f16)>(
-                &Default::default(),
-                client,
-                &MatmulInputHandleRef::Quantized {
-                    data: lhs.as_handle_ref(),
-                    scale: lhs_scales.as_handle_ref(),
-                },
-                &MatmulInputHandleRef::Quantized {
-                    data: rhs.as_handle_ref(),
-                    scale: rhs_scales.as_handle_ref(),
-                },
-                &out.as_handle_ref(),
-            )?;
-        }
-        QuantAcc::BF16 => unimplemented!(),
-    }
+    cubecl::matmul::launch_ref::<R, E>(
+        strategy,
+        client,
+        &lhs_handle,
+        &rhs_handle,
+        &out.as_handle_ref(),
+    )?;
 
-    Ok(out)
+    Ok(())
 }

@@ -1,18 +1,12 @@
 use burn_tensor::{
     DType, Device, Shape, TensorData, TensorPrimitive,
-    ops::{FloatTensor, FloatTensorOps, IntTensor, QTensorOps, QuantizedTensor},
+    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
         QParamTensor, QTensorPrimitive, QuantLevel, QuantMode, QuantParam, QuantPropagation,
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
-use cubecl::{
-    Runtime,
-    client::ComputeClient,
-    features::TypeUsage,
-    prelude::CubePrimitive,
-    server::{Allocation, AllocationDescriptor},
-};
+use cubecl::server::{Allocation, AllocationDescriptor};
 use cubecl_quant::scheme::QuantStore;
 
 use crate::{
@@ -60,21 +54,20 @@ fn new_quantized<R: CubeRuntime>(
 
     let data_size = match scheme.store {
         QuantStore::U32 => {
-            if !shape_last.is_multiple_of(num_quants) {
-                panic!("Can't store in u32, padding not yet implemented for quantization.");
+            let per_byte = 8 / scheme.size_bits_value();
+            if !shape_last.is_multiple_of(per_byte) {
+                panic!("sub-byte quantization must have the shape aligned to a full byte")
             }
-            shape_value.dims[rank - 1] = shape_last / num_quants;
+            shape_value.dims[rank - 1] = shape_last.div_ceil(num_quants);
             size_of::<u32>()
         }
         QuantStore::Native => match scheme.value {
             QuantValue::Q8F | QuantValue::Q8S | QuantValue::E4M3 | QuantValue::E5M2 => {
                 size_of::<i8>()
             }
-            QuantValue::Q4F
-            | QuantValue::Q4S
-            | QuantValue::Q2F
-            | QuantValue::Q2S
-            | QuantValue::E2M1 => {
+            // Native e2m1 is packed in u8
+            QuantValue::E2M1 => size_of::<u8>(),
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                 panic!("Can't store native sub-byte values")
             }
         },
@@ -84,12 +77,13 @@ fn new_quantized<R: CubeRuntime>(
         QuantParam::F32 => DType::F32,
         QuantParam::F16 => DType::F16,
         QuantParam::BF16 => DType::BF16,
-        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("dtype not yet supported"),
+        // Represented by U8 and reinterpreted in the kernel
+        QuantParam::UE8M0 | QuantParam::UE4M3 => DType::U8,
     };
 
     let scales_shape = params_shape(&shape, scheme.level);
-    let data_desc = AllocationDescriptor::contiguous(&shape_value.dims, data_size);
-    let scales_desc = AllocationDescriptor::contiguous(&scales_shape.dims, scales_dtype.size());
+    let data_desc = AllocationDescriptor::optimized(&shape_value.dims, data_size);
+    let scales_desc = AllocationDescriptor::optimized(&scales_shape.dims, scales_dtype.size());
 
     let mut tensors = match data {
         Some(data) => {
@@ -146,17 +140,16 @@ where
                         | QuantValue::Q4F
                         | QuantValue::Q4S
                         | QuantValue::Q2F
-                        | QuantValue::Q2S,
+                        | QuantValue::Q2S
+                        | QuantValue::E4M3
+                        | QuantValue::E5M2
+                        | QuantValue::E2M1,
                     ..
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
-                QuantScheme {
-                    value: QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
-                    ..
-                } => unimplemented!("Not yet supported"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -207,7 +200,7 @@ where
             QuantStore::Native => match scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => into_data::<R, i8>(values).await,
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
-                    unimplemented!("Not yet supported")
+                    into_data::<R, u8>(values).await
                 }
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     panic!("Can't store native sub-byte values")
@@ -216,7 +209,7 @@ where
             QuantStore::U32 => into_data::<R, u32>(values).await,
         };
         let data_params = match scheme.param {
-            QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
+            QuantParam::UE8M0 | QuantParam::UE4M3 => into_data::<R, u8>(params).await,
             QuantParam::F16 => into_data::<R, half::f16>(params).await,
             QuantParam::BF16 => into_data::<R, half::bf16>(params).await,
             QuantParam::F32 => into_data::<R, f32>(params).await,
@@ -275,52 +268,18 @@ where
     }
 
     fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
-        if features_enabled::<R>(&lhs.client)
-            && both_matches_symmetric_qint8(lhs.scheme(), rhs.scheme())
-        {
-            let out =
-                kernel::matmul::q_matmul(lhs.clone(), rhs.clone(), None, MatmulStrategy::default());
-            if let Ok(out) = out {
-                return match lhs.propagation() {
-                    QuantPropagation::Propagate => {
-                        TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
-                    }
-                    QuantPropagation::Inhibit => TensorPrimitive::Float(out),
-                };
-            }
-        }
-
-        // If the above quantized matmul fail, we fallback to the dequantize-then-matmul pattern.
-        let scheme = *lhs.scheme();
-        let propagation = lhs.propagation();
-        let t1_f = <Self>::dequantize(lhs);
-        let t2_f = <Self>::dequantize(rhs);
-        let out = Self::float_matmul(t1_f, t2_f);
-
-        match propagation {
+        let out = kernel::matmul::matmul::<R, half::f16>(
+            lhs.clone(),
+            rhs.clone(),
+            None,
+            MatmulStrategy::Cube,
+        )
+        .unwrap();
+        match lhs.propagation() {
             QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
+                TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
             }
             QuantPropagation::Inhibit => TensorPrimitive::Float(out),
         }
     }
-}
-
-fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
-    [lhs, rhs].iter().all(|scheme| {
-        matches!(
-            scheme,
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                value: QuantValue::Q8F | QuantValue::Q8S,
-                ..
-            }
-        )
-    })
-}
-
-fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
-    i8::supported_uses(client).contains(TypeUsage::Conversion)
-        && client.properties().features.dynamic_line_size
 }

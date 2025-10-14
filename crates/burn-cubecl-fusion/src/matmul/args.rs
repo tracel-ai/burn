@@ -104,6 +104,7 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_row,
             stride_col,
             state.lhs_memory_config,
+            1u32,
         );
         let buffer = GlobalInput::new(
             &state.inputs,
@@ -146,6 +147,7 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_row,
             stride_col,
             state.rhs_memory_config,
+            1u32,
         );
         let buffer = GlobalInput::new(
             &state.inputs,
@@ -190,6 +192,7 @@ impl MatmulArgs for FusedMatmulArgs {
                     stride_row,
                     stride_col,
                     state.out_memory_config,
+                    1u32,
                 );
                 let buffer = GlobalInput::new(
                     &state.inputs,
@@ -229,6 +232,7 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_row,
             stride_col,
             state.out_memory_config,
+            1u32,
         );
         let mut buffer = FusedOutput::new(
             &state.inputs,

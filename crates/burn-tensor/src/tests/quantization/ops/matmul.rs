@@ -6,7 +6,6 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    #[ignore]
     fn test_matmul_vectors() {
         let tensor_1 = QTensor::<TestBackend, 2>::int8([[1.0, 2.0, 3.0, 6.35]]);
         let tensor_2 = QTensor::<TestBackend, 2>::int8([[12.7], [4.0], [5.0], [1.0]]);
@@ -20,7 +19,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_matmul_2d() {
         let tensor_1 = QTensor::<TestBackend, 2>::int8([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]]);
         let tensor_2 = QTensor::<TestBackend, 2>::int8([[4.0, 8.0, 12.7], [2.0, 3.0, 6.0]]);
@@ -33,7 +31,31 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    fn test_matmul_2d_aligned() {
+        let tensor_1 = QTensor::<TestBackend, 2>::int8([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ]);
+        let tensor_2 = QTensor::<TestBackend, 2>::int8([
+            [2.0, 0.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0],
+            [0.0, 1.0, 2.0, 0.0],
+            [1.0, 0.0, 0.0, 1.0],
+        ]);
+        let tensor_3 = tensor_1.matmul(tensor_2);
+
+        let expected = TensorData::from([
+            [8.0, 7.0, 7.0, 4.0],
+            [24.0, 19.0, 19.0, 8.0],
+            [40.0, 31.0, 31.0, 12.0],
+        ]);
+        tensor_3
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::relative(2e-2));
+    }
+
+    #[test]
     fn test_matmul_3d() {
         let tensor_1 = QTensor::<TestBackend, 3>::int8([[[1.0, 6.35], [2.0, 3.0]]]);
         let tensor_2 = QTensor::<TestBackend, 3>::int8([[[12.7, 4.0], [2.0, 3.0]]]);
@@ -49,7 +71,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_matmul_broadcast_4d() {
         let tensor_1 = QTensor::<TestBackend, 4>::int8([
             [[[1.0, 7.0], [2.0, 3.0]]],
@@ -71,7 +92,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_matmul_broadcast() {
         let tensor_1 = QTensor::<TestBackend, 3>::int8([[[1.0, 7.0], [2.0, 3.0]]]);
         let tensor_2 =
@@ -97,7 +117,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_matmul_lhs_float_rhs_quantized() {
         // Simulates a typical workflow with linear layers (e.g., transformers), where the rhs
         // represents the weights. The lhs might be a float if a previous operation did not propagate

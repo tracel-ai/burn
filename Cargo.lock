@@ -2200,6 +2200,7 @@ dependencies = [
 name = "cubecl-std"
 version = "0.7.0"
 dependencies = [
+ "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
  "foldhash",

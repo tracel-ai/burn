@@ -58,9 +58,9 @@ impl<R: CubeRuntime> CubeTensor<R> {
                 }
             },
             QuantStore::U32 => {
-                let rank = self.shape.num_dims();
+                let major_dim = self.major_dim();
                 let mut shape = self.shape.clone();
-                shape[rank - 1] /= scheme.num_quants();
+                shape[major_dim] = shape[major_dim].div_ceil(scheme.num_quants());
 
                 CubeTensor {
                     client: self.client.clone(),
@@ -75,6 +75,17 @@ impl<R: CubeRuntime> CubeTensor<R> {
         };
 
         Some((values, params))
+    }
+
+    fn major_dim(&self) -> usize {
+        let rank = self.shape.num_dims();
+        self.strides
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, s)| **s == 1)
+            .map(|(i, _)| i)
+            .unwrap_or(rank - 1)
     }
 
     /// Construct a separate tensor for the quantization scales, if present
