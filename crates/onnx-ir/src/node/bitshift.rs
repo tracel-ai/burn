@@ -1,5 +1,7 @@
 use crate::ir::{Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 pub use self::Direction as BitShiftDirection;
@@ -39,7 +41,10 @@ impl NodeConfig for BitShiftConfig {
 pub struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // BitShift implementation supports opset 11+
+        validate_opset(&node.node_type, opset, 11);
+
         let direction_str = node
             .attrs
             .get("direction")

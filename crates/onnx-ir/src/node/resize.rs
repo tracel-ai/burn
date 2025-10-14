@@ -1,5 +1,7 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorData};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 use std::str::FromStr;
 
@@ -160,7 +162,10 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Resize implementation supports opset 11+ (for coordinate transformation modes)
+        validate_opset(&node.node_type, opset, 11);
+
         // ALL logic from resize_config inlined here
         let mut mode: Option<ResizeMode> = None;
 

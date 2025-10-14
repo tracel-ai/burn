@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::{Node, NodeConfig};
 use std::any::Any;
 
@@ -29,7 +31,10 @@ impl NodeConfig for IsInfConfig {
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // IsInf implementation supports opset 10+
+        validate_opset(&node.node_type, opset, 10);
+
         let mut detect_negative = true;
         let mut detect_positive = true;
 

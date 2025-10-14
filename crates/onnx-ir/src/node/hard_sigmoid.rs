@@ -1,5 +1,7 @@
 use crate::ir::{Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for HardSigmoid operation
@@ -21,7 +23,10 @@ impl NodeConfig for HardSigmoidConfig {
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // HardSigmoid implementation supports opset 6+ (for enhanced implementation)
+        validate_opset(&node.node_type, opset, 6);
+
         let mut alpha = 0.2;
         let mut beta = 0.5;
 

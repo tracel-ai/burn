@@ -1,5 +1,7 @@
 use crate::ir::{Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for LeakyRelu operations
@@ -22,7 +24,10 @@ impl NodeConfig for LeakyReluConfig {
 pub struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // LeakyRelu implementation supports opset 6+ (for shape inference)
+        validate_opset(&node.node_type, opset, 6);
+
         // ALL logic from leaky_relu_config inlined here
         let mut alpha = 0.01;
 

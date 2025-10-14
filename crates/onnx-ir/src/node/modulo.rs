@@ -1,5 +1,7 @@
 use crate::ir::{AttributeValue, Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use std::any::Any;
 
 /// Configuration for Mod operations
@@ -30,7 +32,10 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Mod implementation supports opset 10+
+        validate_opset(&node.node_type, opset, 10);
+
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => *value != 0,
             _ => false, // Default value as per ONNX spec

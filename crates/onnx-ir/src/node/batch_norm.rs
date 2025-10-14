@@ -1,5 +1,7 @@
 use crate::ir::{Node, NodeConfig};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::util::same_as_input;
 use std::any::Any;
 
@@ -38,7 +40,10 @@ impl NodeConfig for BatchNormConfig {
 pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // BatchNormalization implementation supports opset 9+ (for multiple outputs)
+        validate_opset(&node.node_type, opset, 9);
+
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("BatchNorm: weight tensor must be present")

@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::util::same_as_input;
 
 use crate::ir::{Node, NodeConfig};
@@ -36,7 +38,10 @@ impl NodeConfig for InstanceNormConfig {
 pub struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // InstanceNormalization implementation supports opset 6+ (for shape inference)
+        validate_opset(&node.node_type, opset, 6);
+
         let weight_shape = node.inputs[1]
             .into_value()
             .expect("InstanceNorm: weight tensor must be present")

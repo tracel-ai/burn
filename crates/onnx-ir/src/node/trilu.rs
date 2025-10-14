@@ -1,4 +1,6 @@
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::{Data, Node, NodeConfig, TensorData};
 use std::any::Any;
 
@@ -30,7 +32,10 @@ impl NodeConfig for TriluConfig {
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
+    fn process_config(&self, node: &mut Node, opset: usize) {
+        // Trilu implementation supports opset 14+
+        validate_opset(&node.node_type, opset, 14);
+
         let mut upper = true;
         let mut diagonal = 0;
         for (key, value) in node.attrs.iter() {

@@ -1,12 +1,17 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::NodeProcessor;
+use crate::util::validate_opset;
+
 use crate::protos::tensor_proto::DataType;
 use protobuf::Enum;
 
 pub struct BernoulliProcessor;
 
 impl NodeProcessor for BernoulliProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn first_pass(&self, node: &mut Node, opset: usize) {
+        // Bernoulli implementation supports opset 15+
+        validate_opset(&node.node_type, opset, 15);
+
         log::debug!("Bernoulli rank inference for node {}", node.name);
 
         // Get the tensor type and its rank
