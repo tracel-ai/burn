@@ -1680,6 +1680,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     // A proper zero-safe implementation requires more sophisticated algorithms
                     // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
                     // TODO: Implement zero-safe gradient computation.
+                    // See: https://github.com/tracel-ai/burn/issues/3864
 
                     let grad_times_output = B::float_mul(grad, output.clone());
 

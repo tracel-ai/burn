@@ -51,6 +51,8 @@ mod tests {
     // requires careful handling of cumulative products in both forward and
     // reverse directions.
     //
+    // See: https://github.com/tracel-ai/burn/issues/3864
+    //
     // References:
     // - PyTorch: https://github.com/pytorch/pytorch (cumprod_backward)
     // - JAX PR #2596: Parallel prefix scan implementation
