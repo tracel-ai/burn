@@ -52,15 +52,6 @@ pub(crate) fn prod_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) ->
 }
 
 /// Generic cumulative operation function with closure-based operation.
-///
-/// Reduces code duplication for cumulative operations (cumsum, cumprod, cummin, cummax)
-/// by accepting a closure that defines the operation-specific logic.
-///
-/// # Arguments
-///
-/// * `tensor` - The input tensor
-/// * `dim` - The dimension along which to apply the cumulative operation
-/// * `op` - A closure that takes mutable current value and previous value references
 pub(crate) fn cumulative_with_op<E, F>(tensor: SharedArray<E>, dim: usize, op: F) -> SharedArray<E>
 where
     E: NdArrayElement,
