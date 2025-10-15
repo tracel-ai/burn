@@ -203,6 +203,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
 | `tensor.contains_nan()`                                         | N/A                                            |
 | `tensor.cumsum(dim)`                                            | `tensor.cumsum(dim)`                           |
+| `tensor.cumprod(dim)`                                           | `tensor.cumprod(dim)`                          |
+| `tensor.cummin(dim)`                                            | `tensor.cummin(dim)`                           |
+| `tensor.cummax(dim)`                                            | `tensor.cummax(dim)`                           |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.dot()`                                                  | `torch.dot()`                                  |
@@ -277,7 +280,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                         |
-| -------------------------------------------- | ------------------------------------------ |
+|----------------------------------------------|--------------------------------------------|
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
@@ -304,6 +307,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                             | `tensor.round()`                           |
 | `tensor.sin()`                               | `tensor.sin()`                             |
 | `tensor.sinh()`                              | `tensor.sinh()`                            |
+| `tensor.square()`                            | `tensor.square()`                          |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                            |
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
@@ -516,7 +520,6 @@ Options:
   operations that may introduce small numerical discrepancies.
 
   The function uses color-coded output to highlight the results:
-
   - Green [PASS]: All elements are within the specified tolerance.
   - Yellow [WARN]: Most elements (90% or more) are within tolerance.
   - Red [FAIL]: Significant differences are detected.

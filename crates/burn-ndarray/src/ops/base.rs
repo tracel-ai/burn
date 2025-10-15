@@ -33,7 +33,9 @@ use crate::ops::simd::{
 use crate::reshape;
 use crate::{
     IntNdArrayElement, ShapeOps,
-    ops::macros::{cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim},
+    ops::macros::{
+        cummax_dim, cummin_dim, cumprod_dim, cumsum_dim, keepdim, mean_dim, prod_dim, sum_dim,
+    },
 };
 use crate::{SharedArray, element::NdArrayElement};
 use burn_tensor::Shape;
@@ -614,6 +616,18 @@ where
 
     pub fn cumsum(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
         cumsum_dim(tensor, dim)
+    }
+
+    pub fn cumprod(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cumprod_dim(tensor, dim)
+    }
+
+    pub fn cummin(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummin_dim(tensor, dim)
+    }
+
+    pub fn cummax(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummax_dim(tensor, dim)
     }
 
     pub fn gather<I: NdArrayElement>(

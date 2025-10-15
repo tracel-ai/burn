@@ -511,6 +511,22 @@ where
         execute_with_dtype!(float(tensor.dtype), E, numeric::cumsum::<R, E>(tensor, dim))
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            numeric::cumprod::<R, E>(tensor, dim)
+        )
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cummin::<R, E>(tensor, dim))
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_dtype!(float(tensor.dtype), E, numeric::cummax::<R, E>(tensor, dim))
+    }
+
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),
@@ -550,7 +566,7 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         struct Powf;
 
         #[cube]
