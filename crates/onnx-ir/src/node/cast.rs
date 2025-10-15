@@ -138,7 +138,26 @@ impl NodeProcessor for CastProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract the target element type from attributes
+        let elem_type = match node.attrs.get("to") {
+            Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
+                .map_err(|_| ProcessError::InvalidAttribute {
+                    name: "to".to_string(),
+                    reason: format!("unsupported dtype: {}", type_id),
+                })?,
+            Some(_) => {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "to".to_string(),
+                    reason: "must be Int64".to_string(),
+                });
+            }
+            None => {
+                return Err(ProcessError::MissingAttribute("to".to_string()));
+            }
+        };
+
+        let config = CastConfig::new(elem_type);
+        Ok(Some(Box::new(config)))
     }
 }
 

@@ -308,7 +308,36 @@ impl NodeProcessor for ReshapeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract shape input as either static or runtime
+        let shape = match &node.inputs[1].ty {
+            ArgType::Tensor(_) => {
+                // Extract shape from tensor input
+                match node.inputs[1].into_value() {
+                    Some(TensorData { data, .. }) => ReshapeInput::Static(data.clone().into_i64s()),
+                    None => {
+                        // Clone argument but clear value_store to maintain Send+Sync
+                        let mut runtime_arg = node.inputs[1].clone();
+                        runtime_arg.value_store = None;
+                        ReshapeInput::Runtime(runtime_arg)
+                    }
+                }
+            }
+            ArgType::Shape(_) => {
+                // Clone argument but clear value_store to maintain Send+Sync
+                let mut runtime_arg = node.inputs[1].clone();
+                runtime_arg.value_store = None;
+                ReshapeInput::Runtime(runtime_arg)
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        };
+
+        let config = ReshapeConfig { shape };
+        Ok(Some(Box::new(config)))
     }
 }
 

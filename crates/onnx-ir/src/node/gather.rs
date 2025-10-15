@@ -223,7 +223,61 @@ impl NodeProcessor for GatherProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract the input rank for axis normalization
+        let input_dim = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank as i64,
+            ArgType::Shape(shape_rank) => *shape_rank as i64,
+            other => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", other),
+                });
+            }
+        };
+
+        // Extract the axis attribute (default: 0 per ONNX spec)
+        let mut axis: i64 = 0;
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                axis = value.clone().into_i64()
+            }
+        }
+
+        // Normalize negative axis
+        if axis < 0 {
+            axis += input_dim;
+        }
+
+        // Get indices input
+        let indices_input = &node.inputs[1];
+
+        let indices = if let Some(value) = indices_input.into_value() {
+            // Static indices
+            match &value.data {
+                Data::Int64s(vals) => GatherInput::Static(vals.clone()),
+                Data::Int32s(vals) => {
+                    let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
+                    GatherInput::Static(int64_vals)
+                }
+                other => {
+                    return Err(ProcessError::Custom(format!(
+                        "Gather indices must be int32 or int64, got {:?}",
+                        other
+                    )));
+                }
+            }
+        } else {
+            // Runtime indices
+            let mut runtime_arg = indices_input.clone();
+            runtime_arg.value_store = None;
+            GatherInput::Runtime(runtime_arg)
+        };
+
+        let config = GatherConfig {
+            indices,
+            axis: axis as usize,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

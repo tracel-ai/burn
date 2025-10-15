@@ -102,7 +102,35 @@ impl NodeProcessor for TileProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract repeats config
+        fn get_repeats(node: &Node) -> TileInput {
+            if let Some(input) = node.inputs.get(1) {
+                match input.into_value() {
+                    None => {
+                        // Runtime input - no static value available
+                        let mut runtime_arg = input.clone();
+                        runtime_arg.value_store = None;
+                        TileInput::Runtime(runtime_arg)
+                    }
+                    Some(tensor_data) => {
+                        let repeats = tensor_data
+                            .data
+                            .into_i64s()
+                            .iter()
+                            .map(|&x| x as usize)
+                            .collect();
+                        TileInput::Static(repeats)
+                    }
+                }
+            } else {
+                // No repeats input provided - default to empty
+                TileInput::Static(vec![])
+            }
+        }
+
+        let repeats = get_repeats(node);
+        let config = TileConfig { repeats };
+        Ok(Some(Box::new(config)))
     }
 }
 

@@ -1,8 +1,5 @@
-use crate::ir::{Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
-
-use crate::util::same_as_input;
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for BatchNorm operations
@@ -40,13 +37,41 @@ impl NodeConfig for BatchNormConfig {
 pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // BatchNormalization implementation supports opset 9+ (for multiple outputs)
-        validate_opset(&node.node_type, opset, 9);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
+        // Validate input count (X, scale, B, mean, var)
+        if node.inputs.len() < 5 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 5,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let weight_shape = node.inputs[1]
             .into_value()
-            .expect("BatchNorm: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
+            })?
             .shape;
 
         let num_features = weight_shape[0];
@@ -64,10 +89,57 @@ impl NodeProcessor for BatchNormProcessor {
 
         let config = BatchNormConfig::new(num_features, epsilon as f64, momentum as f64);
         node.config = Some(Box::new(config));
+
+        log::debug!("BatchNorm rank inference for node {}", node.name);
+
+        // Extract input tensor type
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        // BatchNorm preserves rank (same as input)
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .ok_or_else(|| {
+                ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
+            })?
+            .shape;
+
+        let num_features = weight_shape[0];
+
+        let mut epsilon = 0f32;
+        let mut momentum = 0f32;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "momentum" => momentum = value.clone().into_f32(),
+                "epsilon" => epsilon = value.clone().into_f32(),
+                _ => {}
+            }
+        }
+
+        let config = BatchNormConfig::new(num_features, epsilon as f64, momentum as f64);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -97,7 +169,8 @@ mod tests {
         let node = create_test_node(1e-5, 0.9, 64).build_with_graph_data(16);
         let mut node = node;
         let processor = BatchNormProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 64);
@@ -110,7 +183,8 @@ mod tests {
         let node = create_test_node(0.0, 0.0, 32).build_with_graph_data(16);
         let mut node = node;
         let processor = BatchNormProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<BatchNormConfig>();
 
         assert_eq!(config.num_features, 32);

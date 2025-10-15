@@ -85,7 +85,26 @@ impl NodeProcessor for TransposeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract the shape of the input tensor
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
+        };
+
+        // Default: reverse the dimensions
+        let mut perm = (0..tensor.rank as i64).rev().collect::<Vec<i64>>();
+
+        if let Some(axes) = node.attrs.get("perm") {
+            perm = axes.clone().into_i64s();
+        }
+
+        let config = TransposeConfig { perm };
+        Ok(Some(Box::new(config)))
     }
 }
 

@@ -97,7 +97,21 @@ impl NodeProcessor for BitShiftProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract direction attribute
+        let direction_str = node
+            .attrs
+            .get("direction")
+            .map(|val| val.clone().into_string())
+            .unwrap_or_else(|| "left".to_string());
+
+        let direction =
+            Direction::from_str(&direction_str).map_err(|e| ProcessError::InvalidAttribute {
+                name: "direction".to_string(),
+                reason: e,
+            })?;
+
+        let config = BitShiftConfig { direction };
+        Ok(Some(Box::new(config)))
     }
 }
 

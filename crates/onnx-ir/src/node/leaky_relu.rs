@@ -75,7 +75,16 @@ impl NodeProcessor for LeakyReluProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract alpha attribute
+        let mut alpha = 0.01;
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "alpha" {
+                alpha = value.clone().into_f32() as f64
+            }
+        }
+
+        let config = LeakyReluConfig { alpha };
+        Ok(Some(Box::new(config)))
     }
 }
 

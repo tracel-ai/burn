@@ -118,7 +118,50 @@ impl NodeProcessor for DropoutProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Opset 7 and older store probability as an attribute
+        if node.attrs.contains_key("ratio") {
+            let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
+            let config = DropoutConfig {
+                prob: DropoutInput::Static(prob as f64),
+            };
+            return Ok(Some(Box::new(config)));
+        }
+
+        // Opset 12+ uses input for ratio
+        let prob = match node.inputs.get(1) {
+            None => {
+                return Err(ProcessError::MissingInput {
+                    index: 1,
+                    reason: "Dropout: missing ratio input".to_string(),
+                });
+            }
+            Some(input) => match input.into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    DropoutInput::Runtime(runtime_arg)
+                }
+                Some(tensor_data) => {
+                    let ratio = tensor_data.data.into_scalar();
+                    let prob_value = match ratio {
+                        Data::Float16(ratio) => f64::from(f32::from(ratio)),
+                        Data::Float32(ratio) => ratio as f64,
+                        Data::Float64(ratio) => ratio,
+                        _ => {
+                            return Err(ProcessError::InvalidAttribute {
+                                name: "ratio".to_string(),
+                                reason: "must be a float".to_string(),
+                            });
+                        }
+                    };
+                    DropoutInput::Static(prob_value)
+                }
+            },
+        };
+
+        let config = DropoutConfig { prob };
+        Ok(Some(Box::new(config)))
     }
 }
 

@@ -78,7 +78,20 @@ impl NodeProcessor for HardSigmoidProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract alpha and beta attributes
+        let mut alpha = 0.2;
+        let mut beta = 0.5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "alpha" => alpha = value.clone().into_f32() as f64,
+                "beta" => beta = value.clone().into_f32() as f64,
+                _ => {}
+            }
+        }
+
+        let config = HardSigmoidConfig { alpha, beta };
+        Ok(Some(Box::new(config)))
     }
 }
 

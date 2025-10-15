@@ -127,7 +127,52 @@ impl NodeProcessor for UnsqueezeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Check if axes attribute exists
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axes" {
+                let config = UnsqueezeConfig::Static(value.clone().into_i64s());
+                return Ok(Some(Box::new(config)));
+            }
+        }
+
+        // Axes must be provided as second input
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        let input_value = &node.inputs[1];
+
+        let config = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => {
+                if tensor.rank != 1 {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: axes tensor must be 1D".to_string(),
+                    ));
+                }
+                if let Some(TensorData {
+                    data: Data::Int64s(shape),
+                    ..
+                }) = input_value.into_value().as_ref()
+                {
+                    UnsqueezeConfig::Static(shape.clone())
+                } else {
+                    let mut runtime_arg = node.inputs[1].clone();
+                    runtime_arg.value_store = None;
+                    UnsqueezeConfig::Runtime(runtime_arg)
+                }
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        };
+
+        Ok(Some(Box::new(config)))
     }
 }
 

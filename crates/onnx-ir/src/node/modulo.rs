@@ -81,7 +81,14 @@ impl NodeProcessor for ModuloProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract fmod attribute
+        let fmod = match node.attrs.get("fmod") {
+            Some(AttributeValue::Int64(value)) => *value != 0,
+            _ => false, // Default value as per ONNX spec
+        };
+
+        let config = ModConfig::new(fmod);
+        Ok(Some(Box::new(config)))
     }
 }
 

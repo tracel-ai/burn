@@ -91,7 +91,20 @@ impl NodeProcessor for IsInfProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract detect_negative and detect_positive attributes
+        let mut detect_negative = true;
+        let mut detect_positive = true;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "detect_negative" => detect_negative = value.clone().into_i64() != 0,
+                "detect_positive" => detect_positive = value.clone().into_i64() != 0,
+                _ => {}
+            }
+        }
+
+        let config = IsInfConfig::new(detect_negative, detect_positive);
+        Ok(Some(Box::new(config)))
     }
 }
 

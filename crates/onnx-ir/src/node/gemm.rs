@@ -140,7 +140,28 @@ impl NodeProcessor for GemmProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        let mut alpha: f32 = 1.0;
+        let mut beta: f32 = 1.0;
+        let mut trans_a: i64 = 0;
+        let mut trans_b: i64 = 0;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "alpha" => alpha = value.clone().into_f32(),
+                "beta" => beta = value.clone().into_f32(),
+                "transA" => trans_a = value.clone().into_i64(),
+                "transB" => trans_b = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        let config = GemmConfig {
+            alpha,
+            beta,
+            trans_a,
+            trans_b,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

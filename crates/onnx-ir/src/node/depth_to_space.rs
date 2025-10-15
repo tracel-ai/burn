@@ -169,7 +169,31 @@ impl NodeProcessor for DepthToSpaceProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        let mut block_size: Option<usize> = None;
+        let mut mode = DepthToSpaceMode::DCR;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "blocksize" => block_size = Some(value.clone().into_i64() as usize),
+                "mode" => {
+                    mode =
+                        DepthToSpaceMode::from_str(&value.clone().into_string()).map_err(|e| {
+                            ProcessError::InvalidAttribute {
+                                name: "mode".to_string(),
+                                reason: e,
+                            }
+                        })?;
+                }
+                _ => {}
+            }
+        }
+
+        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
+            name: "blocksize".to_string(),
+        })?;
+
+        let config = DepthToSpaceConfig::new(mode, block_size);
+        Ok(Some(Box::new(config)))
     }
 }
 

@@ -155,7 +155,30 @@ impl NodeProcessor for SqueezeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
+            // In ONNX opset 13+, axes are provided as a second input
+            if node.inputs.len() < 2 {
+                return None; // No axes input means squeeze all dims with size 1
+            }
+
+            let input = &node.inputs[1];
+            match input.into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Some(SqueezeInput::Runtime(runtime_arg))
+                }
+                Some(value) => match &value.data {
+                    Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
+                    _ => return None, // Invalid type
+                },
+            }
+        }
+
+        let axes = get_squeeze_axes(node);
+        let config = SqueezeConfig { axes };
+        Ok(Some(Box::new(config)))
     }
 }
 

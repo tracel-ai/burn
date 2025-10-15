@@ -144,7 +144,36 @@ impl NodeProcessor for ArgMaxProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        let mut axis: i64 = 0;
+        let mut keepdims = true;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                "keepdims" => {
+                    let keepdims_val = value.clone().into_i64();
+                    keepdims = keepdims_val != 0;
+                }
+                _ => {}
+            }
+        }
+
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        let config = ArgMaxConfig::new(axis as usize, keepdims);
+        Ok(Some(Box::new(config)))
     }
 }
 

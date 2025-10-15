@@ -194,7 +194,62 @@ impl NodeProcessor for Conv2dProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        let mut kernel_shape = Vec::new();
+        let mut strides = vec![1, 1];
+        let mut pads = vec![0, 0, 0, 0];
+        let mut dilations = vec![1, 1];
+        let mut group: usize = 1;
+
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .ok_or_else(|| {
+                ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
+            })?
+            .shape
+            .clone();
+
+        let bias = node.inputs.len() == 3;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => strides = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "dilations" => dilations = value.clone().into_i64s(),
+                "group" => group = value.clone().into_i64() as usize,
+                "auto_pad" => {}
+                _ => {}
+            }
+        }
+
+        let channels_in = weight_shape[1] * group;
+        let channels_out = weight_shape[0];
+
+        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+
+        let kernel_size = if kernel_shape.is_empty() {
+            if weight_shape.len() != 4 {
+                return Err(ProcessError::Custom(format!(
+                    "Conv2d: expected to infer kernel shape from a weight tensor of rank 4 but got shape {:?}",
+                    weight_shape
+                )));
+            }
+            [weight_shape[2], weight_shape[3]]
+        } else {
+            [kernel_shape[0] as _, kernel_shape[1] as _]
+        };
+
+        let config = Conv2dConfig::new(
+            [channels_in, channels_out],
+            kernel_size,
+            [strides[0] as usize, strides[1] as usize],
+            padding,
+            [dilations[0] as usize, dilations[1] as usize],
+            group,
+            bias,
+        );
+
+        Ok(Some(Box::new(config)))
     }
 }
 

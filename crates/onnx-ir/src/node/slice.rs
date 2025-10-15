@@ -263,7 +263,62 @@ impl NodeProcessor for SliceProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract config - helper function to get slice inputs
+        fn get_slice_input(node: &Node, index: usize) -> Result<Option<SliceInput>, ProcessError> {
+            let input = match node.inputs.get(index) {
+                Some(i) => i,
+                None => return Ok(None),
+            };
+
+            match input.into_value() {
+                None => {
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Ok(Some(SliceInput::Runtime(runtime_arg)))
+                }
+                Some(TensorData {
+                    data: Data::Int64s(values),
+                    ..
+                }) => Ok(Some(SliceInput::Static(values.clone()))),
+                Some(v) => Err(ProcessError::Custom(format!(
+                    "Slice input at index {} must be int64 but got {:?}",
+                    index, v
+                ))),
+            }
+        }
+
+        let starts = get_slice_input(node, 1)?
+            .ok_or_else(|| ProcessError::MissingInput("starts".to_string()))?;
+
+        let ends = get_slice_input(node, 2)?
+            .ok_or_else(|| ProcessError::MissingInput("ends".to_string()))?;
+
+        let mut axes = get_slice_input(node, 3)?;
+        let steps = get_slice_input(node, 4)?;
+
+        // Validate steps if present - zeros are not allowed
+        if let Some(SliceInput::Static(ref step_values)) = steps {
+            if step_values.contains(&0) {
+                return Err(ProcessError::Custom(
+                    "Slice: step values cannot be zero".to_string(),
+                ));
+            }
+        }
+
+        // Normalize negative axes if we have static axes and know the input rank
+        if let Some(SliceInput::Static(ref mut axes_values)) = axes {
+            if let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty {
+                normalize_axes(axes_values, tensor_type.rank, &node.name);
+            }
+        }
+
+        let config = SliceConfig {
+            starts,
+            ends,
+            axes,
+            steps,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

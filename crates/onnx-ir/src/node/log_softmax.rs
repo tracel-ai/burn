@@ -94,7 +94,35 @@ impl NodeProcessor for LogSoftmaxProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract the shape of the input tensor
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
+        };
+
+        // Extract the axis attribute (default: -1 per ONNX spec)
+        let mut axis: i64 = -1;
+
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                axis = value.clone().into_i64()
+            }
+        }
+
+        // if axis is negative, it is counted from the end
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        let config = LogSoftmaxConfig {
+            axis: axis as usize,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

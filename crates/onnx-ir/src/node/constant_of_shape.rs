@@ -228,7 +228,26 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Check if we have static values or need runtime resolution
+        let config = match node.inputs[0].into_value() {
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => ConstantOfShapeShape::Static(shape.clone()),
+            None => {
+                // We were unable to statically determine the input value, so we'll need to fetch it at runtime
+                let mut runtime_arg = node.inputs[0].clone();
+                runtime_arg.value_store = None;
+                ConstantOfShapeShape::Runtime(runtime_arg)
+            }
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "ConstantOfShape node {} requires Int64 shape data",
+                    node.name
+                )));
+            }
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

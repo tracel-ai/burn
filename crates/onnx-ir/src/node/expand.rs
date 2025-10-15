@@ -168,7 +168,25 @@ impl NodeProcessor for ExpandProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract config
+        let config = match node.inputs[1].into_value() {
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => ExpandShape::Static(shape.clone()),
+            None => {
+                // Runtime shape - will need to fetch it at runtime
+                let mut runtime_arg = node.inputs[1].clone();
+                runtime_arg.value_store = None;
+                ExpandShape::Runtime(runtime_arg)
+            }
+            Some(_) => {
+                return Err(ProcessError::Custom(
+                    "Expand: shape data type must be int64".to_string(),
+                ));
+            }
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 

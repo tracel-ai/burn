@@ -1,9 +1,6 @@
-use crate::ir::{Node, NodeConfig};
-use crate::util::validate_opset;
-
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for AvgPool2d operations
@@ -49,9 +46,35 @@ impl NodeConfig for AvgPool2dConfig {
 pub struct AvgPool2dProcessor;
 
 impl NodeProcessor for AvgPool2dProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // AveragePool implementation supports opset 11+ (for dilation support)
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
@@ -69,18 +92,29 @@ impl NodeProcessor for AvgPool2dProcessor {
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
-                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {}", auto_pad),
+                        });
                     }
                 }
-                _ => panic!("Unexpected attribute for AvgPool2d: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for AvgPool2d: {}", key),
+                    });
+                }
             }
         }
 
         if ceil_mode == 1 {
-            panic!("ceil_mode is not supported");
+            return Err(ProcessError::InvalidAttribute {
+                name: "ceil_mode".to_string(),
+                reason: "ceil_mode is not supported".to_string(),
+            });
         }
 
-        let padding = padding_config_2d(&pads);
+        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
 
         let config = AvgPool2dConfig::new(
             [kernel_shape[0] as usize, kernel_shape[1] as usize],
@@ -90,10 +124,60 @@ impl NodeProcessor for AvgPool2dProcessor {
         );
 
         node.config = Some(Box::new(config));
+
+        log::debug!("AvgPool2d rank inference for node {}", node.name);
+
+        // Extract input tensor type
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        // AvgPool2d preserves rank (same as input)
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut kernel_shape = Vec::new();
+        let mut strides = vec![1, 1];
+        let mut pads = vec![0, 0, 0, 0];
+        let mut count_include_pad: i64 = 0;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => strides = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "count_include_pad" => count_include_pad = value.clone().into_i64(),
+                _ => {}
+            }
+        }
+
+        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+
+        let config = AvgPool2dConfig::new(
+            [kernel_shape[0] as usize, kernel_shape[1] as usize],
+            [strides[0] as usize, strides[1] as usize],
+            padding,
+            count_include_pad == 1,
+        );
+
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -126,7 +210,8 @@ mod tests {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 0);
         let mut node = node;
         let processor = AvgPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -140,7 +225,8 @@ mod tests {
         let node = create_test_node(vec![2, 2], vec![2, 2], vec![1, 1, 1, 1], 0, 0);
         let mut node = node;
         let processor = AvgPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]);
@@ -154,7 +240,8 @@ mod tests {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![1, 1, 1, 1], 1, 0);
         let mut node = node;
         let processor = AvgPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -164,11 +251,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ceil_mode is not supported")]
     fn test_avg_pool2d_config_with_ceil_mode() {
         let node = create_test_node(vec![3, 3], vec![1, 1], vec![0, 0, 0, 0], 0, 1);
         let mut node = node;
         let processor = AvgPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 }

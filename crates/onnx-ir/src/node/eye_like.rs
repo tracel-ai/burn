@@ -122,7 +122,30 @@ impl NodeProcessor for EyeLikeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        let mut dtype = None;
+        let mut k = 0i64; // default to main diagonal
+
+        // Extract attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "dtype" => {
+                    let dtype_i32 = value.clone().into_i32();
+                    dtype = Some(element_type_from_proto(dtype_i32).map_err(|e| {
+                        ProcessError::InvalidAttribute {
+                            name: "dtype".to_string(),
+                            reason: format!("Unsupported dtype for EyeLike: {}", e),
+                        }
+                    })?);
+                }
+                "k" => {
+                    k = value.clone().into_i64();
+                }
+                _ => {}
+            }
+        }
+
+        let config = EyeLikeConfig { dtype, k };
+        Ok(Some(Box::new(config)))
     }
 }
 

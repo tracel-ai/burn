@@ -220,7 +220,37 @@ impl NodeProcessor for ConcatProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        Ok(node.config.as_ref().map(|c| c.clone_box()))
+        // Extract the axis attribute (required per ONNX spec)
+        let mut axis: Option<i64> = None;
+
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "axis" {
+                axis = Some(value.clone().into_i64());
+                break;
+            }
+        }
+
+        let axis = axis.ok_or_else(|| ProcessError::MissingAttribute("axis".to_string()))?;
+
+        // extract the rank based on input type
+        let rank = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.rank as i64,
+            ArgType::Shape(_) => 1, // Shapes are 1D
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
+        };
+
+        // if axis is negative, it is counted from the end
+        let normalized_axis = if axis < 0 { axis + rank } else { axis };
+
+        let config = ConcatConfig {
+            axis: normalized_axis as usize,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
