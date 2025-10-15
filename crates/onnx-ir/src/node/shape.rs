@@ -1,6 +1,5 @@
-use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Shape operation.
@@ -23,36 +22,52 @@ impl NodeConfig for ShapeConfig {
 pub struct ShapeProcessor;
 
 impl NodeProcessor for ShapeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Shape implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
-        // ALL logic from shape_config inlined here
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
         if node.inputs.len() != 1 {
-            panic!(
-                "Shape: multiple inputs are not supported (got {:?})",
-                node.inputs.len()
-            );
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
         }
 
         // Extract the rank/dimension count from the input
-        let rank = match &node.inputs.first().unwrap().ty {
+        let rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
-            ArgType::Shape(rank) => {
-                // When Shape is applied to a Shape type, we're getting the "shape of the shape"
-                // which is just the number of dimensions (rank) as a 1D tensor
-                *rank
+            ArgType::Shape(rank) => *rank,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
             }
-            _ => panic!(
-                "Shape operation expects Tensor or Shape input, got {:?}",
-                node.inputs.first().unwrap().ty
-            ),
         };
 
-        // Default: all axes up to the last one (included)
+        // Extract attributes
         let mut start_dim: i64 = 0;
         let mut end_dim: i64 = rank as i64;
 
-        // Extract the attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "start" => start_dim = value.clone().into_i64(),
@@ -61,7 +76,7 @@ impl NodeProcessor for ShapeProcessor {
             }
         }
 
-        // If dim is negative, it is counted from the end
+        // Handle negative indices
         if start_dim < 0 {
             start_dim += rank as i64;
         }
@@ -69,42 +84,29 @@ impl NodeProcessor for ShapeProcessor {
             end_dim += rank as i64;
         }
 
-        let config = ShapeConfig {
-            start: start_dim as usize,
-            end: end_dim as usize,
-        };
+        // Calculate dimensions
+        let start = start_dim as usize;
+        let end = end_dim as usize;
+        let dim = end - start;
+
+        // Store config for extract_config
+        let config = ShapeConfig { start, end };
         node.config = Some(Box::new(config));
+
+        // Infer output type - Shape always outputs Shape type
+        node.outputs[0].ty = ArgType::Shape(dim);
+
+        log::debug!("Shape node '{}': outputting Shape({})", node.name, dim);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        if node.inputs.len() != 1 {
-            panic!("Shape: multiple inputs are not supported: {node:?}");
-        }
-
-        // Special case: Shape of Shape returns a 1D tensor with single element (the rank)
-        if let ArgType::Shape(rank) = &node.inputs[0].ty {
-            // The shape of a shape is always a 1D tensor with one element
-            // containing the rank/number of dimensions
-            // Since Shape types are [i64; N], getting their shape gives us [N] which is Shape(1)
-            log::debug!(
-                "Shape operation on Shape({}) input for node {}: output is Shape(1)",
-                rank,
-                node.name
-            );
-            node.outputs[0].ty = ArgType::Shape(1);
-            return;
-        }
-
-        let config = node.config::<ShapeConfig>();
-        let dim = config.end - config.start;
-        log::debug!(
-            "Shape operation for node {}: start={}, end={}, dim={}",
-            node.name,
-            config.start,
-            config.end,
-            dim
-        );
-        node.outputs[0].ty = ArgType::Shape(dim);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -132,26 +134,28 @@ mod tests {
 
     #[test]
     fn test_shape_config_defaults() {
-        let node = create_test_node(None, None, 4);
-        let mut node = node;
-
+        let mut node = create_test_node(None, None, 4);
         let processor = ShapeProcessor;
+        let prefs = OutputPreferences::new();
 
-        processor.process_config(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
         assert_eq!(config.end, 4);
+
+        // Should always output Shape
+        assert!(matches!(node.outputs[0].ty, ArgType::Shape(4)));
     }
 
     #[test]
     fn test_shape_config_with_start() {
-        let node = create_test_node(Some(1), None, 4);
-        let mut node = node;
+        let mut node = create_test_node(Some(1), None, 4);
 
         let processor = ShapeProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
@@ -160,12 +164,12 @@ mod tests {
 
     #[test]
     fn test_shape_config_with_end() {
-        let node = create_test_node(None, Some(3), 4);
-        let mut node = node;
+        let mut node = create_test_node(None, Some(3), 4);
 
         let processor = ShapeProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 0);
@@ -174,12 +178,12 @@ mod tests {
 
     #[test]
     fn test_shape_config_with_start_and_end() {
-        let node = create_test_node(Some(1), Some(3), 4);
-        let mut node = node;
+        let mut node = create_test_node(Some(1), Some(3), 4);
 
         let processor = ShapeProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 1);
@@ -188,12 +192,12 @@ mod tests {
 
     #[test]
     fn test_shape_config_negative_dims() {
-        let node = create_test_node(Some(-2), Some(-1), 4);
-        let mut node = node;
+        let mut node = create_test_node(Some(-2), Some(-1), 4);
 
         let processor = ShapeProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ShapeConfig>();
         assert_eq!(config.start, 2); // -2 + 4 = 2
@@ -201,10 +205,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Shape: multiple inputs are not supported")]
     fn test_shape_config_multiple_inputs() {
         let mut node = create_test_node(None, None, 4);
-        // Add an extra input to cause the expected panic
+        // Add an extra input to cause error
         node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
@@ -214,69 +217,34 @@ mod tests {
             }),
             value_store: None,
         });
-        let mut node = node;
 
         let processor = ShapeProcessor;
+        let prefs = OutputPreferences::new();
 
-        processor.process_config(&mut node, 16);
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 2
+            })
+        ));
     }
 
     #[test]
-    fn test_shape_of_shape() {
-        // Test Shape operation on Shape input
-        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape_of_shape")
-            .add_input("shape_input", ArgType::Shape(3)) // Input is Shape(3) - a 3D shape
-            .output_tensor_i64("output", 1, None)
-            .build();
-
-        // Before update
-        assert!(matches!(node.inputs[0].ty, ArgType::Shape(3)));
-
-        // Apply processor
-        let processor = ShapeProcessor;
-        processor.first_pass(&mut node, 16);
-
-        // After update: Shape of Shape(3) should give Shape(1)
-        // because [i64; 3] has shape [3] which is 1D
-        assert!(matches!(node.outputs[0].ty, ArgType::Shape(1)));
-    }
-
-    #[test]
-    fn test_shape_config_with_shape_input() {
-        // Test shape_config with Shape input
-        let node = NodeBuilder::new(NodeType::Shape, "test_shape_config_shape")
-            .add_input("shape_input", ArgType::Shape(5)) // Input is Shape(5)
-            .output_tensor_i64("output", 1, None)
-            .build();
-
-        let mut node = node;
-
-        let processor = ShapeProcessor;
-
-        processor.process_config(&mut node, 16);
-
-        let config = node.config::<ShapeConfig>();
-        // Shape(5) means a 5-dimensional shape, so getting its shape
-        // would be from 0 to 5 (the full extent)
-        assert_eq!(config.start, 0);
-        assert_eq!(config.end, 5);
-    }
-
-    #[test]
-    fn test_shape_of_shape_with_attributes() {
-        // Test Shape operation on Shape input with start/end attributes
-        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape_of_shape_attrs")
-            .add_input("shape_input", ArgType::Shape(4)) // Input is Shape(4)
-            .output_tensor_i64("output", 1, None)
-            .attr_int("start", 1)
-            .attr_int("end", 3)
+    fn test_shape_output_type() {
+        // Shape operation always outputs Shape type
+        let mut node = NodeBuilder::new(NodeType::Shape, "test_shape")
+            .input_tensor_f32("data", 3, None)
+            .output_tensor_i64("shape", 1, None)
             .build();
 
         let processor = ShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
 
-        // Even with start/end attributes, Shape of Shape always outputs Shape(1)
-        // because we're getting the shape of the shape array itself
-        assert!(matches!(node.outputs[0].ty, ArgType::Shape(1)));
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        // Should always output Shape type
+        assert!(matches!(node.outputs[0].ty, ArgType::Shape(3)));
     }
 }
