@@ -1,4 +1,3 @@
-use super::FusionClient;
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
@@ -36,6 +35,7 @@ impl<R> GlobalFusionClient<R>
 where
     R: FusionRuntime + 'static,
 {
+    /// Loads the client from the given device.
     pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
@@ -44,18 +44,20 @@ where
     }
 }
 
-impl<R> FusionClient<R> for GlobalFusionClient<R>
+impl<R> GlobalFusionClient<R>
 where
     R: FusionRuntime + 'static,
 {
-    fn new(device: FusionDevice<R>) -> Self {
+    /// Create a new client for the given [device](FusionRuntime::FusionDevice).
+    pub fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
             server: DeviceContext::locate(&device),
         }
     }
 
-    fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
+    /// Register a new [tensor operation intermediate representation](OperationIr).
+    pub fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static,
     {
@@ -63,22 +65,26 @@ where
         server.register(streams, repr, Arc::new(operation));
     }
 
-    fn drain(&self) {
+    /// Register all lazy computation.
+    pub fn drain(&self) {
         let id = StreamId::current();
         self.server.lock().drain_stream(id);
     }
 
-    fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
+    /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
+    pub fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
     }
 
-    fn device(&self) -> &FusionDevice<R> {
+    /// Get the current device used by all operations handled by this client.
+    pub fn device(&self) -> &FusionDevice<R> {
         &self.device
     }
 
-    fn register_tensor(
+    /// Create a tensor with the given handle and shape.
+    pub fn register_tensor(
         &self,
         handle: FusionHandle<R>,
         shape: Shape,
@@ -93,7 +99,8 @@ where
         FusionTensor::new(id, shape, dtype, self.clone(), stream)
     }
 
-    fn read_tensor_float<B>(
+    /// Read the values contained by a float tensor.
+    pub fn read_tensor_float<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -104,7 +111,8 @@ where
         self.server.lock().read_float::<B>(tensor, stream)
     }
 
-    fn read_tensor_int<B>(
+    /// Read the values contained by an int tensor.
+    pub fn read_tensor_int<B>(
         self,
         tensor: TensorIr,
         id: StreamId,
@@ -115,7 +123,8 @@ where
         self.server.lock().read_int::<B>(tensor, id)
     }
 
-    fn read_tensor_bool<B>(
+    /// Read the values contained by a bool tensor.
+    pub fn read_tensor_bool<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -126,7 +135,8 @@ where
         self.server.lock().read_bool::<B>(tensor, stream)
     }
 
-    fn read_tensor_quantized<B>(
+    /// Read the values contained by a quantized tensor.
+    pub fn read_tensor_quantized<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -137,7 +147,8 @@ where
         self.server.lock().read_quantized::<B>(tensor, stream)
     }
 
-    fn change_client_float<B>(
+    /// Change the client of the given float tensor.
+    pub fn change_client_float<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -163,7 +174,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_int<B>(
+    /// Change the client of the given int tensor.
+    pub fn change_client_int<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -189,7 +201,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_bool<B>(
+    /// Change the client of the given bool tensor.
+    pub fn change_client_bool<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -215,7 +228,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_quantized<B>(
+    /// Change the client of the given quantized tensor.
+    pub fn change_client_quantized<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -237,7 +251,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
+    /// Resolve the given float tensor to a primitive tensor.
+    pub fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -246,7 +261,8 @@ where
         server.resolve_server_float::<B>(&tensor.into_ir())
     }
 
-    fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
+    /// Resolve the given int tensor to a primitive tensor.
+    pub fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -255,7 +271,8 @@ where
         server.resolve_server_int::<B>(&tensor.into_ir())
     }
 
-    fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
+    /// Resolve the given bool tensor to a primitive tensor.
+    pub fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {

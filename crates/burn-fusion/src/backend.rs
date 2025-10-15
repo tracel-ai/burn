@@ -1,6 +1,6 @@
 use crate::{
     FusionTensor,
-    client::{FusionClient, GlobalFusionClient},
+    client::GlobalFusionClient,
     stream::{Context, OrderedExecution},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};

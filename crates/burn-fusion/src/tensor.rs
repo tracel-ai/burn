@@ -1,6 +1,5 @@
 use crate::{
     Client, FusionBackend, FusionRuntime,
-    client::FusionClient,
     stream::{Operation, OperationStreams, StreamId},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
