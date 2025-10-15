@@ -31,9 +31,13 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
-    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+    fn input_preferences(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
         if node.inputs.len() != 2 {
-            return None;
+            return Ok(None);
         }
 
         let mut prefs = InputPreferences::new();
@@ -60,7 +64,7 @@ impl NodeProcessor for ModuloProcessor {
             prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
         }
 
-        Some(prefs)
+        Ok(Some(prefs))
     }
 
     fn infer_types(

@@ -31,18 +31,28 @@ pub enum GatherInput {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
-    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+    fn input_preferences(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
         if node.inputs.len() < 2 {
-            return None;
+            return Ok(None);
         }
 
         // When gathering from Shape data, prefer indices to be Shape type
         if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
-            let value = node.inputs[1].into_value().unwrap(); // TODO propagate error
-            let rank = value.shape.first().unwrap(); // TODO propagate error
-            Some(InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(*rank)))
+            let value = node.inputs[1].into_value().ok_or_else(|| {
+                ProcessError::Custom("Gather: failed to get value for indices tensor".to_string())
+            })?;
+            let rank = value.shape.first().ok_or_else(|| {
+                ProcessError::Custom("Gather: indices tensor has no dimensions".to_string())
+            })?;
+            Ok(Some(
+                InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(*rank)),
+            ))
         } else {
-            None
+            Ok(None)
         }
     }
 

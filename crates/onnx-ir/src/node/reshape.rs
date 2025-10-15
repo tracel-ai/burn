@@ -254,13 +254,19 @@ impl NodeProcessor for ReshapeProcessor {
         Ok(lifted)
     }
 
-    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+    fn input_preferences(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
         if node.inputs.len() != 2 {
-            return None;
+            return Ok(None);
         }
 
         // Prefer Shape type for shape input (second input)
-        Some(InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(0)))
+        Ok(Some(
+            InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(0)),
+        ))
     }
 
     fn infer_types(

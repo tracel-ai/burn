@@ -567,7 +567,7 @@ impl OnnxGraphBuilder {
             let processor = registry.get(&node.node_type);
 
             // Get input preferences from this consumer node
-            if let Some(input_prefs) = processor.input_preferences(&node, opset) {
+            if let Ok(Some(input_prefs)) = processor.input_preferences(&node, opset) {
                 log::debug!(
                     "Node {} (index {}) has input preferences",
                     node.name,

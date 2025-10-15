@@ -100,8 +100,12 @@ pub enum ProcessError {
 /// during type inference and configuration extraction.
 pub trait NodeProcessor: Send + Sync {
     /// Declare what types this node prefers for its inputs
-    fn input_preferences(&self, _node: &Node, _opset: usize) -> Option<InputPreferences> {
-        None
+    fn input_preferences(
+        &self,
+        _node: &Node,
+        _opset: usize,
+    ) -> Result<Option<InputPreferences>, ProcessError> {
+        Ok(None)
     }
 
     /// Lift constant inputs, return names of lifted inputs
