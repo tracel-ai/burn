@@ -125,6 +125,8 @@ mod tests {
         let mut node = node;
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.3) < 1e-6));
@@ -136,6 +138,8 @@ mod tests {
         let mut node = node;
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
@@ -154,6 +158,8 @@ mod tests {
         let mut node = node;
         let processor = DropoutProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Runtime(arg) if arg.name == "ratio"));
@@ -164,16 +170,9 @@ mod tests {
         let mut node = create_test_node_with_input(0.5).build_with_graph_data(16);
         node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
-        let mut node = node;
+        let node = node;
         let processor = DropoutProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(
-            result,
-            Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: 1
-            })
-        ));
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::MissingInput(_))));
     }
 }

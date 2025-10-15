@@ -253,6 +253,8 @@ mod tests {
         let mut node = create_test_node_with_attr(2, vec![0, 3]).build();
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -270,6 +272,8 @@ mod tests {
             create_test_node_with_input(3, vec![1, 2, 4], true).build_with_graph_data(16);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -287,6 +291,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -304,6 +310,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -320,6 +328,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -337,6 +347,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int64);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -354,6 +366,8 @@ mod tests {
         node.inputs[0].ty = ArgType::Shape(1);
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -368,6 +382,8 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
@@ -382,6 +398,8 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
@@ -396,6 +414,8 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
@@ -415,6 +435,8 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
@@ -429,6 +451,8 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<UnsqueezeConfig>();
 
@@ -444,7 +468,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount {
@@ -464,7 +488,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
@@ -476,7 +500,7 @@ mod tests {
         let mut node = node;
         let processor = UnsqueezeProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 }

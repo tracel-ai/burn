@@ -169,6 +169,10 @@ mod tests {
 
         let processor = ArgMinProcessor;
 
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
@@ -182,6 +186,10 @@ mod tests {
         let mut node = create_test_node(-2, 0, 1);
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
 
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
@@ -206,6 +214,10 @@ mod tests {
 
         let processor = ArgMinProcessor;
 
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(
@@ -220,6 +232,10 @@ mod tests {
 
         let processor = ArgMinProcessor;
 
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node_keepdims_0, 16).unwrap();
+        node_keepdims_0.config = config;
+
         let prefs = OutputPreferences::new();
         processor
             .infer_types(&mut node_keepdims_0, 16, &prefs)
@@ -232,6 +248,10 @@ mod tests {
         let mut node_keepdims_1 = create_test_node(0, 0, 1);
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node_keepdims_1, 16).unwrap();
+        node_keepdims_1.config = config;
 
         let prefs = OutputPreferences::new();
         processor
@@ -249,6 +269,10 @@ mod tests {
 
         let processor = ArgMinProcessor;
 
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
@@ -259,6 +283,10 @@ mod tests {
         let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
 
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
@@ -276,6 +304,11 @@ mod tests {
             .build();
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
@@ -300,6 +333,11 @@ mod tests {
             .build();
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
@@ -324,6 +362,11 @@ mod tests {
             .build();
 
         let processor = ArgMinProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 

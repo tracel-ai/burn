@@ -129,6 +129,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -145,6 +147,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -160,6 +164,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -175,6 +181,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -189,6 +197,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -205,6 +215,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -228,6 +240,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 
@@ -252,6 +266,8 @@ mod tests {
         let mut node = node;
         let processor = TileProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TileConfig>();
 

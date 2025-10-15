@@ -226,6 +226,8 @@ mod tests {
 
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 2);
@@ -256,7 +258,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
@@ -272,6 +274,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -288,6 +292,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -307,6 +313,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -325,6 +333,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -344,6 +354,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -362,6 +374,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -380,6 +394,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -395,6 +411,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -409,7 +427,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
@@ -421,7 +439,7 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }
 
@@ -436,6 +454,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
@@ -457,6 +477,8 @@ mod tests {
         let mut node = node;
         let processor = TopKProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 

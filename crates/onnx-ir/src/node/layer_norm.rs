@@ -162,6 +162,8 @@ mod tests {
         let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(17);
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 17).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
         let config = node.config::<LayerNormConfig>();
@@ -174,6 +176,8 @@ mod tests {
         let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(17);
         let processor = LayerNormProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 17).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 17, &prefs).unwrap();
 
         let config = node.config::<LayerNormConfig>();

@@ -182,6 +182,8 @@ mod tests {
         let mut node = node;
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool1dConfig>();
 
@@ -197,6 +199,8 @@ mod tests {
         let mut node = node;
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool1dConfig>();
 
@@ -212,6 +216,8 @@ mod tests {
         let mut node = node;
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool1dConfig>();
 
@@ -222,13 +228,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_max_pool1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 0, None);
-        let mut node = node;
         let processor = MaxPool1dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]
@@ -237,6 +241,8 @@ mod tests {
         let mut node = node;
         let processor = MaxPool1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool1dConfig>();
 

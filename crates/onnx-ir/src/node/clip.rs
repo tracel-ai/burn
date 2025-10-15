@@ -186,6 +186,11 @@ mod tests {
         let node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -198,6 +203,11 @@ mod tests {
         let node = create_test_node_with_attributes(Some(-1.0), None);
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -210,6 +220,11 @@ mod tests {
         let node = create_test_node_with_attributes(None, Some(1.0));
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -222,6 +237,11 @@ mod tests {
         let node = create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -236,6 +256,11 @@ mod tests {
         let node = create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -251,6 +276,11 @@ mod tests {
         let node = create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -272,6 +302,11 @@ mod tests {
         let node = create_test_node_with_runtime_inputs().build();
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -293,6 +328,11 @@ mod tests {
         let node = builder.build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
+
+        // Extract config first, then infer types
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+
         let prefs = OutputPreferences::new();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
@@ -306,8 +346,9 @@ mod tests {
         let node = create_test_node_with_attributes(None, None);
         let mut node = node;
         let processor = ClipProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+
+        // Extract config first - this should fail with an error
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

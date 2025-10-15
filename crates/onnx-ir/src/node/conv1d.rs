@@ -249,6 +249,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 
@@ -269,6 +271,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 
@@ -289,6 +293,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 
@@ -309,6 +315,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 
@@ -323,25 +331,21 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, false, None)
             .build_with_graph_data(16);
-        let mut node = node;
         let processor = Conv1dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]
+    #[should_panic(expected = "Negative pad values are not supported")]
     fn test_conv1d_config_negative_padding() {
         let node = create_test_node(vec![4], vec![1], vec![-1, -1], vec![1], 1, false, None)
             .build_with_graph_data(16);
-        let mut node = node;
         let processor = Conv1dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        let _ = processor.extract_config(&node, 16);
     }
 
     #[test]
@@ -359,6 +363,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 
@@ -384,10 +390,8 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(16);
-        let mut node = node;
         let processor = Conv1dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
@@ -406,6 +410,8 @@ mod tests {
         let mut node = node;
         let processor = Conv1dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv1dConfig>();
 

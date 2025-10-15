@@ -95,6 +95,8 @@ mod tests {
         let mut node = node;
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
@@ -106,6 +108,8 @@ mod tests {
         let mut node = node;
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 1);
@@ -125,6 +129,8 @@ mod tests {
         let mut node = node;
         let processor = SoftmaxProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(
             result,

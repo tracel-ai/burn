@@ -196,6 +196,8 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
@@ -209,6 +211,8 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
@@ -222,6 +226,8 @@ mod tests {
         let mut node = node;
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
@@ -234,6 +240,8 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

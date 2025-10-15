@@ -246,6 +246,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -275,6 +277,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -298,6 +302,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -320,6 +326,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -343,6 +351,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -362,13 +372,10 @@ mod tests {
             None,
         )
         .build_with_graph_data(16);
-        let mut node = node;
         let processor = Convtranspose2dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(result.is_err());
+        let result = processor.extract_config(&node, 16);
         assert!(
-            matches!(result.unwrap_err(), ProcessError::Custom(msg) if msg.contains("Asymmetric padding is not supported"))
+            matches!(result, Err(ProcessError::Custom(ref msg)) if msg.contains("Asymmetric padding is not supported"))
         );
     }
 
@@ -388,6 +395,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 
@@ -414,15 +423,9 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(16);
-        let mut node = node;
         let processor = Convtranspose2dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ProcessError::InvalidAttribute { .. }
-        ));
+        let result = processor.extract_config(&node, 16);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
@@ -441,6 +444,8 @@ mod tests {
         let mut node = node;
         let processor = Convtranspose2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose2dConfig>();
 

@@ -353,6 +353,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -383,6 +385,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -411,6 +415,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -437,6 +443,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -469,6 +477,8 @@ mod tests {
 
         let processor = SliceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be the same type as input
@@ -489,6 +499,8 @@ mod tests {
 
         let processor = SliceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be ArgType::Shape with the calculated length
@@ -506,6 +518,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -530,6 +544,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -561,6 +577,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
@@ -592,12 +610,11 @@ mod tests {
             .output_default("output");
 
         let node = builder.build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
 
         let processor = SliceProcessor;
 
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
@@ -618,6 +635,8 @@ mod tests {
         let processor = SliceProcessor;
 
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();

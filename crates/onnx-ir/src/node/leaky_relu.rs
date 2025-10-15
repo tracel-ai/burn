@@ -77,6 +77,8 @@ mod tests {
         let mut node = node;
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<LeakyReluConfig>();
         assert!((config.alpha - 0.2).abs() < 1e-6);
@@ -89,6 +91,8 @@ mod tests {
         let mut node = node;
         let processor = LeakyReluProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<LeakyReluConfig>();
         assert_eq!(config.alpha, 0.01); // Check default value

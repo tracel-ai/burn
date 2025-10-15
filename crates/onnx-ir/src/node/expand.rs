@@ -192,6 +192,8 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -210,6 +212,8 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -225,10 +229,13 @@ mod tests {
     #[test]
     fn test_expand_with_incorrect_inputs() {
         let mut node = create_test_node(2, Some(vec![2, 3, 4]), None).build_with_graph_data(16);
-        node.inputs.pop(); // Remove one input
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
+        // Remove one input AFTER extracting config
+        node.inputs.pop();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(
             result,
@@ -247,6 +254,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ExpandShape>();
 
@@ -264,6 +273,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ExpandShape>();
 
@@ -282,6 +293,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ExpandShape>();
 
@@ -304,6 +317,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -319,6 +334,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -330,6 +347,8 @@ mod tests {
         let mut node = node;
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -337,17 +356,19 @@ mod tests {
     #[test]
     fn test_expand_config_with_invalid_value_type() {
         // Create a node with shape input that has Float32 type instead of Int64
-        let mut node = NodeBuilder::new(NodeType::Expand, "test_expand")
+        let node = NodeBuilder::new(NodeType::Expand, "test_expand")
             .input_tensor_f32("input", 2, None)
             .input_tensor_f32_data("shape", vec![2.0, 3.0, 4.0], vec![3]) // Wrong type - Float32 instead of Int64
             .output_tensor_f32("output", 0, None)
             .build_with_graph_data(16);
 
-        let mut node = node;
+        let node = node;
         let processor = ExpandProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::Custom(_))));
+        let result = processor.extract_config(&node, 16);
+        match result {
+            Err(ProcessError::Custom(_)) => {}
+            _ => panic!("Expected ProcessError::Custom for invalid shape data type"),
+        }
     }
 
     #[test]
@@ -357,6 +378,8 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -380,6 +403,8 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -413,6 +438,8 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
+            let config = processor.extract_config(&node, 16).unwrap();
+            node.config = config;
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -445,6 +472,8 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
+            let config = processor.extract_config(&node, 16).unwrap();
+            node.config = config;
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -477,6 +506,8 @@ mod tests {
 
             let processor = ExpandProcessor;
             let prefs = OutputPreferences::new();
+            let config = processor.extract_config(&node, 16).unwrap();
+            node.config = config;
             processor.infer_types(&mut node, 16, &prefs).unwrap();
 
             match &node.outputs[0].ty {
@@ -505,6 +536,8 @@ mod tests {
 
         let processor = ExpandProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

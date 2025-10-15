@@ -179,6 +179,8 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
@@ -194,6 +196,8 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
@@ -209,6 +213,8 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<AvgPool2dConfig>();
 
@@ -224,6 +230,8 @@ mod tests {
         let mut node = node;
         let processor = AvgPool2dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }

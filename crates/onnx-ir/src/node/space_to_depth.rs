@@ -151,6 +151,8 @@ mod tests {
         let mut node = node;
         let processor = SpaceToDepthProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SpaceToDepthConfig>();
 
@@ -162,6 +164,8 @@ mod tests {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
         let processor = SpaceToDepthProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

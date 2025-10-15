@@ -346,6 +346,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
@@ -363,6 +365,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
@@ -387,6 +391,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
@@ -412,6 +418,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 2, 0, 2]));
@@ -434,6 +442,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
@@ -457,6 +467,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
@@ -479,6 +491,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
@@ -497,6 +511,8 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
@@ -512,7 +528,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(
             result,
             Err(ProcessError::InvalidInputCount { .. })
@@ -527,7 +543,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
@@ -548,7 +564,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
@@ -559,7 +575,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
@@ -570,7 +586,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
@@ -580,7 +596,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
@@ -591,7 +607,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
@@ -602,7 +618,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
@@ -614,7 +630,7 @@ mod tests {
         let mut node = node;
         let processor = PadProcessor;
         let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

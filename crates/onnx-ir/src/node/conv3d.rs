@@ -246,6 +246,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 
@@ -273,6 +275,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 
@@ -295,6 +299,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 
@@ -317,6 +323,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 
@@ -338,6 +346,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 
@@ -362,10 +372,8 @@ mod tests {
             Some("SAME_UPPER"),
         )
         .build_with_graph_data(16);
-        let mut node = node;
         let processor = Conv3dProcessor;
-        let prefs = OutputPreferences::new();
-        let result = processor.infer_types(&mut node, 16, &prefs);
+        let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
@@ -384,6 +392,8 @@ mod tests {
         let mut node = node;
         let processor = Conv3dProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv3dConfig>();
 

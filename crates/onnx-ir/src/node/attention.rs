@@ -422,6 +422,8 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 23).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 23, &prefs);
         assert!(result.is_err());
     }
@@ -432,6 +434,8 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 23).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
@@ -443,6 +447,8 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 23).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
@@ -454,6 +460,8 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 23).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
@@ -469,6 +477,8 @@ mod tests {
         let mut node = node;
         let processor = AttentionProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 23).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);

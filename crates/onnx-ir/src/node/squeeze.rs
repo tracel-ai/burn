@@ -186,7 +186,7 @@ mod tests {
 
     fn create_runtime_squeeze_node() -> NodeBuilder {
         NodeBuilder::new(NodeType::Squeeze, "test_runtime_squeeze")
-            .input_tensor_f32("data", 4, None)
+            .input_tensor_f32("data", 4, Some(vec![2, 3, 4, 5])) // Need some shape
             .input_tensor_i64("axes", 0, None) // Runtime input - no static value
             .output_tensor_f32("squeezed", 2, None)
     }
@@ -197,6 +197,8 @@ mod tests {
         let mut node = node;
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
@@ -204,10 +206,16 @@ mod tests {
 
     #[test]
     fn test_squeeze_config_no_axes_input() {
-        let node = create_test_node(None, 4).build();
+        // Test with no axes input - need static shape with dims of size 1
+        let node = NodeBuilder::new(NodeType::Squeeze, "test_squeeze")
+            .input_tensor_f32("data", 4, Some(vec![2, 1, 3, 1])) // Has two dims of size 1
+            .output_tensor_f32("squeezed", 2, None) // Will squeeze to rank 2
+            .build();
         let mut node = node;
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(config.axes.is_none());
@@ -219,6 +227,8 @@ mod tests {
         let mut node = node;
         let processor = SqueezeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));

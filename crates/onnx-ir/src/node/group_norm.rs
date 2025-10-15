@@ -160,6 +160,8 @@ mod tests {
         let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(18);
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
         let config = node.config::<GroupNormConfig>();
@@ -173,6 +175,8 @@ mod tests {
         let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 18, &prefs).unwrap();
 
         let config = node.config::<GroupNormConfig>();
@@ -187,6 +191,8 @@ mod tests {
         let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 18).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 18, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

@@ -254,6 +254,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReduceConfig>();
@@ -269,6 +271,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReduceConfig>();
@@ -284,6 +288,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReduceConfig>();
@@ -299,6 +305,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReduceConfig>();
@@ -314,6 +322,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReduceConfig>();
@@ -328,6 +338,8 @@ mod tests {
         let mut node = create_test_node(None, Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -349,6 +361,8 @@ mod tests {
         let mut node = create_test_node(Some(vec![0, 1, 2]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -370,6 +384,8 @@ mod tests {
         let mut node = create_test_node(Some(vec![1]), Some(0));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -392,6 +408,8 @@ mod tests {
         let mut node = create_test_node(None, Some(1));
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -422,6 +440,8 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -450,6 +470,8 @@ mod tests {
         // This should not panic
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -477,6 +499,8 @@ mod tests {
 
         let processor = ReduceProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

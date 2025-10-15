@@ -124,6 +124,8 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
@@ -147,6 +149,8 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<EyeLikeConfig>();
@@ -167,6 +171,8 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<EyeLikeConfig>();
@@ -184,6 +190,8 @@ mod tests {
 
         let processor = EyeLikeProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {

@@ -122,6 +122,8 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 1);
@@ -133,6 +135,8 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
@@ -152,6 +156,8 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -170,6 +176,8 @@ mod tests {
         let mut node = node;
         let processor = FlattenProcessor;
         let prefs = OutputPreferences::new();
+        let config = processor.extract_config(&node, 16).unwrap();
+        node.config = config;
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(
             result,
