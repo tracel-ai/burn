@@ -428,11 +428,11 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            FloatOperationIr::IntoInt(desc) => FloatOperationIr::IntoInt(UnaryOpIr {
+            FloatOperationIr::IntoInt(desc) => FloatOperationIr::IntoInt(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            FloatOperationIr::Matmul(desc) => FloatOperationIr::Matmul(BinaryOpIr {
+            FloatOperationIr::Matmul(desc) => FloatOperationIr::Matmul(MatmulOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -490,13 +490,11 @@ impl RelativeOps for FloatOperationIr {
 impl RelativeOps for BoolOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            BoolOperationIr::Ones(desc) => BoolOperationIr::Ones(desc.to_relative(converter)),
-            BoolOperationIr::Zeros(desc) => BoolOperationIr::Zeros(desc.to_relative(converter)),
-            BoolOperationIr::IntoFloat(desc) => BoolOperationIr::IntoFloat(UnaryOpIr {
+            BoolOperationIr::IntoFloat(desc) => BoolOperationIr::IntoFloat(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            BoolOperationIr::IntoInt(desc) => BoolOperationIr::IntoInt(UnaryOpIr {
+            BoolOperationIr::IntoInt(desc) => BoolOperationIr::IntoInt(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -521,11 +519,11 @@ impl RelativeOps for BoolOperationIr {
 impl RelativeOps for IntOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            IntOperationIr::IntoFloat(desc) => IntOperationIr::IntoFloat(UnaryOpIr {
+            IntOperationIr::IntoFloat(desc) => IntOperationIr::IntoFloat(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            IntOperationIr::Matmul(desc) => IntOperationIr::Matmul(BinaryOpIr {
+            IntOperationIr::Matmul(desc) => IntOperationIr::Matmul(MatmulOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -677,14 +675,10 @@ impl RelativeOps for NumericOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::Ones(desc) => NumericOperationIr::Ones(desc.to_relative(converter)),
-            NumericOperationIr::Zeros(desc) => {
-                NumericOperationIr::Zeros(desc.to_relative(converter))
-            }
-            NumericOperationIr::Full(desc) => NumericOperationIr::Full((
-                desc.0.to_relative(converter),
-                desc.1.to_relative(converter),
-            )),
+            NumericOperationIr::Full(desc) => NumericOperationIr::Full(FullOpIr {
+                out: desc.out.to_relative(converter),
+                value: desc.value.to_relative(converter),
+            }),
             NumericOperationIr::Gather(desc) => NumericOperationIr::Gather(GatherOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 dim: desc.dim,
@@ -730,11 +724,11 @@ impl RelativeOps for NumericOperationIr {
                 axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(UnaryOpIr {
+            NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::Sum(desc) => NumericOperationIr::Sum(UnaryOpIr {
+            NumericOperationIr::Sum(desc) => NumericOperationIr::Sum(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -745,7 +739,7 @@ impl RelativeOps for NumericOperationIr {
                     axis: desc.axis, // Axis should stay the same.
                 })
             }
-            NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(UnaryOpIr {
+            NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -815,7 +809,7 @@ impl RelativeOps for NumericOperationIr {
                 out: desc.out.to_relative(converter),
                 axis: desc.axis, // Axis should stay the same.
             }),
-            NumericOperationIr::Max(desc) => NumericOperationIr::Max(UnaryOpIr {
+            NumericOperationIr::Max(desc) => NumericOperationIr::Max(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -835,7 +829,7 @@ impl RelativeOps for NumericOperationIr {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            NumericOperationIr::Min(desc) => NumericOperationIr::Min(UnaryOpIr {
+            NumericOperationIr::Min(desc) => NumericOperationIr::Min(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -849,7 +843,7 @@ impl RelativeOps for NumericOperationIr {
                 axis: desc.axis,
                 out: desc.out.to_relative(converter),
             }),
-            NumericOperationIr::MaxAbs(desc) => NumericOperationIr::MaxAbs(UnaryOpIr {
+            NumericOperationIr::MaxAbs(desc) => NumericOperationIr::MaxAbs(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -880,10 +874,7 @@ impl RelativeOps for NumericOperationIr {
 impl RelativeOps for BaseOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            BaseOperationIr::ToDevice(desc) => {
-                BaseOperationIr::ToDevice(desc.to_relative(converter))
-            }
-            BaseOperationIr::Reshape(desc) => BaseOperationIr::Reshape(UnaryOpIr {
+            BaseOperationIr::Reshape(desc) => BaseOperationIr::Reshape(ShapeOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -898,10 +889,9 @@ impl RelativeOps for BaseOperationIr {
                 out: desc.out.to_relative(converter),
                 axes: desc.axes.clone(),
             }),
-            BaseOperationIr::Expand(desc) => BaseOperationIr::Expand(ExpandOpIr {
+            BaseOperationIr::Expand(desc) => BaseOperationIr::Expand(ShapeOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
-                shape: desc.shape.clone(),
             }),
             BaseOperationIr::Unfold(desc) => BaseOperationIr::Unfold(UnfoldOpIr {
                 input: desc.input.to_relative(converter),
@@ -954,7 +944,7 @@ impl RelativeOps for BaseOperationIr {
                 dim: desc.dim,
                 out: desc.out.to_relative(converter),
             }),
-            BaseOperationIr::Cast(desc) => BaseOperationIr::Cast(UnaryOpIr {
+            BaseOperationIr::Cast(desc) => BaseOperationIr::Cast(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -979,11 +969,21 @@ impl RelativeOps for BaseOperationIr {
                 axis: desc.axis,
             }),
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
+            BaseOperationIr::Ones(desc) => BaseOperationIr::Ones(desc.to_relative(converter)),
+            BaseOperationIr::Zeros(desc) => BaseOperationIr::Zeros(desc.to_relative(converter)),
         }
     }
 }
 
 impl RelativeOps for InitOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        Self {
+            out: self.out.to_relative(converter),
+        }
+    }
+}
+
+impl RelativeOps for CreationOpIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         Self {
             out: self.out.to_relative(converter),

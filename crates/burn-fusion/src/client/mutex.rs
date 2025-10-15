@@ -3,7 +3,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_ir::{OperationIr, TensorIr};
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{DType, Shape, TensorData};
 use spin::Mutex;
 use std::sync::Arc;
@@ -37,13 +37,34 @@ where
         }
     }
 
-    fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
+    fn register<O>(
+        &self,
+        streams: OperationStreams,
+        repr: OperationIr,
+        operation: O,
+    ) -> Vec<FusionTensor<R>>
     where
         O: Operation<R> + 'static,
     {
+        // Create output tensors returned by this operation
+        let outputs = repr
+            .outputs()
+            .map(|output| {
+                FusionTensor::new(
+                    output.id,
+                    output.shape.clone(),
+                    output.dtype,
+                    self.clone(),
+                    StreamId::current(),
+                )
+            })
+            .collect();
+
         self.server
             .lock()
-            .register(streams, repr, Arc::new(operation))
+            .register(streams, repr, Arc::new(operation));
+
+        outputs
     }
 
     fn drain(&self) {
@@ -51,10 +72,8 @@ where
         self.server.lock().drain_stream(id);
     }
 
-    fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
-        let id = self.server.lock().create_empty_handle();
-
-        FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
+    fn create_empty_handle(&self) -> TensorId {
+        self.server.lock().create_empty_handle()
     }
 
     fn device(&self) -> &FusionDevice<R> {

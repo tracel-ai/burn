@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 
 use crate::alloc::borrow::ToOwned;
 
+use crate::TensorPrimitive;
 use crate::indexing::canonicalize_dim;
 use crate::{
     AsIndex, BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
@@ -11,7 +12,6 @@ use crate::{
     check::TensorCheck,
     ops::{Device, IntTensor},
 };
-use crate::{DType, TensorPrimitive};
 
 macro_rules! q_bin_ops {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
@@ -2685,50 +2685,6 @@ where
     /// which is more high-level and designed for public use.
     fn sign(tensor: Self::Primitive) -> Self::Primitive;
 
-    /// Creates a tensor filled with zeros.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `device` - The device on which the tensor will be allocated.
-    /// * `dtype` - The target data type.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with zeros.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
-    /// which is more high-level and designed for public use.
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
-
-    /// Creates a tensor filled with ones.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - The shape of the tensor.
-    /// * `device` - The device on which the tensor will be allocated.
-    /// * `dtype` - The target data type.
-    ///
-    /// # Returns
-    ///
-    /// The tensor filled with ones.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
-    /// which is more high-level and designed for public use.
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
-
     /// Sums all the elements of the tensor.
     ///
     /// # Arguments
@@ -3758,12 +3714,6 @@ impl<B: Backend> Numeric<B> for Int {
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        B::int_zeros(shape, device, dtype.into())
-    }
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        B::int_ones(shape, device, dtype.into())
-    }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {
         B::int_sum(tensor)
@@ -4061,12 +4011,6 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
             TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
         }
-    }
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_zeros(shape, device, dtype.into()))
-    }
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
     }
 
     fn sum(tensor: Self::Primitive) -> Self::Primitive {

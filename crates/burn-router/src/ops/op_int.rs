@@ -1,31 +1,25 @@
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, DimOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
-    InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
-    PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarIr,
-    ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr, GatherOpIr,
+    InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr,
+    OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr,
+    ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr,
     SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
-use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps};
-use burn_tensor::{
-    Device, Distribution, Element, IntDType, Shape, Slice, TensorData, TensorMetadata,
-};
+use burn_tensor::{Device, Distribution, Element, IntDType, Shape, Slice, TensorData};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape, dtype.into());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::BaseInt(BaseOperationIr::Empty(
-            out.to_ir_out(),
-        )));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Empty(desc)))
+            .output()
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -43,9 +37,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Init(desc));
-
-        out
+        client.register(OperationIr::Init(desc)).output()
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -61,34 +53,22 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = ShapeOpIr::reshape(tensor.into_ir(), shape, || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Reshape(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Reshape(desc)))
+            .output()
     }
 
     fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
+        let desc = SliceOpIr::create(tensor.into_ir(), slices.into(), || {
+            client.create_empty_handle()
+        });
 
-        let shape = tensor.shape.clone().slice(slices).unwrap();
-        let out = client.register_empty_tensor(shape, dtype);
-
-        let desc = SliceOpIr {
-            tensor: tensor.into_ir(),
-            ranges: slices.to_vec(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Slice(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Slice(desc)))
+            .output()
     }
 
     fn int_slice_assign(
@@ -97,35 +77,25 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
+        let desc =
+            SliceAssignOpIr::create(tensor.into_ir(), slices.into(), value.into_ir(), || {
+                client.create_empty_handle()
+            });
 
-        let desc = SliceAssignOpIr {
-            tensor: tensor.into_ir(),
-            ranges: slices.to_vec(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc)))
+            .output()
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let shape = Shape::matmul(&lhs.shape, &rhs.shape).unwrap();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = MatmulOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::Matmul(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::Matmul(desc)))
+            .output()
     }
 
     fn int_mask_where(
@@ -134,22 +104,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.broadcast(&mask.shape).unwrap(), dtype);
+        let desc = MaskWhereOpIr::create(tensor.into_ir(), mask.into_ir(), value.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = MaskWhereOpIr {
-            tensor: tensor.into_ir(),
-            mask: mask.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaskWhere(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MaskWhere(desc),
+            ))
+            .output()
     }
 
     fn int_mask_fill(
@@ -158,22 +122,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         value: IntElem<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
+            client.create_empty_handle()
+        });
 
-        let desc = MaskFillOpIr {
-            tensor: tensor.into_ir(),
-            mask: mask.into_ir(),
-            value: ScalarIr::with_dtype(value, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaskFill(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MaskFill(desc),
+            ))
+            .output()
     }
 
     fn int_gather(
@@ -182,22 +140,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(indices.shape.clone(), dtype);
+        let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = GatherOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            indices: indices.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Gather(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Gather(desc),
+            ))
+            .output()
     }
 
     fn int_scatter(
@@ -207,23 +159,20 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
-
-        let desc = ScatterOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
             dim,
-            indices: indices.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
+            indices.into_ir(),
+            value.into_ir(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Scatter(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Scatter(desc),
+            ))
+            .output()
     }
 
     fn int_select(
@@ -232,24 +181,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = indices.shape[0];
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = SelectOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            indices: indices.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Select(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Select(desc),
+            ))
+            .output()
     }
 
     fn int_select_assign(
@@ -259,688 +200,462 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
-
-        let desc = SelectAssignOpIr {
-            tensor: tensor.into_ir(),
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
             dim,
-            indices: indices.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
+            indices.into_ir(),
+            value.into_ir(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::SelectAssign(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::SelectAssign(desc),
+            ))
+            .output()
     }
 
     fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
-        let tensor_first = tensors.first().unwrap();
-        let client = tensor_first.client.clone();
-        let dtype = tensor_first.dtype;
+        let client = tensors.first().unwrap().client.clone();
+        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
-        // Calculate the output shape
-        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
-        let out = client.register_empty_tensor(shape, dtype);
-
-        let desc = CatOpIr {
-            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
-            dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Cat(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Cat(desc)))
+            .output()
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Equal(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Equal(desc)))
+            .output()
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::EqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::EqualElem(desc),
+            ))
+            .output()
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Greater(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::Greater(desc),
+            ))
+            .output()
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::GreaterElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterElem(desc),
+            ))
+            .output()
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::GreaterEqual(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterEqual(desc),
+            ))
+            .output()
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::GreaterEqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterEqualElem(desc),
+            ))
+            .output()
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Lower(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::Lower(desc),
+            ))
+            .output()
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::LowerElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerElem(desc),
+            ))
+            .output()
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::LowerEqual(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerEqual(desc),
+            ))
+            .output()
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::LowerEqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerEqualElem(desc),
+            ))
+            .output()
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Add(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Add(desc),
+            ))
+            .output()
     }
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::AddScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::AddScalar(desc),
+            ))
+            .output()
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Sub(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Sub(desc),
+            ))
+            .output()
     }
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::SubScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::SubScalar(desc),
+            ))
+            .output()
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Mul(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Mul(desc),
+            ))
+            .output()
     }
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MulScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MulScalar(desc),
+            ))
+            .output()
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Div(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Div(desc),
+            ))
+            .output()
     }
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::DivScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::DivScalar(desc),
+            ))
+            .output()
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Rem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Rem(desc),
+            ))
+            .output()
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::RemScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::RemScalar(desc),
+            ))
+            .output()
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = dtype.into();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Zeros(out.to_ir_out()),
-        ));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Zeros(desc)))
+            .output()
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = dtype.into();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Ones(out.to_ir_out()),
-        ));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Ones(desc)))
+            .output()
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Sum(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Sum(desc),
+            ))
+            .output()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, axis: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[axis] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), axis, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axis,
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::SumDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::SumDim(desc),
+            ))
+            .output()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Prod(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Prod(desc),
+            ))
+            .output()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::ProdDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::ProdDim(desc),
+            ))
+            .output()
     }
 
     fn int_mean(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Mean(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Mean(desc),
+            ))
+            .output()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MeanDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MeanDim(desc),
+            ))
+            .output()
     }
 
     fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::CumSum(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::CumSum(desc)))
+            .output()
     }
 
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::CumProd(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::CumProd(desc)))
+            .output()
     }
 
     fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::CumMin(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::CumMin(desc)))
+            .output()
     }
 
     fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::CumMax(desc)));
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::CumMax(desc)))
+            .output()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::ArgMax(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::ArgMax(desc),
+            ))
+            .output()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::ArgMin(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::ArgMin(desc),
+            ))
+            .output()
     }
 
     fn int_clamp(
@@ -949,110 +664,72 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         max: IntElem<Self>,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = ClampOpIr::create(tensor.into_ir(), min, max, || client.create_empty_handle());
 
-        let desc = ClampOpIr {
-            tensor: tensor.into_ir(),
-            min: ScalarIr::with_dtype(min, &dtype),
-            max: ScalarIr::with_dtype(max, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Clamp(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Clamp(desc),
+            ))
+            .output()
     }
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Abs(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Abs(desc),
+            ))
+            .output()
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
+        let desc = CastOpIr::create(tensor.into_ir(), FloatElem::<Self>::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::IntoFloat(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::IntoFloat(desc)))
+            .output()
     }
 
     fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
+            client.create_empty_handle()
+        });
 
-        let desc = SwapDimsOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            dim1,
-            dim2,
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::SwapDims(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::SwapDims(desc)))
+            .output()
     }
 
     fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Max(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Max(desc),
+            ))
+            .output()
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaxDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MaxDim(desc),
+            ))
+            .output()
     }
 
     fn int_max_dim_with_indices(
@@ -1060,103 +737,67 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape.clone(), dtype);
-        let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
-
-        let desc = ReduceDimWithIndicesOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ReduceDimWithIndicesOpIr::create(
+            tensor.into_ir(),
             dim,
-            out: out.to_ir_out(),
-            out_indices: out_indices.to_ir_out(),
-        };
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaxDimWithIndices(desc),
-        ));
-
-        (out, out_indices)
+        client
+            .register(OperationIr::NumericInt(
+                desc.tensor.dtype,
+                NumericOperationIr::MaxDimWithIndices(desc),
+            ))
+            .outputs()
     }
 
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaxAbs(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MaxAbs(desc),
+            ))
+            .output()
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MaxAbsDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MaxAbsDim(desc),
+            ))
+            .output()
     }
 
     fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::Min(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Min(desc),
+            ))
+            .output()
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MinDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MinDim(desc),
+            ))
+            .output()
     }
 
     fn int_min_dim_with_indices(
@@ -1164,25 +805,19 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape.clone(), dtype);
-        let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
-
-        let desc = ReduceDimWithIndicesOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ReduceDimWithIndicesOpIr::create(
+            tensor.into_ir(),
             dim,
-            out: out.to_ir_out(),
-            out_indices: out_indices.to_ir_out(),
-        };
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::MinDimWithIndices(desc),
-        ));
-
-        (out, out_indices)
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::MinDimWithIndices(desc),
+            ))
+            .outputs()
     }
 
     fn int_random(
@@ -1190,277 +825,182 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         distribution: Distribution,
         device: &Device<Self>,
     ) -> IntTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
         let dtype = IntElem::<Self>::dtype();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 
-        client.register(OperationIr::NumericInt(
-            dtype,
-            NumericOperationIr::IntRandom(RandomOpIr {
-                out: out.to_ir_out(),
-                distribution,
-            }),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericInt(
+                dtype,
+                NumericOperationIr::IntRandom(desc),
+            ))
+            .output()
     }
 
     fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        // Change the shape of the tensor to match the new axes
-        let shape = tensor.shape.clone().permute(axes).unwrap();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = PermuteOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axes: axes.to_vec(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Permute(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Permute(desc)))
+            .output()
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+        let desc = ShapeOpIr::expand(tensor.into_ir(), shape, || client.create_empty_handle());
 
-        let desc = ExpandOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            shape,
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Expand(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Expand(desc)))
+            .output()
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
+        let desc = FlipOpIr::create(tensor.into_ir(), axes.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = FlipOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axes: axes.to_vec(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Flip(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Flip(desc)))
+            .output()
     }
 
     fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let shape = tensor.shape.clone().repeat(dim, times);
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = RepeatDimOpIr::create(tensor.into_ir(), dim, times, || {
+            client.create_empty_handle()
+        });
 
-        let desc = RepeatDimOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            times,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::RepeatDim(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::RepeatDim(desc)))
+            .output()
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseAnd(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseAnd(desc)))
+            .output()
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseOr(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseOr(desc)))
+            .output()
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseXor(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseXor(desc)))
+            .output()
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseNot(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseNot(desc)))
+            .output()
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseAndScalar(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseAndScalar(desc)))
+            .output()
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseOrScalar(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseOrScalar(desc)))
+            .output()
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseXorScalar(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseXorScalar(desc)))
+            .output()
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseLeftShift(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShift(desc)))
+            .output()
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(
-            desc,
-        )));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(
+                desc,
+            )))
+            .output()
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShift(desc)));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseRightShift(desc)))
+            .output()
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(
-            desc,
-        )));
-
-        out
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(
+                desc,
+            )))
+            .output()
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: burn_tensor::IntDType) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype.into());
+        let desc = CastOpIr::create(tensor.into_ir(), dtype.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Cast(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Cast(desc)))
+            .output()
     }
 
     fn int_unfold(
@@ -1470,20 +1010,12 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         step: usize,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
+        let desc = UnfoldOpIr::create(tensor.into_ir(), dim, size, step, || {
+            client.create_empty_handle()
+        });
 
-        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
-        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
-
-        let desc = UnfoldOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            dim,
-            size,
-            step,
-        };
-
-        client.register(OperationIr::BaseInt(BaseOperationIr::Unfold(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::Unfold(desc)))
+            .output()
     }
 }

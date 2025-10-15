@@ -230,7 +230,7 @@ impl FuseOptimizationBuilder {
             BaseOperationIr::Equal(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
             }),
-            BaseOperationIr::Cast(desc) => self.register_unary_ops(desc, |input, out| {
+            BaseOperationIr::Cast(desc) => self.register_unary_ops(desc.into(), |input, out| {
                 FuseOp::Assign(UnaryFuseArgs { input, out })
             }),
             BaseOperationIr::SwapDims(desc) => {
@@ -255,7 +255,7 @@ impl FuseOptimizationBuilder {
             }
             BaseOperationIr::Reshape(desc) => {
                 if desc.input.shape == desc.out.shape {
-                    return self.register_unary_ops(desc, |input, out| {
+                    return self.register_unary_ops(desc.into(), |input, out| {
                         FuseOp::Assign(UnaryFuseArgs { input, out })
                     });
                 }
@@ -278,6 +278,40 @@ impl FuseOptimizationBuilder {
                 } else {
                     false
                 }
+            }
+            BaseOperationIr::Ones(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                let elem: ElemType = desc.out.dtype.into();
+                let precision = elem.into();
+                let input = Arg::Literal(1, precision);
+
+                self.builder.register(|build| {
+                    let out = build.output(&desc.out)?;
+
+                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+
+                    Some(())
+                })
+            }
+            BaseOperationIr::Zeros(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                let elem: ElemType = desc.out.dtype.into();
+                let precision = elem.into();
+                let input = Arg::Literal(0, precision);
+
+                self.builder.register(|build| {
+                    let out = build.output(&desc.out)?;
+
+                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+
+                    Some(())
+                })
             }
             _ => false,
         }
@@ -455,48 +489,14 @@ impl FuseOptimizationBuilder {
                     Some(())
                 })
             }
-            NumericOperationIr::Ones(desc) => {
-                if !self.output_is_compatible(desc) {
-                    return false;
-                }
-
-                let elem: ElemType = desc.dtype.into();
-                let precision = elem.into();
-                let input = Arg::Literal(1, precision);
-
-                self.builder.register(|build| {
-                    let out = build.output(desc)?;
-
-                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
-
-                    Some(())
-                })
-            }
-            NumericOperationIr::Zeros(desc) => {
-                if !self.output_is_compatible(desc) {
-                    return false;
-                }
-
-                let elem: ElemType = desc.dtype.into();
-                let precision = elem.into();
-                let input = Arg::Literal(0, precision);
-
-                self.builder.register(|build| {
-                    let out = build.output(desc)?;
-
-                    build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
-
-                    Some(())
-                })
-            }
-            NumericOperationIr::Full((desc, elem)) => {
-                if !self.output_is_compatible(desc) {
+            NumericOperationIr::Full(desc) => {
+                if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
 
                 self.builder.register(|build| {
-                    let input = build.scalar(elem, desc.dtype);
-                    let out = build.output(desc)?;
+                    let input = build.scalar(&desc.value, desc.out.dtype);
+                    let out = build.output(&desc.out)?;
 
                     build.register_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
 

@@ -1,9 +1,10 @@
 use crate::{RouterTensor, RunnerChannel};
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use burn_common::future::DynFut;
-use burn_ir::{OperationIr, TensorIr};
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    DType, FloatDType, Shape, TensorData,
+    FloatDType, Shape, TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use core::ops::DerefMut;
@@ -22,17 +23,15 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     type Device: DeviceOps;
 
     /// Register a new tensor operation to be executed by the (runner) server.
-    fn register(&self, op: OperationIr);
+    fn register(&self, op: OperationIr) -> Vec<RouterTensor<Self>>;
     /// Read the values contained by a tensor.
     fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData>;
     /// Sync the runner, ensure that all computations are finished.
     fn sync(&self);
+    /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
+    fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
-    /// Create a new [RouterTensor] with no resources associated.
-    fn register_empty_tensor(&self, shape: Shape, dtype: DType) -> RouterTensor<Self>;
-    /// Create a new float [RouterTensor] with no resources associated.
-    fn register_float_tensor(&self, shape: Shape, dtype: FloatDType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
     /// Seed the runner.
@@ -109,5 +108,36 @@ impl RunnerClientLocator {
 
             clients.insert(key, Box::new(client));
         }
+    }
+}
+
+/// Extension trait to extract outputs when registering an operation.
+pub trait OperationOutput<C: RunnerClient> {
+    /// Extract a single output tensor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than one output.
+    fn output(self) -> RouterTensor<C>;
+
+    /// Extract a pair of output tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than two outputs.
+    fn outputs(self) -> (RouterTensor<C>, RouterTensor<C>);
+}
+
+impl<C: RunnerClient> OperationOutput<C> for Vec<RouterTensor<C>> {
+    fn output(mut self) -> RouterTensor<C> {
+        debug_assert_eq!(self.len(), 1, "expected single output, got {}", self.len());
+        self.pop().unwrap()
+    }
+
+    fn outputs(mut self) -> (RouterTensor<C>, RouterTensor<C>) {
+        debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
+        let b = self.pop().unwrap();
+        let a = self.pop().unwrap();
+        (a, b)
     }
 }

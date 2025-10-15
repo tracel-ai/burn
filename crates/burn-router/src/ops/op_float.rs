@@ -1,19 +1,16 @@
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
 
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CrossOpIr, DimOpIr, ExpandOpIr, FlipOpIr,
-    FloatOperationIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr,
-    OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr,
-    ScalarIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr, FlipOpIr,
+    FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
+    MatmulOpIr, NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
+    ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
+    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
-use burn_tensor::ops::unfold::calculate_unfold_shape;
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
-use burn_tensor::{
-    Device, Distribution, Element, FloatDType, Shape, Slice, TensorData, TensorMetadata,
-};
+use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, Slice, TensorData};
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -23,9 +20,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Init(desc));
-
-        out
+        client.register(OperationIr::Init(desc)).output()
     }
 
     fn float_random(
@@ -33,48 +28,31 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
         let dtype = FloatElem::<Self>::dtype();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 
-        client.register(OperationIr::Float(
-            dtype,
-            FloatOperationIr::Random(RandomOpIr {
-                out: out.to_ir_out(),
-                distribution,
-            }),
-        ));
-
-        out
+        client
+            .register(OperationIr::Float(dtype, FloatOperationIr::Random(desc)))
+            .output()
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = dtype.into();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Zeros(out.to_ir_out()),
-        ));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Zeros(desc)))
+            .output()
     }
 
     fn float_ones(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = dtype.into();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Ones(out.to_ir_out()),
-        ));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Ones(desc)))
+            .output()
     }
 
     fn float_full(
@@ -83,17 +61,17 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         device: &Device<Self>,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = dtype.into();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = FullOpIr::create(shape, dtype.into(), fill_value, || {
+            client.create_empty_handle()
+        });
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Full((out.to_ir_out(), ScalarIr::with_dtype(fill_value, &dtype))),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Full(desc),
+            ))
+            .output()
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
@@ -117,67 +95,51 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), IntElem::<Self>::dtype());
+        let desc = CastOpIr::create(tensor.into_ir(), IntElem::<Self>::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::IntoInt(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.input.dtype,
+                FloatOperationIr::IntoInt(desc),
+            ))
+            .output()
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape, dtype.into());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Empty(
-            out.to_ir_out(),
-        )));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Empty(desc)))
+            .output()
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Add(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Add(desc),
+            ))
+            .output()
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::AddScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::AddScalar(desc),
+            ))
+            .output()
     }
 
     fn float_clamp(
@@ -186,191 +148,132 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         max: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = ClampOpIr::create(tensor.into_ir(), min, max, || client.create_empty_handle());
 
-        let desc = ClampOpIr {
-            tensor: tensor.into_ir(),
-            min: ScalarIr::with_dtype(min, &dtype),
-            max: ScalarIr::with_dtype(max, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Clamp(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Clamp(desc),
+            ))
+            .output()
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Sub(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Sub(desc),
+            ))
+            .output()
     }
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::SubScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::SubScalar(desc),
+            ))
+            .output()
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Mul(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Mul(desc),
+            ))
+            .output()
     }
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MulScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MulScalar(desc),
+            ))
+            .output()
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Div(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Div(desc),
+            ))
+            .output()
     }
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::DivScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::DivScalar(desc),
+            ))
+            .output()
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Rem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Rem(desc),
+            ))
+            .output()
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::RemScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::RemScalar(desc),
+            ))
+            .output()
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let shape = Shape::matmul(&lhs.shape, &rhs.shape).unwrap();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = MatmulOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Matmul(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Matmul(desc),
+            ))
+            .output()
     }
 
     fn float_cross(
@@ -379,50 +282,36 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         dim: usize,
     ) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = CrossOpIr::create(lhs.into_ir(), rhs.into_ir(), dim, || {
+            client.create_empty_handle()
+        });
 
-        let desc = CrossOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-            dim,
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Cross(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Cross(desc),
+            ))
+            .output()
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let shape = tensor.shape.clone().swap(dim1, dim2).unwrap();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
+            client.create_empty_handle()
+        });
 
-        let desc = SwapDimsOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            dim1,
-            dim2,
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::SwapDims(desc)))
+            .output()
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = ShapeOpIr::reshape(tensor.into_ir(), shape, || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Reshape(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Reshape(desc)))
+            .output()
     }
 
     fn float_gather(
@@ -431,22 +320,16 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(indices.shape.clone(), dtype);
+        let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = GatherOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            indices: indices.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Gather(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Gather(desc),
+            ))
+            .output()
     }
 
     fn float_scatter(
@@ -456,23 +339,20 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
-
-        let desc = ScatterOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ScatterOpIr::create(
+            tensor.into_ir(),
             dim,
-            indices: indices.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
+            indices.into_ir(),
+            value.into_ir(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Scatter(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Scatter(desc),
+            ))
+            .output()
     }
 
     fn float_select(
@@ -481,24 +361,16 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = indices.shape[0];
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = SelectOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            indices: indices.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Select(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Select(desc),
+            ))
+            .output()
     }
 
     fn float_select_assign(
@@ -508,41 +380,31 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
-
-        let desc = SelectAssignOpIr {
-            tensor: tensor.into_ir(),
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
             dim,
-            indices: indices.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
+            indices.into_ir(),
+            value.into_ir(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::SelectAssign(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::SelectAssign(desc),
+            ))
+            .output()
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
+        let desc = SliceOpIr::create(tensor.into_ir(), slices.into(), || {
+            client.create_empty_handle()
+        });
 
-        let shape = tensor.shape.clone().slice(slices).unwrap();
-        let out = client.register_empty_tensor(shape, dtype);
-
-        let desc = SliceOpIr {
-            tensor: tensor.into_ir(),
-            ranges: slices.to_vec(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Slice(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Slice(desc)))
+            .output()
     }
 
     fn float_slice_assign(
@@ -551,19 +413,14 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc =
+            SliceAssignOpIr::create(tensor.into_ir(), slices.into(), value.into_ir(), || {
+                client.create_empty_handle()
+            });
 
-        let desc = SliceAssignOpIr {
-            tensor: tensor.into_ir(),
-            ranges: slices.to_vec(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc)))
+            .output()
     }
 
     fn float_mask_where(
@@ -572,22 +429,16 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.broadcast(&mask.shape).unwrap(), dtype);
+        let desc = MaskWhereOpIr::create(tensor.into_ir(), mask.into_ir(), value.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = MaskWhereOpIr {
-            tensor: tensor.into_ir(),
-            mask: mask.into_ir(),
-            value: value.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MaskWhere(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MaskWhere(desc),
+            ))
+            .output()
     }
 
     fn float_mask_fill(
@@ -596,741 +447,523 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
+            client.create_empty_handle()
+        });
 
-        let desc = MaskFillOpIr {
-            tensor: tensor.into_ir(),
-            mask: mask.into_ir(),
-            value: ScalarIr::with_dtype(value, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MaskFill(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MaskFill(desc),
+            ))
+            .output()
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Equal(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Equal(desc)))
+            .output()
     }
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::EqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::EqualElem(desc),
+            ))
+            .output()
     }
 
     fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Greater(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::Greater(desc),
+            ))
+            .output()
     }
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::GreaterElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterElem(desc),
+            ))
+            .output()
     }
 
     fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::GreaterEqual(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterEqual(desc),
+            ))
+            .output()
     }
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::GreaterEqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::GreaterEqualElem(desc),
+            ))
+            .output()
     }
 
     fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Lower(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::Lower(desc),
+            ))
+            .output()
     }
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::LowerElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerElem(desc),
+            ))
+            .output()
     }
 
     fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(
-            lhs.shape.broadcast(&rhs.shape).unwrap(),
+        let desc = BinaryOpIr::create_comparison(
+            lhs.into_ir(),
+            rhs.into_ir(),
             R::BoolElem::dtype(),
+            || client.create_empty_handle(),
         );
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::LowerEqual(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerEqual(desc),
+            ))
+            .output()
     }
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::LowerEqualElem(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.lhs.dtype,
+                NumericOperationIr::LowerEqualElem(desc),
+            ))
+            .output()
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Sum(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Sum(desc),
+            ))
+            .output()
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, axis: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[axis] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), axis, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axis,
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::SumDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::SumDim(desc),
+            ))
+            .output()
     }
 
     fn float_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Prod(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Prod(desc),
+            ))
+            .output()
     }
 
     fn float_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::ProdDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::ProdDim(desc),
+            ))
+            .output()
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Mean(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Mean(desc),
+            ))
+            .output()
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MeanDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MeanDim(desc),
+            ))
+            .output()
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::CumSum(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::CumSum(desc)))
+            .output()
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::CumProd(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::CumProd(desc)))
+            .output()
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::CumMin(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::CumMin(desc)))
+            .output()
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let shape = tensor.shape.clone();
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = DimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::CumMax(desc)));
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::CumMax(desc)))
+            .output()
     }
 
     fn float_exp(lhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(lhs.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: lhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Exp(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Exp(desc),
+            ))
+            .output()
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Log(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Log(desc),
+            ))
+            .output()
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Log1p(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Log1p(desc),
+            ))
+            .output()
     }
 
     fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
-        let desc = ScalarOpIr {
-            lhs: lhs.into_ir(),
-            rhs: ScalarIr::with_dtype(rhs, &dtype),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(
-            dtype,
-            FloatOperationIr::PowfScalar(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::PowfScalar(desc),
+            ))
+            .output()
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Sqrt(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Sqrt(desc),
+            ))
+            .output()
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Abs(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Abs(desc),
+            ))
+            .output()
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Cos(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Cos(desc),
+            ))
+            .output()
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Sin(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Sin(desc),
+            ))
+            .output()
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Tanh(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Tanh(desc),
+            ))
+            .output()
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Round(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Round(desc),
+            ))
+            .output()
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Floor(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Floor(desc),
+            ))
+            .output()
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Ceil(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Ceil(desc),
+            ))
+            .output()
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Recip(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Recip(desc),
+            ))
+            .output()
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::Float(dtype, FloatOperationIr::Erf(desc)));
-
-        out
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::Erf(desc),
+            ))
+            .output()
     }
 
     fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-        let tensor_first = tensors.first().unwrap();
-        let client = tensor_first.client.clone();
+        let client = tensors.first().unwrap().client.clone();
+        let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
+        let desc = CatOpIr::create(tensors, dim, || client.create_empty_handle());
 
-        // Calculate the output shape
-        let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
-        let out = client.register_empty_tensor(shape, tensor_first.dtype);
-
-        let desc = CatOpIr {
-            tensors: tensors.into_iter().map(|tensor| tensor.into_ir()).collect(),
-            dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Cat(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Cat(desc)))
+            .output()
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
+        let desc = ReduceDimOpIr::create_with_dtype(
+            tensor.into_ir(),
+            dim,
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::ArgMax(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.input.dtype,
+                NumericOperationIr::ArgMax(desc),
+            ))
+            .output()
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let shape = tensor.shape.clone().repeat(dim, times);
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = RepeatDimOpIr::create(tensor.into_ir(), dim, times, || {
+            client.create_empty_handle()
+        });
 
-        let desc = RepeatDimOpIr {
-            tensor: tensor.into_ir(),
-            dim,
-            times,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::RepeatDim(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::RepeatDim(desc)))
+            .output()
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
+        let desc = ReduceDimOpIr::create_with_dtype(
+            tensor.into_ir(),
+            dim,
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::ArgMin(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.input.dtype,
+                NumericOperationIr::ArgMin(desc),
+            ))
+            .output()
     }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Max(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Max(desc),
+            ))
+            .output()
     }
 
     fn float_max_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MaxDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MaxDim(desc),
+            ))
+            .output()
     }
 
     fn float_max_dim_with_indices(
@@ -1338,64 +971,43 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         dim: usize,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape.clone(), dtype);
-        let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
-
-        let desc = ReduceDimWithIndicesOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ReduceDimWithIndicesOpIr::create(
+            tensor.into_ir(),
             dim,
-            out: out.to_ir_out(),
-            out_indices: out_indices.to_ir_out(),
-        };
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MaxDimWithIndices(desc),
-        ));
-
-        (out, out_indices)
+        client
+            .register(OperationIr::NumericFloat(
+                desc.tensor.dtype,
+                NumericOperationIr::MaxDimWithIndices(desc),
+            ))
+            .outputs()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(Shape::new([1]), dtype);
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Min(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Min(desc),
+            ))
+            .output()
     }
 
     fn float_min_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape, dtype);
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
-        let desc = ReduceDimOpIr {
-            input: tensor.into_ir(),
-            axis: dim,
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MinDim(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MinDim(desc),
+            ))
+            .output()
     }
 
     fn float_min_dim_with_indices(
@@ -1403,105 +1015,75 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         dim: usize,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
-        let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
-        let out = client.register_empty_tensor(shape.clone(), dtype);
-        let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
-
-        let desc = ReduceDimWithIndicesOpIr {
-            tensor: tensor.into_ir(),
+        let desc = ReduceDimWithIndicesOpIr::create(
+            tensor.into_ir(),
             dim,
-            out: out.to_ir_out(),
-            out_indices: out_indices.to_ir_out(),
-        };
+            IntElem::<Self>::dtype(),
+            || client.create_empty_handle(),
+        );
 
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::MinDimWithIndices(desc),
-        ));
-
-        (out, out_indices)
+        client
+            .register(OperationIr::NumericFloat(
+                desc.tensor.dtype,
+                NumericOperationIr::MinDimWithIndices(desc),
+            ))
+            .outputs()
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
-        let dtype = lhs.dtype;
-        let out = client.register_empty_tensor(lhs.shape.broadcast(&rhs.shape).unwrap(), dtype);
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::NumericFloat(
-            dtype,
-            NumericOperationIr::Powf(desc),
-        ));
-
-        out
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::Powf(desc),
+            ))
+            .output()
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        // Change the shape of the tensor to match the new axes
-        let shape = tensor.shape.clone().permute(axes).unwrap();
-        let out = client.register_empty_tensor(shape, tensor.dtype);
+        let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = PermuteOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axes: axes.to_vec(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Permute(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Permute(desc)))
+            .output()
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
+        let desc = ShapeOpIr::expand(tensor.into_ir(), shape, || client.create_empty_handle());
 
-        let desc = ExpandOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            shape,
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Expand(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Expand(desc)))
+            .output()
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
+        let desc = FlipOpIr::create(tensor.into_ir(), axes.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = FlipOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            axes: axes.to_vec(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Flip(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Flip(desc)))
+            .output()
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let out = client.register_float_tensor(tensor.shape.clone(), dtype);
+        let desc = CastOpIr::create(tensor.into_ir(), dtype.into(), || {
+            client.create_empty_handle()
+        });
 
-        let desc = UnaryOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Cast(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Cast(desc)))
+            .output()
     }
 
     fn float_unfold(
@@ -1511,20 +1093,12 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         step: usize,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
+        let desc = UnfoldOpIr::create(tensor.into_ir(), dim, size, step, || {
+            client.create_empty_handle()
+        });
 
-        let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
-        let out = client.register_empty_tensor(Shape::from(shape), tensor.dtype);
-
-        let desc = UnfoldOpIr {
-            input: tensor.into_ir(),
-            out: out.to_ir_out(),
-            dim,
-            size,
-            step,
-        };
-
-        client.register(OperationIr::BaseFloat(BaseOperationIr::Unfold(desc)));
-
-        out
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::Unfold(desc)))
+            .output()
     }
 }

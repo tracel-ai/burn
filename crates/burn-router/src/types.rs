@@ -1,5 +1,6 @@
+use alloc::vec::Vec;
 use burn_common::future::DynFut;
-use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorIr};
+use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
     DType, Shape, TensorData,
     backend::{Backend, DeviceId, DeviceOps},
@@ -104,7 +105,7 @@ macro_rules! impl_multi_backend_types {
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
-                fn register(&self, op: OperationIr) {
+                fn register(&self, op: OperationIr) -> Vec<RouterTensor<Self>> {
                     match self {
                         Self::$DefaultBackend(runner) => runner.register(op),
                         $(
@@ -137,36 +138,6 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_empty_tensor(&self, shape: Shape, dtype: DType) -> RouterTensor<Self> {
-                    match self {
-                        Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_empty_tensor_desc(shape, dtype);
-                            RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                        }
-                        $(
-                            Self::$OtherBackend(runner) => {
-                            let desc = runner.register_empty_tensor_desc(shape, dtype);
-                                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                            }
-                        )+
-                    }
-                }
-
-                fn register_float_tensor(&self, shape: Shape, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
-                    match self {
-                        Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, dtype);
-                            RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                        }
-                        $(
-                            Self::$OtherBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, dtype);
-                                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                            }
-                        )+
-                    }
-                }
-
                 fn device(&self) -> Self::Device {
                     match self {
                         Self::$DefaultBackend(runner) => MultiDevice::$DefaultBackend(runner.device()),
@@ -190,6 +161,15 @@ macro_rules! impl_multi_backend_types {
                         Self::$DefaultBackend(runner) => runner.seed(seed),
                         $(
                             Self::$OtherBackend(runner) => runner.seed(seed),
+                        )+
+                    }
+                }
+
+                fn create_empty_handle(&self) -> TensorId {
+                            match self {
+                        Self::$DefaultBackend(runner) => runner.create_empty_handle(),
+                        $(
+                            Self::$OtherBackend(runner) => runner.create_empty_handle(),
                         )+
                     }
                 }
