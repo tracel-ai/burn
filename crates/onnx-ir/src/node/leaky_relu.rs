@@ -1,6 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -24,13 +23,38 @@ impl NodeConfig for LeakyReluConfig {
 pub struct LeakyReluProcessor;
 
 impl NodeProcessor for LeakyReluProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // LeakyRelu implementation supports opset 6+ (for shape inference)
-        validate_opset(&node.node_type, opset, 6);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 6 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 6,
+                actual: opset,
+            });
+        }
 
-        // ALL logic from leaky_relu_config inlined here
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract alpha attribute
         let mut alpha = 0.01;
-
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "alpha" {
                 alpha = value.clone().into_f32() as f64
@@ -39,10 +63,19 @@ impl NodeProcessor for LeakyReluProcessor {
 
         let config = LeakyReluConfig { alpha };
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -65,7 +98,8 @@ mod tests {
         let node = create_test_node(0.2);
         let mut node = node;
         let processor = LeakyReluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<LeakyReluConfig>();
         assert!((config.alpha - 0.2).abs() < 1e-6);
     }
@@ -76,7 +110,8 @@ mod tests {
         node.attrs.clear(); // Remove all attributes
         let mut node = node;
         let processor = LeakyReluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<LeakyReluConfig>();
         assert_eq!(config.alpha, 0.01); // Check default value
     }

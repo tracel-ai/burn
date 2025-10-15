@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{Node, NodeConfig};
 use std::any::Any;
@@ -31,10 +30,37 @@ impl NodeConfig for IsInfConfig {
 pub struct IsInfProcessor;
 
 impl NodeProcessor for IsInfProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // IsInf implementation supports opset 10+
-        validate_opset(&node.node_type, opset, 10);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 10 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 10,
+                actual: opset,
+            });
+        }
 
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract detect_negative and detect_positive attributes
         let mut detect_negative = true;
         let mut detect_positive = true;
 
@@ -42,16 +68,30 @@ impl NodeProcessor for IsInfProcessor {
             match key.as_str() {
                 "detect_negative" => detect_negative = value.clone().into_i64() != 0,
                 "detect_positive" => detect_positive = value.clone().into_i64() != 0,
-                _ => panic!("Unexpected attribute for IsInf: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for IsInf: {}", key),
+                    });
+                }
             }
         }
 
         let config = IsInfConfig::new(detect_negative, detect_positive);
         node.config = Some(Box::new(config));
+
+        // Output is boolean tensor with same shape as input
+        crate::node::comparison::elementwise_comparison_outputs(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::node::comparison::elementwise_comparison_outputs(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -82,7 +122,8 @@ mod tests {
         let node = create_test_node(None, None);
         let mut node = node;
         let processor = IsInfProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<IsInfConfig>();
 
         // Both should default to true if not specified according to the spec
@@ -95,7 +136,8 @@ mod tests {
         let node = create_test_node(Some(1), Some(0));
         let mut node = node;
         let processor = IsInfProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<IsInfConfig>();
 
         assert!(config.detect_negative);
@@ -107,7 +149,8 @@ mod tests {
         let node = create_test_node(Some(0), Some(1));
         let mut node = node;
         let processor = IsInfProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);
@@ -119,7 +162,8 @@ mod tests {
         let node = create_test_node(Some(0), Some(0));
         let mut node = node;
         let processor = IsInfProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<IsInfConfig>();
 
         assert!(!config.detect_negative);

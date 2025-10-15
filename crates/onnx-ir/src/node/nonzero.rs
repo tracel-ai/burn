@@ -1,13 +1,38 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct NonZeroProcessor;
 
 impl NodeProcessor for NonZeroProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // NonZero implementation supports opset 9+
-        validate_opset(&node.node_type, opset, 9);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("NonZero rank inference for node {}", node.name);
 
@@ -24,8 +49,15 @@ impl NodeProcessor for NonZeroProcessor {
                 });
                 log::debug!("NonZero output tensor shape: [{}, -1]", tensor.rank);
             }
-            _ => panic!("NonZero operation requires tensor input"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -43,7 +75,8 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -63,7 +96,8 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -83,7 +117,8 @@ mod tests {
             .build();
 
         let processor = NonZeroProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

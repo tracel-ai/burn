@@ -1,7 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -26,9 +25,35 @@ impl NodeConfig for EyeLikeConfig {
 pub struct EyeLikeProcessor;
 
 impl NodeProcessor for EyeLikeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // EyeLike implementation supports opset 9+
-        validate_opset(&node.node_type, opset, 9);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut dtype = None;
         let mut k = 0i64; // default to main diagonal
@@ -38,10 +63,12 @@ impl NodeProcessor for EyeLikeProcessor {
             match key.as_str() {
                 "dtype" => {
                     let dtype_i32 = value.clone().into_i32();
-                    dtype = Some(
-                        element_type_from_proto(dtype_i32)
-                            .unwrap_or_else(|e| panic!("Unsupported dtype for EyeLike: {}", e)),
-                    );
+                    dtype = Some(element_type_from_proto(dtype_i32).map_err(|e| {
+                        ProcessError::InvalidAttribute {
+                            name: "dtype".to_string(),
+                            reason: format!("Unsupported dtype for EyeLike: {}", e),
+                        }
+                    })?);
                 }
                 "k" => {
                     k = value.clone().into_i64();
@@ -52,25 +79,31 @@ impl NodeProcessor for EyeLikeProcessor {
 
         let config = EyeLikeConfig { dtype, k };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("EyeLike rank inference for node {}", node.name);
 
-        // Extract tensor info before calling process_config
+        // Extract tensor info
         let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
-                assert_eq!(tensor.rank, 2, "Input rank must be 2D tensor");
+                if tensor.rank != 2 {
+                    return Err(ProcessError::Custom(
+                        "EyeLike operation requires 2D tensor input".to_string(),
+                    ));
+                }
                 (
                     tensor.rank,
                     tensor.elem_type.clone(),
                     tensor.static_shape.clone(),
                 )
             }
-            _ => panic!("EyeLike operation requires 2D tensor input"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         };
 
-        let config = node.config::<EyeLikeConfig>();
         // Output type is either specified dtype or input type
         let output_type = config.dtype.clone().unwrap_or(input_elem_type);
 
@@ -80,6 +113,16 @@ impl NodeProcessor for EyeLikeProcessor {
             static_shape: input_static_shape,
         });
         log::debug!("EyeLike output tensor rank: {}", input_rank);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -99,8 +142,8 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -122,8 +165,8 @@ mod tests {
         let mut node = node;
 
         let processor = EyeLikeProcessor;
-
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, 0);
@@ -142,8 +185,8 @@ mod tests {
         let mut node = node;
 
         let processor = EyeLikeProcessor;
-
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<EyeLikeConfig>();
         assert_eq!(config.k, -1);
@@ -159,8 +202,8 @@ mod tests {
             .build();
 
         let processor = EyeLikeProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

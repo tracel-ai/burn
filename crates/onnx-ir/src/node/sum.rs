@@ -1,19 +1,47 @@
 //! Processor for Sum operation
 
 use crate::ir::Node;
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input_broadcast, validate_opset};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::util::same_as_input_broadcast;
 
 /// Node processor for Sum operation
 /// Note: Sum is variadic (can take multiple inputs), not strictly binary
 pub struct SumProcessor;
 
 impl NodeProcessor for SumProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Sum implementation supports opset 8+ (numpy broadcasting)
-        validate_opset(&node.node_type, opset, 8);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 8 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 8,
+                actual: opset,
+            });
+        }
+
+        // Validate we have at least one input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         same_as_input_broadcast(node);
+
+        Ok(())
     }
 }
 
@@ -58,7 +86,8 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 2),
@@ -111,7 +140,8 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 3),

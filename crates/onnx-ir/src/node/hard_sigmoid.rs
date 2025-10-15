@@ -1,6 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -23,10 +22,37 @@ impl NodeConfig for HardSigmoidConfig {
 pub struct HardSigmoidProcessor;
 
 impl NodeProcessor for HardSigmoidProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // HardSigmoid implementation supports opset 6+ (for enhanced implementation)
-        validate_opset(&node.node_type, opset, 6);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 6 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 6,
+                actual: opset,
+            });
+        }
 
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract alpha and beta attributes
         let mut alpha = 0.2;
         let mut beta = 0.5;
 
@@ -40,10 +66,19 @@ impl NodeProcessor for HardSigmoidProcessor {
 
         let config = HardSigmoidConfig { alpha, beta };
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -67,7 +102,8 @@ mod tests {
         let node = create_test_node(0.3, 0.6);
         let mut node = node;
         let processor = HardSigmoidProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<HardSigmoidConfig>();
         assert!((config.alpha - 0.3).abs() < 1e-6);
         assert!((config.beta - 0.6).abs() < 1e-6);
@@ -79,7 +115,8 @@ mod tests {
         node.attrs.clear(); // Remove all attributes
         let mut node = node;
         let processor = HardSigmoidProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<HardSigmoidConfig>();
         assert_eq!(config.alpha, 0.2); // Check default values
         assert_eq!(config.beta, 0.5);

@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorData};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Slice operation.
@@ -109,52 +108,84 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Slice implementation supports opset 10+ (starts/ends/axes/steps as inputs)
-        validate_opset(&node.node_type, opset, 10);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 10 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 10,
+                actual: opset,
+            });
+        }
+        // Validate input count (at least data, starts, ends)
+        if node.inputs.len() < 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
 
-        /// Creates a SliceInput from either a static value or runtime argument.
-        fn get_slice_input(node: &Node, index: usize) -> Option<SliceInput> {
-            let input = node.inputs.get(index)?;
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        log::debug!("Slice rank inference for node {}", node.name);
+
+        // Extract config - helper function to get slice inputs
+        fn get_slice_input(node: &Node, index: usize) -> Result<Option<SliceInput>, ProcessError> {
+            let input = match node.inputs.get(index) {
+                Some(i) => i,
+                None => return Ok(None),
+            };
 
             match input.into_value() {
                 None => {
                     let mut runtime_arg = input.clone();
                     runtime_arg.value_store = None;
-                    Some(SliceInput::Runtime(runtime_arg))
+                    Ok(Some(SliceInput::Runtime(runtime_arg)))
                 }
                 Some(TensorData {
                     data: Data::Int64s(values),
                     ..
-                }) => Some(SliceInput::Static(values.clone())),
-                Some(v) => panic!(
+                }) => Ok(Some(SliceInput::Static(values.clone()))),
+                Some(v) => Err(ProcessError::Custom(format!(
                     "Slice input at index {} must be int64 but got {:?}",
                     index, v
-                ),
+                ))),
             }
         }
 
-        let starts = get_slice_input(node, 1)
-            .unwrap_or_else(|| panic!("Slice: starts parameter is required"));
+        let starts = get_slice_input(node, 1)?
+            .ok_or_else(|| ProcessError::MissingInput("starts".to_string()))?;
 
-        let ends =
-            get_slice_input(node, 2).unwrap_or_else(|| panic!("Slice: ends parameter is required"));
+        let ends = get_slice_input(node, 2)?
+            .ok_or_else(|| ProcessError::MissingInput("ends".to_string()))?;
 
-        let mut axes = get_slice_input(node, 3);
-        let steps = get_slice_input(node, 4);
+        let mut axes = get_slice_input(node, 3)?;
+        let steps = get_slice_input(node, 4)?;
 
         // Validate steps if present - zeros are not allowed
-        if let Some(SliceInput::Static(ref step_values)) = steps
-            && step_values.contains(&0)
-        {
-            panic!("Slice: step values cannot be zero");
+        if let Some(SliceInput::Static(ref step_values)) = steps {
+            if step_values.contains(&0) {
+                return Err(ProcessError::Custom(
+                    "Slice: step values cannot be zero".to_string(),
+                ));
+            }
         }
 
         // Normalize negative axes if we have static axes and know the input rank
-        if let Some(SliceInput::Static(ref mut axes_values)) = axes
-            && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
-        {
-            normalize_axes(axes_values, tensor_type.rank, &node.name);
+        if let Some(SliceInput::Static(ref mut axes_values)) = axes {
+            if let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty {
+                normalize_axes(axes_values, tensor_type.rank, &node.name);
+            }
         }
 
         let config = SliceConfig {
@@ -163,13 +194,9 @@ impl NodeProcessor for SliceProcessor {
             axes,
             steps,
         };
-        node.config = Some(Box::new(config));
-    }
+        node.config = Some(Box::new(config.clone()));
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        log::debug!("Slice rank inference for node {}", node.name);
-
-        // Clone the input type first to avoid borrow issues
+        // Infer output type based on input type
         let input_ty = node.inputs[0].ty.clone();
 
         match input_ty {
@@ -180,9 +207,8 @@ impl NodeProcessor for SliceProcessor {
                 node.outputs[0].ty = input_ty;
             }
             ArgType::Shape(shape_rank) => {
-                // Slicing a Shape extracts a sub-part, resulting in a rank-1 Tensor.
+                // Slicing a Shape extracts a sub-part, resulting in a Shape.
                 log::debug!("Slice input for {} is Shape", node.name);
-                let config = node.config::<SliceConfig>();
 
                 // Only static slicing is supported for Shape inputs
                 let (starts, ends, steps) = match (&config.starts, &config.ends, &config.steps) {
@@ -193,18 +219,20 @@ impl NodeProcessor for SliceProcessor {
                         };
                         (s, e, step_values)
                     }
-                    _ => panic!(
-                        "Runtime slice on Shape input is not supported for node {}",
-                        node.name
-                    ),
+                    _ => {
+                        return Err(ProcessError::Custom(format!(
+                            "Runtime slice on Shape input is not supported for node {}",
+                            node.name
+                        )));
+                    }
                 };
 
                 // Require exactly one dimension for Shape slicing
                 if starts.len() != 1 || ends.len() != 1 {
-                    panic!(
+                    return Err(ProcessError::Custom(format!(
                         "Slice on Shape input requires exactly one dimension slice config for node {}",
                         node.name
-                    );
+                    )));
                 }
 
                 let step = if steps.is_empty() { 1 } else { steps[0] };
@@ -213,12 +241,11 @@ impl NodeProcessor for SliceProcessor {
                 );
                 node.outputs[0].ty = ArgType::Shape(output_len);
             }
-            // Handle unsupported input types
             unsupported_type => {
-                panic!(
-                    "Slice: Only Tensor and Shape inputs are supported for node {}, got {:?}",
-                    node.name, unsupported_type
-                )
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", unsupported_type),
+                });
             }
         }
 
@@ -227,6 +254,16 @@ impl NodeProcessor for SliceProcessor {
             node.name,
             node.outputs[0].ty
         );
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -302,7 +339,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -331,7 +369,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -358,7 +397,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -383,7 +423,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -414,8 +455,8 @@ mod tests {
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(_)));
 
         let processor = SliceProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be the same type as input
         assert!(
@@ -434,8 +475,8 @@ mod tests {
         assert!(matches!(node.outputs[0].ty, ArgType::Tensor(ref t) if t.rank == 0));
 
         let processor = SliceProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // After calling, output should be ArgType::Shape with the calculated length
         // start = 1, end = 3 => output_len = 3 - 1 = 2
@@ -451,7 +492,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -474,7 +516,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -504,7 +547,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 
@@ -524,9 +568,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "step values cannot be zero")]
     fn test_slice_config_zero_step() {
-        // Create a node with zero step value (should panic)
+        // Create a node with zero step value (should return error)
         let builder = NodeBuilder::new(NodeType::Slice, "test_zero_step")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("starts", vec![0], vec![1])
@@ -540,7 +583,9 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16); // Should panic
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
@@ -559,7 +604,8 @@ mod tests {
 
         let processor = SliceProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let result = node.config::<SliceConfig>();
 

@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     ir::{ArgType, ElementType, Node, TensorType},
     util::{compute_broadcast_rank, compute_broadcast_static_shape},
@@ -41,10 +40,37 @@ fn get_shape_size(arg_type: &ArgType) -> usize {
 pub struct WhereProcessor;
 
 impl NodeProcessor for WhereProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Where implementation supports opset 9+
-        validate_opset(&node.node_type, opset, 9);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
         log::debug!("Where rank inference for node {}", node.name);
+
+        // Validate input count
+        if node.inputs.len() != 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let condition = &node.inputs[0].ty;
         let x = &node.inputs[1].ty;
@@ -55,12 +81,11 @@ impl NodeProcessor for WhereProcessor {
         let y_elem_type = get_elem_type(y);
         let condition_elem_type = get_elem_type(condition);
 
-        if !matches!(condition, ArgType::Shape(_)) {
-            assert_eq!(
-                condition_elem_type,
-                ElementType::Bool,
-                "Where condition must be boolean!"
-            );
+        if !matches!(condition, ArgType::Shape(_)) && condition_elem_type != ElementType::Bool {
+            return Err(ProcessError::TypeMismatch {
+                expected: "Bool".to_string(),
+                actual: format!("{:?}", condition_elem_type),
+            });
         }
 
         let elem_type = if x_elem_type == y_elem_type {
@@ -70,10 +95,10 @@ impl NodeProcessor for WhereProcessor {
         } else if matches!(y, ArgType::Shape(_)) {
             x_elem_type
         } else {
-            panic!(
-                "Where x and y have different element types! ({:?} vs {:?})",
-                x_elem_type, y_elem_type
-            );
+            return Err(ProcessError::TypeMismatch {
+                expected: format!("{:?}", x_elem_type),
+                actual: format!("{:?}", y_elem_type),
+            });
         };
 
         log::debug!(
@@ -116,6 +141,8 @@ impl NodeProcessor for WhereProcessor {
                 node.outputs[0].ty.static_shape()
             );
         }
+
+        Ok(())
     }
 }
 
@@ -139,7 +166,8 @@ mod tests {
         let mut node = create_test_node(2, 3, 2);
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -155,7 +183,8 @@ mod tests {
         let mut node = create_test_node(0, 0, 0);
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -166,7 +195,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Where condition must be boolean!")]
     fn test_where_invalid_condition() {
         let mut node = create_test_node(2, 2, 2);
 
@@ -181,11 +209,12 @@ mod tests {
         node.inputs[0] = non_bool_input;
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Where x and y have different element types!")]
     fn test_where_mismatched_types() {
         let mut node = create_test_node(2, 2, 2);
 
@@ -200,7 +229,9 @@ mod tests {
         node.inputs[2] = int64_input;
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
@@ -213,7 +244,8 @@ mod tests {
 
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(size) => {
@@ -235,7 +267,8 @@ mod tests {
 
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -259,7 +292,8 @@ mod tests {
 
         let processor = WhereProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

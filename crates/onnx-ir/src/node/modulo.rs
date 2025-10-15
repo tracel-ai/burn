@@ -1,6 +1,5 @@
 use crate::ir::{AttributeValue, Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -32,10 +31,37 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Mod implementation supports opset 10+
-        validate_opset(&node.node_type, opset, 10);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 10 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 10,
+                actual: opset,
+            });
+        }
 
+        // Validate input count (need at least 2 inputs)
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract fmod attribute
         let fmod = match node.attrs.get("fmod") {
             Some(AttributeValue::Int64(value)) => *value != 0,
             _ => false, // Default value as per ONNX spec
@@ -43,10 +69,19 @@ impl NodeProcessor for ModuloProcessor {
 
         let config = ModConfig::new(fmod);
         node.config = Some(Box::new(config));
+
+        // Output type is same as input with broadcasting
+        crate::util::same_as_input_broadcast(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input_broadcast(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -70,7 +105,8 @@ mod tests {
         let node = create_test_node();
         let mut node = node;
         let processor = ModuloProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false); // Should default to false
     }
@@ -82,7 +118,8 @@ mod tests {
             .insert("fmod".to_string(), AttributeValue::Int64(0));
         let mut node = node;
         let processor = ModuloProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, false);
     }
@@ -94,7 +131,8 @@ mod tests {
             .insert("fmod".to_string(), AttributeValue::Int64(1));
         let mut node = node;
         let processor = ModuloProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ModConfig>();
         assert_eq!(config.fmod, true);
     }

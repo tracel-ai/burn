@@ -1,6 +1,5 @@
 use crate::ir::{Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -41,25 +40,64 @@ impl NodeConfig for BitShiftConfig {
 pub struct BitShiftProcessor;
 
 impl NodeProcessor for BitShiftProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // BitShift implementation supports opset 11+
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
 
+        // Validate input count (need at least 2 inputs)
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract direction attribute
         let direction_str = node
             .attrs
             .get("direction")
             .map(|val| val.clone().into_string())
             .unwrap_or_else(|| "left".to_string());
 
-        let direction = Direction::from_str(&direction_str)
-            .unwrap_or_else(|e| panic!("Failed to parse bitshift direction: {e}"));
+        let direction =
+            Direction::from_str(&direction_str).map_err(|e| ProcessError::InvalidAttribute {
+                name: "direction".to_string(),
+                reason: e,
+            })?;
 
         let config = BitShiftConfig { direction };
         node.config = Some(Box::new(config));
+
+        // Output type is same as input with broadcasting
+        crate::util::same_as_input_broadcast(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input_broadcast(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -80,7 +118,8 @@ mod tests {
 
         let mut node = node;
         let processor = BitShiftProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }
@@ -96,7 +135,8 @@ mod tests {
 
         let mut node = node;
         let processor = BitShiftProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Right);
     }
@@ -111,7 +151,8 @@ mod tests {
 
         let mut node = node;
         let processor = BitShiftProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<BitShiftConfig>();
         assert_eq!(config.direction, Direction::Left);
     }

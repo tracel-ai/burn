@@ -1,14 +1,39 @@
 use crate::ir::{ArgType, Node, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use core::cmp::max;
 
 pub struct MatMulProcessor;
 
 impl NodeProcessor for MatMulProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // MatMul implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("MatMul rank inference for node {}", node.name);
 
@@ -38,8 +63,15 @@ impl NodeProcessor for MatMulProcessor {
 
                 log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
             }
-            _ => panic!("Only tensor inputs are valid"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}, {:?}", node.inputs[0].ty, node.inputs[1].ty),
+                });
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -62,7 +94,8 @@ mod tests {
         let mut node = create_test_node(2, 2);
         let processor = MatMulProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -78,7 +111,8 @@ mod tests {
         let mut node = create_test_node(3, 2);
         let processor = MatMulProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -96,7 +130,8 @@ mod tests {
         let mut node = create_test_node(1, 2);
         let processor = MatMulProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -108,12 +143,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Only tensor inputs are valid")]
     fn test_matmul_invalid_input() {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = MatMulProcessor;
 
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 }
