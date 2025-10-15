@@ -54,10 +54,9 @@ impl NodeProcessor for LinearProcessor {
 
         // Validate input count (at least input and weight)
         if node.inputs.len() < 2 {
-            return Err(ProcessError::MissingInput {
-                index: 1,
-                reason: "Linear: missing weight tensor".to_string(),
-            });
+            return Err(ProcessError::MissingInput(
+                "Linear: missing weight tensor".to_string(),
+            ));
         }
 
         // Validate output count
@@ -211,6 +210,6 @@ mod tests {
         let processor = LinearProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::MissingInput { .. })));
+        assert!(matches!(result, Err(ProcessError::MissingInput(_))));
     }
 }

@@ -1,15 +1,32 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
-use crate::util::validate_opset;
 use protobuf::Enum;
 
 pub struct RandomProcessor;
 
 impl NodeProcessor for RandomProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Random operations support opset 1+
-        validate_opset(&node.node_type, opset, 1);
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("Random rank inference for node {}", node.name);
 
@@ -23,7 +40,7 @@ impl NodeProcessor for RandomProcessor {
         let shape = node
             .attrs
             .get("shape")
-            .expect("required shape attribute missing")
+            .ok_or_else(|| ProcessError::Custom("required shape attribute missing".to_string()))?
             .clone()
             .into_i64s();
         log::debug!("Random shape for {}: {:?}", node.name, shape);
@@ -31,7 +48,12 @@ impl NodeProcessor for RandomProcessor {
         let elem_type = match dtype {
             DataType::FLOAT => ElementType::Float32,
             DataType::DOUBLE => ElementType::Float64,
-            _ => panic!("tensor with type {dtype:?} not supported for random output"),
+            _ => {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "dtype".to_string(),
+                    reason: format!("tensor with type {dtype:?} not supported for random output"),
+                });
+            }
         };
 
         let rank = shape.len();
@@ -42,6 +64,17 @@ impl NodeProcessor for RandomProcessor {
             rank,
             static_shape: None,
         });
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        _node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
+        // Random has no config
+        Ok(None)
     }
 }
 
@@ -64,7 +97,8 @@ mod tests {
     fn test_random_normal_float() {
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3, 4]);
         let processor = RandomProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -79,7 +113,8 @@ mod tests {
     fn test_random_normal_double() {
         let mut node = create_test_node(DataType::DOUBLE.value(), vec![5]);
         let processor = RandomProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -91,20 +126,22 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "required shape attribute missing")]
     fn test_random_normal_missing_shape() {
         // Create node and then manually remove the shape attribute
         let mut node = create_test_node(DataType::FLOAT.value(), vec![2, 3]);
         node.attrs.remove("shape");
         let processor = RandomProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "tensor with type INT32 not supported for random output")]
     fn test_random_normal_unsupported_type() {
         let mut node = create_test_node(DataType::INT32.value(), vec![2, 3]);
         let processor = RandomProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 }

@@ -1,7 +1,6 @@
 use crate::ir::{Node, NodeConfig};
 
-use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for ConvTranspose1d operations extracted from ONNX nodes
@@ -68,7 +67,36 @@ impl NodeConfig for ConvTranspose1dConfig {
 pub struct Convtranspose1dProcessor;
 
 impl NodeProcessor for Convtranspose1dProcessor {
-    fn process_config(&self, node: &mut Node, __opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1]; // Default stride to 1
         let mut pads = vec![0, 0]; // Default padding to 0
@@ -88,21 +116,33 @@ impl NodeProcessor for Convtranspose1dProcessor {
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
-                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {auto_pad}"),
+                        });
                     }
                 }
-                _ => panic!("Unexpected attribute for ConvTranspose1d: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for ConvTranspose1d: {key}"),
+                    });
+                }
             }
         }
 
         // Check the pads are symmetric
         if pads.len() != 2 || pads[0] != pads[1] {
-            panic!("Asymmetric padding is not supported for ConvTranspose1d: {pads:?}");
+            return Err(ProcessError::Custom(format!(
+                "Asymmetric padding is not supported for ConvTranspose1d: {pads:?}"
+            )));
         }
 
         let weight_shape = node.inputs[1]
             .into_value()
-            .expect("ConvTranspose1d: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("ConvTranspose1d: weight tensor must be present".to_string())
+            })?
             .shape
             .clone();
 
@@ -117,9 +157,9 @@ impl NodeProcessor for Convtranspose1dProcessor {
             // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
             // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
             if weight_shape.len() != 3 {
-                panic!(
+                return Err(ProcessError::Custom(format!(
                     "expected to infer kernel shape from a weight tensor of rank 3 but got shape {weight_shape:?}"
-                );
+                )));
             }
 
             weight_shape[2]
@@ -141,10 +181,82 @@ impl NodeProcessor for Convtranspose1dProcessor {
         };
 
         node.config = Some(Box::new(config));
+
+        // Output type inference
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut kernel_shape = Vec::new();
+        let mut stride = vec![1]; // Default stride to 1
+        let mut pads = vec![0, 0]; // Default padding to 0
+        let mut dilations = vec![1]; // Default dilation to 1
+        let mut group: usize = 1; // Default group to 1
+        let mut output_padding = vec![0]; // Default output padding to 0
+
+        // Extract attributes
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => stride = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "dilations" => dilations = value.clone().into_i64s(),
+                "group" => group = value.clone().into_i64() as usize,
+                "output_padding" => output_padding = value.clone().into_i64s(),
+                "auto_pad" => {}
+                _ => {}
+            }
+        }
+
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .ok_or_else(|| {
+                ProcessError::Custom("ConvTranspose1d: weight tensor must be present".to_string())
+            })?
+            .shape
+            .clone();
+
+        // Check if bias is present (third input)
+        let bias = node.inputs.len() == 3;
+
+        // Extract channels from the weight tensor shape [out_channels, in_channels]
+        let channels_in = weight_shape[1] * group;
+        let channels_out = weight_shape[0];
+
+        let kernel_size = if kernel_shape.is_empty() {
+            // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
+            // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
+            if weight_shape.len() != 3 {
+                return Err(ProcessError::Custom(format!(
+                    "expected to infer kernel shape from a weight tensor of rank 3 but got shape {weight_shape:?}"
+                )));
+            }
+
+            weight_shape[2]
+        } else {
+            // Was set explicitly via attributes- use that
+            kernel_shape[0] as _
+        };
+
+        let config = ConvTranspose1dConfig {
+            channels_in,
+            channels_out,
+            kernel_size,
+            stride: stride[0] as usize,
+            padding: pads[0] as usize,
+            dilation: dilations[0] as usize,
+            padding_out: output_padding[0] as usize,
+            groups: group,
+            bias,
+        };
+
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -219,7 +331,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 2);
@@ -248,7 +361,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 4); // weight_shape[1] * group = 2 * 2
@@ -263,7 +377,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv_transpose1d_config_asymmetric_padding() {
         let node = create_test_node(
             vec![4],
@@ -278,7 +391,12 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(result.is_err());
+        assert!(
+            matches!(result.unwrap_err(), ProcessError::Custom(msg) if msg.contains("Asymmetric padding is not supported"))
+        );
     }
 
     #[test]
@@ -296,7 +414,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.channels_in, 2);
@@ -311,7 +430,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv_transpose1d_config_autopad_not_supported() {
         let node = create_test_node(
             vec![4],
@@ -326,7 +444,13 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            ProcessError::InvalidAttribute { .. }
+        ));
     }
 
     #[test]
@@ -344,7 +468,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Convtranspose1dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConvTranspose1dConfig>();
 
         assert_eq!(config.kernel_size, 4); // Inferred via weight tensor shape

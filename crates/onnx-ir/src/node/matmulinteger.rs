@@ -1,15 +1,40 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use core::cmp::max;
 
 pub struct MatMulIntegerProcessor;
 
 impl NodeProcessor for MatMulIntegerProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // MatMulInteger implementation supports opset 10+
-        validate_opset(&node.node_type, opset, 10);
+        if opset < 10 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 10,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
@@ -27,9 +52,23 @@ impl NodeProcessor for MatMulIntegerProcessor {
                     rank: out_rank,
                     static_shape: None, // or Some(...) if you've inferred it
                 });
+
+                Ok(())
             }
-            _ => panic!("MatMulInteger expects tensor inputs"),
+            _ => Err(ProcessError::TypeMismatch {
+                expected: "Tensor".to_string(),
+                actual: "MatMulInteger expects tensor inputs".to_string(),
+            }),
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
+        // MatMulInteger has no config
+        Ok(None)
     }
 }
 
@@ -51,7 +90,8 @@ mod tests {
     fn test_update_outputs_standard_case() {
         let mut node = create_test_node(2, 2);
         let processor = MatMulIntegerProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -66,7 +106,8 @@ mod tests {
     fn test_update_outputs_vector_matrix() {
         let mut node = create_test_node(1, 2);
         let processor = MatMulIntegerProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -78,12 +119,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "MatMulInteger expects tensor inputs")]
     fn test_invalid_input() {
         let mut node = create_test_node(2, 2);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Int32);
         let processor = MatMulIntegerProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 }
 #[cfg(test)]
@@ -104,7 +146,8 @@ mod tests2 {
     fn out_rank_2x2_is_2() {
         let mut n = mk(2, 2);
         let processor = MatMulIntegerProcessor;
-        processor.first_pass(&mut n, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut n, 16, &prefs).unwrap();
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);
@@ -118,7 +161,8 @@ mod tests2 {
     fn vector_matrix_is_rank1() {
         let mut n = mk(1, 2);
         let processor = MatMulIntegerProcessor;
-        processor.first_pass(&mut n, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut n, 16, &prefs).unwrap();
         match &n.outputs[0].ty {
             ArgType::Tensor(t) => {
                 assert_eq!(t.elem_type, ElementType::Int32);

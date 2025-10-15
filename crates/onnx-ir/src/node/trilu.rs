@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{Data, Node, NodeConfig, TensorData};
 use std::any::Any;
@@ -32,9 +31,35 @@ impl NodeConfig for TriluConfig {
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Trilu implementation supports opset 14+
-        validate_opset(&node.node_type, opset, 14);
+        if opset < 14 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 14,
+                actual: opset,
+            });
+        }
+
+        // Validate input count (1 or 2 inputs)
+        if node.inputs.is_empty() || node.inputs.len() > 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut upper = true;
         let mut diagonal = 0;
@@ -55,10 +80,37 @@ impl NodeProcessor for TriluProcessor {
 
         let config = TriluConfig::new(upper, diagonal);
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut upper = true;
+        let mut diagonal = 0;
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "upper" {
+                upper = value.clone().into_i64() != 0
+            }
+        }
+        // The second input of the Trilu node is the diagonal value, coming from a constant node
+        if let Some(diagonal_arg) = node.inputs.get(1)
+            && let Some(TensorData {
+                data: Data::Int64(diagonal_val),
+                ..
+            }) = &diagonal_arg.into_value()
+        {
+            diagonal = *diagonal_val;
+        }
+
+        let config = TriluConfig::new(upper, diagonal);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -94,7 +146,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -113,7 +166,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -132,7 +186,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -151,7 +206,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -170,7 +226,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -189,7 +246,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -209,7 +267,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(
@@ -229,7 +288,8 @@ mod tests {
 
         let mut node = node;
         let processor = TriluProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TriluConfig>();
 
         assert_eq!(

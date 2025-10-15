@@ -130,10 +130,9 @@ impl NodeProcessor for DropoutProcessor {
         // Opset 12+ uses input for ratio
         let prob = match node.inputs.get(1) {
             None => {
-                return Err(ProcessError::MissingInput {
-                    index: 1,
-                    reason: "Dropout: missing ratio input".to_string(),
-                });
+                return Err(ProcessError::MissingInput(
+                    "Dropout: missing ratio input".to_string(),
+                ));
             }
             Some(input) => match input.into_value() {
                 None => {

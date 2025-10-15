@@ -543,24 +543,29 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data_rc.borrow());
 
-            // Process node using three-phase approach
+            // Process node using new single-phase approach
             log::debug!("Processing node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
-            // Phase 1: Extract configuration from attributes and inputs
-            processor.process_config(&mut node, opset_version);
+            // Use empty output preferences for now (will be updated when preference propagation is implemented)
+            let output_prefs = crate::processor::OutputPreferences::new();
 
-            // Phase 2: Infer output types from input types (forward pass)
-            processor.first_pass(&mut node, opset_version);
+            // Infer types: extracts config, validates, and determines output types
+            processor
+                .infer_types(&mut node, opset_version, &output_prefs)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed to infer types for node {} (type: {:?}): {:?}",
+                        node.name, node.node_type, e
+                    )
+                });
+
             log::debug!(
-                "Forward inference result for {}: {:?}",
+                "Type inference result for {}: {:?}",
                 node.name,
                 node.outputs
             );
-
-            // Phase 3: Propagate type expectations from outputs to inputs (backward pass)
-            processor.second_pass(&mut node, opset_version);
 
             graph_data_rc.borrow_mut().add_node(node);
         }
@@ -885,7 +890,10 @@ impl OnnxGraphBuilder {
         // Infer output types using processor registry
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
-        processor.first_pass(node, opset);
+        let output_prefs = crate::processor::OutputPreferences::new();
+
+        // Infer types (ignore errors during re-inference as we're just tracking changes)
+        let _ = processor.infer_types(node, opset, &output_prefs);
 
         if let Some(output) = node.outputs.first() {
             let type_changed = old_output_type != Some(output.ty.clone());

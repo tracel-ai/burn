@@ -77,9 +77,6 @@ impl NodeProcessor for EyeLikeProcessor {
             }
         }
 
-        let config = EyeLikeConfig { dtype, k };
-        node.config = Some(Box::new(config));
-
         log::debug!("EyeLike rank inference for node {}", node.name);
 
         // Extract tensor info
@@ -105,7 +102,13 @@ impl NodeProcessor for EyeLikeProcessor {
         };
 
         // Output type is either specified dtype or input type
-        let output_type = config.dtype.clone().unwrap_or(input_elem_type);
+        let output_type = dtype.unwrap_or(input_elem_type);
+
+        let config = EyeLikeConfig {
+            dtype: Some(output_type.clone()),
+            k,
+        };
+        node.config = Some(Box::new(config));
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: output_type,

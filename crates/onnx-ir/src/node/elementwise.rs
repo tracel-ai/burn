@@ -86,7 +86,7 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             // Opset 1 operations
             crate::ir::NodeType::Not => 1,
             // Other unary operations
-            _ => 1,
+            _ => 1, //FIXME probably not
         };
 
         if opset < min_opset {

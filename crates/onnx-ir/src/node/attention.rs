@@ -1,6 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
-
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Argument, Node, NodeConfig, TensorType};
 use std::any::Any;
 
@@ -54,45 +52,84 @@ pub enum AttentionQkMatmulOutputMode {
     MatmulAfterSoftmax,
 }
 
-fn extract_tensor<'a>(arg: Option<&'a Argument>, name: &str) -> Option<&'a TensorType> {
-    match &arg?.ty {
-        ArgType::Tensor(v) => Some(v),
-        _ => panic!("Attention: {name} input must be a tensor"),
+fn extract_tensor<'a>(
+    arg: Option<&'a Argument>,
+    name: &str,
+) -> Result<Option<&'a TensorType>, ProcessError> {
+    match arg {
+        None => Ok(None),
+        Some(a) => match &a.ty {
+            ArgType::Tensor(v) => Ok(Some(v)),
+            _ => Err(ProcessError::Custom(format!(
+                "Attention: {name} input must be a tensor"
+            ))),
+        },
     }
 }
 
 pub struct AttentionProcessor;
 
 impl NodeProcessor for AttentionProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 23;
+
         // Attention implementation supports opset 23+
-        validate_opset(&node.node_type, opset, 23);
+        if opset < MIN {
+            return Err(ProcessError::UnsupportedOpset {
+                required: MIN,
+                actual: opset,
+            });
+        }
 
         if node.inputs.len() < 3 {
-            panic!("Attention must have at least 3 inputs")
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
         }
         if node.outputs.is_empty() {
-            panic!("Attention must have at least 1 output")
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
         }
 
-        let q = extract_tensor(node.inputs.first(), "Q").unwrap();
-        let k = extract_tensor(node.inputs.get(1), "K").unwrap();
-        let v = extract_tensor(node.inputs.get(2), "V").unwrap();
-        let y = extract_tensor(node.outputs.first(), "Y").unwrap();
+        let q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: Q input must be present".to_string())
+        })?;
+        let k = extract_tensor(node.inputs.get(1), "K")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: K input must be present".to_string())
+        })?;
+        let v = extract_tensor(node.inputs.get(2), "V")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: V input must be present".to_string())
+        })?;
+        let y = extract_tensor(node.outputs.first(), "Y")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: Y output must be present".to_string())
+        })?;
+
         if q.rank != k.rank || q.rank != v.rank || q.rank != y.rank {
-            panic!("Attention: Q, K, V, Y parameters must have the same rank");
+            return Err(ProcessError::Custom(
+                "Attention: Q, K, V, Y parameters must have the same rank".to_string(),
+            ));
         }
         if q.rank != 3 && q.rank != 4 {
-            panic!("Attention: Q, K, V, Y parameters must have rank 3 or 4");
+            return Err(ProcessError::Custom(
+                "Attention: Q, K, V, Y parameters must have rank 3 or 4".to_string(),
+            ));
         }
 
         if (node.inputs.len() >= 6) != (node.outputs.len() >= 3)
             || node.inputs.len() == 5
             || node.outputs.len() == 2
         {
-            panic!(
-                "Attention: past_key, past_value, present_key, present_value can only be used together"
-            );
+            return Err(ProcessError::Custom(
+                "Attention: past_key, past_value, present_key, present_value can only be used together".to_string(),
+            ));
         }
 
         let mut is_causal = false;
@@ -114,22 +151,32 @@ impl NodeProcessor for AttentionProcessor {
                         1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
                         2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
                         3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
-                        v => panic!(
-                            "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
-                        ),
+                        v => {
+                            return Err(ProcessError::InvalidAttribute {
+                                name: "qk_matmul_output_mode".to_string(),
+                                reason: format!(
+                                    "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
+                                ),
+                            });
+                        }
                     }
                 }
                 "scale" => scale = Some(value.clone().into_f32() as f64),
                 "softcap" => softcap = value.clone().into_f32() as f64,
                 "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
-                _ => panic!("Unexpected attribute for Attention: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Attention: {key}"),
+                    });
+                }
             }
         }
 
         if q.rank == 3 && (kv_num_heads.is_none() || q_num_heads.is_none()) {
-            panic!(
-                "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified"
-            )
+            return Err(ProcessError::Custom(
+                "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified".to_string(),
+            ));
         }
 
         let config = AttentionConfig::new(
@@ -142,10 +189,11 @@ impl NodeProcessor for AttentionProcessor {
             softmax_precision,
         );
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        let q = extract_tensor(node.inputs.first(), "Q").unwrap();
+        // Infer output types
+        let q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: Q input must be present".to_string())
+        })?;
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: node.inputs[0].ty.elem_type().clone(),
@@ -176,6 +224,58 @@ impl NodeProcessor for AttentionProcessor {
                 static_shape: None,
             });
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
+            ProcessError::Custom("Attention: Q input must be present".to_string())
+        })?;
+
+        let mut is_causal = false;
+        let mut kv_num_heads = None;
+        let mut q_num_heads = None;
+        let mut qk_matmul_output_mode = AttentionQkMatmulOutputMode::Matmul;
+        let mut scale = None;
+        let mut softcap = 0.0;
+        let mut softmax_precision = None;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "is_causal" => is_causal = value.clone().into_i64() != 0,
+                "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
+                "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
+                "qk_matmul_output_mode" => {
+                    qk_matmul_output_mode = match value.clone().into_i64() {
+                        0 => AttentionQkMatmulOutputMode::Matmul,
+                        1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
+                        2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
+                        3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
+                        _ => AttentionQkMatmulOutputMode::Matmul, // Use default for unknown values
+                    }
+                }
+                "scale" => scale = Some(value.clone().into_f32() as f64),
+                "softcap" => softcap = value.clone().into_f32() as f64,
+                "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
+                _ => {}
+            }
+        }
+
+        let config = AttentionConfig::new(
+            is_causal,
+            q_num_heads,
+            kv_num_heads,
+            qk_matmul_output_mode,
+            scale,
+            softcap,
+            softmax_precision,
+        );
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -316,7 +416,6 @@ mod tests {
     #[case(Some(3), Some(3), Some(4), None, None, None, Some(1), None, None)]
     // 3D qkv inputs without the *_num_heads attributes
     #[case(Some(3), Some(3), Some(3), None, None, None, Some(3), None, None)]
-    #[should_panic]
     fn test_fail_on_invalid_inputs(
         #[case] q: Option<usize>,
         #[case] k: Option<usize>,
@@ -349,7 +448,9 @@ mod tests {
         );
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 23);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 23, &prefs);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -357,7 +458,8 @@ mod tests {
         let node = create_simple_test_node(None, None, None, None, None, Some(2.0), None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 23);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.softcap, 2.0);
     }
@@ -367,7 +469,8 @@ mod tests {
         let node = create_simple_test_node(None, None, None, None, Some(2.0), None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 23);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.scale, Some(2.0));
     }
@@ -377,7 +480,8 @@ mod tests {
         let node = create_simple_test_node(Some(1), None, None, None, None, None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 23);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert!(config.is_causal);
     }
@@ -391,7 +495,8 @@ mod tests {
         let node = create_simple_test_node(None, None, None, Some(raw), None, None, None);
         let mut node = node;
         let processor = AttentionProcessor;
-        processor.process_config(&mut node, 23);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 23, &prefs).unwrap();
         let config = node.config::<AttentionConfig>();
         assert_eq!(config.qk_matmul_output_mode, mode);
     }

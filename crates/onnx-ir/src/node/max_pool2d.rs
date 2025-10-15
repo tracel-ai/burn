@@ -1,9 +1,6 @@
 use crate::ir::{Node, NodeConfig};
-use crate::util::validate_opset;
-
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for MaxPool2d operations
@@ -62,9 +59,36 @@ impl NodeConfig for MaxPool2dConfig {
 pub struct MaxPool2dProcessor;
 
 impl NodeProcessor for MaxPool2dProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 11;
+
         // MaxPool implementation supports opset 11+ (for enhanced calculations)
-        validate_opset(&node.node_type, opset, 11);
+        if opset < MIN {
+            return Err(ProcessError::UnsupportedOpset {
+                required: MIN,
+                actual: opset,
+            });
+        }
+
+        // Validate input/output count
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        if node.outputs.is_empty() {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
@@ -80,17 +104,28 @@ impl NodeProcessor for MaxPool2dProcessor {
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
-                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {auto_pad}"),
+                        });
                     }
                 }
                 "ceil_mode" => {
                     if value.clone().into_i64() == 1 {
-                        panic!("ceil_mode is not supported");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "ceil_mode".to_string(),
+                            reason: "ceil_mode is not supported".to_string(),
+                        });
                     }
                 }
                 // These are attributes that are allowed but not used in this implementation
                 "storage_order" => {}
-                _ => panic!("Unexpected attribute for MaxPool2d: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for MaxPool2d: {key}"),
+                    });
+                }
             }
         }
 
@@ -102,10 +137,44 @@ impl NodeProcessor for MaxPool2dProcessor {
             .with_dilation([dilations[0] as usize, dilations[1] as usize]);
 
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut kernel_shape = Vec::new();
+        let mut strides = vec![1, 1];
+        let mut pads = vec![0, 0, 0, 0];
+        let mut dilations = vec![1, 1];
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
+                "strides" => strides = value.clone().into_i64s(),
+                "pads" => pads = value.clone().into_i64s(),
+                "dilations" => dilations = value.clone().into_i64s(),
+                "auto_pad" => {}
+                "ceil_mode" => {}
+                "storage_order" => {}
+                _ => {}
+            }
+        }
+
+        let padding = padding_config_2d(&pads);
+
+        let config = MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
+            .with_strides([strides[0] as usize, strides[1] as usize])
+            .with_padding(padding)
+            .with_dilation([dilations[0] as usize, dilations[1] as usize]);
+
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -149,7 +218,8 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -170,7 +240,8 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]);
@@ -191,7 +262,8 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -212,7 +284,8 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<MaxPool2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -222,7 +295,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_max_pool2d_config_auto_pad_not_supported() {
         let node = create_test_node(
             vec![3, 3],
@@ -234,11 +306,12 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "ceil_mode is not supported")]
     fn test_max_pool2d_config_with_ceil_mode() {
         let node = create_test_node(
             vec![3, 3],
@@ -250,6 +323,8 @@ mod tests {
         );
         let mut node = node;
         let processor = MaxPool2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 }

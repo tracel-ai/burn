@@ -1,9 +1,5 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
-
-use crate::util::same_as_input;
-
 use crate::ir::{Node, NodeConfig};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for InstanceNorm operations
@@ -38,13 +34,42 @@ impl NodeConfig for InstanceNormConfig {
 pub struct InstanceNormProcessor;
 
 impl NodeProcessor for InstanceNormProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 6;
+
         // InstanceNormalization implementation supports opset 6+ (for shape inference)
-        validate_opset(&node.node_type, opset, 6);
+        if opset < MIN {
+            return Err(ProcessError::UnsupportedOpset {
+                required: MIN,
+                actual: opset,
+            });
+        }
+
+        // Validate input/output count
+        if node.inputs.len() < 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
+
+        if node.outputs.is_empty() {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let weight_shape = node.inputs[1]
             .into_value()
-            .expect("InstanceNorm: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("InstanceNorm: weight tensor must be present".to_string())
+            })?
             .shape
             .clone();
 
@@ -54,16 +79,48 @@ impl NodeProcessor for InstanceNormProcessor {
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "epsilon" => epsilon = value.clone().into_f32(),
-                _ => panic!("Unexpected attribute for InstanceNorm: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for InstanceNorm: {key}"),
+                    });
+                }
             }
         }
 
         let config = InstanceNormConfig::new(num_features, epsilon as f64);
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .ok_or_else(|| {
+                ProcessError::Custom("InstanceNorm: weight tensor must be present".to_string())
+            })?
+            .shape
+            .clone();
+
+        let num_features = weight_shape[0];
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "epsilon" {
+                epsilon = value.clone().into_f32()
+            }
+        }
+
+        let config = InstanceNormConfig::new(num_features, epsilon as f64);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -90,7 +147,8 @@ mod tests {
         let node = create_test_node(1e-5, 64).build_with_graph_data(16);
         let mut node = node;
         let processor = InstanceNormProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<InstanceNormConfig>();
 
         assert_eq!(config.num_features, 64);

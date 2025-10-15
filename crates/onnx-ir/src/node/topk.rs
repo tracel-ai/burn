@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for TopK k parameter.
@@ -34,37 +33,66 @@ impl NodeConfig for TopKConfig {
 pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // TopK implementation supports opset 10+ (k as input)
-        validate_opset(&node.node_type, opset, 10);
+        if opset < 10 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 10,
+                actual: opset,
+            });
+        }
+
+        // Validate input count (1 or 2 inputs)
+        if node.inputs.is_empty() || node.inputs.len() > 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 2 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 2,
+                actual: node.outputs.len(),
+            });
+        }
 
         // Extract the shape of the input data tensor
-        let data_tensor = match node.inputs.first().unwrap().clone().ty {
+        let data_tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Only tensor input is valid"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
         let k = match node.inputs.get(1) {
-            Some(k_tensor) => {
-                match k_tensor.into_value() {
-                    None => {
-                        // Runtime input - no static value available
-                        let mut runtime_arg = k_tensor.clone();
-                        runtime_arg.value_store = None;
-                        TopKInput::Runtime(runtime_arg)
-                    }
-                    Some(tensor_data) => {
-                        let k_value = tensor_data.data.into_i64s()[0];
-                        TopKInput::Static(k_value as usize)
-                    }
+            Some(k_tensor) => match k_tensor.into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = k_tensor.clone();
+                    runtime_arg.value_store = None;
+                    TopKInput::Runtime(runtime_arg)
                 }
-            }
+                Some(tensor_data) => {
+                    let k_value = tensor_data.data.into_i64s()[0];
+                    TopKInput::Static(k_value as usize)
+                }
+            },
             _ => {
                 // Fall back to attribute
                 let k_value = node
                     .attrs
                     .get("k")
-                    .expect("TopK: number of top elements 'k' is missing")
+                    .ok_or_else(|| ProcessError::MissingAttribute("k".to_string()))?
                     .clone()
                     .into_i64();
                 TopKInput::Static(k_value as usize)
@@ -84,29 +112,29 @@ impl NodeProcessor for TopKProcessor {
         if let Some(largest) = node.attrs.get("largest")
             && largest.clone().into_i64() != 1
         {
-            unimplemented!("TopK: only largest elements is supported")
-        };
+            return Err(ProcessError::Custom(
+                "TopK: only largest elements is supported".to_string(),
+            ));
+        }
 
         if let Some(sorted) = node.attrs.get("sorted")
             && sorted.clone().into_i64() != 1
         {
-            unimplemented!("TopK: only sorted elements is supported")
-        };
+            return Err(ProcessError::Custom(
+                "TopK: only sorted elements is supported".to_string(),
+            ));
+        }
 
         let config = TopKConfig {
             axis: axis as usize,
             k,
         };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+        // Infer output types
         log::debug!("TopK rank inference for node {}", node.name);
 
-        let rank = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor.rank,
-            _ => panic!("TopK: invalid input type"),
-        };
+        let rank = data_tensor.rank;
         log::debug!("TopK input rank for {}: {}", node.name, rank);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -125,6 +153,66 @@ impl NodeProcessor for TopKProcessor {
             node.name,
             rank
         );
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Extract the shape of the input data tensor
+        let data_tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
+        };
+
+        let k = match node.inputs.get(1) {
+            Some(k_tensor) => match k_tensor.into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = k_tensor.clone();
+                    runtime_arg.value_store = None;
+                    TopKInput::Runtime(runtime_arg)
+                }
+                Some(tensor_data) => {
+                    let k_value = tensor_data.data.into_i64s()[0];
+                    TopKInput::Static(k_value as usize)
+                }
+            },
+            _ => {
+                // Fall back to attribute
+                let k_value = node
+                    .attrs
+                    .get("k")
+                    .ok_or_else(|| ProcessError::MissingAttribute("k".to_string()))?
+                    .clone()
+                    .into_i64();
+                TopKInput::Static(k_value as usize)
+            }
+        };
+
+        let mut axis = match node.attrs.get("axis") {
+            Some(axis) => axis.clone().into_i64(),
+            None => -1,
+        };
+
+        // If axis is negative, it is counted from the end
+        if axis < 0 {
+            axis += data_tensor.rank as i64;
+        }
+
+        let config = TopKConfig {
+            axis: axis as usize,
+            k,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -175,7 +263,8 @@ mod tests {
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
 
         let processor = TopKProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 2);
 
@@ -199,13 +288,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "TopK: invalid input type")]
     fn test_topk_invalid_input() {
         let mut node = create_test_node(3, None, None).build();
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = TopKProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     // Tests for top_k_config function
@@ -219,7 +309,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
@@ -234,7 +325,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         // Default axis should be -1 which gets converted to rank-1
@@ -252,7 +344,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 1);
@@ -269,7 +362,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         // For rank 4, axis -2 should be 2
@@ -287,7 +381,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 1);
@@ -304,7 +399,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 2);
@@ -312,7 +408,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "only largest elements is supported")]
     fn test_top_k_config_with_largest_false() {
         // Test with largest attribute set to 0 (unsupported)
         let mut attrs = HashMap::new();
@@ -322,11 +417,12 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "only sorted elements is supported")]
     fn test_top_k_config_with_sorted_false() {
         // Test with sorted attribute set to 0 (unsupported)
         let mut attrs = HashMap::new();
@@ -336,11 +432,12 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Only tensor input is valid")]
     fn test_top_k_config_with_invalid_input_type() {
         // Test with invalid input type
         let mut node = create_test_node(2, None, None).build();
@@ -349,18 +446,21 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "TopK: number of top elements 'k' is missing")]
     fn test_top_k_config_without_k() {
         // Test when k is neither provided as input nor attribute
         let node = create_test_node(3, None, None).build();
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }
 
     #[test]
@@ -373,7 +473,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         // K from input should be used (5), not from attribute (10)
@@ -393,7 +494,8 @@ mod tests {
 
         let mut node = node;
         let processor = TopKProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TopKConfig>();
 
         assert_eq!(config.axis, 2); // Default axis -1 becomes 2 for rank 3

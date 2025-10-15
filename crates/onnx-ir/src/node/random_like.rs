@@ -1,15 +1,40 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::protos::tensor_proto::DataType;
-use crate::util::validate_opset;
 use protobuf::Enum;
 
 pub struct RandomLikeProcessor;
 
 impl NodeProcessor for RandomLikeProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // RandomLike operations support opset 1+
-        validate_opset(&node.node_type, opset, 1);
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("RandomLike rank inference for node {}", node.name);
 
@@ -24,7 +49,12 @@ impl NodeProcessor for RandomLikeProcessor {
             DataType::FLOAT => ElementType::Float32,
             DataType::FLOAT16 => ElementType::Float16,
             DataType::DOUBLE => ElementType::Float64,
-            _ => panic!("Tensor with type {dtype:?} not supported for random output"),
+            _ => {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "dtype".to_string(),
+                    reason: format!("Tensor with type {dtype:?} not supported for random output"),
+                });
+            }
         };
 
         if let ArgType::Tensor(tensor) = &node.inputs[0].ty {
@@ -37,9 +67,23 @@ impl NodeProcessor for RandomLikeProcessor {
             });
 
             log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
+
+            Ok(())
         } else {
-            panic!("Only tensor input is valid");
+            Err(ProcessError::TypeMismatch {
+                expected: "Tensor".to_string(),
+                actual: "Only tensor input is valid".to_string(),
+            })
         }
+    }
+
+    fn extract_config(
+        &self,
+        _node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn crate::ir::NodeConfig>>, ProcessError> {
+        // RandomLike has no config
+        Ok(None)
     }
 }
 
@@ -62,7 +106,8 @@ mod tests {
     fn test_random_like_float() {
         let mut node = create_test_node(DataType::FLOAT.value(), 3, None);
         let processor = RandomLikeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -77,7 +122,8 @@ mod tests {
     fn test_random_like_double() {
         let mut node = create_test_node(DataType::DOUBLE.value(), 2, Some(vec![5, 10]));
         let processor = RandomLikeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -90,19 +136,21 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Only tensor input is valid")]
     fn test_random_like_invalid_input() {
         let mut node = create_test_node(DataType::FLOAT.value(), 2, None);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = RandomLikeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Tensor with type INT32 not supported for random output")]
     fn test_random_like_unsupported_type() {
         let mut node = create_test_node(DataType::INT32.value(), 2, None);
         let processor = RandomLikeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 }

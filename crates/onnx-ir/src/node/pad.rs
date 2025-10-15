@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input, validate_opset};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig};
 use std::any::Any;
@@ -45,21 +44,41 @@ pub struct PadProcessor;
 impl NodeProcessor for PadProcessor {
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Pad implementation supports opset 11+
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Opset validation
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
 
-        fn get_pads(node: &Node) -> PadInput {
+        // Helper function to get pads
+        fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
             if node.inputs.is_empty() {
-                panic!("Pad: must provide data as input")
+                return Err(ProcessError::MissingInput(
+                    "Pad: must provide data as input".to_string(),
+                ));
             }
             if node.inputs.len() >= 4 {
-                panic!("Pad: axes input is not supported")
+                return Err(ProcessError::Custom(
+                    "Pad: axes input is not supported".to_string(),
+                ));
             }
 
             let input_dim = match &node.inputs.first().unwrap().ty {
                 ArgType::Tensor(tensor) => tensor.rank,
-                _ => panic!("Pad: Only tensor input is valid"),
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Tensor".to_string(),
+                        actual: "Pad: Only tensor input is valid".to_string(),
+                    });
+                }
             };
 
             // Check for mode attribute
@@ -67,7 +86,13 @@ impl NodeProcessor for PadProcessor {
                 if key.as_str() == "mode" {
                     let mode = value.clone().into_string();
                     if mode != "constant" {
-                        panic!("only constant mode is supported, given mode is {mode}");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "mode".to_string(),
+                            reason: format!(
+                                "only constant mode is supported, given mode is {}",
+                                mode
+                            ),
+                        });
                     }
                 }
             }
@@ -81,22 +106,31 @@ impl NodeProcessor for PadProcessor {
                         .iter()
                         .map(|&x| {
                             if x < 0 {
-                                panic!("Pad: Negative pad is not supported");
+                                return Err(ProcessError::InvalidAttribute {
+                                    name: "pads".to_string(),
+                                    reason: "Negative pad is not supported".to_string(),
+                                });
                             }
-                            x as usize
+                            Ok(x as usize)
                         })
-                        .collect::<Vec<usize>>();
+                        .collect::<Result<Vec<usize>, ProcessError>>()?;
 
                     if pads.len() != input_dim * 2 {
-                        panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "pads".to_string(),
+                            reason: "pads should be a 1D tensor of shape [2 * num_axes]"
+                                .to_string(),
+                        });
                     }
                     if input_dim < 2 {
-                        panic!("Pad: input tensor should be rank 2 or higher");
+                        return Err(ProcessError::Custom(
+                            "Pad: input tensor should be rank 2 or higher".to_string(),
+                        ));
                     }
 
                     // Validate and reorder pads
-                    let validated_pads = validate_and_reorder_pads(&pads, input_dim);
-                    return PadInput::Static(validated_pads);
+                    let validated_pads = validate_and_reorder_pads(&pads, input_dim)?;
+                    return Ok(PadInput::Static(validated_pads));
                 }
             }
 
@@ -108,7 +142,7 @@ impl NodeProcessor for PadProcessor {
                         // Runtime input - no static value available
                         let mut runtime_arg = input.clone();
                         runtime_arg.value_store = None;
-                        return PadInput::Runtime(runtime_arg);
+                        return Ok(PadInput::Runtime(runtime_arg));
                     }
                     Some(tensor_data) => {
                         let pads = tensor_data
@@ -117,30 +151,42 @@ impl NodeProcessor for PadProcessor {
                             .iter()
                             .map(|&x| {
                                 if x < 0 {
-                                    panic!("Pad: Negative pad is not supported");
+                                    return Err(ProcessError::Custom(
+                                        "Pad: Negative pad is not supported".to_string(),
+                                    ));
                                 }
-                                x as usize
+                                Ok(x as usize)
                             })
-                            .collect::<Vec<usize>>();
+                            .collect::<Result<Vec<usize>, ProcessError>>()?;
 
                         if pads.len() != input_dim * 2 {
-                            panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
+                            return Err(ProcessError::Custom(
+                                "Pad: pads should be a 1D tensor of shape [2 * num_axes]"
+                                    .to_string(),
+                            ));
                         }
                         if input_dim < 2 {
-                            panic!("Pad: input tensor should be rank 2 or higher");
+                            return Err(ProcessError::Custom(
+                                "Pad: input tensor should be rank 2 or higher".to_string(),
+                            ));
                         }
 
                         // Validate and reorder pads
-                        let validated_pads = validate_and_reorder_pads(&pads, input_dim);
-                        return PadInput::Static(validated_pads);
+                        let validated_pads = validate_and_reorder_pads(&pads, input_dim)?;
+                        return Ok(PadInput::Static(validated_pads));
                     }
                 }
             }
 
-            panic!("Pad: pads should be given as attribute or as input");
+            Err(ProcessError::Custom(
+                "Pad: pads should be given as attribute or as input".to_string(),
+            ))
         }
 
-        fn validate_and_reorder_pads(pads: &[usize], input_dim: usize) -> Vec<usize> {
+        fn validate_and_reorder_pads(
+            pads: &[usize],
+            input_dim: usize,
+        ) -> Result<Vec<usize>, ProcessError> {
             let left_index = input_dim - 1;
             let top_index = input_dim - 2;
             let right_index = pads.len() - 1;
@@ -149,9 +195,9 @@ impl NodeProcessor for PadProcessor {
 
             for (index, &item) in pads.iter().enumerate() {
                 if !index_list.contains(&index) && item != 0 {
-                    panic!(
-                        "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions"
-                    );
+                    return Err(ProcessError::Custom(
+                        "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions".to_string(),
+                    ));
                 }
             }
 
@@ -159,17 +205,20 @@ impl NodeProcessor for PadProcessor {
             let top = pads[top_index];
             let right = pads[right_index];
             let bottom = pads[bottom_index];
-            vec![left, right, top, bottom]
+            Ok(vec![left, right, top, bottom])
         }
 
-        fn get_constant_value(node: &Node) -> ConstantValueInput {
+        fn get_constant_value(node: &Node) -> Result<ConstantValueInput, ProcessError> {
             // Check for value attribute first (takes precedence)
             if node.attrs.contains_key("value") {
                 let constant_value = node.attrs.get("value").map(|value| match value {
-                    AttributeValue::Float32(value) => *value,
-                    _ => panic!("Pad: only float32 values are currently supported for constant value as attribute, submit an issue on github"),
-                }).expect("constant_value should have had a value now");
-                return ConstantValueInput::Static(constant_value);
+                    AttributeValue::Float32(value) => Ok(*value),
+                    _ => Err(ProcessError::InvalidAttribute {
+                        name: "value".to_string(),
+                        reason: "only float32 values are currently supported for constant value as attribute".to_string(),
+                    }),
+                }).transpose()?.ok_or_else(|| ProcessError::Custom("constant_value should have had a value".to_string()))?;
+                return Ok(ConstantValueInput::Static(constant_value));
             }
 
             // Check for constant value input
@@ -179,7 +228,7 @@ impl NodeProcessor for PadProcessor {
                         // Runtime input - no static value available
                         let mut runtime_arg = input.clone();
                         runtime_arg.value_store = None;
-                        return ConstantValueInput::Runtime(runtime_arg);
+                        return Ok(ConstantValueInput::Runtime(runtime_arg));
                     }
                     Some(tensor_data) => {
                         // TODO: Support int, boolean
@@ -190,31 +239,249 @@ impl NodeProcessor for PadProcessor {
                             Data::Float16(value) => Some(f32::from(*value)),
                             Data::Float32(value) => Some(*value),
                             Data::Float64(value) => Some(*value as f32),
-                            _ => panic!(
-                                "Pad: only float values are currently supported for constant value, submit an issue on github"
-                            ),
+                            _ => {
+                                return Err(ProcessError::TypeMismatch {
+                                    expected: "float value".to_string(),
+                                    actual: "only float values are currently supported for constant value".to_string(),
+                                });
+                            }
                         };
-                        return ConstantValueInput::Static(constant_value.unwrap_or(0.0));
+                        return Ok(ConstantValueInput::Static(constant_value.unwrap_or(0.0)));
                     }
                 }
             }
 
             // Default to 0.0 if no constant value provided
-            ConstantValueInput::Static(0.0)
+            Ok(ConstantValueInput::Static(0.0))
         }
 
-        let pads = get_pads(node);
-        let constant_value = get_constant_value(node);
+        let pads = get_pads(node)?;
+        let constant_value = get_constant_value(node)?;
 
         let config = PadConfig {
             pads,
             constant_value,
         };
         node.config = Some(Box::new(config));
+
+        // Output has same type as input
+        if let Some(input) = node.inputs.first() {
+            node.outputs[0].ty = input.ty.clone();
+        }
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Helper function to get pads
+        fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
+            if node.inputs.is_empty() {
+                return Err(ProcessError::MissingInput(
+                    "Pad: must provide data as input".to_string(),
+                ));
+            }
+            if node.inputs.len() >= 4 {
+                return Err(ProcessError::Custom(
+                    "Pad: axes input is not supported".to_string(),
+                ));
+            }
+
+            let input_dim = match &node.inputs.first().unwrap().ty {
+                ArgType::Tensor(tensor) => tensor.rank,
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Tensor".to_string(),
+                        actual: "Pad: Only tensor input is valid".to_string(),
+                    });
+                }
+            };
+
+            // Check for mode attribute
+            for (key, value) in node.attrs.iter() {
+                if key.as_str() == "mode" {
+                    let mode = value.clone().into_string();
+                    if mode != "constant" {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "mode".to_string(),
+                            reason: format!(
+                                "only constant mode is supported, given mode is {}",
+                                mode
+                            ),
+                        });
+                    }
+                }
+            }
+
+            // Check for pads attribute first (takes precedence)
+            for (key, value) in node.attrs.iter() {
+                if key.as_str() == "pads" {
+                    let pads = value
+                        .clone()
+                        .into_i64s()
+                        .iter()
+                        .map(|&x| {
+                            if x < 0 {
+                                return Err(ProcessError::InvalidAttribute {
+                                    name: "pads".to_string(),
+                                    reason: "Negative pad is not supported".to_string(),
+                                });
+                            }
+                            Ok(x as usize)
+                        })
+                        .collect::<Result<Vec<usize>, ProcessError>>()?;
+
+                    if pads.len() != input_dim * 2 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "pads".to_string(),
+                            reason: "pads should be a 1D tensor of shape [2 * num_axes]"
+                                .to_string(),
+                        });
+                    }
+                    if input_dim < 2 {
+                        return Err(ProcessError::Custom(
+                            "Pad: input tensor should be rank 2 or higher".to_string(),
+                        ));
+                    }
+
+                    // Validate and reorder pads
+                    let validated_pads = validate_and_reorder_pads(&pads, input_dim)?;
+                    return Ok(PadInput::Static(validated_pads));
+                }
+            }
+
+            // Check for pads input
+            if node.inputs.len() > 1 {
+                let input = &node.inputs[1];
+                match input.into_value() {
+                    None => {
+                        // Runtime input - no static value available
+                        let mut runtime_arg = input.clone();
+                        runtime_arg.value_store = None;
+                        return Ok(PadInput::Runtime(runtime_arg));
+                    }
+                    Some(tensor_data) => {
+                        let pads = tensor_data
+                            .data
+                            .into_i64s()
+                            .iter()
+                            .map(|&x| {
+                                if x < 0 {
+                                    return Err(ProcessError::Custom(
+                                        "Pad: Negative pad is not supported".to_string(),
+                                    ));
+                                }
+                                Ok(x as usize)
+                            })
+                            .collect::<Result<Vec<usize>, ProcessError>>()?;
+
+                        if pads.len() != input_dim * 2 {
+                            return Err(ProcessError::Custom(
+                                "Pad: pads should be a 1D tensor of shape [2 * num_axes]"
+                                    .to_string(),
+                            ));
+                        }
+                        if input_dim < 2 {
+                            return Err(ProcessError::Custom(
+                                "Pad: input tensor should be rank 2 or higher".to_string(),
+                            ));
+                        }
+
+                        // Validate and reorder pads
+                        let validated_pads = validate_and_reorder_pads(&pads, input_dim)?;
+                        return Ok(PadInput::Static(validated_pads));
+                    }
+                }
+            }
+
+            Err(ProcessError::Custom(
+                "Pad: pads should be given as attribute or as input".to_string(),
+            ))
+        }
+
+        fn validate_and_reorder_pads(
+            pads: &[usize],
+            input_dim: usize,
+        ) -> Result<Vec<usize>, ProcessError> {
+            let left_index = input_dim - 1;
+            let top_index = input_dim - 2;
+            let right_index = pads.len() - 1;
+            let bottom_index = pads.len() - 2;
+            let index_list = [left_index, top_index, right_index, bottom_index];
+
+            for (index, &item) in pads.iter().enumerate() {
+                if !index_list.contains(&index) && item != 0 {
+                    return Err(ProcessError::Custom(
+                        "Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions".to_string(),
+                    ));
+                }
+            }
+
+            let left = pads[left_index];
+            let top = pads[top_index];
+            let right = pads[right_index];
+            let bottom = pads[bottom_index];
+            Ok(vec![left, right, top, bottom])
+        }
+
+        fn get_constant_value(node: &Node) -> Result<ConstantValueInput, ProcessError> {
+            // Check for value attribute first (takes precedence)
+            if node.attrs.contains_key("value") {
+                let constant_value = node.attrs.get("value").map(|value| match value {
+                    AttributeValue::Float32(value) => Ok(*value),
+                    _ => Err(ProcessError::InvalidAttribute {
+                        name: "value".to_string(),
+                        reason: "only float32 values are currently supported for constant value as attribute".to_string(),
+                    }),
+                }).transpose()?.ok_or_else(|| ProcessError::Custom("constant_value should have had a value".to_string()))?;
+                return Ok(ConstantValueInput::Static(constant_value));
+            }
+
+            // Check for constant value input
+            if let Some(input) = node.inputs.get(2) {
+                match input.into_value() {
+                    None => {
+                        // Runtime input - no static value available
+                        let mut runtime_arg = input.clone();
+                        runtime_arg.value_store = None;
+                        return Ok(ConstantValueInput::Runtime(runtime_arg));
+                    }
+                    Some(tensor_data) => {
+                        // TODO: Support int, boolean
+                        let constant_value = match &tensor_data.data {
+                            Data::Float16s(values) => values.first().map(|&f| f32::from(f)),
+                            Data::Float32s(values) => values.first().copied(),
+                            Data::Float64s(values) => values.first().map(|&f| f as f32),
+                            Data::Float16(value) => Some(f32::from(*value)),
+                            Data::Float32(value) => Some(*value),
+                            Data::Float64(value) => Some(*value as f32),
+                            _ => {
+                                return Err(ProcessError::TypeMismatch {
+                                    expected: "float value".to_string(),
+                                    actual: "only float values are currently supported for constant value".to_string(),
+                                });
+                            }
+                        };
+                        return Ok(ConstantValueInput::Static(constant_value.unwrap_or(0.0)));
+                    }
+                }
+            }
+
+            // Default to 0.0 if no constant value provided
+            Ok(ConstantValueInput::Static(0.0))
+        }
+
+        let pads = get_pads(node)?;
+        let constant_value = get_constant_value(node)?;
+
+        let config = PadConfig {
+            pads,
+            constant_value,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -278,7 +545,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -294,7 +562,8 @@ mod tests {
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -317,7 +586,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -341,7 +611,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 2, 0, 2]));
         assert!(
@@ -362,7 +633,8 @@ mod tests {
         let node = create_test_node_with_runtime_inputs().build();
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
         // Check that we have runtime inputs
@@ -384,7 +656,8 @@ mod tests {
         let node = builder.build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
@@ -405,7 +678,8 @@ mod tests {
         let node = builder.build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
 
         assert!(matches!(&config.pads, PadInput::Runtime(arg) if arg.name == "pads"));
@@ -422,7 +696,8 @@ mod tests {
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<PadConfig>();
         assert!(matches!(&config.pads, PadInput::Static(pads) if pads == &vec![0, 1, 0, 1]));
         assert!(
@@ -431,28 +706,29 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Pad: must provide data as input")]
     fn test_pad_config_no_inputs() {
         let mut node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         node.inputs = vec![];
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::MissingInput(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: Only tensor input is valid")]
     fn test_pad_config_invalid_input_type() {
         let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: axes input is not supported")]
     fn test_pad_config_with_axes_input() {
         // Create node with 4 inputs (including axes)
         let mut node = create_test_node(None, Some(vec![0, 0, 1, 1]), None, Some(0.0), None, 2)
@@ -468,66 +744,74 @@ mod tests {
         });
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: Negative pad is not supported")]
     fn test_pad_config_negative_pad() {
         let node = create_test_node(Some(vec![0, 0, -1, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "only constant mode is supported")]
     fn test_pad_config_unsupported_mode() {
         let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2)
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: pads should be given as attribute or as input")]
     fn test_pad_config_no_pads() {
         let node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: pads should be a 1D tensor of shape [2 * num_axes]")]
     fn test_pad_config_invalid_pads_length() {
         let node = create_test_node(Some(vec![0, 0, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: input tensor should be rank 2 or higher")]
     fn test_pad_config_invalid_tensor_rank() {
         let node =
             create_test_node(Some(vec![0, 1]), None, None, None, None, 1).build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Pad: padding will only be applied to the last two dimensions")]
     fn test_pad_config_non_zero_padding_on_other_dimensions() {
         // For a 3D tensor, we try to set non-zero padding on first dimension
         let node = create_test_node(Some(vec![1, 0, 0, 0, 1, 1]), None, None, None, None, 3)
             .build_with_graph_data(16);
         let mut node = node;
         let processor = PadProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

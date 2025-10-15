@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorData};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 use std::str::FromStr;
@@ -162,9 +161,35 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Resize implementation supports opset 11+ (for coordinate transformation modes)
-        validate_opset(&node.node_type, opset, 11);
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         // ALL logic from resize_config inlined here
         let mut mode: Option<ResizeMode> = None;
@@ -172,12 +197,15 @@ impl NodeProcessor for ResizeProcessor {
         let input = if let ArgType::Tensor(tensor) = &node
             .inputs
             .first()
-            .expect("Resize: Input tensor must be present")
+            .ok_or_else(|| ProcessError::MissingInput("input".to_string()))?
             .ty
         {
             tensor
         } else {
-            panic!("Resize: input must be a tensor")
+            return Err(ProcessError::TypeMismatch {
+                expected: "Tensor".to_string(),
+                actual: format!("{:?}", node.inputs.first().unwrap().ty),
+            });
         };
 
         // Note: we are ignoring some attributes because results are approximately the same
@@ -187,33 +215,51 @@ impl NodeProcessor for ResizeProcessor {
         // TODO revisit this when we have more Resize operators in the model
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "antialias" => assert_eq!(
-                    value.clone().into_i32(),
-                    0,
-                    "Resize: antialias other than 0 is not supported"
-                ),
-                "axes" => panic!("Resize: custom axes attribute is not supported"),
+                "antialias" => {
+                    if value.clone().into_i32() != 0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "antialias".to_string(),
+                            reason: "antialias other than 0 is not supported".to_string(),
+                        });
+                    }
+                }
+                "axes" => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: "axes".to_string(),
+                        reason: "custom axes attribute is not supported".to_string(),
+                    });
+                }
                 "coordinate_transformation_mode" => {
                     log::warn!("Resize: coordinate_transformation_mode is ignored")
                 }
 
                 "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
-                "exclude_outside" => assert_eq!(
-                    value.clone().into_i32(),
-                    0,
-                    "Resize: exclude_outside other than 0 is not supported"
-                ),
-                "extrapolation_value" => assert_eq!(
-                    value.clone().into_f32(),
-                    0.0,
-                    "Resize: extrapolation_value other than 0.0 is not supported"
-                ),
+                "exclude_outside" => {
+                    if value.clone().into_i32() != 0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "exclude_outside".to_string(),
+                            reason: "exclude_outside other than 0 is not supported".to_string(),
+                        });
+                    }
+                }
+                "extrapolation_value" => {
+                    if value.clone().into_f32() != 0.0 {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "extrapolation_value".to_string(),
+                            reason: "extrapolation_value other than 0.0 is not supported"
+                                .to_string(),
+                        });
+                    }
+                }
                 "keep_aspect_ratio_policy" => {
-                    assert_eq!(
-                        value.clone().into_string().to_lowercase(),
-                        "stretch",
-                        "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
-                    )
+                    if value.clone().into_string().to_lowercase() != "stretch" {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "keep_aspect_ratio_policy".to_string(),
+                            reason:
+                                "keep_aspect_ratio_policy other than 'stretch' is not supported"
+                                    .to_string(),
+                        });
+                    }
                 }
                 "mode" => {
                     mode = Some(
@@ -221,7 +267,10 @@ impl NodeProcessor for ResizeProcessor {
                             .clone()
                             .into_string()
                             .parse::<ResizeMode>()
-                            .expect("Failed to parse resize mode"),
+                            .map_err(|e| ProcessError::InvalidAttribute {
+                                name: "mode".to_string(),
+                                reason: format!("Failed to parse resize mode: {}", e),
+                            })?,
                     )
                 }
                 "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
@@ -248,15 +297,19 @@ impl NodeProcessor for ResizeProcessor {
         // Extract sizes input (4th input)
         let sizes = extract_sizes_input(node, input.rank);
 
-        let mode = mode.expect("Resize: mode attribute is required");
+        let mode = mode.ok_or_else(|| ProcessError::MissingAttribute("mode".to_string()))?;
 
         if !roi.is_empty() {
-            panic!("Resize: roi input is not supported")
+            return Err(ProcessError::Custom(
+                "Resize: roi input is not supported".to_string(),
+            ));
         }
 
         // Check that at least one of scales or sizes is provided
         if scales.is_none() && sizes.is_none() {
-            panic!("Resize: either scales or sizes input is required")
+            return Err(ProcessError::Custom(
+                "Resize: either scales or sizes input is required".to_string(),
+            ));
         }
 
         let config = ResizeConfig {
@@ -265,10 +318,69 @@ impl NodeProcessor for ResizeProcessor {
             sizes,
         };
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let mut mode: Option<ResizeMode> = None;
+
+        let input = if let ArgType::Tensor(tensor) = &node
+            .inputs
+            .first()
+            .ok_or_else(|| ProcessError::MissingInput("input".to_string()))?
+            .ty
+        {
+            tensor
+        } else {
+            return Err(ProcessError::TypeMismatch {
+                expected: "Tensor".to_string(),
+                actual: format!("{:?}", node.inputs.first().unwrap().ty),
+            });
+        };
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "mode" => {
+                    mode = Some(
+                        value
+                            .clone()
+                            .into_string()
+                            .parse::<ResizeMode>()
+                            .map_err(|e| ProcessError::InvalidAttribute {
+                                name: "mode".to_string(),
+                                reason: format!("Failed to parse resize mode: {}", e),
+                            })?,
+                    )
+                }
+                "coordinate_transformation_mode" => {}
+                "cubic_coeff_a" => {}
+                "nearest_mode" => {}
+                _ => {}
+            }
+        }
+
+        // Extract scales input (3rd input)
+        let scales = extract_scales_input(node, input.rank);
+
+        // Extract sizes input (4th input)
+        let sizes = extract_sizes_input(node, input.rank);
+
+        let mode = mode.ok_or_else(|| ProcessError::MissingAttribute("mode".to_string()))?;
+
+        let config = ResizeConfig {
+            mode,
+            scales,
+            sizes,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -330,7 +442,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Nearest);
         match &config.scales {
@@ -353,7 +466,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ResizeConfig>();
         assert_eq!(config.mode, ResizeMode::Linear);
         assert!(config.scales.is_none(), "Expected no scales");
@@ -366,7 +480,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Resize: roi input is not supported")]
     fn test_resize_config_with_roi() {
         let node = create_test_node(
             "nearest",
@@ -377,26 +490,30 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Resize: either scales or sizes input is required")]
     fn test_resize_config_no_scales_or_sizes() {
         let node = create_test_node("nearest", None, None, None).build_with_graph_data(16);
         let mut node = node;
         let processor = ResizeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Resize: mode attribute is required")]
     fn test_resize_config_no_mode() {
         let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None)
             .build_with_graph_data(16);
         node.attrs.clear(); // Remove all attributes including mode
         let mut node = node;
         let processor = ResizeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }
 }

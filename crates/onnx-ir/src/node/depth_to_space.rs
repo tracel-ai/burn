@@ -103,9 +103,8 @@ impl NodeProcessor for DepthToSpaceProcessor {
             }
         }
 
-        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
-            name: "blocksize".to_string(),
-        })?;
+        let block_size =
+            block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         if block_size == 0 {
             return Err(ProcessError::InvalidAttribute {
@@ -188,9 +187,8 @@ impl NodeProcessor for DepthToSpaceProcessor {
             }
         }
 
-        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
-            name: "blocksize".to_string(),
-        })?;
+        let block_size =
+            block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         let config = DepthToSpaceConfig::new(mode, block_size);
         Ok(Some(Box::new(config)))

@@ -135,7 +135,7 @@ impl NodeProcessor for Conv2dProcessor {
         let channels_in = weight_shape[1] * group;
         let channels_out = weight_shape[0];
 
-        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+        let padding = padding_config_2d(&pads);
 
         let kernel_size = if kernel_shape.is_empty() {
             // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
@@ -225,7 +225,7 @@ impl NodeProcessor for Conv2dProcessor {
         let channels_in = weight_shape[1] * group;
         let channels_out = weight_shape[0];
 
-        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+        let padding = padding_config_2d(&pads);
 
         let kernel_size = if kernel_shape.is_empty() {
             if weight_shape.len() != 4 {

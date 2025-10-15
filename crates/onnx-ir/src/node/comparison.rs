@@ -57,9 +57,9 @@ impl NodeProcessor for ComparisonProcessor {
         // Validate opset based on operation type
         let min_opset = match node.node_type {
             crate::ir::NodeType::Equal => 7,
-            crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 9,
+            crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 9, // FIXME probably should be 7
             crate::ir::NodeType::GreaterOrEqual | crate::ir::NodeType::LessOrEqual => 12,
-            _ => 1, // Other comparison operations default to opset 1
+            _ => 1, // Other comparison operations default to opset 1 // FIXME
         };
 
         if opset < min_opset {

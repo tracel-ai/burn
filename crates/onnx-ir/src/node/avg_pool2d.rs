@@ -114,7 +114,7 @@ impl NodeProcessor for AvgPool2dProcessor {
             });
         }
 
-        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+        let padding = padding_config_2d(&pads);
 
         let config = AvgPool2dConfig::new(
             [kernel_shape[0] as usize, kernel_shape[1] as usize],
@@ -168,7 +168,7 @@ impl NodeProcessor for AvgPool2dProcessor {
             }
         }
 
-        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
+        let padding = padding_config_2d(&pads);
 
         let config = AvgPool2dConfig::new(
             [kernel_shape[0] as usize, kernel_shape[1] as usize],

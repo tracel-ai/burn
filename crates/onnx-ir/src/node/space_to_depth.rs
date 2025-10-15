@@ -70,9 +70,8 @@ impl NodeProcessor for SpaceToDepthProcessor {
             }
         }
 
-        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
-            name: "blocksize".to_string(),
-        })?;
+        let block_size =
+            block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         if block_size == 0 {
             return Err(ProcessError::InvalidAttribute {
@@ -139,15 +138,13 @@ impl NodeProcessor for SpaceToDepthProcessor {
         let mut block_size: Option<usize> = None;
 
         for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-                _ => {}
+            if key.as_str() == "blocksize" {
+                block_size = Some(value.clone().into_i64() as usize)
             }
         }
 
-        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
-            name: "blocksize".to_string(),
-        })?;
+        let block_size =
+            block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
 
         let config = SpaceToDepthConfig { block_size };
         Ok(Some(Box::new(config)))

@@ -1,9 +1,5 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
-
-use crate::util::same_as_input;
-
 use crate::ir::{Node, NodeConfig};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for GroupNorm operations
@@ -41,14 +37,43 @@ impl GroupNormConfig {
 pub struct GroupNormProcessor;
 
 impl NodeProcessor for GroupNormProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 18;
+
         // GroupNormalization implementation supports opset 18+
-        validate_opset(&node.node_type, opset, 18);
+        if opset < MIN {
+            return Err(ProcessError::UnsupportedOpset {
+                required: MIN,
+                actual: opset,
+            });
+        }
+
+        // Validate input/output count
+        if node.inputs.len() < 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
+
+        if node.outputs.is_empty() {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let weight_shape = node.inputs[1]
             .into_value()
             .as_ref()
-            .expect("GroupNorm: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())
+            })?
             .shape
             .clone();
 
@@ -61,21 +86,72 @@ impl NodeProcessor for GroupNormProcessor {
                 "epsilon" => epsilon = value.clone().into_f32(),
                 "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
                 "stash_type" => {} // stash_type is read but not used in config
-                _ => panic!("Unexpected attribute for GroupNorm: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for GroupNorm: {key}"),
+                    });
+                }
             }
         }
 
-        let num_groups = num_groups.expect("GroupNorm: num_groups attribute must be present");
+        let num_groups = num_groups.ok_or_else(|| {
+            ProcessError::MissingAttribute(
+                "GroupNorm: num_groups attribute must be present".to_string(),
+            )
+        })?;
+
         if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
-            panic!("GroupNorm: number of features must be divisible by the number of groups");
+            return Err(ProcessError::Custom(
+                "GroupNorm: number of features must be divisible by the number of groups"
+                    .to_string(),
+            ));
         }
 
         let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64);
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .as_ref()
+            .ok_or_else(|| {
+                ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())
+            })?
+            .shape
+            .clone();
+
+        let num_features = weight_shape[0];
+        let mut num_groups = None;
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "epsilon" => epsilon = value.clone().into_f32(),
+                "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
+                "stash_type" => {}
+                _ => {}
+            }
+        }
+
+        let num_groups = num_groups.ok_or_else(|| {
+            ProcessError::MissingAttribute(
+                "GroupNorm: num_groups attribute must be present".to_string(),
+            )
+        })?;
+
+        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -108,7 +184,8 @@ mod tests {
     fn test_group_norm_config_basic() {
         let mut node = create_test_node(1e-5, 64, 8, 1).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 18);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 18, &prefs).unwrap();
 
         let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
@@ -120,7 +197,8 @@ mod tests {
     fn test_group_norm_config_no_stash_type() {
         let mut node = create_test_node(1e-5, 64, 8, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 18);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 18, &prefs).unwrap();
 
         let config = node.config::<GroupNormConfig>();
         assert_eq!(config.num_features, 64);
@@ -129,11 +207,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_group_norm_config_invalid_num_groups() {
         // num features is not divisible by num groups
         let mut node = create_test_node(1e-5, 64, 7, 0).build_with_graph_data(18);
         let processor = GroupNormProcessor;
-        processor.process_config(&mut node, 18);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 18, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

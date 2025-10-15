@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for Split sizes.
@@ -36,9 +35,27 @@ impl NodeConfig for SplitConfig {
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Split implementation supports opset 11+
-        validate_opset(&node.node_type, opset, 11);
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate we have at least one input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
 
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;
@@ -48,9 +65,14 @@ impl NodeProcessor for SplitProcessor {
         let mut split_sizes: Option<SplitSizesInput> = None;
 
         // Extract the input tensor type to determine rank and shape
-        let tensor = match node.inputs.first().unwrap().ty {
-            ArgType::Tensor(ref tensor) => tensor,
-            _ => panic!("Split: Input must be a valid tensor"),
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
         // Optionally store the number of outputs if provided as an attribute
@@ -68,23 +90,27 @@ impl NodeProcessor for SplitProcessor {
         // Handle the case when num_outputs is provided to calculate uniform split size
         if let Some(num_outputs) = num_outputs {
             if num_outputs == 0 {
-                panic!("Split: 'num_outputs' must be a positive value greater than zero");
+                return Err(ProcessError::InvalidAttribute {
+                    name: "num_outputs".to_string(),
+                    reason: "'num_outputs' must be a positive value greater than zero".to_string(),
+                });
             }
 
-            let dim_size = tensor
-                .static_shape
-                .as_ref()
-                .expect("Split: Static shape must be known to calculate split size")
-                [axis as usize];
+            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
+                ProcessError::Custom(
+                    "Split: Static shape must be known to calculate split size".to_string(),
+                )
+            })?[axis as usize];
 
             // Calculate the split size considering any remainder for non-evenly divisible dimensions
             let calculated_split_size =
                 dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
 
             if calculated_split_size == 0 {
-                panic!(
-                    "Split: Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size"
-                );
+                return Err(ProcessError::InvalidAttribute {
+                    name: "num_outputs".to_string(),
+                    reason: "Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size".to_string(),
+                });
             }
 
             // Assign the calculated split size
@@ -118,27 +144,28 @@ impl NodeProcessor for SplitProcessor {
 
         // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
         if split_sizes.is_some() && split_size.is_some() {
-            panic!(
-                "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
-            );
+            return Err(ProcessError::Custom(
+                "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously".to_string(),
+            ));
         }
 
         // Infer split_size if neither custom split_sizes nor split_size is provided
         if split_sizes.is_none() && split_size.is_none() {
             let num_outputs = node.outputs.len();
-            let dim_size = tensor
-                .static_shape
-                .as_ref()
-                .expect("Split: Static shape must be known to infer split size")[axis as usize];
+            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
+                ProcessError::Custom(
+                    "Split: Static shape must be known to infer split size".to_string(),
+                )
+            })?[axis as usize];
 
             // Calculate inferred split size based on number of outputs
             let calculated_split_size =
                 dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
 
             if calculated_split_size == 0 {
-                panic!(
-                    "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size"
-                );
+                return Err(ProcessError::Custom(
+                    "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size".to_string(),
+                ));
             }
 
             split_size = Some(calculated_split_size);
@@ -151,15 +178,9 @@ impl NodeProcessor for SplitProcessor {
             split_sizes,
         };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+        // Infer output types
         log::debug!("Split rank inference for node {}", node.name);
-
-        let tensor = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Split: Input must be a tensor"),
-        };
         log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
         log::debug!(
             "Split will generate {} outputs for {}",
@@ -175,6 +196,109 @@ impl NodeProcessor for SplitProcessor {
             });
             log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Initialize the axis to split along (default is 0 as per ONNX specification)
+        let mut axis: i64 = 0;
+        // Holds the uniform split size if calculated or provided
+        let mut split_size: Option<usize> = None;
+        // Holds the custom split sizes if provided as input (Static or Runtime)
+        let mut split_sizes: Option<SplitSizesInput> = None;
+
+        // Extract the input tensor type to determine rank and shape
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
+        };
+
+        // Optionally store the number of outputs if provided as an attribute
+        let mut num_outputs: Option<usize> = None;
+
+        // Iterate through node attributes to extract relevant values
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => axis = value.clone().into_i64(),
+                "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
+                _ => {}
+            }
+        }
+
+        // Handle the case when num_outputs is provided to calculate uniform split size
+        if let Some(num_outputs) = num_outputs {
+            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
+                ProcessError::Custom(
+                    "Split: Static shape must be known to calculate split size".to_string(),
+                )
+            })?[axis as usize];
+
+            // Calculate the split size considering any remainder for non-evenly divisible dimensions
+            let calculated_split_size =
+                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+            // Assign the calculated split size
+            split_size = Some(calculated_split_size);
+        }
+
+        // Adjust axis if negative to count from the end as per ONNX spec
+        if axis < 0 {
+            axis += tensor.rank as i64;
+        }
+
+        // Check for custom split sizes provided as a second input
+        if node.inputs.len() > 1 {
+            split_sizes = match node.inputs[1].into_value() {
+                None => {
+                    // Runtime input - no static value available
+                    let mut runtime_arg = node.inputs[1].clone();
+                    runtime_arg.value_store = None;
+                    Some(SplitSizesInput::Runtime(runtime_arg))
+                }
+                Some(tensor_data) => {
+                    let sizes = tensor_data.data.clone().into_usizes();
+                    if !sizes.is_empty() {
+                        Some(SplitSizesInput::Static(sizes))
+                    } else {
+                        None
+                    }
+                }
+            };
+        }
+
+        // Infer split_size if neither custom split_sizes nor split_size is provided
+        if split_sizes.is_none() && split_size.is_none() {
+            let num_outputs = node.outputs.len();
+            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
+                ProcessError::Custom(
+                    "Split: Static shape must be known to infer split size".to_string(),
+                )
+            })?[axis as usize];
+
+            // Calculate inferred split size based on number of outputs
+            let calculated_split_size =
+                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+            split_size = Some(calculated_split_size);
+        }
+
+        // Return the configuration for splitting operation
+        let config = SplitConfig {
+            axis: axis as usize,
+            split_size,
+            split_sizes,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -232,7 +356,8 @@ mod tests {
         let mut node = create_test_node(3, 1, None, None, None).build();
 
         let processor = SplitProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 1);
         match &node.outputs[0].ty {
@@ -249,7 +374,8 @@ mod tests {
         let mut node = create_test_node(4, 3, None, None, None).build();
 
         let processor = SplitProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(node.outputs.len(), 3);
         for output in &node.outputs {
@@ -264,13 +390,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Split: Input must be a tensor")]
     fn test_split_invalid_input() {
         let mut node = create_test_node(3, 2, None, None, None).build();
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
         let processor = SplitProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     // Tests for split_config function
@@ -283,7 +410,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         // Default axis should be 0, and split_size should be calculated
@@ -303,7 +431,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 1);
@@ -322,7 +451,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 2); // -1 should be converted to 2
@@ -341,7 +471,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
@@ -360,7 +491,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
@@ -371,11 +503,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously"
-    )]
     fn test_split_config_both_splits_and_num_outputs() {
-        // Test with both split sizes input and num_outputs attribute (should panic)
+        // Test with both split sizes input and num_outputs attribute (should return error)
         let static_shape = Some(vec![10, 20, 30]);
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(2));
@@ -386,13 +515,14 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Split: 'num_outputs' must be a positive value greater than zero")]
     fn test_split_config_zero_num_outputs() {
-        // Test with num_outputs attribute set to 0 (should panic)
+        // Test with num_outputs attribute set to 0 (should return error)
         let static_shape = Some(vec![10, 20, 30]);
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(0));
@@ -401,13 +531,14 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Split: Calculated split size is zero")]
     fn test_split_config_invalid_num_outputs() {
-        // Test with num_outputs larger than the dimension size (should result in split_size = 0)
+        // Test with num_outputs larger than the dimension size (should result in error)
         let static_shape = Some(vec![5, 10, 15]);
         let mut attrs = HashMap::new();
         attrs.insert("num_outputs".to_string(), AttributeValue::Int64(10)); // Larger than dim 0 size
@@ -416,11 +547,12 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "Split: Static shape must be known to calculate split size")]
     fn test_split_config_no_static_shape() {
         // Test with no static shape available
         let mut attrs = HashMap::new();
@@ -430,11 +562,12 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Split: Input must be a valid tensor")]
     fn test_split_config_invalid_input_type() {
         // Test with invalid input type
         let mut node = create_test_node(3, 2, Some(vec![10, 20, 30]), None, None).build();
@@ -442,7 +575,9 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
@@ -458,7 +593,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         assert_eq!(config.axis, 0);
@@ -479,7 +615,8 @@ mod tests {
 
         let mut node = node;
         let processor = SplitProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SplitConfig>();
 
         // 11 / (3-1) = 5, since the dimension is not evenly divisible

@@ -92,9 +92,7 @@ impl NodeProcessor for ConstantProcessor {
                 }
             },
             None => {
-                return Err(ProcessError::MissingAttribute {
-                    name: "value".to_string(),
-                });
+                return Err(ProcessError::MissingAttribute("value".to_string()));
             }
         };
 

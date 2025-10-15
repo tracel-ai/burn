@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Range operation.
@@ -33,37 +32,62 @@ pub enum RangeInput {
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
-        fn get_range_input(node: &Node, index: usize, param_name: &str) -> RangeInput {
-            let input = node
-                .inputs
-                .get(index)
-                .unwrap_or_else(|| panic!("Range: {} parameter is required", param_name));
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Opset validation
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Helper function to extract range input
+        fn get_range_input(
+            node: &Node,
+            index: usize,
+            param_name: &str,
+        ) -> Result<RangeInput, ProcessError> {
+            let input = node.inputs.get(index).ok_or_else(|| {
+                ProcessError::MissingInput(format!("Range: {} parameter is required", param_name))
+            })?;
 
             match input.into_value() {
                 None => {
                     let mut runtime_arg = input.clone();
                     runtime_arg.value_store = None;
-                    RangeInput::Runtime(runtime_arg)
+                    Ok(RangeInput::Runtime(runtime_arg))
                 }
                 Some(TensorData {
                     data: Data::Int64s(values),
                     ..
-                }) if values.len() == 1 => RangeInput::Static(values[0]),
+                }) if values.len() == 1 => Ok(RangeInput::Static(values[0])),
                 Some(TensorData {
                     data: Data::Int32s(values),
                     ..
-                }) if values.len() == 1 => RangeInput::Static(values[0] as i64),
-                Some(v) => panic!(
-                    "Range {} must be a scalar int value, got {:?}",
-                    param_name, v
-                ),
+                }) if values.len() == 1 => Ok(RangeInput::Static(values[0] as i64)),
+                Some(_) => Err(ProcessError::TypeMismatch {
+                    expected: "scalar int value".to_string(),
+                    actual: format!("{} must be a scalar int value", param_name),
+                }),
             }
         }
 
-        let start = get_range_input(node, 0, "start");
-        let limit = get_range_input(node, 1, "limit");
-        let delta = get_range_input(node, 2, "delta");
+        let start = get_range_input(node, 0, "start")?;
+        let limit = get_range_input(node, 1, "limit")?;
+        let delta = get_range_input(node, 2, "delta")?;
 
         let config = RangeConfig {
             start,
@@ -71,17 +95,8 @@ impl NodeProcessor for RangeProcessor {
             delta,
         };
         node.config = Some(Box::new(config));
-    }
-
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Range implementation supports opset 11+
-        validate_opset(&node.node_type, opset, 11);
 
         log::debug!("Range rank inference for node {}", node.name);
-
-        if node.inputs.len() != 3 {
-            panic!("Range: expected 3 inputs, found {}", node.inputs.len());
-        }
         log::debug!(
             "Range operation always produces rank 1 tensor for {}",
             node.name
@@ -94,6 +109,56 @@ impl NodeProcessor for RangeProcessor {
         });
 
         log::debug!("Range output rank for {}: 1", node.name);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // Helper function to extract range input
+        fn get_range_input(
+            node: &Node,
+            index: usize,
+            param_name: &str,
+        ) -> Result<RangeInput, ProcessError> {
+            let input = node.inputs.get(index).ok_or_else(|| {
+                ProcessError::MissingInput(format!("Range: {} parameter is required", param_name))
+            })?;
+
+            match input.into_value() {
+                None => {
+                    let mut runtime_arg = input.clone();
+                    runtime_arg.value_store = None;
+                    Ok(RangeInput::Runtime(runtime_arg))
+                }
+                Some(TensorData {
+                    data: Data::Int64s(values),
+                    ..
+                }) if values.len() == 1 => Ok(RangeInput::Static(values[0])),
+                Some(TensorData {
+                    data: Data::Int32s(values),
+                    ..
+                }) if values.len() == 1 => Ok(RangeInput::Static(values[0] as i64)),
+                Some(_) => Err(ProcessError::TypeMismatch {
+                    expected: "scalar int value".to_string(),
+                    actual: format!("{} must be a scalar int value", param_name),
+                }),
+            }
+        }
+
+        let start = get_range_input(node, 0, "start")?;
+        let limit = get_range_input(node, 1, "limit")?;
+        let delta = get_range_input(node, 2, "delta")?;
+
+        let config = RangeConfig {
+            start,
+            limit,
+            delta,
+        };
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -116,7 +181,8 @@ mod tests {
     fn test_range_output() {
         let mut node = create_test_node();
         let processor = RangeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -128,11 +194,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Range: expected 3 inputs, found 2")]
     fn test_range_missing_inputs() {
         let mut node = create_test_node();
         node.inputs.pop();
         let processor = RangeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: 2
+            })
+        ));
     }
 }

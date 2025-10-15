@@ -428,10 +428,10 @@ pub struct Node {
     pub outputs: Vec<Argument>,
 
     /// The attributes of the node.
-    pub attrs: Attributes,
+    pub(crate) attrs: Attributes,
 
     /// Node-specific configuration (populated during processing)
-    pub config: Option<Box<dyn NodeConfig>>,
+    pub(crate) config: Option<Box<dyn NodeConfig>>,
 }
 
 impl Node {

@@ -76,7 +76,7 @@ impl NodeProcessor for SqueezeProcessor {
                 }
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
-                    _ => return None, // Invalid type
+                    _ => None, // Invalid type
                 },
             }
         }
@@ -171,7 +171,7 @@ impl NodeProcessor for SqueezeProcessor {
                 }
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
-                    _ => return None, // Invalid type
+                    _ => None, // Invalid type
                 },
             }
         }

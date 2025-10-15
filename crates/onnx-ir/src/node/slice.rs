@@ -173,19 +173,19 @@ impl NodeProcessor for SliceProcessor {
         let steps = get_slice_input(node, 4)?;
 
         // Validate steps if present - zeros are not allowed
-        if let Some(SliceInput::Static(ref step_values)) = steps {
-            if step_values.contains(&0) {
-                return Err(ProcessError::Custom(
-                    "Slice: step values cannot be zero".to_string(),
-                ));
-            }
+        if let Some(SliceInput::Static(ref step_values)) = steps
+            && step_values.contains(&0)
+        {
+            return Err(ProcessError::Custom(
+                "Slice: step values cannot be zero".to_string(),
+            ));
         }
 
         // Normalize negative axes if we have static axes and know the input rank
-        if let Some(SliceInput::Static(ref mut axes_values)) = axes {
-            if let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty {
-                normalize_axes(axes_values, tensor_type.rank, &node.name);
-            }
+        if let Some(SliceInput::Static(ref mut axes_values)) = axes
+            && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
+        {
+            normalize_axes(axes_values, tensor_type.rank, &node.name);
         }
 
         let config = SliceConfig {
@@ -297,19 +297,19 @@ impl NodeProcessor for SliceProcessor {
         let steps = get_slice_input(node, 4)?;
 
         // Validate steps if present - zeros are not allowed
-        if let Some(SliceInput::Static(ref step_values)) = steps {
-            if step_values.contains(&0) {
-                return Err(ProcessError::Custom(
-                    "Slice: step values cannot be zero".to_string(),
-                ));
-            }
+        if let Some(SliceInput::Static(ref step_values)) = steps
+            && step_values.contains(&0)
+        {
+            return Err(ProcessError::Custom(
+                "Slice: step values cannot be zero".to_string(),
+            ));
         }
 
         // Normalize negative axes if we have static axes and know the input rank
-        if let Some(SliceInput::Static(ref mut axes_values)) = axes {
-            if let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty {
-                normalize_axes(axes_values, tensor_type.rank, &node.name);
-            }
+        if let Some(SliceInput::Static(ref mut axes_values)) = axes
+            && let ArgType::Tensor(ref tensor_type) = node.inputs[0].ty
+        {
+            normalize_axes(axes_values, tensor_type.rank, &node.name);
         }
 
         let config = SliceConfig {

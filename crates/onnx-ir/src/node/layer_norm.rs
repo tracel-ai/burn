@@ -1,9 +1,5 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
-
-use crate::util::same_as_input;
-
 use crate::ir::{Node, NodeConfig};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for LayerNorm operations
@@ -44,13 +40,42 @@ impl LayerNormConfig {
 pub struct LayerNormProcessor;
 
 impl NodeProcessor for LayerNormProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        const MIN: usize = 17;
+
         // LayerNormalization implementation supports opset 17+
-        validate_opset(&node.node_type, opset, 17);
+        if opset < MIN {
+            return Err(ProcessError::UnsupportedOpset {
+                required: MIN,
+                actual: opset,
+            });
+        }
+
+        // Validate input/output count
+        if node.inputs.len() < 3 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 3,
+                actual: node.inputs.len(),
+            });
+        }
+
+        if node.outputs.is_empty() {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let weight_shape = node.inputs[1]
             .into_value()
-            .expect("LayerNorm: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
+            })?
             .shape
             .clone();
 
@@ -66,20 +91,57 @@ impl NodeProcessor for LayerNormProcessor {
                 "axis" => axis = value.clone().into_i64(),
                 "epsilon" => epsilon = value.clone().into_f32(),
                 "stash_type" => {} // stash_type is read but not used in config
-                _ => panic!("Unexpected attribute for LayerNorm: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for LayerNorm: {key}"),
+                    });
+                }
             }
         }
 
         if axis != -1 && axis != weight_shape.len() as i64 - 1 {
-            panic!("LayerNorm: normalization is only supported on the last axis right now")
+            return Err(ProcessError::Custom(
+                "LayerNorm: normalization is only supported on the last axis right now".to_string(),
+            ));
         }
 
         let config = LayerNormConfig::new(num_features).with_epsilon(epsilon as f64);
         node.config = Some(Box::new(config));
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        let weight_shape = node.inputs[1]
+            .into_value()
+            .ok_or_else(|| {
+                ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
+            })?
+            .shape
+            .clone();
+
+        let num_features = weight_shape[0];
+        let mut epsilon = 1e-5;
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => {}
+                "epsilon" => epsilon = value.clone().into_f32(),
+                "stash_type" => {}
+                _ => {}
+            }
+        }
+
+        let config = LayerNormConfig::new(num_features).with_epsilon(epsilon as f64);
+        Ok(Some(Box::new(config)))
     }
 }
 
@@ -112,7 +174,8 @@ mod tests {
     fn test_layer_norm_config_basic() {
         let mut node = create_test_node(1e-5, -1, 1, 64).build_with_graph_data(17);
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 17);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 17, &prefs).unwrap();
 
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
@@ -123,16 +186,14 @@ mod tests {
     fn test_layer_norm_config_no_stash_type() {
         let mut node = create_test_node(1e-5, -1, 0, 32).build_with_graph_data(17);
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 17);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 17, &prefs).unwrap();
 
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
     }
 
     #[test]
-    #[should_panic(
-        expected = "LayerNorm: normalization is only supported on the last axis right now"
-    )]
     fn test_layer_norm_config_invalid_axis() {
         // For a 1D weight tensor with shape [num_features],
         // both axis=0 (the first and only dim) and axis=-1 (the last dim) are valid
@@ -152,9 +213,11 @@ mod tests {
             .attr_int("stash_type", 1)
             .build_with_graph_data(17);
 
-        // Now axis=0 should trigger a panic since it's not the last dimension (1)
+        // Now axis=0 should trigger an error since it's not the last dimension (1)
         let mut node = node;
         let processor = LayerNormProcessor;
-        processor.process_config(&mut node, 17);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 17, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }
