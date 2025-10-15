@@ -39,62 +39,16 @@ impl NodeProcessor for RangeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Opset validation
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate input count
-        if node.inputs.len() != 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 3)?;
 
-        // Helper function to extract range input
-        fn get_range_input(
-            node: &Node,
-            index: usize,
-            param_name: &str,
-        ) -> Result<RangeInput, ProcessError> {
-            let input = node.inputs.get(index).ok_or_else(|| {
-                ProcessError::MissingInput(format!("Range: {} parameter is required", param_name))
-            })?;
-
-            match input.into_value() {
-                None => {
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Ok(RangeInput::Runtime(runtime_arg))
-                }
-                Some(TensorData {
-                    data: Data::Int64s(values),
-                    ..
-                }) if values.len() == 1 => Ok(RangeInput::Static(values[0])),
-                Some(TensorData {
-                    data: Data::Int32s(values),
-                    ..
-                }) if values.len() == 1 => Ok(RangeInput::Static(values[0] as i64)),
-                Some(_) => Err(ProcessError::TypeMismatch {
-                    expected: "scalar int value".to_string(),
-                    actual: format!("{} must be a scalar int value", param_name),
-                }),
-            }
-        }
-
-        let start = get_range_input(node, 0, "start")?;
-        let limit = get_range_input(node, 1, "limit")?;
-        let delta = get_range_input(node, 2, "delta")?;
-
-        let config = RangeConfig {
-            start,
-            limit,
-            delta,
-        };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         log::debug!("Range rank inference for node {}", node.name);
         log::debug!(

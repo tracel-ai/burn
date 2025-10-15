@@ -46,35 +46,16 @@ impl NodeProcessor for LinearProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        _opset: usize,
+        opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::util::validate_min_inputs(node, 2)?;
         crate::util::validate_output_count(node, 1)?;
 
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("Linear: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        // check if the weight tensor has at least 2 dimensions
-        if weight_shape.len() < 2 {
-            return Err(ProcessError::Custom(format!(
-                "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-                weight_shape.len()
-            )));
-        }
-
-        let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
-
-        // check if the bias is present
-        let bias = node.inputs.len() == 3 && node.inputs[2].into_value().is_some();
-
-        let config = LinearConfig::new(in_size, out_size).with_bias(bias);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         log::debug!("Linear rank inference for node {}", node.name);
 

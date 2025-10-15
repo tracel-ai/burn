@@ -33,16 +33,11 @@ impl NodeProcessor for LeakyReluProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract alpha attribute
-        let mut alpha = 0.01;
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "alpha" {
-                alpha = value.clone().into_f32() as f64
-            }
-        }
-
-        let config = LeakyReluConfig { alpha };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

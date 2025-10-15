@@ -52,28 +52,10 @@ impl NodeProcessor for BatchNormProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
-            })?
-            .shape;
-
-        let num_features = weight_shape[0];
-
-        let mut epsilon = 0f32;
-        let mut momentum = 0f32;
-
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "momentum" => momentum = value.clone().into_f32(),
-                "epsilon" => epsilon = value.clone().into_f32(),
-                _ => {}
-            }
-        }
-
-        let config = BatchNormConfig::new(num_features, epsilon as f64, momentum as f64);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         log::debug!("BatchNorm rank inference for node {}", node.name);
 

@@ -48,29 +48,11 @@ impl NodeProcessor for LayerNormProcessor {
     ) -> Result<(), ProcessError> {
         const MIN: usize = 17;
 
-        // LayerNormalization implementation supports opset 17+
-        if opset < MIN {
-            return Err(ProcessError::UnsupportedOpset {
-                required: MIN,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, MIN)?;
+        crate::util::validate_min_inputs(node, 3)?;
+        crate::util::validate_output_count(node, 1)?;
 
-        // Validate input/output count
-        if node.inputs.len() < 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
-
-        if node.outputs.is_empty() {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
-
+        // Validate axis attribute before extracting config
         let weight_shape = node.inputs[1]
             .into_value()
             .ok_or_else(|| {
@@ -79,18 +61,12 @@ impl NodeProcessor for LayerNormProcessor {
             .shape
             .clone();
 
-        let num_features = weight_shape[0];
-
-        // When `stash_type` is `1` (default), perform operations in 32-bit float and
-        // cast the results back to original dtype
         let mut axis = -1;
-        let mut epsilon = 1e-5;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => axis = value.clone().into_i64(),
-                "epsilon" => epsilon = value.clone().into_f32(),
-                "stash_type" => {} // stash_type is read but not used in config
+                "epsilon" | "stash_type" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -106,8 +82,10 @@ impl NodeProcessor for LayerNormProcessor {
             ));
         }
 
-        let config = LayerNormConfig::new(num_features).with_epsilon(epsilon as f64);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

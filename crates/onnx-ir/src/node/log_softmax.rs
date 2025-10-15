@@ -33,35 +33,11 @@ impl NodeProcessor for LogSoftmaxProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract the shape of the input tensor
-        let tensor = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor.clone(),
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
-                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
-                });
-            }
-        };
-
-        // Extract the axis attribute (default: -1 per ONNX spec)
-        let mut axis: i64 = -1;
-
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = value.clone().into_i64()
-            }
-        }
-
-        // if axis is negative, it is counted from the end
-        if axis < 0 {
-            axis += tensor.rank as i64;
-        }
-
-        let config = LogSoftmaxConfig {
-            axis: axis as usize,
-        };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Infer output type
         crate::util::same_as_input(node);

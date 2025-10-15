@@ -38,26 +38,13 @@ impl NodeProcessor for TransposeProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract the shape of the input tensor
-        let tensor = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor.clone(),
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
-                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
-                });
-            }
-        };
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        // Default: reverse the dimensions
-        let mut perm = (0..tensor.rank as i64).rev().collect::<Vec<i64>>();
-
-        if let Some(axes) = node.attrs.get("perm") {
-            perm = axes.clone().into_i64s();
-        }
-
-        let config = TransposeConfig { perm };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let _config = node.config::<TransposeConfig>();
 
         // Infer output type
         same_as_input(node);

@@ -34,20 +34,10 @@ impl NodeProcessor for ReduceProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Opset validation
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate input count
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Validate input type and extract tensor info
         let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
@@ -64,43 +54,19 @@ impl NodeProcessor for ReduceProcessor {
             }
         };
 
-        // Extract axes and keepdims attributes
-        let mut axes = Vec::new();
-        let mut keepdims = 1;
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "axes" => axes = value.clone().into_i64s(),
-                "keepdims" => keepdims = value.clone().into_i64(),
-                _ => {}
-            }
-        }
-
-        // Process axes from additional input (if available)
-        if let Some(value) = node
-            .inputs
-            .get(1)
-            .and_then(|argument| argument.into_value())
-        {
-            axes = value.data.into_i64s();
-        }
-
-        let mut dims: Vec<usize> = axes
-            .into_iter()
-            .map(|mut dim| {
-                if dim < 0 {
-                    // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-                    dim += tensor_rank as i64;
-                }
-                dim as usize
-            })
-            .collect();
-
-        // Sort the dimensions to ensure consistent order
-        dims.sort();
-
-        let config = ReduceConfig::new(dims.clone(), keepdims == 1);
-        node.config = Some(Box::new(config));
+        // Get config values before using them
+        let dims = node.config::<ReduceConfig>().dims.clone();
+        let keepdims = if node.config::<ReduceConfig>().keepdims {
+            1
+        } else {
+            0
+        };
 
         log::debug!("{} rank inference for node {}", node.node_type, node.name);
         log::debug!(

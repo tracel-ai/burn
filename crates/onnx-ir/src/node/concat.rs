@@ -36,56 +36,15 @@ impl NodeProcessor for ConcatProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract the axis attribute (required per ONNX spec)
-        let mut axis: Option<i64> = None;
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = Some(value.clone().into_i64());
-                break;
-            }
-        }
+        // Get reference to config for type inference (not used, but extracted for consistency)
+        let _config = node.config::<ConcatConfig>();
 
-        let axis = axis.ok_or_else(|| ProcessError::MissingAttribute("axis".to_string()))?;
-
-        // extract the rank based on input type
-        let rank = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor.rank as i64,
-            ArgType::Shape(_) => 1, // Shapes are 1D
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
-                });
-            }
-        };
-
-        // if axis is negative, it is counted from the end
-        let normalized_axis = if axis < 0 { axis + rank } else { axis };
-
-        // Validate axis is within bounds
-        if normalized_axis < 0 || normalized_axis >= rank {
-            return Err(ProcessError::InvalidAttribute {
-                name: "axis".to_string(),
-                reason: format!("axis {} is out of bounds for rank {}", axis, rank),
-            });
-        }
-
-        // For shapes, axis must be 0 (since they're 1D)
-        if matches!(&node.inputs.first().unwrap().ty, ArgType::Shape(_)) && normalized_axis != 0 {
-            return Err(ProcessError::InvalidAttribute {
-                name: "axis".to_string(),
-                reason: format!(
-                    "Concat on Shape inputs only supports axis=0, got axis={}",
-                    axis
-                ),
-            });
-        }
-
-        let config = ConcatConfig {
-            axis: normalized_axis as usize,
-        };
-        node.config = Some(Box::new(config));
+        // For shapes, axis must be 0 (since they're 1D) - validation already done in extract_config
 
         // Infer output type
         log::debug!("Concat rank inference for node {}", node.name);

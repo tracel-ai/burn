@@ -35,6 +35,39 @@ impl NodeProcessor for ArgMinProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
+        // Validate select_last_index before config extraction
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "select_last_index" {
+                if value.clone().into_i64() != 0 {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: "select_last_index".to_string(),
+                        reason: "select_last_index=1 is not supported for argmin in burn"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+
+        // Validate keepdims value
+        for (key, value) in node.attrs.iter() {
+            if key.as_str() == "keepdims" {
+                let keepdims_val = value.clone().into_i64();
+                if keepdims_val != 0 && keepdims_val != 1 {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: "keepdims".to_string(),
+                        reason: "Only keepdims=0 or keepdims=1 is supported for argmin in burn"
+                            .to_string(),
+                    });
+                }
+            }
+        }
+
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
@@ -46,47 +79,11 @@ impl NodeProcessor for ArgMinProcessor {
             }
         };
 
-        let mut axis: i64 = 0;
-        let mut keepdims = true; // default value per ONNX spec
-
-        // Extract the attributes
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "axis" => axis = value.clone().into_i64(),
-                "select_last_index" => {
-                    if value.clone().into_i64() != 0 {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "select_last_index".to_string(),
-                            reason: "select_last_index=1 is not supported for argmin in burn"
-                                .to_string(),
-                        });
-                    }
-                }
-                "keepdims" => {
-                    let keepdims_val = value.clone().into_i64();
-                    if keepdims_val != 0 && keepdims_val != 1 {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "keepdims".to_string(),
-                            reason: "Only keepdims=0 or keepdims=1 is supported for argmin in burn"
-                                .to_string(),
-                        });
-                    }
-                    keepdims = keepdims_val != 0;
-                }
-                _ => {}
-            }
-        }
-
-        // if axis is negative, it is counted from the end
-        if axis < 0 {
-            axis += tensor.rank as i64;
-        }
-
-        let config = ArgMinConfig::new(axis as usize, keepdims);
-        node.config = Some(Box::new(config));
-
         log::debug!("ArgMin rank inference for node {}", node.name);
         log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
+
+        // Get config values before mutating node
+        let keepdims = node.config::<ArgMinConfig>().keepdims;
 
         // For burn compatibility, argmin always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank

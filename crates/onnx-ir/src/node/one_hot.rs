@@ -73,66 +73,14 @@ impl NodeProcessor for OneHotProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Opset validation
-        if opset < 9 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 9,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 9)?;
+        crate::util::validate_min_inputs(node, 3)?;
 
-        // Validate input count
-        if node.inputs.len() < 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
-
-        let depth = match node.inputs[1].into_value() {
-            None => {
-                // Runtime input - no static value available
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                OneHotDepthInput::Runtime(runtime_arg)
-            }
-            Some(tensor_data) => {
-                let depth_value = tensor_data.data.into_i64();
-                OneHotDepthInput::Static(depth_value as usize)
-            }
-        };
-
-        let values = match node.inputs[2].into_value() {
-            None => {
-                // Runtime input - no static value available
-                let mut runtime_arg = node.inputs[2].clone();
-                runtime_arg.value_store = None;
-                OneHotValuesInput::Runtime(runtime_arg)
-            }
-            Some(tensor_data) => {
-                let values_vec = tensor_data.data.into_f32s();
-                let values_array: [f32; 2] = values_vec.try_into().map_err(|_| {
-                    ProcessError::Custom(
-                        "OneHot: values must contain exactly 2 elements [off_value, on_value]"
-                            .to_string(),
-                    )
-                })?;
-                OneHotValuesInput::Static(values_array)
-            }
-        };
-
-        let axis = node
-            .attrs
-            .get("axis")
-            .map(|val| val.clone().into_i64())
-            .unwrap_or(-1);
-
-        let config = OneHotConfig {
-            depth,
-            values,
-            axis,
-        };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Update output shape
         one_hot_output_shape(node)?;

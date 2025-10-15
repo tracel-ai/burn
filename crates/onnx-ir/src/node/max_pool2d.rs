@@ -73,17 +73,10 @@ impl NodeProcessor for MaxPool2dProcessor {
 
         crate::util::validate_output_count(node, 1)?;
 
-        let mut kernel_shape = Vec::new();
-        let mut strides = vec![1, 1];
-        let mut pads = vec![0, 0, 0, 0];
-        let mut dilations = vec![1, 1];
-
+        // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => strides = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "dilations" => dilations = value.clone().into_i64s(),
+                "kernel_shape" | "strides" | "pads" | "dilations" | "storage_order" => {}
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
@@ -101,8 +94,6 @@ impl NodeProcessor for MaxPool2dProcessor {
                         });
                     }
                 }
-                // These are attributes that are allowed but not used in this implementation
-                "storage_order" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -112,14 +103,10 @@ impl NodeProcessor for MaxPool2dProcessor {
             }
         }
 
-        let padding = padding_config_2d(&pads);
-
-        let config = MaxPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
-            .with_strides([strides[0] as usize, strides[1] as usize])
-            .with_padding(padding)
-            .with_dilation([dilations[0] as usize, dilations[1] as usize]);
-
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

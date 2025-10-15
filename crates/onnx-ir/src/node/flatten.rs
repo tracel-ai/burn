@@ -56,24 +56,13 @@ impl NodeProcessor for FlattenProcessor {
             )));
         }
 
-        // Extract the axis attribute (default: 1 per ONNX spec)
-        let mut axis: i64 = 1;
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axis" {
-                axis = value.clone().into_i64()
-            }
-        }
-
-        // if axis is negative, it is counted from the end
-        if axis < 0 {
-            axis += tensor.rank as i64;
-        }
-
-        let config = FlattenConfig {
-            axis: axis as usize,
-        };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let _config = node.config::<FlattenConfig>();
 
         // Infer output type - Flatten to a 2D tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 2, ..tensor });

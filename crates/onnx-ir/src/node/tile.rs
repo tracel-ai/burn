@@ -46,35 +46,13 @@ impl NodeProcessor for TileProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract repeats config
-        fn get_repeats(node: &Node) -> TileInput {
-            if let Some(input) = node.inputs.get(1) {
-                match input.into_value() {
-                    None => {
-                        // Runtime input - no static value available
-                        let mut runtime_arg = input.clone();
-                        runtime_arg.value_store = None;
-                        TileInput::Runtime(runtime_arg)
-                    }
-                    Some(tensor_data) => {
-                        let repeats = tensor_data
-                            .data
-                            .into_i64s()
-                            .iter()
-                            .map(|&x| x as usize)
-                            .collect();
-                        TileInput::Static(repeats)
-                    }
-                }
-            } else {
-                // No repeats input provided - default to empty
-                TileInput::Static(vec![])
-            }
-        }
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        let repeats = get_repeats(node);
-        let config = TileConfig { repeats };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let _config = node.config::<TileConfig>();
 
         // Infer output type - same as input
         crate::util::same_as_input(node);

@@ -45,30 +45,14 @@ impl NodeProcessor for SqueezeProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
-            // In ONNX opset 13+, axes are provided as a second input
-            if node.inputs.len() < 2 {
-                return None; // No axes input means squeeze all dims with size 1
-            }
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-            let input = &node.inputs[1];
-            match input.into_value() {
-                None => {
-                    // Runtime input - no static value available
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(SqueezeInput::Runtime(runtime_arg))
-                }
-                Some(value) => match &value.data {
-                    Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
-                    _ => None, // Invalid type
-                },
-            }
-        }
-
-        let axes = get_squeeze_axes(node);
-        let config = SqueezeConfig { axes: axes.clone() };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let config = node.config::<SqueezeConfig>();
+        let axes = config.axes.clone();
 
         log::debug!("Squeeze rank inference for node {}", node.name);
 

@@ -45,47 +45,14 @@ impl NodeProcessor for GroupNormProcessor {
     ) -> Result<(), ProcessError> {
         const MIN: usize = 18;
 
-        // GroupNormalization implementation supports opset 18+
-        if opset < MIN {
-            return Err(ProcessError::UnsupportedOpset {
-                required: MIN,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, MIN)?;
+        crate::util::validate_min_inputs(node, 3)?;
+        crate::util::validate_output_count(node, 1)?;
 
-        // Validate input/output count
-        if node.inputs.len() < 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
-
-        if node.outputs.is_empty() {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
-
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .as_ref()
-            .ok_or_else(|| {
-                ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        let num_features = weight_shape[0];
-        let mut num_groups = None;
-        let mut epsilon = 1e-5;
-
-        for (key, value) in node.attrs.iter() {
+        // Validate attributes before extracting config
+        for (key, _value) in node.attrs.iter() {
             match key.as_str() {
-                "epsilon" => epsilon = value.clone().into_f32(),
-                "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
-                "stash_type" => {} // stash_type is read but not used in config
+                "epsilon" | "num_groups" | "stash_type" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -95,21 +62,22 @@ impl NodeProcessor for GroupNormProcessor {
             }
         }
 
-        let num_groups = num_groups.ok_or_else(|| {
-            ProcessError::MissingAttribute(
-                "GroupNorm: num_groups attribute must be present".to_string(),
-            )
-        })?;
+        // Extract config once (includes validation of num_groups divisibility)
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
 
-        if num_groups > 0 && !num_features.is_multiple_of(num_groups) {
+        // Validate num_groups divisibility
+        let config = config_box.as_any().downcast_ref::<GroupNormConfig>()
+            .ok_or_else(|| ProcessError::Custom("Failed to downcast config".to_string()))?;
+
+        if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
             return Err(ProcessError::Custom(
                 "GroupNorm: number of features must be divisible by the number of groups"
                     .to_string(),
             ));
         }
 
-        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64);
-        node.config = Some(Box::new(config));
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

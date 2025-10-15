@@ -94,82 +94,10 @@ impl NodeProcessor for Conv2dProcessor {
         crate::util::validate_min_inputs(node, 2)?;
         crate::util::validate_output_count(node, 1)?;
 
-        let mut kernel_shape = Vec::new();
-        let mut strides = vec![1, 1];
-        let mut pads = vec![0, 0, 0, 0];
-        let mut dilations = vec![1, 1];
-        let mut group: usize = 1;
-
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        // check if the bias is present
-        let bias = node.inputs.len() == 3;
-
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => strides = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "dilations" => dilations = value.clone().into_i64s(),
-                "group" => group = value.clone().into_i64() as usize,
-                "auto_pad" => {
-                    let auto_pad = value.clone().into_string();
-                    if auto_pad != "NOTSET" {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "auto_pad".to_string(),
-                            reason: format!("Unsupported 'auto_pad' value: {}", auto_pad),
-                        });
-                    }
-                }
-                _ => {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: key.clone(),
-                        reason: format!("Unexpected attribute for Conv2d: {}", key),
-                    });
-                }
-            }
-        }
-
-        // the channels are inverted in the weight tensor
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
-
-        let padding = padding_config_2d(&pads);
-
-        let kernel_size = if kernel_shape.is_empty() {
-            // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
-            // Spec says if kernel shape not present in attributes it should be inferred from
-            // the weight tensor, which has shape (M, C/group, kH, kW).
-            if weight_shape.len() != 4 {
-                return Err(ProcessError::Custom(format!(
-                    "Conv2d: expected to infer kernel shape from a weight tensor of rank 4 but got shape {:?}",
-                    weight_shape
-                )));
-            }
-
-            [weight_shape[2], weight_shape[3]]
-        } else {
-            // Was set explicitly via attributes- use that
-            [kernel_shape[0] as _, kernel_shape[1] as _]
-        };
-
-        let config = Conv2dConfig::new(
-            [channels_in, channels_out],
-            kernel_size,
-            [strides[0] as usize, strides[1] as usize],
-            padding,
-            [dilations[0] as usize, dilations[1] as usize],
-            group,
-            bias,
-        );
-
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         log::debug!("Conv2d rank inference for node {}", node.name);
 
@@ -222,8 +150,21 @@ impl NodeProcessor for Conv2dProcessor {
                 "pads" => pads = value.clone().into_i64s(),
                 "dilations" => dilations = value.clone().into_i64s(),
                 "group" => group = value.clone().into_i64() as usize,
-                "auto_pad" => {}
-                _ => {}
+                "auto_pad" => {
+                    let auto_pad = value.clone().into_string();
+                    if auto_pad != "NOTSET" {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {}", auto_pad),
+                        });
+                    }
+                }
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Conv2d: {}", key),
+                    });
+                }
             }
         }
 

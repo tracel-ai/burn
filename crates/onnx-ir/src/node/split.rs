@@ -47,13 +47,6 @@ impl NodeProcessor for SplitProcessor {
         // Validate we have at least one input
         crate::util::validate_min_inputs(node, 1)?;
 
-        // Initialize the axis to split along (default is 0 as per ONNX specification)
-        let mut axis: i64 = 0;
-        // Holds the uniform split size if calculated or provided
-        let mut split_size: Option<usize> = None;
-        // Holds the custom split sizes if provided as input (Static or Runtime)
-        let mut split_sizes: Option<SplitSizesInput> = None;
-
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor,
@@ -65,109 +58,13 @@ impl NodeProcessor for SplitProcessor {
             }
         };
 
-        // Optionally store the number of outputs if provided as an attribute
-        let mut num_outputs: Option<usize> = None;
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        // Iterate through node attributes to extract relevant values
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "axis" => axis = value.clone().into_i64(),
-                "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
-                _ => {}
-            }
-        }
-
-        // Handle the case when num_outputs is provided to calculate uniform split size
-        if let Some(num_outputs) = num_outputs {
-            if num_outputs == 0 {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "num_outputs".to_string(),
-                    reason: "'num_outputs' must be a positive value greater than zero".to_string(),
-                });
-            }
-
-            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
-                ProcessError::Custom(
-                    "Split: Static shape must be known to calculate split size".to_string(),
-                )
-            })?[axis as usize];
-
-            // Calculate the split size considering any remainder for non-evenly divisible dimensions
-            let calculated_split_size =
-                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
-
-            if calculated_split_size == 0 {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "num_outputs".to_string(),
-                    reason: "Calculated split size is zero. Please ensure 'num_outputs' is valid for the dimension size".to_string(),
-                });
-            }
-
-            // Assign the calculated split size
-            split_size = Some(calculated_split_size);
-        }
-
-        // Adjust axis if negative to count from the end as per ONNX spec
-        if axis < 0 {
-            axis += tensor.rank as i64;
-        }
-
-        // Check for custom split sizes provided as a second input
-        if node.inputs.len() > 1 {
-            split_sizes = match node.inputs[1].into_value() {
-                None => {
-                    // Runtime input - no static value available
-                    let mut runtime_arg = node.inputs[1].clone();
-                    runtime_arg.value_store = None;
-                    Some(SplitSizesInput::Runtime(runtime_arg))
-                }
-                Some(tensor_data) => {
-                    let sizes = tensor_data.data.clone().into_usizes();
-                    if !sizes.is_empty() {
-                        Some(SplitSizesInput::Static(sizes))
-                    } else {
-                        None
-                    }
-                }
-            };
-        }
-
-        // Ensure that only one of 'split_sizes' or 'num_outputs' is specified
-        if split_sizes.is_some() && split_size.is_some() {
-            return Err(ProcessError::Custom(
-                "Split: Cannot specify both 'split' input and 'num_outputs' attribute simultaneously".to_string(),
-            ));
-        }
-
-        // Infer split_size if neither custom split_sizes nor split_size is provided
-        if split_sizes.is_none() && split_size.is_none() {
-            let num_outputs = node.outputs.len();
-            let dim_size = tensor.static_shape.as_ref().ok_or_else(|| {
-                ProcessError::Custom(
-                    "Split: Static shape must be known to infer split size".to_string(),
-                )
-            })?[axis as usize];
-
-            // Calculate inferred split size based on number of outputs
-            let calculated_split_size =
-                dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
-
-            if calculated_split_size == 0 {
-                return Err(ProcessError::Custom(
-                    "Split: Inferred split size is zero. Please ensure the number of outputs is valid for the dimension size".to_string(),
-                ));
-            }
-
-            split_size = Some(calculated_split_size);
-        }
-
-        // Return the configuration for splitting operation
-        let config = SplitConfig {
-            axis: axis as usize,
-            split_size,
-            split_sizes,
-        };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference (not directly used, but extracted for consistency)
+        let _config = node.config::<SplitConfig>();
 
         // Infer output types
         log::debug!("Split rank inference for node {}", node.name);

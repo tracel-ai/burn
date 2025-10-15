@@ -38,48 +38,25 @@ impl NodeProcessor for TriluProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Trilu implementation supports opset 14+
-        if opset < 14 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 14,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 14)?;
 
         // Validate input count (1 or 2 inputs)
-        if node.inputs.is_empty() || node.inputs.len() > 2 {
+        crate::util::validate_min_inputs(node, 1)?;
+        if node.inputs.len() > 2 {
             return Err(ProcessError::InvalidInputCount {
-                expected: 1,
+                expected: 2,
                 actual: node.inputs.len(),
             });
         }
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
-        let mut upper = true;
-        let mut diagonal = 0;
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "upper" {
-                upper = value.clone().into_i64() != 0
-            }
-        }
-        // The second input of the Trilu node is the diagonal value, coming from a constant node
-        if let Some(diagonal_arg) = node.inputs.get(1)
-            && let Some(TensorData {
-                data: Data::Int64(diagonal_val),
-                ..
-            }) = &diagonal_arg.into_value()
-        {
-            diagonal = *diagonal_val;
-        }
-
-        let config = TriluConfig::new(upper, diagonal);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Infer output type
         crate::util::same_as_input(node);

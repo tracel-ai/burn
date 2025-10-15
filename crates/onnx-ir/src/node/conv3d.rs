@@ -69,6 +69,22 @@ impl NodeProcessor for Conv3dProcessor {
         crate::util::validate_min_inputs(node, 2)?;
         crate::util::validate_output_count(node, 1)?;
 
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Output type is same as input
+        crate::util::same_as_input(node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1, 1];
         let mut pads = vec![0, 0, 0, 0, 0, 0];
@@ -108,91 +124,6 @@ impl NodeProcessor for Conv3dProcessor {
                         reason: format!("Unexpected attribute for Conv3d: {key}"),
                     });
                 }
-            }
-        }
-
-        // the channels are inverted in the weight tensor
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
-
-        let padding = padding_config_3d(&pads);
-
-        let kernel_size = if kernel_shape.is_empty() {
-            // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
-            // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
-            if weight_shape.len() != 5 {
-                return Err(ProcessError::Custom(format!(
-                    "expected to infer kernel shape from a weight tensor of rank 5 but got shape {weight_shape:?}"
-                )));
-            }
-
-            [weight_shape[2], weight_shape[3], weight_shape[4]]
-        } else {
-            // Was set explicitly via attributes- use that
-            [
-                kernel_shape[0] as _,
-                kernel_shape[1] as _,
-                kernel_shape[2] as _,
-            ]
-        };
-
-        let config = Conv3dConfig::new(
-            [channels_in, channels_out],
-            kernel_size,
-            [
-                strides[0] as usize,
-                strides[1] as usize,
-                strides[2] as usize,
-            ],
-            [
-                dilations[0] as usize,
-                dilations[1] as usize,
-                dilations[2] as usize,
-            ],
-            group,
-            bias,
-            padding,
-        );
-
-        node.config = Some(Box::new(config));
-
-        // Output type is same as input
-        crate::util::same_as_input(node);
-
-        Ok(())
-    }
-
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        let mut kernel_shape = Vec::new();
-        let mut strides = vec![1, 1, 1];
-        let mut pads = vec![0, 0, 0, 0, 0, 0];
-        let mut dilations = vec![1, 1, 1];
-        let mut group: usize = 1;
-
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("Conv3d: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        // check if the bias is present
-        let bias = node.inputs.len() == 3;
-
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => strides = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "dilations" => dilations = value.clone().into_i64s(),
-                "group" => group = value.clone().into_i64() as usize,
-                "auto_pad" => {}
-                _ => {}
             }
         }
 

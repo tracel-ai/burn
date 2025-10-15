@@ -45,27 +45,14 @@ impl NodeProcessor for CastProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract the target element type from attributes
-        let elem_type = match node.attrs.get("to") {
-            Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
-                .map_err(|_| ProcessError::InvalidAttribute {
-                    name: "to".to_string(),
-                    reason: format!("unsupported dtype: {}", type_id),
-                })?,
-            Some(_) => {
-                return Err(ProcessError::InvalidAttribute {
-                    name: "to".to_string(),
-                    reason: "must be Int64".to_string(),
-                });
-            }
-            None => {
-                return Err(ProcessError::MissingAttribute("to".to_string()));
-            }
-        };
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        // Store config
-        let config = CastConfig::new(elem_type.clone());
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let config = node.config::<CastConfig>();
+        let elem_type = config.to.clone();
 
         // Infer output type based on input type
         let input = &mut node.inputs[0];

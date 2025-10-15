@@ -42,45 +42,10 @@ impl NodeProcessor for DropoutProcessor {
         crate::util::validate_min_inputs(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        // Opset 7 and older store probability as an attribute
-        if node.attrs.contains_key("ratio") {
-            let prob = node.attrs.get("ratio").unwrap().clone().into_f32();
-            let config = DropoutConfig {
-                prob: DropoutInput::Static(prob as f64),
-            };
-            node.config = Some(Box::new(config));
-            same_as_input(node);
-            return Ok(());
-        }
-
-        crate::util::validate_min_inputs(node, 2)?;
-
-        let prob = match node.inputs[1].into_value() {
-            None => {
-                // Runtime input - no static value available
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                DropoutInput::Runtime(runtime_arg)
-            }
-            Some(tensor_data) => {
-                let ratio = tensor_data.data.into_scalar();
-                let prob_value = match ratio {
-                    Data::Float16(ratio) => f64::from(f32::from(ratio)),
-                    Data::Float32(ratio) => ratio as f64,
-                    Data::Float64(ratio) => ratio,
-                    _ => {
-                        return Err(ProcessError::InvalidAttribute {
-                            name: "ratio".to_string(),
-                            reason: "must be a float".to_string(),
-                        });
-                    }
-                };
-                DropoutInput::Static(prob_value)
-            }
-        };
-
-        let config = DropoutConfig { prob };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Infer output type
         same_as_input(node);

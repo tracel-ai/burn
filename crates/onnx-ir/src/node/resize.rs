@@ -168,45 +168,13 @@ impl NodeProcessor for ResizeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Resize implementation supports opset 11+ (for coordinate transformation modes)
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate input count
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
-
-        // ALL logic from resize_config inlined here
-        let mut mode: Option<ResizeMode> = None;
-
-        let input = if let ArgType::Tensor(tensor) = &node
-            .inputs
-            .first()
-            .ok_or_else(|| ProcessError::MissingInput("input".to_string()))?
-            .ty
-        {
-            tensor
-        } else {
-            return Err(ProcessError::TypeMismatch {
-                expected: "Tensor".to_string(),
-                actual: format!("{:?}", node.inputs.first().unwrap().ty),
-            });
-        };
+        crate::util::validate_output_count(node, 1)?;
 
         // Note: we are ignoring some attributes because results are approximately the same
         // and we are not supporting all the attributes of the Resize operator.
@@ -261,18 +229,7 @@ impl NodeProcessor for ResizeProcessor {
                         });
                     }
                 }
-                "mode" => {
-                    mode = Some(
-                        value
-                            .clone()
-                            .into_string()
-                            .parse::<ResizeMode>()
-                            .map_err(|e| ProcessError::InvalidAttribute {
-                                name: "mode".to_string(),
-                                reason: format!("Failed to parse resize mode: {}", e),
-                            })?,
-                    )
-                }
+                "mode" => {} // Validated in extract_config
                 "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
 
                 _ => {}
@@ -291,33 +248,27 @@ impl NodeProcessor for ResizeProcessor {
             })
             .unwrap_or_default();
 
-        // Extract scales input (3rd input)
-        let scales = extract_scales_input(node, input.rank);
-
-        // Extract sizes input (4th input)
-        let sizes = extract_sizes_input(node, input.rank);
-
-        let mode = mode.ok_or_else(|| ProcessError::MissingAttribute("mode".to_string()))?;
-
         if !roi.is_empty() {
             return Err(ProcessError::Custom(
                 "Resize: roi input is not supported".to_string(),
             ));
         }
 
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Get reference to config for validation
+        let config = node.config::<ResizeConfig>();
+
         // Check that at least one of scales or sizes is provided
-        if scales.is_none() && sizes.is_none() {
+        if config.scales.is_none() && config.sizes.is_none() {
             return Err(ProcessError::Custom(
                 "Resize: either scales or sizes input is required".to_string(),
             ));
         }
-
-        let config = ResizeConfig {
-            mode,
-            scales,
-            sizes,
-        };
-        node.config = Some(Box::new(config));
 
         // Infer output type
         crate::util::same_as_input(node);

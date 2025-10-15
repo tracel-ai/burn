@@ -40,75 +40,21 @@ impl NodeProcessor for TopKProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TopK implementation supports opset 10+ (k as input)
-        if opset < 10 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 10,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 10)?;
 
         // Validate input count (1 or 2 inputs)
-        if node.inputs.is_empty() || node.inputs.len() > 2 {
+        crate::util::validate_min_inputs(node, 1)?;
+        if node.inputs.len() > 2 {
             return Err(ProcessError::InvalidInputCount {
-                expected: 1,
+                expected: 2,
                 actual: node.inputs.len(),
             });
         }
 
         // Validate output count
-        if node.outputs.len() != 2 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 2,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 2)?;
 
-        // Extract the shape of the input data tensor
-        let data_tensor = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
-                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
-                });
-            }
-        };
-
-        let k = match node.inputs.get(1) {
-            Some(k_tensor) => match k_tensor.into_value() {
-                None => {
-                    // Runtime input - no static value available
-                    let mut runtime_arg = k_tensor.clone();
-                    runtime_arg.value_store = None;
-                    TopKInput::Runtime(runtime_arg)
-                }
-                Some(tensor_data) => {
-                    let k_value = tensor_data.data.into_i64s()[0];
-                    TopKInput::Static(k_value as usize)
-                }
-            },
-            _ => {
-                // Fall back to attribute
-                let k_value = node
-                    .attrs
-                    .get("k")
-                    .ok_or_else(|| ProcessError::MissingAttribute("k".to_string()))?
-                    .clone()
-                    .into_i64();
-                TopKInput::Static(k_value as usize)
-            }
-        };
-
-        let mut axis = match node.attrs.get("axis") {
-            Some(axis) => axis.clone().into_i64(),
-            None => -1,
-        };
-
-        // If axis is negative, it is counted from the end
-        if axis < 0 {
-            axis += data_tensor.rank as i64;
-        }
-
+        // Validate largest and sorted attributes before config extraction
         if let Some(largest) = node.attrs.get("largest")
             && largest.clone().into_i64() != 1
         {
@@ -125,11 +71,22 @@ impl NodeProcessor for TopKProcessor {
             ));
         }
 
-        let config = TopKConfig {
-            axis: axis as usize,
-            k,
+        // Extract the shape of the input data tensor
+        let data_tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
-        node.config = Some(Box::new(config));
+
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Infer output types
         log::debug!("TopK rank inference for node {}", node.name);

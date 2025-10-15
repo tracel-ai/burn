@@ -49,61 +49,20 @@ impl NodeProcessor for UnsqueezeProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Check if axes attribute exists
-        for (key, value) in node.attrs.iter() {
-            if key.as_str() == "axes" {
-                let config = UnsqueezeConfig::Static(value.clone().into_i64s());
-                node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-                // Perform type inference with attribute-based axes
-                return self.infer_with_axes(node, Some(value.clone().into_i64s()));
-            }
-        }
-
-        // Axes must be provided as second input
-        if node.inputs.len() < 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
-
-        let input_value = &node.inputs[1];
-
-        let config = match &node.inputs[1].ty {
-            ArgType::Tensor(tensor) => {
-                if tensor.rank != 1 {
-                    return Err(ProcessError::Custom(
-                        "Unsqueeze: axes tensor must be 1D".to_string(),
-                    ));
-                }
-                if let Some(TensorData {
-                    data: Data::Int64s(shape),
-                    ..
-                }) = input_value.into_value().as_ref()
-                {
-                    UnsqueezeConfig::Static(shape.clone())
-                } else {
-                    let mut runtime_arg = node.inputs[1].clone();
-                    runtime_arg.value_store = None;
-                    UnsqueezeConfig::Runtime(runtime_arg)
-                }
-            }
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
-                    actual: format!("{:?}", node.inputs[1].ty),
-                });
-            }
-        };
+        // Get reference to config for type inference
+        let config = node.config::<UnsqueezeConfig>();
 
         // Extract axes for type inference
-        let axes = match &config {
+        let axes = match config {
             UnsqueezeConfig::Static(axes) => Some(axes.clone()),
             UnsqueezeConfig::Runtime(_) => None,
         };
 
-        node.config = Some(Box::new(config));
         self.infer_with_axes(node, axes)
     }
 

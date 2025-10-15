@@ -29,21 +29,8 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate input count
-        if node.inputs.len() != 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 2)?;
+        crate::util::validate_output_count(node, 1)?;
 
         same_as_input_broadcast(node);
         Ok(())
@@ -89,28 +76,9 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             _ => 1, //FIXME probably not
         };
 
-        if opset < min_opset {
-            return Err(ProcessError::UnsupportedOpset {
-                required: min_opset,
-                actual: opset,
-            });
-        }
-
-        // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, min_opset)?;
+        crate::util::validate_input_count(node, 1)?;
+        crate::util::validate_output_count(node, 1)?;
 
         same_as_input(node);
         Ok(())

@@ -132,25 +132,14 @@ impl NodeProcessor for AttentionProcessor {
             ));
         }
 
-        let mut is_causal = false;
-        let mut kv_num_heads = None;
-        let mut q_num_heads = None;
-        let mut qk_matmul_output_mode = AttentionQkMatmulOutputMode::Matmul;
-        let mut scale = None;
-        let mut softcap = 0.0;
-        let mut softmax_precision = None;
-
+        // Validate unexpected attributes and qk_matmul_output_mode before config extraction
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "is_causal" => is_causal = value.clone().into_i64() != 0,
-                "kv_num_heads" => kv_num_heads = Some(value.clone().into_i64() as usize),
-                "q_num_heads" => q_num_heads = Some(value.clone().into_i64() as usize),
+                "is_causal" | "kv_num_heads" | "q_num_heads" | "scale" | "softcap"
+                | "softmax_precision" => {}
                 "qk_matmul_output_mode" => {
-                    qk_matmul_output_mode = match value.clone().into_i64() {
-                        0 => AttentionQkMatmulOutputMode::Matmul,
-                        1 => AttentionQkMatmulOutputMode::MatmulPlusAttentionMask,
-                        2 => AttentionQkMatmulOutputMode::MatmulAfterSoftcap,
-                        3 => AttentionQkMatmulOutputMode::MatmulAfterSoftmax,
+                    match value.clone().into_i64() {
+                        0 | 1 | 2 | 3 => {}
                         v => {
                             return Err(ProcessError::InvalidAttribute {
                                 name: "qk_matmul_output_mode".to_string(),
@@ -161,9 +150,6 @@ impl NodeProcessor for AttentionProcessor {
                         }
                     }
                 }
-                "scale" => scale = Some(value.clone().into_f32() as f64),
-                "softcap" => softcap = value.clone().into_f32() as f64,
-                "softmax_precision" => softmax_precision = Some(value.clone().into_i64() as usize),
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -173,31 +159,26 @@ impl NodeProcessor for AttentionProcessor {
             }
         }
 
-        if q.rank == 3 && (kv_num_heads.is_none() || q_num_heads.is_none()) {
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Get reference to config for validation
+        let config = node.config::<AttentionConfig>();
+
+        if q.rank == 3 && (config.kv_num_heads.is_none() || config.q_num_heads.is_none()) {
             return Err(ProcessError::Custom(
                 "Attention: if Q, K, V are rank 3 the kv_num_heads and q_num_heads attributes must be specified".to_string(),
             ));
         }
 
-        let config = AttentionConfig::new(
-            is_causal,
-            q_num_heads,
-            kv_num_heads,
-            qk_matmul_output_mode,
-            scale,
-            softcap,
-            softmax_precision,
-        );
-        node.config = Some(Box::new(config));
-
         // Infer output types
-        let q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
-            ProcessError::Custom("Attention: Q input must be present".to_string())
-        })?;
-
+        let q_rank = q.rank;
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: node.inputs[0].ty.elem_type().clone(),
-            rank: q.rank,
+            rank: q_rank,
             static_shape: None,
         });
 
@@ -233,7 +214,7 @@ impl NodeProcessor for AttentionProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        let q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
+        let _q = extract_tensor(node.inputs.first(), "Q")?.ok_or_else(|| {
             ProcessError::Custom("Attention: Q input must be present".to_string())
         })?;
 

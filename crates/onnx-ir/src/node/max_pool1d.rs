@@ -77,17 +77,10 @@ impl NodeProcessor for MaxPool1dProcessor {
 
         crate::util::validate_output_count(node, 1)?;
 
-        let mut kernel_shape = Vec::new();
-        let mut stride = vec![1];
-        let mut pads = vec![0, 0];
-        let mut dilation = vec![1];
-
+        // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => stride = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "dilations" => dilation = value.clone().into_i64s(),
+                "kernel_shape" | "strides" | "pads" | "dilations" | "storage_order" => {}
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
@@ -105,8 +98,6 @@ impl NodeProcessor for MaxPool1dProcessor {
                         });
                     }
                 }
-                // These are attributes that are allowed but not used in this implementation
-                "storage_order" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -116,32 +107,10 @@ impl NodeProcessor for MaxPool1dProcessor {
             }
         }
 
-        if kernel_shape.len() != 1 {
-            return Err(ProcessError::Custom(
-                "MaxPool1d: kernel shape must have length 1".to_string(),
-            ));
-        }
-        if dilation.len() != 1 {
-            return Err(ProcessError::Custom(
-                "MaxPool1d: dilation must have length 1".to_string(),
-            ));
-        }
-        if stride.len() != 1 {
-            return Err(ProcessError::Custom(
-                "MaxPool1d: stride must have length 1".to_string(),
-            ));
-        }
-
-        let padding = padding_config_1d(&pads);
-
-        let config = MaxPool1dConfig {
-            kernel_size: kernel_shape[0] as usize,
-            stride: stride[0] as usize,
-            dilation: dilation[0] as usize,
-            padding,
-        };
-
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

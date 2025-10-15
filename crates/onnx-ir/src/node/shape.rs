@@ -29,69 +29,23 @@ impl NodeProcessor for ShapeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 1 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 1,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 1)?;
 
         // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
-        // Extract the rank/dimension count from the input
-        let rank = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor.rank,
-            ArgType::Shape(rank) => *rank,
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", node.inputs[0].ty),
-                });
-            }
-        };
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        // Extract attributes
-        let mut start_dim: i64 = 0;
-        let mut end_dim: i64 = rank as i64;
-
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "start" => start_dim = value.clone().into_i64(),
-                "end" => end_dim = value.clone().into_i64(),
-                _ => {}
-            }
-        }
-
-        // Handle negative indices
-        if start_dim < 0 {
-            start_dim += rank as i64;
-        }
-        if end_dim < 0 {
-            end_dim += rank as i64;
-        }
-
-        // Calculate dimensions
-        let start = start_dim as usize;
-        let end = end_dim as usize;
-        let dim = end - start;
-
-        // Store config for extract_config
-        let config = ShapeConfig { start, end };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let config = node.config::<ShapeConfig>();
+        let dim = config.end - config.start;
 
         // Infer output type - Shape always outputs Shape type
         node.outputs[0].ty = ArgType::Shape(dim);

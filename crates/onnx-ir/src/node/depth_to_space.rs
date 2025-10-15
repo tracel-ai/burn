@@ -59,21 +59,10 @@ impl NodeProcessor for DepthToSpaceProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        let mut block_size: Option<usize> = None;
-        let mut mode = DepthToSpaceMode::DCR;
-
-        for (key, value) in node.attrs.iter() {
+        // Validate unexpected attributes before config extraction
+        for (key, _value) in node.attrs.iter() {
             match key.as_str() {
-                "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-                "mode" => {
-                    mode =
-                        DepthToSpaceMode::from_str(&value.clone().into_string()).map_err(|e| {
-                            ProcessError::InvalidAttribute {
-                                name: "mode".to_string(),
-                                reason: e,
-                            }
-                        })?;
-                }
+                "blocksize" | "mode" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -83,18 +72,23 @@ impl NodeProcessor for DepthToSpaceProcessor {
             }
         }
 
-        let block_size =
-            block_size.ok_or_else(|| ProcessError::MissingAttribute("blocksize".to_string()))?;
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
+        // Get reference to config for type inference
+        let config = node.config::<DepthToSpaceConfig>();
+        let block_size = config.block_size;
+
+        // Validate block_size
         if block_size == 0 {
             return Err(ProcessError::InvalidAttribute {
                 name: "blocksize".to_string(),
                 reason: "block_size must be greater than 0".to_string(),
             });
         }
-
-        let config = DepthToSpaceConfig { mode, block_size };
-        node.config = Some(Box::new(config));
 
         log::debug!("DepthToSpace rank inference for node {}", &node.name);
 

@@ -81,51 +81,17 @@ impl NodeProcessor for GatherProcessor {
             });
         }
 
-        // Get indices input and extract config
-        let indices_input = &node.inputs[1];
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Get reference to config for type inference (not directly used, but extracted for consistency)
+        let _config = node.config::<GatherConfig>();
         log::debug!(
-            "Gather indices input for {}: {:?}",
-            node.name,
-            indices_input
+            "Gather indices input for {}: using config",
+            node.name
         );
-
-        let indices = if let Some(value) = indices_input.into_value() {
-            // Static indices
-            log::debug!("Gather {} has static indices value: {:?}", node.name, value);
-            match &value.data {
-                Data::Int64s(vals) => {
-                    log::debug!("Gather {} static indices: {:?}", node.name, vals);
-                    GatherInput::Static(vals.clone())
-                }
-                Data::Int32s(vals) => {
-                    let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
-                    log::debug!(
-                        "Gather {} static indices (from int32): {:?}",
-                        node.name,
-                        int64_vals
-                    );
-                    GatherInput::Static(int64_vals)
-                }
-                other => {
-                    return Err(ProcessError::Custom(format!(
-                        "Gather indices must be int32 or int64, got {:?}",
-                        other
-                    )));
-                }
-            }
-        } else {
-            // Runtime indices
-            log::debug!("Gather {} has runtime indices", node.name);
-            let mut runtime_arg = indices_input.clone();
-            runtime_arg.value_store = None;
-            GatherInput::Runtime(runtime_arg)
-        };
-
-        let config = GatherConfig {
-            indices,
-            axis: axis as usize,
-        };
-        node.config = Some(Box::new(config));
 
         // Infer output type based on indices rank
         let indices_rank = match &node.inputs[1].ty {

@@ -35,31 +35,9 @@ impl NodeProcessor for EyeLikeProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        let mut dtype = None;
-        let mut k = 0i64; // default to main diagonal
-
-        // Extract attributes
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "dtype" => {
-                    let dtype_i32 = value.clone().into_i32();
-                    dtype = Some(element_type_from_proto(dtype_i32).map_err(|e| {
-                        ProcessError::InvalidAttribute {
-                            name: "dtype".to_string(),
-                            reason: format!("Unsupported dtype for EyeLike: {}", e),
-                        }
-                    })?);
-                }
-                "k" => {
-                    k = value.clone().into_i64();
-                }
-                _ => {}
-            }
-        }
-
         log::debug!("EyeLike rank inference for node {}", node.name);
 
-        // Extract tensor info
+        // Extract tensor info and validate
         let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 if tensor.rank != 2 {
@@ -81,14 +59,17 @@ impl NodeProcessor for EyeLikeProcessor {
             }
         };
 
-        // Output type is either specified dtype or input type
-        let output_type = dtype.unwrap_or(input_elem_type);
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
-        let config = EyeLikeConfig {
-            dtype: Some(output_type.clone()),
-            k,
-        };
-        node.config = Some(Box::new(config));
+        // Get reference to config for type inference
+        let config = node.config::<EyeLikeConfig>();
+
+        // Output type is either specified dtype or input type
+        let output_type = config.dtype.clone().unwrap_or(input_elem_type);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: output_type,

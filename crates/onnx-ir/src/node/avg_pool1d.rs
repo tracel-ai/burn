@@ -63,18 +63,12 @@ impl NodeProcessor for AvgPool1dProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        let mut kernel_shape = Vec::new();
-        let mut strides = vec![1];
-        let mut pads = vec![0, 0];
-        let mut count_include_pad: i64 = 0;
+        // Validate attributes before extracting config
         let mut ceil_mode: i64 = 0;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => strides = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "count_include_pad" => count_include_pad = value.clone().into_i64(),
+                "kernel_shape" | "strides" | "pads" | "count_include_pad" => {}
                 "ceil_mode" => ceil_mode = value.clone().into_i64(),
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
@@ -94,18 +88,6 @@ impl NodeProcessor for AvgPool1dProcessor {
             }
         }
 
-        if kernel_shape.len() != 1 {
-            return Err(ProcessError::Custom(
-                "AvgPool1d: kernel shape must have length 1".to_string(),
-            ));
-        }
-
-        if strides.len() != 1 {
-            return Err(ProcessError::Custom(
-                "AvgPool1d: stride must have length 1".to_string(),
-            ));
-        }
-
         if ceil_mode == 1 {
             return Err(ProcessError::InvalidAttribute {
                 name: "ceil_mode".to_string(),
@@ -113,16 +95,10 @@ impl NodeProcessor for AvgPool1dProcessor {
             });
         }
 
-        let padding = padding_config_1d(&pads);
-
-        let config = AvgPool1dConfig {
-            kernel_size: kernel_shape[0] as usize,
-            stride: strides[0] as usize,
-            padding,
-            count_include_pad: count_include_pad == 1,
-        };
-
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         log::debug!("AvgPool1d rank inference for node {}", node.name);
 

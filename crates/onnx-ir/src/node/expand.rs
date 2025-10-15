@@ -1,7 +1,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
-    ElementType, TensorData,
-    ir::{ArgType, Data, Node, NodeConfig, TensorType},
+    ElementType,
+    ir::{ArgType, Data, Node, NodeConfig, TensorData, TensorType},
 };
 use std::any::Any;
 
@@ -69,25 +69,13 @@ impl NodeProcessor for ExpandProcessor {
             }
         }
 
-        // Extract config
-        let config = match node.inputs[1].into_value() {
-            Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) => ExpandShape::Static(shape.clone()),
-            None => {
-                // Runtime shape - will need to fetch it at runtime
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                ExpandShape::Runtime(runtime_arg)
-            }
-            Some(_) => {
-                return Err(ProcessError::Custom(
-                    "Expand: shape data type must be int64".to_string(),
-                ));
-            }
-        };
-        node.config = Some(Box::new(config.clone()));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Get reference to config for type inference
+        let config = node.config::<ExpandShape>();
 
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
@@ -106,7 +94,7 @@ impl NodeProcessor for ExpandProcessor {
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: input_elem_type,
                     rank: shape.len(),
-                    static_shape: Some(shape.into_iter().map(|dim| dim as usize).collect()),
+                    static_shape: Some(shape.iter().map(|&dim| dim as usize).collect()),
                 });
             }
             ExpandShape::Runtime(_) => {

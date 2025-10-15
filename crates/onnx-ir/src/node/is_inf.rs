@@ -40,14 +40,10 @@ impl NodeProcessor for IsInfProcessor {
         crate::util::validate_input_count(node, 1)?;
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract detect_negative and detect_positive attributes
-        let mut detect_negative = true;
-        let mut detect_positive = true;
-
-        for (key, value) in node.attrs.iter() {
+        // Validate unexpected attributes before config extraction
+        for (key, _value) in node.attrs.iter() {
             match key.as_str() {
-                "detect_negative" => detect_negative = value.clone().into_i64() != 0,
-                "detect_positive" => detect_positive = value.clone().into_i64() != 0,
+                "detect_negative" | "detect_positive" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -57,8 +53,11 @@ impl NodeProcessor for IsInfProcessor {
             }
         }
 
-        let config = IsInfConfig::new(detect_negative, detect_positive);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output is boolean tensor with same shape as input
         crate::node::comparison::elementwise_comparison_outputs(node);

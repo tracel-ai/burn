@@ -42,43 +42,14 @@ impl NodeProcessor for InstanceNormProcessor {
     ) -> Result<(), ProcessError> {
         const MIN: usize = 6;
 
-        // InstanceNormalization implementation supports opset 6+ (for shape inference)
-        if opset < MIN {
-            return Err(ProcessError::UnsupportedOpset {
-                required: MIN,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, MIN)?;
+        crate::util::validate_min_inputs(node, 3)?;
+        crate::util::validate_output_count(node, 1)?;
 
-        // Validate input/output count
-        if node.inputs.len() < 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
-
-        if node.outputs.is_empty() {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
-
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("InstanceNorm: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        let num_features = weight_shape[0];
-        let mut epsilon = 1e-5;
-
-        for (key, value) in node.attrs.iter() {
+        // Validate attributes before extracting config
+        for (key, _value) in node.attrs.iter() {
             match key.as_str() {
-                "epsilon" => epsilon = value.clone().into_f32(),
+                "epsilon" => {}
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -88,8 +59,10 @@ impl NodeProcessor for InstanceNormProcessor {
             }
         }
 
-        let config = InstanceNormConfig::new(num_features, epsilon as f64);
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

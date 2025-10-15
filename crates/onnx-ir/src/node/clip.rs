@@ -47,73 +47,10 @@ impl NodeProcessor for ClipProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        fn get_clip_input(node: &Node, index: usize, param_name: &str) -> Option<ClipInput> {
-            let input = node.inputs.get(index)?;
-
-            match input.into_value() {
-                None => {
-                    // Runtime input - no static value available
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(ClipInput::Runtime(runtime_arg))
-                }
-                Some(tensor_data) => {
-                    // Static input - extract the scalar value
-                    let scalar = tensor_data.data.into_scalar();
-                    let value = match scalar {
-                        Data::Float16(v) => f32::from(v) as f64,
-                        Data::Float32(v) => v as f64,
-                        Data::Float64(v) => v,
-                        Data::Int32(v) => v as f64,
-                        Data::Int64(v) => v as f64,
-                        _ => {
-                            return None; // Unsupported type - will be handled later
-                        }
-                    };
-                    Some(ClipInput::Static(value))
-                }
-            }
-        }
-
-        let mut min_result: Option<ClipInput> = None;
-        let mut max_result: Option<ClipInput> = None;
-
-        // For Clip Opset 6+, the min and max values are attributes
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "min" => {
-                    let min = value.clone().into_f32() as f64;
-                    min_result = Some(ClipInput::Static(min));
-                }
-                "max" => {
-                    let max = value.clone().into_f32() as f64;
-                    max_result = Some(ClipInput::Static(max));
-                }
-                _ => {}
-            }
-        }
-
-        // For Clip Opset 11+, the min and max values are inputs
-        // Check if inputs are available and attributes weren't set
-        if min_result.is_none() {
-            min_result = get_clip_input(node, 1, "min");
-        }
-
-        if max_result.is_none() {
-            max_result = get_clip_input(node, 2, "max");
-        }
-
-        if min_result.is_none() && max_result.is_none() {
-            return Err(ProcessError::Custom(
-                "Clip: min and max values must be either attributes or inputs".to_string(),
-            ));
-        }
-
-        let config = ClipConfig {
-            min: min_result,
-            max: max_result,
-        };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Infer output type
         same_as_input(node);
@@ -180,6 +117,13 @@ impl NodeProcessor for ClipProcessor {
 
         if max_result.is_none() {
             max_result = get_clip_input(node, 2, "max");
+        }
+
+        // Validate that at least one of min or max is specified
+        if min_result.is_none() && max_result.is_none() {
+            return Err(ProcessError::Custom(
+                "Clip operation requires at least one of min or max to be specified".to_string(),
+            ));
         }
 
         let config = ClipConfig {

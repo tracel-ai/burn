@@ -77,6 +77,22 @@ impl NodeProcessor for Convtranspose1dProcessor {
         crate::util::validate_min_inputs(node, 2)?;
         crate::util::validate_output_count(node, 1)?;
 
+        // Extract config once
+        let config_box = self.extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
+
+        // Output type inference
+        crate::util::same_as_input(node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let mut kernel_shape = Vec::new();
         let mut stride = vec![1]; // Default stride to 1
         let mut pads = vec![0, 0]; // Default padding to 0
@@ -116,82 +132,6 @@ impl NodeProcessor for Convtranspose1dProcessor {
             return Err(ProcessError::Custom(format!(
                 "Asymmetric padding is not supported for ConvTranspose1d: {pads:?}"
             )));
-        }
-
-        let weight_shape = node.inputs[1]
-            .into_value()
-            .ok_or_else(|| {
-                ProcessError::Custom("ConvTranspose1d: weight tensor must be present".to_string())
-            })?
-            .shape
-            .clone();
-
-        // Check if bias is present (third input)
-        let bias = node.inputs.len() == 3;
-
-        // Extract channels from the weight tensor shape [out_channels, in_channels]
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
-
-        let kernel_size = if kernel_shape.is_empty() {
-            // https://onnx.ai/onnx/operators/onnx__ConvTranspose.html
-            // Spec says if kernel shape not present in attributes it should be inferred from the weight tensor
-            if weight_shape.len() != 3 {
-                return Err(ProcessError::Custom(format!(
-                    "expected to infer kernel shape from a weight tensor of rank 3 but got shape {weight_shape:?}"
-                )));
-            }
-
-            weight_shape[2]
-        } else {
-            // Was set explicitly via attributes- use that
-            kernel_shape[0] as _
-        };
-
-        let config = ConvTranspose1dConfig {
-            channels_in,
-            channels_out,
-            kernel_size,
-            stride: stride[0] as usize,
-            padding: pads[0] as usize,
-            dilation: dilations[0] as usize,
-            padding_out: output_padding[0] as usize,
-            groups: group,
-            bias,
-        };
-
-        node.config = Some(Box::new(config));
-
-        // Output type inference
-        crate::util::same_as_input(node);
-
-        Ok(())
-    }
-
-    fn extract_config(
-        &self,
-        node: &Node,
-        _opset: usize,
-    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        let mut kernel_shape = Vec::new();
-        let mut stride = vec![1]; // Default stride to 1
-        let mut pads = vec![0, 0]; // Default padding to 0
-        let mut dilations = vec![1]; // Default dilation to 1
-        let mut group: usize = 1; // Default group to 1
-        let mut output_padding = vec![0]; // Default output padding to 0
-
-        // Extract attributes
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "kernel_shape" => kernel_shape = value.clone().into_i64s(),
-                "strides" => stride = value.clone().into_i64s(),
-                "pads" => pads = value.clone().into_i64s(),
-                "dilations" => dilations = value.clone().into_i64s(),
-                "group" => group = value.clone().into_i64() as usize,
-                "output_padding" => output_padding = value.clone().into_i64s(),
-                "auto_pad" => {}
-                _ => {}
-            }
         }
 
         let weight_shape = node.inputs[1]

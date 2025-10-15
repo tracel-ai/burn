@@ -12,29 +12,9 @@ impl NodeProcessor for RandomLikeProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // RandomLike operations support opset 1+
-        if opset < 1 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 1,
-                actual: opset,
-            });
-        }
-
-        // Validate input count
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, 1)?;
+        crate::util::validate_min_inputs(node, 1)?;
+        crate::util::validate_output_count(node, 1)?;
 
         log::debug!("RandomLike rank inference for node {}", node.name);
 

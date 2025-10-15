@@ -50,21 +50,11 @@ impl NodeProcessor for BitShiftProcessor {
         crate::util::validate_min_inputs(node, 2)?;
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract direction attribute
-        let direction_str = node
-            .attrs
-            .get("direction")
-            .map(|val| val.clone().into_string())
-            .unwrap_or_else(|| "left".to_string());
-
-        let direction =
-            Direction::from_str(&direction_str).map_err(|e| ProcessError::InvalidAttribute {
-                name: "direction".to_string(),
-                reason: e,
-            })?;
-
-        let config = BitShiftConfig { direction };
-        node.config = Some(Box::new(config));
+        // Extract config once
+        let config_box = self
+            .extract_config(node, opset)?
+            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
+        node.config = Some(config_box);
 
         // Output type is same as input with broadcasting
         crate::util::same_as_input_broadcast(node);
