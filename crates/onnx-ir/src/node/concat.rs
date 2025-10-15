@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Concat operation
@@ -22,11 +21,36 @@ impl NodeConfig for ConcatConfig {
 pub struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Concat implementation supports opset 4+ (expanded types)
-        validate_opset(&node.node_type, opset, 4);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 4 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 4,
+                actual: opset,
+            });
+        }
 
-        // ALL logic from concat_config inlined here
+        // Validate we have at least one input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;
 
@@ -37,14 +61,20 @@ impl NodeProcessor for ConcatProcessor {
             }
         }
 
-        let axis = axis
-            .unwrap_or_else(|| panic!("Concat requires 'axis' attribute per ONNX specification"));
+        let axis = axis.ok_or_else(|| {
+            ProcessError::MissingAttribute("axis".to_string())
+        })?;
 
         // extract the rank based on input type
         let rank = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
             ArgType::Shape(_) => 1, // Shapes are 1D
-            _ => panic!("Only tensor or shape input is valid"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
         // if axis is negative, it is counted from the end
@@ -52,24 +82,29 @@ impl NodeProcessor for ConcatProcessor {
 
         // Validate axis is within bounds
         if normalized_axis < 0 || normalized_axis >= rank {
-            panic!("Concat axis {} is out of bounds for rank {}", axis, rank);
+            return Err(ProcessError::InvalidAttribute {
+                name: "axis".to_string(),
+                reason: format!("axis {} is out of bounds for rank {}", axis, rank),
+            });
         }
 
         // For shapes, axis must be 0 (since they're 1D)
         if matches!(&node.inputs.first().unwrap().ty, ArgType::Shape(_)) && normalized_axis != 0 {
-            panic!(
-                "Concat on Shape inputs only supports axis=0, got axis={}",
-                axis
-            );
+            return Err(ProcessError::InvalidAttribute {
+                name: "axis".to_string(),
+                reason: format!(
+                    "Concat on Shape inputs only supports axis=0, got axis={}",
+                    axis
+                ),
+            });
         }
 
         let config = ConcatConfig {
             axis: normalized_axis as usize,
         };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+        // Infer output type
         log::debug!("Concat rank inference for node {}", node.name);
 
         // Check if we have mixed Shape and rank-1 tensor inputs
@@ -106,7 +141,12 @@ impl NodeProcessor for ConcatProcessor {
                             contribution
                         );
                     }
-                    _ => panic!("Concat with mixed inputs only supports Shape and rank-1 Tensor"),
+                    _ => {
+                        return Err(ProcessError::TypeMismatch {
+                            expected: "Shape or rank-1 Tensor".to_string(),
+                            actual: format!("{:?}", input.ty),
+                        });
+                    }
                 }
             }
 
@@ -118,7 +158,7 @@ impl NodeProcessor for ConcatProcessor {
                 node.name,
                 provisional_rank
             );
-            return;
+            return Ok(());
         }
 
         // Get the first input type - it determines the output type
@@ -152,17 +192,37 @@ impl NodeProcessor for ConcatProcessor {
                     .inputs
                     .iter()
                     .map(|input| match &input.ty {
-                        ArgType::Shape(rank) => *rank,
-                        _ => panic!("All inputs to Concat must be of the same type (Shape)"),
+                        ArgType::Shape(rank) => Ok(*rank),
+                        _ => Err(ProcessError::TypeMismatch {
+                            expected: "Shape".to_string(),
+                            actual: format!("{:?}", input.ty),
+                        }),
                     })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .iter()
                     .sum();
 
                 node.outputs[0].ty = ArgType::Shape(total_rank);
 
                 log::debug!("Concat output shape rank for {}: {}", node.name, total_rank);
             }
-            _ => panic!("Concat only supports Tensor or Shape inputs"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", first_input_type),
+                });
+            }
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -185,7 +245,8 @@ mod tests {
         let node = create_test_node(1, 3, 2);
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1);
     }
@@ -195,7 +256,8 @@ mod tests {
         let node = create_test_node(-2, 3, 2);
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
@@ -211,13 +273,13 @@ mod tests {
 
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // Shape concat uses axis 0
     }
 
     #[test]
-    #[should_panic(expected = "Concat requires 'axis' attribute")]
     fn test_concat_config_missing_axis() {
         let node = NodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
@@ -227,11 +289,12 @@ mod tests {
 
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Concat axis 3 is out of bounds for rank 3")]
     fn test_concat_config_axis_out_of_bounds() {
         let node = NodeBuilder::new(NodeType::Concat, "test_concat")
             .input_tensor_f32("data1", 3, None)
@@ -242,7 +305,9 @@ mod tests {
 
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
@@ -256,7 +321,8 @@ mod tests {
             .build();
 
         let processor = ConcatProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Check that output is Shape with sum of input ranks
         match &node.outputs[0].ty {
@@ -276,13 +342,13 @@ mod tests {
 
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ConcatConfig>();
         assert_eq!(config.axis, 0); // -1 + 1 = 0
     }
 
     #[test]
-    #[should_panic(expected = "Concat axis 1 is out of bounds for rank 1")]
     fn test_concat_config_shape_invalid_axis() {
         let node = NodeBuilder::new(NodeType::Concat, "test_concat_shape")
             .input_shape("shape1", 2)
@@ -293,19 +359,23 @@ mod tests {
 
         let mut node = node;
         let processor = ConcatProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "All inputs to Concat must be of the same type")]
     fn test_concat_mixed_inputs() {
         let mut node = NodeBuilder::new(NodeType::Concat, "test_concat_mixed")
             .input_shape("shape1", 2)
             .input_tensor_f32("tensor1", 3, None)
             .output_shape("output", 0)
+            .attr_int("axis", 0)
             .build();
 
         let processor = ConcatProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 }

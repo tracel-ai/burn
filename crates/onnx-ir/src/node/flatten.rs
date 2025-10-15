@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Flatten operations
@@ -23,43 +22,65 @@ impl NodeConfig for FlattenConfig {
 pub struct FlattenProcessor;
 
 impl NodeProcessor for FlattenProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Flatten implementation supports opset 9+ (refined axis definition)
-        validate_opset(&node.node_type, opset, 9);
-        // ALL logic from flatten_config inlined here
-        // the begin dimension is the first dimension (Default: 1 per ONNX spec)
-        let mut axis: i64 = 1;
-
-        // check if the node has only one input
-        if node.inputs.len() != 1 {
-            panic!(
-                "Flatten: multiple inputs are not supported (got {:?})",
-                node.inputs.len()
-            );
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
         }
 
-        // extract the shape of the input tensor
-        let tensor = match node.inputs.first().unwrap().clone().ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Only tensor input is valid"),
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract the shape of the input tensor
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
         // check if the input tensor has at least 2 dimensions
         if tensor.rank < 2 {
-            panic!(
-                "Flatten: input tensor must have at least 2 dimensions (got {:?})",
+            return Err(ProcessError::Custom(format!(
+                "Flatten: input tensor must have at least 2 dimensions (got {})",
                 tensor.rank
-            );
+            )));
         }
 
-        // extract the attributes
+        // Extract the axis attribute (default: 1 per ONNX spec)
+        let mut axis: i64 = 1;
+
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
             }
         }
 
-        // if beg_dim is negative, it is counted from the end
+        // if axis is negative, it is counted from the end
         if axis < 0 {
             axis += tensor.rank as i64;
         }
@@ -68,26 +89,22 @@ impl NodeProcessor for FlattenProcessor {
             axis: axis as usize,
         };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        if node.inputs.len() != 1 {
-            panic!("Flatten: multiple inputs are not supported");
-        }
-        let tensor = node
-            .inputs
-            .iter()
-            .find_map(|input| match &input.ty {
-                ArgType::Tensor(tensor) => Some(tensor),
-                _ => None,
-            })
-            .unwrap();
-
-        // Flatten to a 2D tensor
+        // Infer output type - Flatten to a 2D tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             rank: 2,
-            ..tensor.clone()
+            ..tensor
         });
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -110,7 +127,8 @@ mod tests {
         let node = create_test_node(1);
         let mut node = node;
         let processor = FlattenProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 1);
     }
@@ -120,13 +138,13 @@ mod tests {
         let node = create_test_node(-2);
         let mut node = node;
         let processor = FlattenProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<FlattenConfig>();
         assert_eq!(config.axis, 2); // -2 + 4 = 2
     }
 
     #[test]
-    #[should_panic(expected = "Flatten: input tensor must have at least 2 dimensions")]
     fn test_flatten_config_with_low_rank() {
         let mut node = create_test_node(1);
         // Replace the input with one that has lower rank
@@ -139,11 +157,12 @@ mod tests {
         node.inputs[0] = input;
         let mut node = node;
         let processor = FlattenProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 
     #[test]
-    #[should_panic(expected = "Flatten: multiple inputs are not supported")]
     fn test_flatten_config_with_multiple_inputs() {
         let mut node = create_test_node(1);
         // Add an extra input
@@ -156,6 +175,14 @@ mod tests {
         node.inputs.push(extra_input);
         let mut node = node;
         let processor = FlattenProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 2
+            })
+        ));
     }
 }

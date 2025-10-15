@@ -1,6 +1,6 @@
 use crate::ir::{Data, Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input, validate_opset};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::util::same_as_input;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
@@ -32,9 +32,35 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Clip implementation supports opset 6+ (attributes) and opset 11+ (inputs)
-        validate_opset(&node.node_type, opset, 6);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 6 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 6,
+                actual: opset,
+            });
+        }
+
+        // Validate input count (at least 1 input, up to 3 for opset 11+)
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         fn get_clip_input(node: &Node, index: usize, param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
@@ -55,7 +81,9 @@ impl NodeProcessor for ClipProcessor {
                         Data::Float64(v) => v,
                         Data::Int32(v) => v as f64,
                         Data::Int64(v) => v as f64,
-                        _ => panic!("Clip: unsupported {} data type {:?}", param_name, scalar),
+                        _ => {
+                            return None; // Unsupported type - will be handled later
+                        }
                     };
                     Some(ClipInput::Static(value))
                 }
@@ -91,7 +119,9 @@ impl NodeProcessor for ClipProcessor {
         }
 
         if min_result.is_none() && max_result.is_none() {
-            panic!("Clip: min and max values must be either attributes or inputs");
+            return Err(ProcessError::Custom(
+                "Clip: min and max values must be either attributes or inputs".to_string(),
+            ));
         }
 
         let config = ClipConfig {
@@ -99,10 +129,19 @@ impl NodeProcessor for ClipProcessor {
             max: max_result,
         };
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -148,7 +187,8 @@ mod tests {
         let node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
@@ -159,7 +199,8 @@ mod tests {
         let node = create_test_node_with_attributes(Some(-1.0), None);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(config.max.is_none());
@@ -170,7 +211,8 @@ mod tests {
         let node = create_test_node_with_attributes(None, Some(1.0));
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         assert!(config.min.is_none());
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
@@ -181,7 +223,8 @@ mod tests {
         let node = create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         assert!(matches!(config.max, Some(ClipInput::Static(v)) if (v - 1.0).abs() < 1e-6));
@@ -194,7 +237,8 @@ mod tests {
         let node = create_test_node_with_inputs(Some(-1.0), None).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
         // max is a runtime input (no static value provided)
@@ -208,7 +252,8 @@ mod tests {
         let node = create_test_node_with_inputs(None, Some(1.0)).build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
         // min is a runtime input (no static value provided)
         assert!(matches!(config.min, Some(ClipInput::Runtime(_))));
@@ -228,7 +273,8 @@ mod tests {
         let node = create_test_node_with_runtime_inputs().build();
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
 
         // Check that we have runtime inputs
@@ -248,7 +294,8 @@ mod tests {
         let node = builder.build_with_graph_data(16);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<ClipConfig>();
 
         assert!(matches!(config.min, Some(ClipInput::Static(v)) if (v - (-1.0)).abs() < 1e-6));
@@ -256,11 +303,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Clip: min and max values must be either attributes or inputs")]
     fn test_clip_config_no_min_max() {
         let node = create_test_node_with_attributes(None, None);
         let mut node = node;
         let processor = ClipProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
 }

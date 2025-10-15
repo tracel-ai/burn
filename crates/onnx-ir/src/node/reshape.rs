@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, TensorData, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Reshape operation.
@@ -242,18 +241,50 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Reshape implementation supports opset 5+ (shape as input)
-        validate_opset(&node.node_type, opset, 5);
+    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+        if node.inputs.len() != 2 {
+            return None;
+        }
 
-        // ALL logic from reshape_config inlined here
-        validate_reshape_node(node);
+        // Prefer Shape type for shape input (second input)
+        Some(InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(0)))
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 5 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 5,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract and validate shape input
         let shape = extract_shape_input(node);
         let config = ReshapeConfig { shape };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         // Extract input information
         let input_info = extract_input_info(&node.inputs[0]);
 
@@ -266,8 +297,18 @@ impl NodeProcessor for ReshapeProcessor {
             _ => None,
         };
 
-        // Set output type based on rank and input type
+        // Set output type
         node.outputs[0].ty = determine_output_type(&input_info, output_rank, static_shape, node);
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -309,7 +350,8 @@ mod tests {
     fn test_reshape_config_basic() {
         let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
@@ -322,14 +364,16 @@ mod tests {
     fn test_reshape_config_allowzero_supported() {
         let mut node = create_test_node(1, vec![2, 3]).build_with_graph_data(16);
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
     }
 
     #[test]
     fn test_reshape_config_runtime() {
         let mut node = create_runtime_reshape_node().build();
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
@@ -339,12 +383,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Reshape requires exactly 2 inputs")]
     fn test_reshape_config_no_shape_input() {
         let mut node = create_test_node(0, vec![2, 3]).build_with_graph_data(16);
         node.inputs.pop(); // Remove the shape input
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: 1
+            })
+        ));
     }
 
     #[test]
@@ -365,7 +417,8 @@ mod tests {
 
         let mut node = node;
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
     }
 
     #[test]
@@ -407,7 +460,8 @@ mod tests {
     fn test_reshape_config_with_shape_type() {
         let mut node = create_reshape_with_shape_input().build();
         let processor = ReshapeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {

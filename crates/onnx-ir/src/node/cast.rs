@@ -1,7 +1,6 @@
 use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Cast operations
@@ -31,30 +30,62 @@ impl NodeConfig for CastConfig {
 pub struct CastProcessor;
 
 impl NodeProcessor for CastProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Cast implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
-
-        // ALL logic from cast_config inlined here
-        let elem_type = match node.attrs.get("to") {
-            Some(AttributeValue::Int64(type_id)) => {
-                element_type_from_proto(*type_id as i32).expect("Cast: unsupported 'to' dtype")
-            }
-            _ => panic!("Cast node must have an Int64 'to' attribute"),
-        };
-        let config = CastConfig::new(elem_type);
-        node.config = Some(Box::new(config));
-    }
-
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        if node.inputs.len() != 1 {
-            panic!("Cast: multiple inputs are not supported");
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
         }
 
-        // Get the cast configuration with the target element type first, before mutable borrows
-        let config = node.config::<CastConfig>();
-        let elem_type = config.to.clone();
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
 
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract the target element type from attributes
+        let elem_type = match node.attrs.get("to") {
+            Some(AttributeValue::Int64(type_id)) => {
+                element_type_from_proto(*type_id as i32).map_err(|_| {
+                    ProcessError::InvalidAttribute {
+                        name: "to".to_string(),
+                        reason: format!("unsupported dtype: {}", type_id),
+                    }
+                })?
+            }
+            Some(_) => {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "to".to_string(),
+                    reason: "must be Int64".to_string(),
+                });
+            }
+            None => {
+                return Err(ProcessError::MissingAttribute("to".to_string()));
+            }
+        };
+
+        // Store config
+        let config = CastConfig::new(elem_type.clone());
+        node.config = Some(Box::new(config));
+
+        // Infer output type based on input type
         let input = &mut node.inputs[0];
         let output = &mut node.outputs[0];
 
@@ -101,6 +132,16 @@ impl NodeProcessor for CastProcessor {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -133,8 +174,8 @@ mod tests {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
 
         let processor = CastProcessor;
-
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Int64);
@@ -142,8 +183,8 @@ mod tests {
         let mut node = create_test_node(2, DataType::FLOAT.value() as i64);
 
         let processor = CastProcessor;
-
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Float32);
@@ -151,8 +192,8 @@ mod tests {
         let mut node = create_test_node(2, DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
-
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<CastConfig>();
         assert_eq!(config.to, ElementType::Bool);
@@ -163,8 +204,8 @@ mod tests {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -180,8 +221,8 @@ mod tests {
         let mut node = create_test_node(0, DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -199,7 +240,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cast: multiple inputs are not supported")]
     fn test_cast_multiple_inputs() {
         let mut node = create_test_node(2, DataType::INT64.value() as i64);
         node.inputs.push(Argument {
@@ -213,8 +253,15 @@ mod tests {
         });
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 2
+            })
+        ));
     }
 
     #[test]
@@ -222,8 +269,8 @@ mod tests {
         let mut node = create_scalar_test_node(DataType::BOOL.value() as i64);
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -242,8 +289,8 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -264,8 +311,8 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -284,8 +331,8 @@ mod tests {
             .build();
 
         let processor = CastProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
@@ -49,15 +48,42 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
 pub struct ComparisonProcessor;
 
 impl NodeProcessor for ComparisonProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Validate opset based on operation type
         let min_opset = match node.node_type {
             crate::ir::NodeType::Equal => 7,
             crate::ir::NodeType::Greater | crate::ir::NodeType::Less => 9,
             crate::ir::NodeType::GreaterOrEqual | crate::ir::NodeType::LessOrEqual => 12,
-            _ => return, // Other comparison operations
+            _ => 1, // Other comparison operations default to opset 1
         };
-        validate_opset(&node.node_type, opset, min_opset);
+
+        if opset < min_opset {
+            return Err(ProcessError::UnsupportedOpset {
+                required: min_opset,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("Elementwise comparison for node {}", node.name);
 
@@ -72,7 +98,7 @@ impl NodeProcessor for ComparisonProcessor {
             if let ArgType::Shape(dim) = &node.inputs[0].ty {
                 node.outputs[0].ty = ArgType::Shape(*dim);
                 log::debug!("Shape result for node {} with dimension {}", node.name, dim);
-                return;
+                return Ok(());
             }
         }
 
@@ -99,6 +125,8 @@ impl NodeProcessor for ComparisonProcessor {
                 max_rank
             );
         }
+
+        Ok(())
     }
 }
 
@@ -121,7 +149,8 @@ mod tests {
         let mut node = create_test_node(2, 3);
 
         let processor = ComparisonProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -141,7 +170,8 @@ mod tests {
         node.inputs[1].ty = ArgType::Scalar(ElementType::Float32);
 
         let processor = ComparisonProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -158,7 +188,8 @@ mod tests {
         // node.inputs[1] remains as Tensor with rank 2
 
         let processor = ComparisonProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -176,7 +207,8 @@ mod tests {
         node.inputs[1].ty = ArgType::Shape(3);
 
         let processor = ComparisonProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(dim) => {

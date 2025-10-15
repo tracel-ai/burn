@@ -1,5 +1,5 @@
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input, validate_opset};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::util::same_as_input;
 
 use crate::ir::{Data, Node, NodeConfig};
 use std::any::Any;
@@ -32,9 +32,35 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Dropout implementation supports opset 7+ (attributes) and opset 12+ (inputs)
-        validate_opset(&node.node_type, opset, 7);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 7 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 7,
+                actual: opset,
+            });
+        }
+
+        // Validate we have at least one input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.is_empty() {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
 
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
@@ -43,11 +69,15 @@ impl NodeProcessor for DropoutProcessor {
                 prob: DropoutInput::Static(prob as f64),
             };
             node.config = Some(Box::new(config));
-            return;
+            same_as_input(node);
+            return Ok(());
         }
 
         if node.inputs.len() < 2 {
-            panic!("Dropout configuration must have at least 2 inputs");
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
         }
 
         let prob = match node.inputs[1].into_value() {
@@ -63,7 +93,12 @@ impl NodeProcessor for DropoutProcessor {
                     Data::Float16(ratio) => f64::from(f32::from(ratio)),
                     Data::Float32(ratio) => ratio as f64,
                     Data::Float64(ratio) => ratio,
-                    _ => panic!("Dropout ratio must be a float"),
+                    _ => {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "ratio".to_string(),
+                            reason: "must be a float".to_string(),
+                        });
+                    }
                 };
                 DropoutInput::Static(prob_value)
             }
@@ -71,10 +106,19 @@ impl NodeProcessor for DropoutProcessor {
 
         let config = DropoutConfig { prob };
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -103,7 +147,8 @@ mod tests {
         let node = create_test_node_with_attr(0.3).build_with_graph_data(16);
         let mut node = node;
         let processor = DropoutProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.3) < 1e-6));
     }
@@ -113,7 +158,8 @@ mod tests {
         let node = create_test_node_with_input(0.5).build_with_graph_data(16);
         let mut node = node;
         let processor = DropoutProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Static(v) if f64::abs(*v - 0.5) < 1e-6));
     }
@@ -130,19 +176,27 @@ mod tests {
         let node = create_test_node_with_runtime_input().build();
         let mut node = node;
         let processor = DropoutProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DropoutConfig>();
         assert!(matches!(&config.prob, DropoutInput::Runtime(arg) if arg.name == "ratio"));
     }
 
     #[test]
-    #[should_panic(expected = "Dropout configuration must have at least 2 inputs")]
     fn test_dropout_config_missing_input() {
         let mut node = create_test_node_with_input(0.5).build_with_graph_data(16);
         node.attrs.clear(); // Remove attributes
         node.inputs.remove(1); // Remove ratio input
         let mut node = node;
         let processor = DropoutProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: 1
+            })
+        ));
     }
 }

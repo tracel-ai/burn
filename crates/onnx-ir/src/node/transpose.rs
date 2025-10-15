@@ -1,6 +1,6 @@
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input, validate_opset};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::util::same_as_input;
 use std::any::Any;
 
 /// Configuration for Transpose operations
@@ -23,22 +23,45 @@ impl NodeConfig for TransposeConfig {
 pub struct TransposeProcessor;
 
 impl NodeProcessor for TransposeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Transpose implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
 
-        // ALL logic from transpose_config inlined here
+        // Validate input count
         if node.inputs.len() != 1 {
-            panic!(
-                "Transpose: multiple inputs are not supported (got {:?})",
-                node.inputs.len()
-            );
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
         }
 
         // Extract the shape of the input tensor
-        let tensor = match node.inputs.first().unwrap().clone().ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Only tensor input is valid"),
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
         // Default: reverse the dimensions
@@ -50,10 +73,19 @@ impl NodeProcessor for TransposeProcessor {
 
         let config = TransposeConfig { perm };
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -80,7 +112,8 @@ mod tests {
         let node = create_test_node(None, 3);
         let mut node = node;
         let processor = TransposeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![2, 1, 0]); // Default is to reverse the dimensions
     }
@@ -90,16 +123,16 @@ mod tests {
         let node = create_test_node(Some(vec![0, 2, 1]), 3);
         let mut node = node;
         let processor = TransposeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<TransposeConfig>();
         assert_eq!(config.perm, vec![0, 2, 1]);
     }
 
     #[test]
-    #[should_panic(expected = "Transpose: multiple inputs are not supported")]
     fn test_transpose_config_multiple_inputs() {
         let mut node = create_test_node(None, 3);
-        // Add an extra input to cause the expected panic
+        // Add an extra input to cause the expected error
         node.inputs.push(crate::ir::Argument {
             name: "extra".to_string(),
             ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
@@ -111,6 +144,14 @@ mod tests {
         });
         let mut node = node;
         let processor = TransposeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 2
+            })
+        ));
     }
 }
