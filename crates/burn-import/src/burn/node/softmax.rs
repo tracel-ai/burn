@@ -45,8 +45,8 @@ impl OnnxIntoNode for SoftmaxNode {
             Type::Tensor(t) => t,
             _ => panic!("Softmax expects tensor output"),
         };
-        let dim = onnx_ir::node::softmax::softmax_config(&node);
-        Self::new(input, output, dim)
+        let config = node.config::<onnx_ir::node::softmax::SoftmaxConfig>();
+        Self::new(input, output, config.axis)
     }
 }
 

@@ -54,7 +54,8 @@ impl OnnxIntoNode for FlattenNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Flatten expects tensor output"),
         };
-        let axis = onnx_ir::node::flatten::flatten_config(&node);
+        let config = node.config::<onnx_ir::node::flatten::FlattenConfig>();
+        let axis = config.axis;
         Self::new(input, output, axis)
     }
 }

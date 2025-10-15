@@ -148,7 +148,7 @@ pub fn extract_node_data<E: burn::tensor::Element>(
     use burn::tensor::TensorData;
 
     let input = node.inputs.get(input_index)?;
-    let value = input.value.as_ref()?;
+    let value = input.into_value()?;
 
     use onnx_ir::ir::Data;
     let data = match &value.data {

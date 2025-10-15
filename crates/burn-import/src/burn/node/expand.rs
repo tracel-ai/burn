@@ -63,8 +63,8 @@ impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let shape = onnx_ir::node::expand::expand_config(&node);
-        Self::new(input, output, shape)
+        let shape = node.config::<onnx_ir::node::expand::ExpandShape>();
+        Self::new(input, output, shape.clone())
     }
 }
 
@@ -124,15 +124,13 @@ mod tests {
     fn test_codegen_expand_shape() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("shape1".to_string());
+        arg.ty = ArgType::Shape(4);
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
-            }),
+            ExpandShape::Runtime(arg),
         ));
 
         graph.register_input_output(
@@ -177,19 +175,17 @@ mod tests {
     fn test_codegen_expand_tensor() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("tensor3".to_string());
+        arg.ty = ArgType::Tensor(onnx_ir::TensorType {
+            elem_type: ElementType::Int32,
+            rank: 1,
+            static_shape: None,
+        });
+
         graph.register(ExpandNode::new(
             TensorType::new_float("tensor1", 4),
             TensorType::new_float("tensor2", 4),
-            ExpandShape::Runtime(Argument {
-                name: "tensor3".to_string(),
-                ty: ArgType::Tensor(onnx_ir::TensorType {
-                    elem_type: ElementType::Int32,
-                    rank: 1,
-                    static_shape: None,
-                }),
-                value: None,
-                passed: false,
-            }),
+            ExpandShape::Runtime(arg),
         ));
 
         graph.register_input_output(

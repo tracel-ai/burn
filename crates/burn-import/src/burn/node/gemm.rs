@@ -111,8 +111,17 @@ impl OnnxIntoNode for GemmNode {
         let b = TensorType::from(node.inputs.get(1).unwrap());
         let c = node.inputs.get(2).map(Type::from);
         let output = TensorType::from(node.outputs.first().unwrap());
-        let (alpha, beta, trans_a, trans_b) = onnx_ir::node::gemm::gemm_config(&node);
-        Self::new(a, b, c, output, alpha, beta, trans_a, trans_b)
+        let config = node.config::<onnx_ir::node::gemm::GemmConfig>();
+        Self::new(
+            a,
+            b,
+            c,
+            output,
+            config.alpha,
+            config.beta,
+            config.trans_a,
+            config.trans_b,
+        )
     }
 }
 

@@ -26,7 +26,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let axis = self.config.axis.to_token_stream();
-        let k = self.config.k.to_token_stream();
+
+        // Extract static k from the enum wrapper
+        let k_value = match &self.config.k {
+            onnx_ir::node::topk::TopKInput::Static(k) => k,
+            onnx_ir::node::topk::TopKInput::Runtime(_) => {
+                panic!("Runtime k value is not supported in burn-import")
+            }
+        };
+        let k = k_value.to_token_stream();
 
         let input = scope.tensor_use_owned(&self.input, node_position);
         let values_output = &self.outputs[0].name;
@@ -46,7 +54,7 @@ impl OnnxIntoNode for TopKNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = onnx_ir::node::topk::top_k_config(&node);
+        let config = node.config::<onnx_ir::node::topk::TopKConfig>().clone();
         Self::new(input, outputs, config)
     }
 }
@@ -64,8 +72,12 @@ mod tests {
 
     #[test]
     fn test_codegen_nodes() {
+        use onnx_ir::node::topk::TopKInput;
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TopKConfig::new(1, 3);
+        let config = TopKConfig {
+            axis: 1,
+            k: TopKInput::Static(3),
+        };
 
         graph.register(TopKNode::new(
             TensorType::new_float("input_tensor", 4),

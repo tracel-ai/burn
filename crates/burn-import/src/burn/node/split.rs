@@ -38,10 +38,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
             let [#(#outputs),*] = split_tensors.try_into().unwrap();
         };
 
-        if let Some(split_sizes) = &self.config.split_sizes {
-            let split_sizes_tokens = split_sizes.to_tokens();
+        if let Some(split_sizes_input) = &self.config.split_sizes {
+            // Extract static split sizes from the enum wrapper
+            let split_sizes = match split_sizes_input {
+                onnx_ir::node::split::SplitSizesInput::Static(sizes) => sizes,
+                onnx_ir::node::split::SplitSizesInput::Runtime(_) => {
+                    panic!("Runtime split sizes are not supported in burn-import")
+                }
+            };
+            let split_sizes_tokens = split_sizes.iter().map(|s| s.to_tokens());
             quote! {
-                let split_tensors = #input.split_with_sizes(#split_sizes_tokens.to_vec(), #axis);
+                let split_tensors = #input.split_with_sizes(vec![#(#split_sizes_tokens),*], #axis);
                 #unpack_outputs
             }
         } else {
@@ -63,7 +70,7 @@ impl OnnxIntoNode for SplitNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let outputs = node.outputs.iter().map(TensorType::from).collect();
-        let config = onnx_ir::node::split::split_config(&node);
+        let config = node.config::<onnx_ir::node::split::SplitConfig>().clone();
         Self::new(input, outputs, config)
     }
 }

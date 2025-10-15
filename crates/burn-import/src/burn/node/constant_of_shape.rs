@@ -187,7 +187,7 @@ impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::ir::Data;
         // Get the shape configuration from onnx-ir
-        let shape = onnx_ir::node::constant_of_shape::constant_of_shape_config(&node);
+        let shape = node.config::<onnx_ir::node::constant_of_shape::ConstantOfShapeShape>();
 
         let output = Type::from(node.outputs.first().unwrap());
 
@@ -207,7 +207,7 @@ impl OnnxIntoNode for ConstantOfShapeNode {
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 
-        ConstantOfShapeNode::new(shape, output, value)
+        ConstantOfShapeNode::new(shape.clone(), output, value)
     }
 }
 
@@ -242,13 +242,11 @@ mod tests {
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("shape1".to_string());
+        arg.ty = ArgType::Shape(4);
+
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(4),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShape::Runtime(arg),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             ConstantValue::Float32(1.25f32),
         ));
@@ -291,13 +289,11 @@ mod tests {
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("shape1".to_string());
+        arg.ty = ArgType::Shape(0);
+
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape1".to_string(),
-                ty: ArgType::Shape(0),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShape::Runtime(arg),
             Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Float32)),
             ConstantValue::Float32(42.0f32),
         ));
@@ -340,13 +336,11 @@ mod tests {
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
+        let mut arg = Argument::new("shape_input".to_string());
+        arg.ty = ArgType::Shape(1);
+
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(Argument {
-                name: "shape_input".to_string(),
-                ty: ArgType::Shape(1),
-                value: None,
-                passed: false,
-            }),
+            ConstantOfShapeShape::Runtime(arg),
             Type::Shape(ShapeType::new("shape_output", 1)),
             ConstantValue::Int64(10i64),
         ));

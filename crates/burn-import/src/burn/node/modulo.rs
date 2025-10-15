@@ -109,7 +109,7 @@ impl OnnxIntoNode for ModNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::modulo::mod_config(&node);
+        let config = node.config::<onnx_ir::node::modulo::ModConfig>();
         Self::new(lhs, rhs, output, config.fmod)
     }
 }

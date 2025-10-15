@@ -11,6 +11,8 @@ pub struct GroupNormConfig {
     pub num_groups: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
+    /// Whether to use full precision for intermediate calculations (stash_type == 1)
+    pub full_precision: bool,
 }
 
 impl NodeConfig for GroupNormConfig {
@@ -25,11 +27,12 @@ impl NodeConfig for GroupNormConfig {
 
 impl GroupNormConfig {
     /// Create a new GroupNormConfig
-    pub fn new(num_features: usize, num_groups: usize, epsilon: f64) -> Self {
+    pub fn new(num_features: usize, num_groups: usize, epsilon: f64, full_precision: bool) -> Self {
         Self {
             num_features,
             num_groups,
             epsilon,
+            full_precision,
         }
     }
 }
@@ -109,12 +112,13 @@ impl NodeProcessor for GroupNormProcessor {
         let num_features = weight_shape[0];
         let mut num_groups = None;
         let mut epsilon = 1e-5;
+        let mut stash_type = 1; // Default value is 1 (full precision)
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "epsilon" => epsilon = value.clone().into_f32(),
                 "num_groups" => num_groups = Some(value.clone().into_i64() as usize),
-                "stash_type" => {}
+                "stash_type" => stash_type = value.clone().into_i64(),
                 _ => {}
             }
         }
@@ -125,7 +129,8 @@ impl NodeProcessor for GroupNormProcessor {
             )
         })?;
 
-        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64);
+        let full_precision = stash_type == 1;
+        let config = GroupNormConfig::new(num_features, num_groups, epsilon as f64, full_precision);
         Ok(Some(Box::new(config)))
     }
 }
@@ -168,6 +173,7 @@ mod tests {
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
+        assert!(config.full_precision); // stash_type == 1
     }
 
     #[test]
@@ -183,6 +189,7 @@ mod tests {
         assert_eq!(config.num_features, 64);
         assert_eq!(config.num_groups, 8);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
+        assert!(!config.full_precision); // stash_type == 0
     }
 
     #[test]

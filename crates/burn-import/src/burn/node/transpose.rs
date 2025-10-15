@@ -45,8 +45,8 @@ impl OnnxIntoNode for TransposeNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("Transpose expects tensor output"),
         };
-        let perm = onnx_ir::node::transpose::transpose_config(&node);
-        Self::new(input, output, perm)
+        let config = node.config::<onnx_ir::node::transpose::TransposeConfig>();
+        Self::new(input, output, config.perm.clone())
     }
 }
 

@@ -9,6 +9,8 @@ pub struct LayerNormConfig {
     pub d_model: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
+    /// Whether to use full precision for intermediate calculations (stash_type == 1)
+    pub full_precision: bool,
 }
 
 impl NodeConfig for LayerNormConfig {
@@ -27,12 +29,19 @@ impl LayerNormConfig {
         Self {
             d_model,
             epsilon: 1e-5,
+            full_precision: true, // Default to true (stash_type default is 1)
         }
     }
 
     /// Set the epsilon value
     pub fn with_epsilon(mut self, epsilon: f64) -> Self {
         self.epsilon = epsilon;
+        self
+    }
+
+    /// Set the full_precision value
+    pub fn with_full_precision(mut self, full_precision: bool) -> Self {
+        self.full_precision = full_precision;
         self
     }
 }
@@ -117,17 +126,21 @@ impl NodeProcessor for LayerNormProcessor {
 
         let num_features = weight_shape[0];
         let mut epsilon = 1e-5;
+        let mut stash_type = 1; // Default value is 1 (full precision)
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => {}
                 "epsilon" => epsilon = value.clone().into_f32(),
-                "stash_type" => {}
+                "stash_type" => stash_type = value.clone().into_i64(),
                 _ => {}
             }
         }
 
-        let config = LayerNormConfig::new(num_features).with_epsilon(epsilon as f64);
+        let full_precision = stash_type == 1;
+        let config = LayerNormConfig::new(num_features)
+            .with_epsilon(epsilon as f64)
+            .with_full_precision(full_precision);
         Ok(Some(Box::new(config)))
     }
 }
@@ -169,6 +182,7 @@ mod tests {
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 64);
         assert!(f64::abs(config.epsilon - 1e-5) < 1e-6);
+        assert!(config.full_precision); // stash_type == 1
     }
 
     #[test]
@@ -182,6 +196,7 @@ mod tests {
 
         let config = node.config::<LayerNormConfig>();
         assert_eq!(config.d_model, 32);
+        assert!(!config.full_precision); // stash_type == 0
     }
 
     #[test]

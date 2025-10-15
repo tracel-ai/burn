@@ -70,7 +70,25 @@ impl OnnxIntoNode for OneHotNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let values_type = TensorType::from(node.inputs.get(2).unwrap());
-        let (num_classes, values, axis) = onnx_ir::node::one_hot::one_hot_config(&node);
+        let config = node.config::<onnx_ir::node::one_hot::OneHotConfig>();
+
+        // Extract num_classes from config.depth
+        let num_classes = match config.depth {
+            onnx_ir::node::one_hot::OneHotDepthInput::Static(d) => d,
+            onnx_ir::node::one_hot::OneHotDepthInput::Runtime(_) => {
+                panic!("OneHot with runtime depth is not supported in burn-import")
+            }
+        };
+
+        // Extract values from config.values
+        let values = match config.values {
+            onnx_ir::node::one_hot::OneHotValuesInput::Static(v) => v,
+            onnx_ir::node::one_hot::OneHotValuesInput::Runtime(_) => {
+                panic!("OneHot with runtime values is not supported in burn-import")
+            }
+        };
+
+        let axis = config.axis;
         Self::new(input, output, num_classes, values, values_type, axis)
     }
 }

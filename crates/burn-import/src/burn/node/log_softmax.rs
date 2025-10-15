@@ -45,7 +45,8 @@ impl OnnxIntoNode for LogSoftmaxNode {
             Type::Tensor(t) => t,
             _ => panic!("LogSoftmax expects tensor output"),
         };
-        let dim = onnx_ir::node::log_softmax::log_softmax_config(&node);
+        let config = node.config::<onnx_ir::node::log_softmax::LogSoftmaxConfig>();
+        let dim = config.axis;
         Self::new(input, output, dim)
     }
 }

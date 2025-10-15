@@ -25,8 +25,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 
-        let pads = self.config.pads.iter().map(|p| p.to_tokens());
-        let constant_value_string = format!("{}_f32", self.config.constant_value);
+        // Extract static pads from the enum wrapper
+        let pads_vec = match &self.config.pads {
+            onnx_ir::node::pad::PadInput::Static(pads) => pads,
+            onnx_ir::node::pad::PadInput::Runtime(_) => {
+                panic!("Runtime pads are not supported in burn-import")
+            }
+        };
+        let pads = pads_vec.iter().map(|p| p.to_tokens());
+
+        // Extract static constant value from the enum wrapper
+        let constant_value_f32 = match &self.config.constant_value {
+            onnx_ir::node::pad::ConstantValueInput::Static(value) => value,
+            onnx_ir::node::pad::ConstantValueInput::Runtime(_) => {
+                panic!("Runtime constant value is not supported in burn-import")
+            }
+        };
+        let constant_value_string = format!("{}_f32", constant_value_f32);
         let constant_value = TokenStream::from_str(&constant_value_string).unwrap();
 
         quote! {
@@ -42,7 +57,7 @@ impl OnnxIntoNode for PadNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::pad::pad_config(&node);
+        let config = node.config::<onnx_ir::node::pad::PadConfig>().clone();
         Self::new(input, output, config)
     }
 }
@@ -60,8 +75,12 @@ mod tests {
 
     #[test]
     fn test_codegen_pad() {
+        use onnx_ir::node::pad::{ConstantValueInput, PadInput};
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = PadConfig::new(vec![1, 2, 3, 4], -1.0);
+        let config = PadConfig {
+            pads: PadInput::Static(vec![1, 2, 3, 4]),
+            constant_value: ConstantValueInput::Static(-1.0),
+        };
         graph.register(PadNode::new(
             TensorType::new_float("input", 2),
             TensorType::new_float("output", 2),

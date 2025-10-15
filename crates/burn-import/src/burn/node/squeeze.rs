@@ -114,7 +114,13 @@ impl OnnxIntoNode for SqueezeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let axes = onnx_ir::node::squeeze::squeeze_config(&node);
+        let config = node.config::<onnx_ir::node::squeeze::SqueezeConfig>();
+        let axes = config.axes.as_ref().map(|a| match a {
+            onnx_ir::node::squeeze::SqueezeInput::Static(axes) => axes.clone(),
+            onnx_ir::node::squeeze::SqueezeInput::Runtime(_) => {
+                panic!("Runtime squeeze axes not yet supported in burn-import")
+            }
+        });
         Self::new(input, output, axes)
     }
 }

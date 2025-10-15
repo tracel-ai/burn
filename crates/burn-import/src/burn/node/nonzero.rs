@@ -1,7 +1,6 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::nonzero::NonZeroConfig;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -9,7 +8,6 @@ use quote::quote;
 pub struct NonZeroNode {
     pub input: TensorType,
     pub output: TensorType,
-    pub config: NonZeroConfig,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for NonZeroNode {
@@ -56,8 +54,7 @@ impl OnnxIntoNode for NonZeroNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::nonzero::nonzero_config(&node);
-        Self::new(input, output, config)
+        Self::new(input, output)
     }
 }
 
@@ -71,18 +68,14 @@ mod tests {
         graph::BurnGraph,
         node::{nonzero::NonZeroNode, test::assert_tokens},
     };
-    use onnx_ir::node::nonzero::NonZeroConfig;
 
     #[test]
     fn test_codegen_nonzero_float() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let config = NonZeroConfig::new();
-
         graph.register(NonZeroNode::new(
             TensorType::new_float("input", 2),
             TensorType::new_int("output", 2),
-            config,
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -119,12 +112,9 @@ mod tests {
     fn test_codegen_nonzero_int() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let config = NonZeroConfig::new();
-
         graph.register(NonZeroNode::new(
             TensorType::new_int("input", 2),
             TensorType::new_int("output", 2),
-            config,
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -161,12 +151,9 @@ mod tests {
     fn test_codegen_nonzero_bool() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let config = NonZeroConfig::new();
-
         graph.register(NonZeroNode::new(
             TensorType::new_bool("input", 2),
             TensorType::new_int("output", 2),
-            config,
         ));
 
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);

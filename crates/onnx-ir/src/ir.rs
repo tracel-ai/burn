@@ -428,7 +428,7 @@ pub struct Node {
     pub outputs: Vec<Argument>,
 
     /// The attributes of the node.
-    pub(crate) attrs: Attributes,
+    pub attrs: Attributes, // TODO make crate level
 
     /// Node-specific configuration (populated during processing)
     pub(crate) config: Option<Box<dyn NodeConfig>>,

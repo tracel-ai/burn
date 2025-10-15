@@ -132,7 +132,7 @@ impl OnnxIntoNode for Conv1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::conv1d::conv1d_config(&node);
+        let config = node.config::<onnx_ir::node::conv1d::Conv1dConfig>();
         let has_bias = node.inputs.len() == 3;
         let weight = extract_node_data::<f32>(&node, 1).unwrap();
         let bias = if has_bias {
@@ -141,7 +141,7 @@ impl OnnxIntoNode for Conv1dNode {
             None
         };
         let name = &node.name;
-        Self::new(name, input, output, weight, bias, config)
+        Self::new(name, input, output, weight, bias, config.clone())
     }
 }
 

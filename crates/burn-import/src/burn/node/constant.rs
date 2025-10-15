@@ -265,7 +265,7 @@ impl OnnxIntoNode for ConstantNode {
 
         let const_value = match &output.ty {
             ArgType::Shape(rank) => {
-                let shape_data = attr.value.expect("Shape constant should have value");
+                let shape_data = attr.into_value().expect("Shape constant should have value");
                 let shape_values: Vec<usize> = shape_data
                     .data
                     .into_i64s()
@@ -279,15 +279,16 @@ impl OnnxIntoNode for ConstantNode {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
                     let v = attr
-                        .value
-                        .as_ref()
+                        .into_value()
                         .expect("Scalar constant should have value");
                     scalar_from_data(tensor.elem_type.clone(), v.data.clone())
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
-                    let tensor_data = attr.value.expect("Constant tensor should have value");
+                    let tensor_data = attr
+                        .into_value()
+                        .expect("Constant tensor should have value");
 
                     let tensor_data = match &tensor.elem_type {
                         ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
@@ -308,7 +309,7 @@ impl OnnxIntoNode for ConstantNode {
             }
 
             ArgType::Scalar(elem_type) => {
-                let v = attr.value.unwrap();
+                let v = attr.into_value().unwrap();
                 match elem_type {
                     ElementType::Float64 => ConstantValue::Float64(v.data.into_f64()),
                     ElementType::Float32 => ConstantValue::Float32(v.data.into_f32()),

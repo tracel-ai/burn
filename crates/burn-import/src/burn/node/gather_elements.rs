@@ -49,7 +49,7 @@ impl OnnxIntoNode for GatherElementsNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let index = TensorType::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::gather::gather_config(&node);
+        let config = node.config::<onnx_ir::node::gather::GatherConfig>();
         Self::new(input, index, output, config.axis)
     }
 }

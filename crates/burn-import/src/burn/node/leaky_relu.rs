@@ -45,7 +45,8 @@ impl OnnxIntoNode for LeakyReluNode {
             crate::burn::Type::Tensor(t) => t,
             _ => panic!("LeakyRelu expects tensor output"),
         };
-        let alpha = onnx_ir::node::leaky_relu::leaky_relu_config(&node);
+        let config = node.config::<onnx_ir::node::leaky_relu::LeakyReluConfig>();
+        let alpha = config.alpha;
         Self::new(input, output, alpha)
     }
 }

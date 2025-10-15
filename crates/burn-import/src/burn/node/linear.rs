@@ -122,7 +122,7 @@ impl OnnxIntoNode for LinearNode {
         let name = &node.name;
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::linear::linear_config(&node);
+        let config = node.config::<onnx_ir::node::linear::LinearConfig>();
 
         // Helper function to extract and serialize data - hardcoded to f32
         fn extract_data_serialize(input_index: usize, node: &onnx_ir::Node) -> Option<TensorData> {
@@ -131,7 +131,7 @@ impl OnnxIntoNode for LinearNode {
             }
 
             let input = node.inputs.get(input_index)?;
-            let value = input.value.as_ref()?;
+            let value = input.into_value()?;
             let ty = input.ty.clone();
 
             match ty {
@@ -157,7 +157,7 @@ impl OnnxIntoNode for LinearNode {
         let weight = extract_data_serialize(1, &node).expect("Weight is required");
         let bias = extract_data_serialize(2, &node);
 
-        LinearNode::new(name, input, output, weight, bias, config)
+        LinearNode::new(name, input, output, weight, bias, config.clone())
     }
 }
 

@@ -370,15 +370,15 @@ impl OnnxIntoNode for GatherNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::gather::gather_config(&node);
+        let config = node.config::<onnx_ir::node::gather::GatherConfig>();
 
         // Create GatherNode based on whether indices are static or runtime
-        match config.indices {
+        match &config.indices {
             onnx_ir::node::gather::GatherInput::Static(indices) => {
-                Self::with_static_indices(input, indices, output, config.axis)
+                Self::with_static_indices(input, indices.clone(), output, config.axis)
             }
             onnx_ir::node::gather::GatherInput::Runtime(arg) => {
-                let index = Type::from(&arg);
+                let index = Type::from(arg);
                 Self::new(input, index, output, config.axis)
             }
         }

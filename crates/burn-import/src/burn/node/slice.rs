@@ -597,37 +597,37 @@ impl OnnxIntoNode for SliceNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::slice::slice_config(&node);
+        let config = node.config::<onnx_ir::node::slice::SliceConfig>();
         use onnx_ir::node::slice::SliceInput;
 
         // Convert starts parameter
-        let starts_param = match config.starts {
-            SliceInput::Static(values) => SliceParam::Static(values),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        let starts_param = match &config.starts {
+            SliceInput::Static(values) => SliceParam::Static(values.clone()),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
         };
 
         // Convert ends parameter
-        let ends_param = match config.ends {
-            SliceInput::Static(values) => SliceParam::Static(values),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+        let ends_param = match &config.ends {
+            SliceInput::Static(values) => SliceParam::Static(values.clone()),
+            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
         };
 
         let mut slice_node = Self::new(input, output, starts_param, ends_param);
 
         // Convert axes parameter if present
-        if let Some(axes) = config.axes {
+        if let Some(ref axes) = config.axes {
             let axes_param = match axes {
-                SliceInput::Static(values) => SliceParam::Static(values),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                SliceInput::Static(values) => SliceParam::Static(values.clone()),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
             };
             slice_node = slice_node.with_axes(axes_param);
         }
 
         // Convert steps parameter if present
-        if let Some(steps) = config.steps {
+        if let Some(ref steps) = config.steps {
             let steps_param = match steps {
-                SliceInput::Static(values) => SliceParam::Static(values),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(&arg)),
+                SliceInput::Static(values) => SliceParam::Static(values.clone()),
+                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
             };
             slice_node = slice_node.with_steps(steps_param);
         }

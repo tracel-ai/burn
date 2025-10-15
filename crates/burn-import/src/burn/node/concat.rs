@@ -77,7 +77,8 @@ impl OnnxIntoNode for ConcatNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let inputs: Vec<Type> = node.inputs.iter().map(Type::from).collect();
         let output = Type::from(node.outputs.first().unwrap());
-        let dim = onnx_ir::node::concat::concat_config(&node);
+        let config = node.config::<onnx_ir::node::concat::ConcatConfig>();
+        let dim = config.axis;
         Self::new(inputs, output, dim)
     }
 }

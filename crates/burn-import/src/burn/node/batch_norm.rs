@@ -142,7 +142,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
 
 impl OnnxIntoNode for BatchNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let config = onnx_ir::node::batch_norm::batch_norm_config(&node);
+        let config = node.config::<onnx_ir::node::batch_norm::BatchNormConfig>();
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let dim = input.rank - 2;
@@ -163,7 +163,7 @@ impl OnnxIntoNode for BatchNormNode {
             beta,
             running_mean,
             running_var,
-            config,
+            config.clone(),
         )
     }
 }

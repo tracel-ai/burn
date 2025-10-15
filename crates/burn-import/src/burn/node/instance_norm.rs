@@ -118,7 +118,7 @@ impl OnnxIntoNode for InstanceNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::instance_norm::instance_norm_config(&node);
+        let config = node.config::<onnx_ir::node::instance_norm::InstanceNormConfig>();
 
         // Scale tensor (aka gamma)
         let gamma = extract_node_data::<f32>(&node, 1).expect("Gamma is required");
@@ -126,7 +126,7 @@ impl OnnxIntoNode for InstanceNormNode {
         let beta = extract_node_data::<f32>(&node, 2).expect("Beta is required");
 
         let name = &node.name;
-        Self::new(name, input, output, gamma, beta, config)
+        Self::new(name, input, output, gamma, beta, config.clone())
     }
 }
 

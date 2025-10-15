@@ -114,22 +114,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RangeNode {
 impl OnnxIntoNode for RangeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::node::range::RangeInput;
-        let config = onnx_ir::node::range::range_config(&node);
+        let config = node.config::<onnx_ir::node::range::RangeConfig>();
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let start = match config.start {
-            RangeInput::Static(value) => RangeParam::Static(value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        let start = match &config.start {
+            RangeInput::Static(value) => RangeParam::Static(*value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
         };
 
-        let limit = match config.limit {
-            RangeInput::Static(value) => RangeParam::Static(value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        let limit = match &config.limit {
+            RangeInput::Static(value) => RangeParam::Static(*value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
         };
 
-        let delta = match config.delta {
-            RangeInput::Static(value) => RangeParam::Static(value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(&arg)),
+        let delta = match &config.delta {
+            RangeInput::Static(value) => RangeParam::Static(*value),
+            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
         };
 
         Self::new(start, limit, delta, output)

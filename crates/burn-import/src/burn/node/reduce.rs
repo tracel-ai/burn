@@ -307,7 +307,7 @@ impl OnnxIntoNode for ReduceNode {
 
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::reduce::reduce_config(&node);
+        let config = node.config::<onnx_ir::node::reduce::ReduceConfig>();
 
         // Determine reduction type from node type
         let reduction_type = match node.node_type {
@@ -324,7 +324,7 @@ impl OnnxIntoNode for ReduceNode {
             _ => panic!("Unsupported reduction type: {:?}", node.node_type),
         };
 
-        ReduceNode::new(input, output, reduction_type, config)
+        ReduceNode::new(input, output, reduction_type, config.clone())
     }
 }
 

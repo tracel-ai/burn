@@ -126,7 +126,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LayerNormNode {
 
 impl OnnxIntoNode for LayerNormNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        let (config, full_precision) = onnx_ir::node::layer_norm::layer_norm_config(&node);
+        let config = node.config::<onnx_ir::node::layer_norm::LayerNormConfig>();
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
 
@@ -136,7 +136,15 @@ impl OnnxIntoNode for LayerNormNode {
         let beta = extract_node_data::<f32>(&node, 2);
 
         let name = &node.name;
-        Self::new(name, input, output, gamma, beta, config, full_precision)
+        Self::new(
+            name,
+            input,
+            output,
+            gamma,
+            beta,
+            config.clone(),
+            config.full_precision,
+        )
     }
 }
 

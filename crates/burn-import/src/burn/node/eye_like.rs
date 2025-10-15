@@ -50,8 +50,8 @@ impl OnnxIntoNode for EyeLikeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::eye_like::eye_like_config(&node);
-        Self::new(input, output, config)
+        let config = node.config::<onnx_ir::node::eye_like::EyeLikeConfig>();
+        Self::new(input, output, config.clone())
     }
 }
 

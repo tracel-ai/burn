@@ -133,7 +133,7 @@ impl OnnxIntoNode for ConvTranspose1dNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let onnx_config = onnx_ir::node::conv_transpose1d::conv_transpose1d_config(&node);
+        let onnx_config = node.config::<onnx_ir::node::conv_transpose1d::ConvTranspose1dConfig>();
         let config = burn::nn::conv::ConvTranspose1dConfig::new(
             [onnx_config.channels_in, onnx_config.channels_out],
             onnx_config.kernel_size,

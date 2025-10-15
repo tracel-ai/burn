@@ -277,7 +277,7 @@ impl OnnxIntoNode for ResizeNode {
 
         let input = TensorType::from(&node.inputs[0]);
         let output = TensorType::from(node.outputs.first().unwrap());
-        let config = onnx_ir::node::resize::resize_config(&node);
+        let config = node.config::<onnx_ir::node::resize::ResizeConfig>();
 
         // Convert from onnx-ir types to burn types
         let mode = match config.mode {
@@ -286,19 +286,25 @@ impl OnnxIntoNode for ResizeNode {
             onnx_ir::node::resize::ResizeMode::Cubic => ResizeMode::Cubic,
         };
 
-        let scales = config.scales.map(|s| match s {
-            onnx_ir::node::resize::ResizeScales::Static(s) => ResizeScales::Static(s),
-            onnx_ir::node::resize::ResizeScales::Runtime(arg) => {
-                ResizeScales::Runtime(Type::from(&arg))
+        let scales = match &config.scales {
+            Some(onnx_ir::node::resize::ResizeScales::Static(s)) => {
+                Some(ResizeScales::Static(s.clone()))
             }
-        });
+            Some(onnx_ir::node::resize::ResizeScales::Runtime(arg)) => {
+                Some(ResizeScales::Runtime(Type::from(arg)))
+            }
+            None => None,
+        };
 
-        let sizes = config.sizes.map(|s| match s {
-            onnx_ir::node::resize::ResizeSizes::Static(s) => ResizeSizes::Static(s),
-            onnx_ir::node::resize::ResizeSizes::Runtime(arg) => {
-                ResizeSizes::Runtime(Type::from(&arg))
+        let sizes = match &config.sizes {
+            Some(onnx_ir::node::resize::ResizeSizes::Static(s)) => {
+                Some(ResizeSizes::Static(s.clone()))
             }
-        });
+            Some(onnx_ir::node::resize::ResizeSizes::Runtime(arg)) => {
+                Some(ResizeSizes::Runtime(Type::from(arg)))
+            }
+            None => None,
+        };
 
         ResizeNode::new(name, input, output, mode, scales, sizes)
     }
