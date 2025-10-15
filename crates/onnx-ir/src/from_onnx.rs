@@ -548,10 +548,21 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
+            // Extract config first
+            let config = processor
+                .extract_config(&node, opset_version)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed to extract config for node {} (type: {:?}): {:?}",
+                        node.name, node.node_type, e
+                    )
+                });
+            node.config = config;
+
             // Use empty output preferences for initial pass
             let output_prefs = crate::processor::OutputPreferences::new();
 
-            // Infer types: extracts config, validates, and determines output types
+            // Infer types: validates and determines output types (config already extracted)
             processor
                 .infer_types(&mut node, opset_version, &output_prefs)
                 .unwrap_or_else(|e| {

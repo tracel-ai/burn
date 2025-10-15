@@ -46,14 +46,6 @@ impl NodeProcessor for TileProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Extract config once
-        let config_box = self.extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
-        // Get reference to config for type inference
-        let _config = node.config::<TileConfig>();
-
         // Infer output type - same as input
         crate::util::same_as_input(node);
 

@@ -52,12 +52,6 @@ impl NodeProcessor for PadProcessor {
     ) -> Result<(), ProcessError> {
         crate::util::validate_opset(opset, 11)?;
 
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Output has same type as input
         if let Some(input) = node.inputs.first() {
             node.outputs[0].ty = input.ty.clone();

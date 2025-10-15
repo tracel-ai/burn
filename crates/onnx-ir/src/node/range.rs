@@ -44,12 +44,6 @@ impl NodeProcessor for RangeProcessor {
         // Validate input count
         crate::util::validate_input_count(node, 3)?;
 
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         log::debug!("Range rank inference for node {}", node.name);
         log::debug!(
             "Range operation always produces rank 1 tensor for {}",

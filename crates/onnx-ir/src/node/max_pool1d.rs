@@ -107,11 +107,6 @@ impl NodeProcessor for MaxPool1dProcessor {
             }
         }
 
-        // Extract config once
-        let config_box = self.extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Output type is same as input
         crate::util::same_as_input(node);
 

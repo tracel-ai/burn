@@ -62,13 +62,8 @@ impl NodeProcessor for GroupNormProcessor {
             }
         }
 
-        // Extract config once (includes validation of num_groups divisibility)
-        let config_box = self.extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-
         // Validate num_groups divisibility
-        let config = config_box.as_any().downcast_ref::<GroupNormConfig>()
-            .ok_or_else(|| ProcessError::Custom("Failed to downcast config".to_string()))?;
+        let config = node.config::<GroupNormConfig>();
 
         if config.num_groups > 0 && !config.num_features.is_multiple_of(config.num_groups) {
             return Err(ProcessError::Custom(
@@ -76,8 +71,6 @@ impl NodeProcessor for GroupNormProcessor {
                     .to_string(),
             ));
         }
-
-        node.config = Some(config_box);
 
         // Output type is same as input
         crate::util::same_as_input(node);

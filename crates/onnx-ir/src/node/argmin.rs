@@ -37,14 +37,11 @@ impl NodeProcessor for ArgMinProcessor {
 
         // Validate select_last_index before config extraction
         for (key, value) in node.attrs.iter() {
-            if key.as_str() == "select_last_index" {
-                if value.clone().into_i64() != 0 {
-                    return Err(ProcessError::InvalidAttribute {
-                        name: "select_last_index".to_string(),
-                        reason: "select_last_index=1 is not supported for argmin in burn"
-                            .to_string(),
-                    });
-                }
+            if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {
+                return Err(ProcessError::InvalidAttribute {
+                    name: "select_last_index".to_string(),
+                    reason: "select_last_index=1 is not supported for argmin in burn".to_string(),
+                });
             }
         }
 
@@ -61,12 +58,6 @@ impl NodeProcessor for ArgMinProcessor {
                 }
             }
         }
-
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
 
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {

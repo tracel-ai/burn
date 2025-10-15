@@ -56,11 +56,6 @@ impl NodeProcessor for FlattenProcessor {
             )));
         }
 
-        // Extract config once
-        let config_box = self.extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Get reference to config for type inference
         let _config = node.config::<FlattenConfig>();
 

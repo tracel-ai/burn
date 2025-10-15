@@ -53,12 +53,6 @@ impl NodeProcessor for IsInfProcessor {
             }
         }
 
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Output is boolean tensor with same shape as input
         crate::node::comparison::elementwise_comparison_outputs(node);
 

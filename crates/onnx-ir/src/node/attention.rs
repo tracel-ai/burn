@@ -137,19 +137,17 @@ impl NodeProcessor for AttentionProcessor {
             match key.as_str() {
                 "is_causal" | "kv_num_heads" | "q_num_heads" | "scale" | "softcap"
                 | "softmax_precision" => {}
-                "qk_matmul_output_mode" => {
-                    match value.clone().into_i64() {
-                        0 | 1 | 2 | 3 => {}
-                        v => {
-                            return Err(ProcessError::InvalidAttribute {
-                                name: "qk_matmul_output_mode".to_string(),
-                                reason: format!(
-                                    "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
-                                ),
-                            });
-                        }
+                "qk_matmul_output_mode" => match value.clone().into_i64() {
+                    0..=3 => {}
+                    v => {
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "qk_matmul_output_mode".to_string(),
+                            reason: format!(
+                                "Unexpected value for attribute qk_matmul_output_mode for Attention: {v}"
+                            ),
+                        });
                     }
-                }
+                },
                 _ => {
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
@@ -158,12 +156,6 @@ impl NodeProcessor for AttentionProcessor {
                 }
             }
         }
-
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
 
         // Get reference to config for validation
         let config = node.config::<AttentionConfig>();

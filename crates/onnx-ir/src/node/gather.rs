@@ -81,17 +81,9 @@ impl NodeProcessor for GatherProcessor {
             });
         }
 
-        // Extract config once
-        let config_box = self.extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Get reference to config for type inference (not directly used, but extracted for consistency)
         let _config = node.config::<GatherConfig>();
-        log::debug!(
-            "Gather indices input for {}: using config",
-            node.name
-        );
+        log::debug!("Gather indices input for {}: using config", node.name);
 
         // Infer output type based on indices rank
         let indices_rank = match &node.inputs[1].ty {

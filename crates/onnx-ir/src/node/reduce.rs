@@ -54,12 +54,6 @@ impl NodeProcessor for ReduceProcessor {
             }
         };
 
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Get config values before using them
         let dims = node.config::<ReduceConfig>().dims.clone();
         let keepdims = if node.config::<ReduceConfig>().keepdims {

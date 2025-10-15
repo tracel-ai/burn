@@ -76,12 +76,6 @@ impl NodeProcessor for OneHotProcessor {
         crate::util::validate_opset(opset, 9)?;
         crate::util::validate_min_inputs(node, 3)?;
 
-        // Extract config once
-        let config_box = self
-            .extract_config(node, opset)?
-            .ok_or_else(|| ProcessError::Custom("Failed to extract config".to_string()))?;
-        node.config = Some(config_box);
-
         // Update output shape
         one_hot_output_shape(node)?;
 
