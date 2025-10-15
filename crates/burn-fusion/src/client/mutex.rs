@@ -3,24 +3,25 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_common::device::DeviceState;
+use burn_common::device::{Device, DeviceContext, DeviceState};
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, Shape, TensorData};
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
-pub struct MutexFusionClient<R: FusionRuntime> {
-    server: DeviceState<FusionServer<R>>,
+pub struct GlobalFusionClient<R: FusionRuntime> {
+    server: DeviceContext<FusionServer<R>>,
     device: FusionDevice<R>,
 }
 
-impl<R: FusionRuntime> Default for FusionServer<R> {
-    fn default() -> Self {
-        todo!()
+impl<R: FusionRuntime> DeviceState for FusionServer<R> {
+    fn init(device_id: burn_common::device::DeviceId) -> Self {
+        let device = FusionDevice::<R>::from_id(device_id);
+        FusionServer::new(device)
     }
 }
 
-impl<R> Clone for MutexFusionClient<R>
+impl<R> Clone for GlobalFusionClient<R>
 where
     R: FusionRuntime,
 {
@@ -31,18 +32,26 @@ where
         }
     }
 }
-
-impl<R> FusionClient<R> for MutexFusionClient<R>
+impl<R> GlobalFusionClient<R>
 where
-    R: FusionRuntime<FusionClient = Self> + 'static,
+    R: FusionRuntime + 'static,
 {
-    fn new(device: FusionDevice<R>) -> Self {
-        let server = FusionServer::new(device.clone());
-        let server = DeviceState::insert(&device, server).unwrap();
-
+    pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server,
+            server: DeviceContext::locate(device),
+        }
+    }
+}
+
+impl<R> FusionClient<R> for GlobalFusionClient<R>
+where
+    R: FusionRuntime + 'static,
+{
+    fn new(device: FusionDevice<R>) -> Self {
+        Self {
+            device: device.clone(),
+            server: DeviceContext::locate(&device),
         }
     }
 
@@ -50,9 +59,8 @@ where
     where
         O: Operation<R> + 'static,
     {
-        self.server
-            .lock()
-            .register(streams, repr, Arc::new(operation))
+        let mut server = self.server.lock();
+        server.register(streams, repr, Arc::new(operation));
     }
 
     fn drain(&self) {

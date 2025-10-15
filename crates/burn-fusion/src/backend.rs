@@ -1,6 +1,6 @@
 use crate::{
-    FusionClientLocator, FusionTensor,
-    client::FusionClient,
+    FusionTensor,
+    client::{FusionClient, GlobalFusionClient},
     stream::{Context, OrderedExecution},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
@@ -12,11 +12,9 @@ use burn_tensor::{
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
-pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
-
 /// Get the client for the given device.
 pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
-    CLIENTS.client::<B::FusionRuntime>(device)
+    GlobalFusionClient::load(device)
 }
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
@@ -47,13 +45,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 
     fn seed(device: &B::Device, seed: u64) {
-        let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         client.drain();
         B::seed(device, seed);
     }
 
     fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         client.drain();
         B::sync(device);
     }
@@ -155,8 +153,8 @@ pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
 pub type FusionDevice<R> = <R as FusionRuntime>::FusionDevice;
 /// Type alias for `<R as FusionRuntime>::FusionHandle`.
 pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
-/// Type alias for `<R as FusionRuntime>::FusionClient`.
-pub type Client<R> = <R as FusionRuntime>::FusionClient;
+/// Client alias.
+pub type Client<R> = GlobalFusionClient<R>;
 
 /// Trait that defines a runtime that will benefits from fused operations.
 pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
@@ -168,8 +166,6 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     type FusionHandle: Clone + Send;
     /// Device used by the runtime.
     type FusionDevice: DeviceOps;
-    /// The client to interact with the runtime.
-    type FusionClient: FusionClient<Self>;
     /// The type that represents booleans on the backend.
     type BoolRepr: Element;
 
