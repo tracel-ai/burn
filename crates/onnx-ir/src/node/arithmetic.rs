@@ -1,12 +1,11 @@
 //! Processor for basic arithmetic operations (Add, Sub, Mul, Div)
 //!
 //! These operations perform element-wise arithmetic with broadcasting support.
-//! This processor includes special handling for type propagation when performing
-//! arithmetic with constants on Shape or Scalar types.
+//! Special handling for Shape and Scalar types to preserve semantics through arithmetic.
 
 use crate::ir::Node;
-use crate::processor::NodeProcessor;
-use crate::util::{same_as_input_broadcast, validate_opset};
+use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
+use crate::util::same_as_input_broadcast;
 
 /// Node processor for basic arithmetic binary operations
 ///
@@ -20,46 +19,80 @@ use crate::util::{same_as_input_broadcast, validate_opset};
 pub struct ArithmeticBinaryProcessor;
 
 impl NodeProcessor for ArithmeticBinaryProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Arithmetic operations (Add, Sub, Mul, Div, Pow) require opset 7+ for numpy-style broadcasting
-        validate_opset(&node.node_type, opset, 7);
+    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+        if node.inputs.len() != 2 {
+            return None;
+        }
 
-        // Arithmetic binary operations require exactly two inputs
-        assert_eq!(node.inputs.len(), 2);
+        let mut prefs = InputPreferences::new();
 
         // Type propagation for Shape arithmetic:
-        // When performing arithmetic on a Shape with a constant, convert the constant to Shape type.
+        // When performing arithmetic on a Shape with a constant, prefer the constant to be Shape type.
         // This is common in dynamic shape calculations like:
         // - new_shape = old_shape + offset
         // - half_shape = old_shape / 2
-        // - scaled_shape = old_shape * factor
 
-        // Case 1: Shape op Constant => Shape op Shape
+        // Case 1: Shape op Constant => prefer Constant as Shape
         if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
-            node.inputs[1].should_be(node.inputs[0].ty.clone());
+            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
         }
 
-        // Case 2: Constant op Shape => Shape op Shape
+        // Case 2: Constant op Shape => prefer Constant as Shape
         if node.inputs[1].ty.is_shape() && node.inputs[0].has_value() {
-            node.inputs[0].should_be(node.inputs[1].ty.clone());
+            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
         }
 
         // Type propagation for Scalar arithmetic:
-        // When performing arithmetic on a Scalar with a constant, convert the constant to Scalar type.
+        // When performing arithmetic on a Scalar with a constant, prefer the constant to be Scalar type.
         // This preserves scalar semantics through arithmetic operations.
 
-        // Case 3: Scalar op Constant => Scalar op Scalar
+        // Case 3: Scalar op Constant => prefer Constant as Scalar
         if node.inputs[0].ty.is_scalar() && node.inputs[1].has_value() {
-            node.inputs[1].should_be(node.inputs[0].ty.clone());
+            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
         }
 
-        // Case 4: Constant op Scalar => Scalar op Scalar
+        // Case 4: Constant op Scalar => prefer Constant as Scalar
         if node.inputs[1].ty.is_scalar() && node.inputs[0].has_value() {
-            node.inputs[0].should_be(node.inputs[1].ty.clone());
+            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
+        }
+
+        Some(prefs)
+    }
+
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset version
+        if opset < 7 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 7,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
         }
 
         // Apply standard broadcasting rules to infer output type
         same_as_input_broadcast(node);
+
+        Ok(())
     }
 }
 
@@ -71,6 +104,7 @@ mod tests {
     #[test]
     fn test_arithmetic_add() {
         let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Add,
@@ -104,7 +138,7 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 2),
@@ -115,6 +149,7 @@ mod tests {
     #[test]
     fn test_arithmetic_sub() {
         let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Sub,
@@ -148,7 +183,7 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 3),
@@ -159,6 +194,7 @@ mod tests {
     #[test]
     fn test_arithmetic_mul() {
         let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Mul,
@@ -192,7 +228,7 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 4),
@@ -203,6 +239,7 @@ mod tests {
     #[test]
     fn test_arithmetic_div() {
         let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
 
         let mut node = crate::ir::Node {
             node_type: NodeType::Div,
@@ -236,11 +273,94 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(t) => assert_eq!(t.rank, 2),
             _ => panic!("Expected tensor output"),
         }
+    }
+
+    #[test]
+    fn test_invalid_opset() {
+        let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
+
+        let mut node = crate::ir::Node {
+            node_type: NodeType::Add,
+            name: "test_add".to_string(),
+            inputs: vec![
+                Argument {
+                    name: "a".to_string(),
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: ElementType::Float32,
+                        rank: 2,
+                        static_shape: None,
+                    }),
+                    value_store: None,
+                },
+                Argument {
+                    name: "b".to_string(),
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: ElementType::Float32,
+                        rank: 2,
+                        static_shape: None,
+                    }),
+                    value_store: None,
+                },
+            ],
+            outputs: vec![Argument {
+                name: "c".to_string(),
+                ty: ArgType::default(),
+                value_store: None,
+            }],
+            attrs: Default::default(),
+            config: None,
+        };
+
+        let result = processor.infer_types(&mut node, 6, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::UnsupportedOpset {
+                required: 7,
+                actual: 6
+            })
+        ));
+    }
+
+    #[test]
+    fn test_invalid_input_count() {
+        let processor = ArithmeticBinaryProcessor;
+        let prefs = OutputPreferences::new();
+
+        let mut node = crate::ir::Node {
+            node_type: NodeType::Add,
+            name: "test_add".to_string(),
+            inputs: vec![Argument {
+                name: "a".to_string(),
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Float32,
+                    rank: 2,
+                    static_shape: None,
+                }),
+                value_store: None,
+            }],
+            outputs: vec![Argument {
+                name: "c".to_string(),
+                ty: ArgType::default(),
+                value_store: None,
+            }],
+            attrs: Default::default(),
+            config: None,
+        };
+
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: 1
+            })
+        ));
     }
 }

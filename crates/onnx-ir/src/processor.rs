@@ -1,79 +1,129 @@
 //! Node processor trait and infrastructure for node-centric processing.
 //!
-//! This module defines the `NodeProcessor` trait which enables a demand-driven,
-//! node-centric architecture where each node type declares its requirements
-//! rather than having centralized orchestration code decide what to provide.
+//! This module defines the `NodeProcessor` trait with support for type preferences
+//! and proper error handling.
 
-use crate::ir::{ArgType, Node, NodeType};
+use crate::ir::{ArgType, Node, NodeConfig, NodeType};
 use std::collections::HashMap;
 
-/// Context provided to node processors during inference
+/// Type preferences for node inputs
+#[derive(Debug, Default, Clone)]
+pub struct InputPreferences {
+    preferences: HashMap<String, Vec<ArgType>>,
+}
+
+impl InputPreferences {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add(mut self, input_name: impl Into<String>, ty: ArgType) -> Self {
+        self.preferences
+            .entry(input_name.into())
+            .or_default()
+            .push(ty);
+        self
+    }
+
+    pub fn get(&self, input_name: &str) -> &[ArgType] {
+        self.preferences
+            .get(input_name)
+            .map_or(&[], |v| v.as_slice())
+    }
+}
+
+/// Type preferences requested by consumers for a node's outputs
+#[derive(Debug, Default, Clone)]
+pub struct OutputPreferences {
+    // output_name -> [(consumer_name, requested_type)]
+    requests: HashMap<String, Vec<(String, ArgType)>>,
+}
+
+impl OutputPreferences {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add(
+        &mut self,
+        output_name: impl Into<String>,
+        consumer: impl Into<String>,
+        ty: ArgType,
+    ) {
+        self.requests
+            .entry(output_name.into())
+            .or_default()
+            .push((consumer.into(), ty));
+    }
+
+    pub fn get(&self, output_name: &str) -> &[(String, ArgType)] {
+        self.requests.get(output_name).map_or(&[], |v| v.as_slice())
+    }
+}
+
+/// Errors that can occur during node processing
 #[derive(Debug, Clone)]
-pub struct ProcessorContext {
-    /// ONNX opset version being processed
-    pub opset_version: i64,
-
-    /// Type expectations set via should_be() method
-    /// Maps argument names to their expected types
-    expected_types: HashMap<String, ArgType>,
+pub enum ProcessError {
+    UnsupportedOpset {
+        required: usize,
+        actual: usize,
+    },
+    MissingInput(String),
+    MissingOutput(String),
+    InvalidInputCount {
+        expected: usize,
+        actual: usize,
+    },
+    InvalidOutputCount {
+        expected: usize,
+        actual: usize,
+    },
+    TypeMismatch {
+        expected: String,
+        actual: String,
+    },
+    ConflictingPreferences {
+        output: String,
+        details: Vec<String>,
+    },
+    MissingAttribute(String),
+    InvalidAttribute {
+        name: String,
+        reason: String,
+    },
+    Custom(String),
 }
 
-impl ProcessorContext {
-    /// Create a new processor context with the given opset version
-    pub fn new(opset_version: i64) -> Self {
-        Self {
-            opset_version,
-            expected_types: HashMap::new(),
-        }
-    }
-
-    /// Set the expected type for an argument
-    pub fn set_expected_type(&mut self, arg_name: String, expected_ty: ArgType) {
-        self.expected_types.insert(arg_name, expected_ty);
-    }
-
-    /// Get the expected type for an argument, if any
-    pub fn get_expected_type(&self, arg_name: &str) -> Option<&ArgType> {
-        self.expected_types.get(arg_name)
-    }
-}
 /// Node-specific processing logic trait.
 ///
 /// Each node type implements this trait to declare how to process nodes
 /// during type inference and configuration extraction.
 pub trait NodeProcessor: Send + Sync {
-    /// Extracts and stores node configuration from attributes and inputs.
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to process
-    /// * `opset` - ONNX opset version
-    fn process_config(&self, _node: &mut Node, _opset: usize) {
-        // Default: no config to store
+    /// Declare what types this node prefers for its inputs
+    fn input_preferences(&self, _node: &Node, _opset: usize) -> Option<InputPreferences> {
+        None
     }
 
-    /// Infers output types from input types.
-    ///
-    /// Updates the node's output arguments based on input types,
-    /// node attributes, and opset version.
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to process
-    /// * `opset` - ONNX opset version
-    fn first_pass(&self, node: &mut Node, opset: usize);
+    /// Lift constant inputs, return names of lifted inputs
+    fn lift_constants(&self, _node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        Ok(Vec::new())
+    }
 
-    /// Propagates type expectations from outputs to inputs.
-    ///
-    /// Allows backward propagation of type requirements when output
-    /// types are known but input types need refinement.
-    ///
-    /// # Arguments
-    ///
-    /// * `node` - The node to process
-    /// * `opset` - ONNX opset version
-    fn second_pass(&self, _node: &mut Node, _opset: usize) {
-        // Default: no backward processing
+    /// Infer output types given preferences from consumers
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError>;
+
+    /// Extract config for codegen
+    fn extract_config(
+        &self,
+        _node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(None)
     }
 }
 
@@ -635,9 +685,15 @@ impl ProcessorRegistry {
 struct DefaultProcessor;
 
 impl NodeProcessor for DefaultProcessor {
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        _opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
         // Default: preserve input type
         crate::util::same_as_input(node);
+        Ok(())
     }
 }
 
@@ -649,23 +705,24 @@ mod tests {
     struct TestProcessor;
 
     impl NodeProcessor for TestProcessor {
-        fn first_pass(&self, node: &mut Node, _opset: usize) {
+        fn infer_types(
+            &self,
+            node: &mut Node,
+            _opset: usize,
+            _output_preferences: &OutputPreferences,
+        ) -> Result<(), ProcessError> {
             // Simple test: copy input type to output
             if !node.inputs.is_empty() && !node.outputs.is_empty() {
                 node.outputs[0].ty = node.inputs[0].ty.clone();
             }
+            Ok(())
         }
-    }
-
-    #[test]
-    fn test_processor_context() {
-        let ctx = ProcessorContext::new(16);
-        assert_eq!(ctx.opset_version, 16);
     }
 
     #[test]
     fn test_infer_outputs() {
         let processor = TestProcessor;
+        let prefs = OutputPreferences::new();
         let mut node = Node {
             node_type: NodeType::Add,
             name: "test_node".to_string(),
@@ -687,7 +744,7 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Output should match input type
         assert_eq!(node.outputs[0].ty, node.inputs[0].ty);
@@ -708,6 +765,7 @@ mod tests {
     #[test]
     fn test_default_processor() {
         let processor = DefaultProcessor;
+        let prefs = OutputPreferences::new();
         let mut node = Node {
             node_type: NodeType::Relu,
             name: "test_relu".to_string(),
@@ -729,7 +787,7 @@ mod tests {
             config: None,
         };
 
-        processor.first_pass(&mut node, 16);
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Default processor should preserve input type
         match &node.outputs[0].ty {
