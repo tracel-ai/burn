@@ -15,30 +15,28 @@ use crate::{
     Fusion, FusionBackend,
     client::{FusionClient, OperationOutput},
     get_client,
-    stream::{OperationStreams, StreamId, execution::Operation},
+    stream::{OperationStreams, execution::Operation},
 };
 
 use super::NoOp;
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        let stream = StreamId::current();
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::q_from_data(data, device);
         let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
         let handle = B::quantized_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape, stream, dtype);
-        let desc = out.to_ir_out();
+        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
 
-        client.register(
-            OperationStreams::default(),
-            OperationIr::Init(InitOperationIr { out: desc }),
-            NoOp::<B>::new(),
-        );
-
-        out
+        client
+            .register(
+                OperationStreams::default(),
+                OperationIr::Init(desc),
+                NoOp::<B>::new(),
+            )
+            .output()
     }
 
     fn quantize(

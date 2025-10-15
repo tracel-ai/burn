@@ -46,6 +46,7 @@ where
     where
         O: Operation<R> + 'static,
     {
+        println!("register op: {repr:?}");
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()
@@ -59,6 +60,7 @@ where
                 )
             })
             .collect();
+        println!("w/ outputs {outputs:?}");
 
         self.server
             .lock()
@@ -80,19 +82,13 @@ where
         &self.device
     }
 
-    fn register_tensor(
-        &self,
-        handle: FusionHandle<R>,
-        shape: Shape,
-        stream: StreamId,
-        dtype: DType,
-    ) -> FusionTensor<R> {
+    fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(id, handle);
         core::mem::drop(server);
 
-        FusionTensor::new(id, shape, dtype, self.clone(), stream)
+        id
     }
 
     fn read_tensor_float<B>(

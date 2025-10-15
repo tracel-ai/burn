@@ -2,7 +2,7 @@ use crate::{
     Fusion, FusionBackend,
     client::{FusionClient, OperationOutput},
     get_client,
-    stream::{OperationStreams, StreamId, execution::Operation},
+    stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
@@ -104,22 +104,22 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_from_data(data: burn_tensor::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let stream = StreamId::current();
         let client = get_client::<B>(device);
         let tensor = B::bool_from_data(data, device);
         let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
         let handle = B::bool_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape, stream, B::BoolElem::dtype());
-        let desc = out.to_ir_out();
+        let desc = InitOperationIr::create(shape, B::BoolElem::dtype(), || {
+            client.register_tensor_handle(handle)
+        });
 
-        client.register(
-            OperationStreams::default(),
-            OperationIr::Init(InitOperationIr { out: desc }),
-            NoOp::<B>::new(),
-        );
-
-        out
+        client
+            .register(
+                OperationStreams::default(),
+                OperationIr::Init(desc),
+                NoOp::<B>::new(),
+            )
+            .output()
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
@@ -510,7 +510,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                println!("Permute execute");
+                println!("in: {:?}", self.desc.input);
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                println!("out: {:?}", self.desc.out);
                 let output = B::bool_permute(input, self.desc.axes.as_slice());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -520,6 +523,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let client = tensor.client.clone();
         let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
+            println!("create empty handle");
             client.create_empty_handle()
         });
 

@@ -36,14 +36,18 @@ where
 }
 
 impl CreationOpIr {
-    pub fn create(shape: Shape, dtype: DType, new_id: impl Fn() -> TensorId) -> Self {
-        let out = TensorIr {
-            status: TensorStatus::NotInit,
-            shape,
-            id: new_id(),
-            dtype,
-        };
+    pub fn create(shape: Shape, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+
         CreationOpIr { out }
+    }
+}
+
+impl InitOperationIr {
+    pub fn create(shape: Shape, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+
+        InitOperationIr { out }
     }
 }
 
@@ -52,14 +56,10 @@ impl RandomOpIr {
         shape: Shape,
         dtype: DType,
         distribution: Distribution,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
-        let out = TensorIr {
-            status: TensorStatus::NotInit,
-            shape,
-            id: new_id(),
-            dtype,
-        };
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+
         RandomOpIr { out, distribution }
     }
 }
@@ -69,7 +69,7 @@ impl FullOpIr {
         shape: Shape,
         dtype: DType,
         value: E,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let value = ScalarIr::with_dtype(value, &dtype);
         let out = TensorIr {
@@ -83,7 +83,7 @@ impl FullOpIr {
 }
 
 impl UnaryOpIr {
-    pub fn create(input: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let dtype = input.dtype;
         Self::create_with_dtype(input, dtype, new_id)
     }
@@ -91,19 +91,19 @@ impl UnaryOpIr {
     pub fn create_comparison(
         input: TensorIr,
         bool_dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         Self::create_with_dtype(input, bool_dtype, new_id)
     }
 
-    fn create_with_dtype(input: TensorIr, dtype: DType, new_id: impl Fn() -> TensorId) -> Self {
+    fn create_with_dtype(input: TensorIr, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
         UnaryOpIr { input, out }
     }
 }
 
 impl BinaryOpIr {
-    pub fn create(lhs: TensorIr, rhs: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(lhs: TensorIr, rhs: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let dtype = lhs.dtype;
         Self::create_with_dtype(lhs, rhs, dtype, new_id)
     }
@@ -112,7 +112,7 @@ impl BinaryOpIr {
         lhs: TensorIr,
         rhs: TensorIr,
         bool_dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         Self::create_with_dtype(lhs, rhs, bool_dtype, new_id)
     }
@@ -121,7 +121,7 @@ impl BinaryOpIr {
         lhs: TensorIr,
         rhs: TensorIr,
         dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = lhs.shape.broadcast(&rhs.shape).unwrap();
         let _ = output_dtype([&lhs.dtype, &rhs.dtype]).unwrap();
@@ -131,7 +131,7 @@ impl BinaryOpIr {
 }
 
 impl ScalarOpIr {
-    pub fn create<E: Element>(lhs: TensorIr, rhs: E, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create<E: Element>(lhs: TensorIr, rhs: E, new_id: impl FnOnce() -> TensorId) -> Self {
         let dtype = lhs.dtype;
         Self::create_with_dtype(lhs, rhs, dtype, new_id)
     }
@@ -140,7 +140,7 @@ impl ScalarOpIr {
         lhs: TensorIr,
         rhs: E,
         bool_dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         Self::create_with_dtype(lhs, rhs, bool_dtype, new_id)
     }
@@ -149,7 +149,7 @@ impl ScalarOpIr {
         lhs: TensorIr,
         rhs: E,
         dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let out = TensorIr::uninit(new_id(), lhs.shape.clone(), dtype);
@@ -159,7 +159,7 @@ impl ScalarOpIr {
 }
 
 impl MatmulOpIr {
-    pub fn create(lhs: TensorIr, rhs: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(lhs: TensorIr, rhs: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = calculate_matmul_output(&lhs.shape, &rhs.shape).unwrap();
         let dtype = output_dtype([&lhs.dtype, &rhs.dtype]).unwrap();
         let out = TensorIr::uninit(new_id(), shape, dtype);
@@ -168,7 +168,7 @@ impl MatmulOpIr {
 }
 
 impl CastOpIr {
-    pub fn create(input: TensorIr, dtype: DType, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
         CastOpIr { input, out }
     }
@@ -179,7 +179,7 @@ impl SwapDimsOpIr {
         input: TensorIr,
         dim1: usize,
         dim2: usize,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = input.shape.clone().swap(dim1, dim2).unwrap();
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
@@ -194,33 +194,34 @@ impl SwapDimsOpIr {
 }
 
 impl PermuteOpIr {
-    pub fn create(input: TensorIr, axes: Vec<usize>, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, axes: Vec<usize>, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = input.shape.clone().permute(&axes).unwrap();
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
+        println!("permute out: {out:?}");
 
         PermuteOpIr { input, out, axes }
     }
 }
 
 impl ShapeOpIr {
-    pub fn expand(input: TensorIr, shape: Shape, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn expand(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = input.shape.expand(shape).unwrap();
         Self::new(input, shape, new_id)
     }
 
-    pub fn reshape(input: TensorIr, shape: Shape, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn reshape(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = input.shape.reshape(shape).unwrap();
         Self::new(input, shape, new_id)
     }
 
-    fn new(input: TensorIr, shape: Shape, new_id: impl Fn() -> TensorId) -> Self {
+    fn new(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
         ShapeOpIr { input, out }
     }
 }
 
 impl FlipOpIr {
-    pub fn create(input: TensorIr, axes: Vec<usize>, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, axes: Vec<usize>, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), input.dtype);
 
         FlipOpIr { input, out, axes }
@@ -228,14 +229,14 @@ impl FlipOpIr {
 }
 
 impl ReduceOpIr {
-    pub fn create(input: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), [1].into(), input.dtype);
         ReduceOpIr { input, out }
     }
 }
 
 impl ReduceDimOpIr {
-    pub fn create(input: TensorIr, axis: usize, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, axis: usize, new_id: impl FnOnce() -> TensorId) -> Self {
         let dtype = input.dtype;
         Self::create_with_dtype(input, axis, dtype, new_id)
     }
@@ -244,7 +245,7 @@ impl ReduceDimOpIr {
         input: TensorIr,
         axis: usize,
         dtype: DType,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let mut shape = input.shape.clone();
         shape[axis] = 1;
@@ -255,7 +256,7 @@ impl ReduceDimOpIr {
 }
 
 impl DimOpIr {
-    pub fn create(input: TensorIr, axis: usize, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, axis: usize, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), input.dtype);
 
         DimOpIr { input, out, axis }
@@ -267,7 +268,7 @@ impl GatherOpIr {
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), indices.shape.clone(), tensor.dtype);
 
@@ -286,7 +287,7 @@ impl ScatterOpIr {
         dim: usize,
         indices: TensorIr,
         value: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap();
         let out = TensorIr::uninit(new_id(), tensor.shape.clone(), dtype);
@@ -306,7 +307,7 @@ impl SelectOpIr {
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let mut shape = tensor.shape.clone();
         shape[dim] = indices.shape[0];
@@ -327,7 +328,7 @@ impl SelectAssignOpIr {
         dim: usize,
         indices: TensorIr,
         value: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap();
         let out = TensorIr::uninit(new_id(), tensor.shape.clone(), dtype);
@@ -343,7 +344,7 @@ impl SelectAssignOpIr {
 }
 
 impl SliceOpIr {
-    pub fn create(tensor: TensorIr, slices: Vec<Slice>, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(tensor: TensorIr, slices: Vec<Slice>, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = tensor.shape.clone().slice(&slices).unwrap();
         let out = TensorIr::uninit(new_id(), shape, tensor.dtype);
 
@@ -360,7 +361,7 @@ impl SliceAssignOpIr {
         tensor: TensorIr,
         slices: Vec<Slice>,
         value: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap();
         let out = TensorIr::uninit(new_id(), tensor.shape.clone(), dtype);
@@ -379,7 +380,7 @@ impl MaskWhereOpIr {
         tensor: TensorIr,
         mask: TensorIr,
         value: TensorIr,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap();
         let shape = Shape::broadcast_many([&tensor.shape, &mask.shape, &value.shape]).unwrap();
@@ -399,7 +400,7 @@ impl MaskFillOpIr {
         tensor: TensorIr,
         mask: TensorIr,
         value: E,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = tensor.shape.broadcast(&mask.shape).unwrap();
         let dtype = tensor.dtype;
@@ -420,7 +421,7 @@ impl ClampOpIr {
         tensor: TensorIr,
         min: E,
         max: E,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let dtype = tensor.dtype;
         let min = ScalarIr::with_dtype(min, &dtype);
@@ -441,7 +442,7 @@ impl RepeatDimOpIr {
         tensor: TensorIr,
         dim: usize,
         times: usize,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = tensor.shape.clone().repeat(dim, times);
         let out = TensorIr::uninit(new_id(), shape, tensor.dtype);
@@ -456,7 +457,7 @@ impl RepeatDimOpIr {
 }
 
 impl CatOpIr {
-    pub fn create(tensors: Vec<TensorIr>, dim: usize, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(tensors: Vec<TensorIr>, dim: usize, new_id: impl FnOnce() -> TensorId) -> Self {
         let dtype = output_dtype(tensors.iter().map(|t| &t.dtype)).unwrap();
         let shape = Shape::cat(tensors.iter().map(|t| &t.shape), dim).unwrap();
         let out = TensorIr::uninit(new_id(), shape, dtype);
@@ -470,7 +471,7 @@ impl ReduceDimWithIndicesOpIr {
         tensor: TensorIr,
         dim: usize,
         dtype_indices: DType,
-        new_id: impl Fn() -> TensorId,
+        mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
@@ -492,7 +493,7 @@ impl Conv1dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvOptions<1>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_output_shape(
             &x.shape,
@@ -526,7 +527,7 @@ impl Conv2dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvOptions<2>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_output_shape(
             &x.shape,
@@ -560,7 +561,7 @@ impl Conv3dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvOptions<3>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_output_shape(
             &x.shape,
@@ -596,7 +597,7 @@ impl DeformConv2dOpIr {
         mask: Option<TensorIr>,
         bias: Option<TensorIr>,
         options: DeformConvOptions<2>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_output_shape(
             &x.shape,
@@ -640,7 +641,7 @@ impl DeformConv2dBackwardOpIr {
         bias: Option<TensorIr>,
         out_grad: TensorIr,
         options: DeformConvOptions<2>,
-        new_id: impl Fn() -> TensorId,
+        mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
         let dtype = output_dtype(
             [
@@ -687,7 +688,7 @@ impl ConvTranspose1dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvTransposeOptions<1>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_transpose_output_shape(
             &x.shape,
@@ -727,7 +728,7 @@ impl ConvTranspose2dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvTransposeOptions<2>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_transpose_output_shape(
             &x.shape,
@@ -767,7 +768,7 @@ impl ConvTranspose3dOpIr {
         weight: TensorIr,
         bias: Option<TensorIr>,
         options: ConvTransposeOptions<3>,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_conv_transpose_output_shape(
             &x.shape,
@@ -808,7 +809,7 @@ impl AvgPool1dOpIr {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape =
             calculate_pool_output_shape(&x.shape, &[kernel_size], &[stride], &[padding], &[1])
@@ -833,7 +834,7 @@ impl AvgPool2dOpIr {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &[1, 1])
             .unwrap();
@@ -858,7 +859,7 @@ impl AvgPool1dBackwardOpIr {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
@@ -882,7 +883,7 @@ impl AvgPool2dBackwardOpIr {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
@@ -899,7 +900,7 @@ impl AvgPool2dBackwardOpIr {
 }
 
 impl AdaptiveAvgPool1dOpIr {
-    pub fn create(x: TensorIr, output_size: usize, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(x: TensorIr, output_size: usize, new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = Shape::new([x.shape[0], x.shape[1], output_size]);
         let out = TensorIr::uninit(new_id(), shape, x.dtype);
 
@@ -912,7 +913,7 @@ impl AdaptiveAvgPool1dOpIr {
 }
 
 impl AdaptiveAvgPool2dOpIr {
-    pub fn create(x: TensorIr, output_size: [usize; 2], new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(x: TensorIr, output_size: [usize; 2], new_id: impl FnOnce() -> TensorId) -> Self {
         let shape = Shape::new([x.shape[0], x.shape[1], output_size[0], output_size[1]]);
         let out = TensorIr::uninit(new_id(), shape, x.dtype);
 
@@ -925,7 +926,7 @@ impl AdaptiveAvgPool2dOpIr {
 }
 
 impl AdaptiveAvgPool1dBackwardOpIr {
-    pub fn create(x: TensorIr, grad: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(x: TensorIr, grad: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
         AdaptiveAvgPool1dBackwardOpIr { x, grad, out }
@@ -933,7 +934,7 @@ impl AdaptiveAvgPool1dBackwardOpIr {
 }
 
 impl AdaptiveAvgPool2dBackwardOpIr {
-    pub fn create(x: TensorIr, grad: TensorIr, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(x: TensorIr, grad: TensorIr, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
         AdaptiveAvgPool2dBackwardOpIr { x, grad, out }
@@ -947,7 +948,7 @@ impl MaxPool1dOpIr {
         stride: usize,
         padding: usize,
         dilation: usize,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_pool_output_shape(
             &x.shape,
@@ -978,7 +979,7 @@ impl MaxPool1dWithIndicesOpIr {
         padding: usize,
         dilation: usize,
         dtype_indices: DType,
-        new_id: impl Fn() -> TensorId,
+        mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
         let shape = calculate_pool_output_shape(
             &x.shape,
@@ -1012,7 +1013,7 @@ impl MaxPool1dWithIndicesBackwardOpIr {
         stride: usize,
         padding: usize,
         dilation: usize,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
@@ -1036,7 +1037,7 @@ impl MaxPool2dOpIr {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape =
             calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation)
@@ -1062,7 +1063,7 @@ impl MaxPool2dWithIndicesOpIr {
         padding: [usize; 2],
         dilation: [usize; 2],
         dtype_indices: DType,
-        new_id: impl Fn() -> TensorId,
+        mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
         let shape =
             calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation)
@@ -1091,7 +1092,7 @@ impl MaxPool2dWithIndicesBackwardOpIr {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
@@ -1113,7 +1114,7 @@ impl InterpolateOpIr {
         x: TensorIr,
         output_size: [usize; 2],
         options: InterpolateOptions,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = Shape::new([x.shape[0], x.shape[1], output_size[0], output_size[1]]);
         let out = TensorIr::uninit(new_id(), shape, x.dtype);
@@ -1133,7 +1134,7 @@ impl InterpolateBackwardOpIr {
         grad: TensorIr,
         output_size: [usize; 2],
         options: InterpolateOptions,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), x.shape.clone(), x.dtype);
 
@@ -1153,7 +1154,7 @@ impl UnfoldOpIr {
         dim: usize,
         size: usize,
         step: usize,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let shape = calculate_unfold_shape(input.shape.clone(), dim, size, step);
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
@@ -1169,7 +1170,12 @@ impl UnfoldOpIr {
 }
 
 impl CrossOpIr {
-    pub fn create(lhs: TensorIr, rhs: TensorIr, dim: usize, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(
+        lhs: TensorIr,
+        rhs: TensorIr,
+        dim: usize,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
         let shape = lhs.shape.broadcast(&rhs.shape).unwrap();
         let dtype = output_dtype([&lhs.dtype, &rhs.dtype]).unwrap();
         let out = TensorIr::uninit(new_id(), shape, dtype);
@@ -1183,7 +1189,7 @@ impl QuantizeOpIr {
         tensor: TensorIr,
         qparams: QuantizationParametersIr,
         scheme: QuantScheme,
-        new_id: impl Fn() -> TensorId,
+        new_id: impl FnOnce() -> TensorId,
     ) -> Self {
         let out = TensorIr::uninit(new_id(), tensor.shape.clone(), DType::QFloat(scheme));
 
@@ -1197,7 +1203,7 @@ impl QuantizeOpIr {
 }
 
 impl DequantizeOpIr {
-    pub fn create(input: TensorIr, dtype: DType, new_id: impl Fn() -> TensorId) -> Self {
+    pub fn create(input: TensorIr, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
 
         DequantizeOpIr { input, out }
@@ -1218,24 +1224,6 @@ impl From<MatmulOpIr> for BinaryOpIr {
 
 impl From<ReduceOpIr> for UnaryOpIr {
     fn from(value: ReduceOpIr) -> Self {
-        Self {
-            input: value.input,
-            out: value.out,
-        }
-    }
-}
-
-impl From<CastOpIr> for UnaryOpIr {
-    fn from(value: CastOpIr) -> Self {
-        Self {
-            input: value.input,
-            out: value.out,
-        }
-    }
-}
-
-impl From<ShapeOpIr> for UnaryOpIr {
-    fn from(value: ShapeOpIr) -> Self {
         Self {
             input: value.input,
             out: value.out,

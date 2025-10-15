@@ -3,7 +3,7 @@ use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::{FusionClient, OperationOutput},
     get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
-    stream::{OperationStreams, StreamId, execution::Operation},
+    stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
 use burn_ir::*;
@@ -15,23 +15,21 @@ use std::marker::PhantomData;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        let stream = StreamId::current();
         let client = get_client::<B>(device);
         let dtype = data.dtype;
         let tensor = B::float_from_data(data, device);
         let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
         let handle = B::float_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape, stream, dtype);
-        let desc = out.to_ir_out();
+        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
 
-        client.register(
-            OperationStreams::default(),
-            OperationIr::Init(InitOperationIr { out: desc }),
-            NoOp::<B>::new(),
-        );
-
-        out
+        client
+            .register(
+                OperationStreams::default(),
+                OperationIr::Init(desc),
+                NoOp::<B>::new(),
+            )
+            .output()
     }
 
     fn float_random(

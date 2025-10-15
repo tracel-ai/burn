@@ -230,9 +230,11 @@ impl FuseOptimizationBuilder {
             BaseOperationIr::Equal(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Equal(BinaryFuseArgs { lhs, rhs, out })
             }),
-            BaseOperationIr::Cast(desc) => self.register_unary_ops(desc.into(), |input, out| {
-                FuseOp::Assign(UnaryFuseArgs { input, out })
-            }),
+            BaseOperationIr::Cast(desc) => {
+                self.register_unary_op(&desc.input, &desc.out, |input, out| {
+                    FuseOp::Assign(UnaryFuseArgs { input, out })
+                })
+            }
             BaseOperationIr::SwapDims(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
@@ -255,7 +257,7 @@ impl FuseOptimizationBuilder {
             }
             BaseOperationIr::Reshape(desc) => {
                 if desc.input.shape == desc.out.shape {
-                    return self.register_unary_ops(desc.into(), |input, out| {
+                    return self.register_unary_op(&desc.input, &desc.out, |input, out| {
                         FuseOp::Assign(UnaryFuseArgs { input, out })
                     });
                 }
@@ -601,13 +603,20 @@ impl FuseOptimizationBuilder {
     where
         Func: Fn(Arg, Arg) -> FuseOp,
     {
-        if !self.output_is_compatible(&desc.out) {
+        self.register_unary_op(&desc.input, &desc.out, func)
+    }
+
+    fn register_unary_op<Func>(&mut self, input: &TensorIr, out: &TensorIr, func: Func) -> bool
+    where
+        Func: Fn(Arg, Arg) -> FuseOp,
+    {
+        if !self.output_is_compatible(out) {
             return false;
         }
 
         self.builder.register(|build| {
-            let input = build.input(&desc.input)?;
-            let out = build.output(&desc.out)?;
+            let input = build.input(input)?;
+            let out = build.output(out)?;
             build.register_operation(func(input, out));
             Some(())
         })
