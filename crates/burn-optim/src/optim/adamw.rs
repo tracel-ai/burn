@@ -325,6 +325,86 @@ mod tests {
     }
 
     #[test]
+    fn test_adamw_optimizer_with_numbers_cautious() {
+        let linear = given_linear_layer(
+            TensorData::from([
+                [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
+                [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
+                [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
+                [-0.2980, -0.2214, -0.3715, -0.2981, -0.0761, 0.1626],
+                [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
+                [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
+            ]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+        );
+        let device = Default::default();
+        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+            [
+                [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+                [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+            ],
+            &device,
+        )
+        .require_grad();
+        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+            [
+                [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
+                [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, -0.9085],
+            ],
+            &device,
+        )
+        .require_grad();
+
+        let mut optimizer = AdamWConfig::new()
+            .with_cautious_weight_decay(true)
+            .with_epsilon(1e-8)
+            .with_beta_1(0.9)
+            .with_beta_2(0.999)
+            .with_weight_decay(0.5)
+            .init();
+
+        let grads = linear.forward(x_1).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+
+        let grads = linear.forward(x_2).backward();
+        let grads = GradientsParams::from_grads(grads, &linear);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+
+        let state_updated = linear.into_record();
+        let weights_expected = TensorData::from([
+            [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
+            [
+                0.057032, -0.036518, -0.382951, 0.232516, 0.173738, -0.309182,
+            ],
+            [
+                -0.038703, 0.016052, -0.313155, 0.225982, -0.295039, 0.289981,
+            ],
+            [
+                -0.314920, -0.237394, -0.387704, -0.315067, -0.095153, 0.141081,
+            ],
+            [
+                0.306815, -0.234226, 0.348083, -0.191115, 0.356002, -0.049993,
+            ],
+            [
+                -0.035634, -0.030083, 0.104636, 0.170244, 0.009196, 0.37061332,
+            ],
+        ]);
+        let bias_expected = TensorData::from([
+            -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
+        ]);
+
+        let (weight_updated, bias_updated) = (
+            state_updated.weight.to_data(),
+            state_updated.bias.unwrap().to_data(),
+        );
+
+        let tolerance = Tolerance::absolute(1e-2);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
+    }
+
+    #[test]
     fn test_adam_optimizer_no_nan() {
         let linear = given_linear_layer(
             TensorData::from([
