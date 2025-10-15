@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{
     ArgType, TensorType,
@@ -14,12 +13,12 @@ pub enum DepthToSpaceMode {
     CRD,
 }
 
-impl From<&str> for DepthToSpaceMode {
-    fn from(val: &str) -> Self {
+impl DepthToSpaceMode {
+    fn from_str(val: &str) -> Result<Self, String> {
         match val {
-            "DCR" => Self::DCR,
-            "CRD" => Self::CRD,
-            _ => panic!("Unexpected value for DepthToSpace mode: {val}"),
+            "DCR" => Ok(Self::DCR),
+            "CRD" => Ok(Self::CRD),
+            _ => Err(format!("Unexpected value for DepthToSpace mode: {}", val)),
         }
     }
 }
@@ -50,9 +49,35 @@ impl NodeConfig for DepthToSpaceConfig {
 pub struct DepthToSpaceProcessor;
 
 impl NodeProcessor for DepthToSpaceProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // DepthToSpace implementation supports opset 11+ (for mode attribute)
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut block_size: Option<usize> = None;
         let mut mode = DepthToSpaceMode::DCR;
@@ -60,41 +85,56 @@ impl NodeProcessor for DepthToSpaceProcessor {
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-                "mode" => mode = value.clone().into_string().as_str().into(),
-                _ => panic!("Unexpected attribute for DepthToSpace: {key}"),
+                "mode" => {
+                    mode =
+                        DepthToSpaceMode::from_str(&value.clone().into_string()).map_err(|e| {
+                            ProcessError::InvalidAttribute {
+                                name: "mode".to_string(),
+                                reason: e,
+                            }
+                        })?;
+                }
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for DepthToSpace: {}", key),
+                    });
+                }
             }
         }
 
-        let block_size = block_size.expect("DepthToSpace: blocksize must be provided");
-        assert!(
-            block_size > 0,
-            "DepthToSpace: block_size must be greater than 0"
-        );
+        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
+            name: "blocksize".to_string(),
+        })?;
+
+        if block_size == 0 {
+            return Err(ProcessError::InvalidAttribute {
+                name: "blocksize".to_string(),
+                reason: "block_size must be greater than 0".to_string(),
+            });
+        }
 
         let config = DepthToSpaceConfig { mode, block_size };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("DepthToSpace rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
-            _ => panic!("DepthToSpace: only tensor input is valid"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         };
-        assert_eq!(
-            tensor.rank, 4,
-            "DepthToSpace: only rank 4 tensors are supported"
-        );
 
-        // Get the block size from attribute
-        let block_size = node
-            .attrs
-            .get("blocksize")
-            .cloned()
-            .expect("DepthToSpace: blocksize attribute not found")
-            .into_i64() as usize;
+        if tensor.rank != 4 {
+            return Err(ProcessError::Custom(
+                "DepthToSpace: only rank 4 tensors are supported".to_string(),
+            ));
+        }
 
         log::debug!(
             "DepthToSpace blocksize from attribute for {}: {:?}",
@@ -120,6 +160,16 @@ impl NodeProcessor for DepthToSpaceProcessor {
             rank: tensor.rank,
             static_shape,
         });
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -155,7 +205,8 @@ mod tests {
         let node = create_test_node(4, None, 2, None);
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 2);
@@ -167,7 +218,8 @@ mod tests {
         let node = create_test_node(4, None, 3, Some("DCR"));
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
@@ -179,7 +231,8 @@ mod tests {
         let node = create_test_node(4, None, 3, Some("CRD"));
         let mut node = node;
         let processor = DepthToSpaceProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<DepthToSpaceConfig>();
 
         assert_eq!(config.block_size, 3);
@@ -190,7 +243,8 @@ mod tests {
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 4, 2, 3]), 2, None);
         let processor = DepthToSpaceProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

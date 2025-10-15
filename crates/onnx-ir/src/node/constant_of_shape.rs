@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     TensorData,
     ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorType},
@@ -28,22 +27,61 @@ impl NodeConfig for ConstantOfShapeShape {
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
-    fn process_config(&self, node: &mut Node, _opset: usize) {
-        // ALL logic from constant_of_shape_config inlined here
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
         // Validate input type
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 // For tensor inputs representing shapes, the rank should be 1
-                assert_eq!(tensor.rank, 1, "ConstantOfShape: shape tensor must be 1D");
-                assert!(
-                    matches!(tensor.elem_type, ElementType::Int64),
-                    "ConstantOfShape: shape tensor must have element type int64"
-                );
+                if tensor.rank != 1 {
+                    return Err(ProcessError::Custom(
+                        "ConstantOfShape: shape tensor must be 1D".to_string(),
+                    ));
+                }
+                if !matches!(tensor.elem_type, ElementType::Int64) {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Int64".to_string(),
+                        actual: format!("{:?}", tensor.elem_type),
+                    });
+                }
             }
             ArgType::Shape(_) => {
-                // Shapes are always 1-D int64 data, so nothing to assert here
+                // Shapes are always 1-D int64 data, so nothing to validate here
             }
-            _ => panic!("ConstantOfShape requires a Tensor or Shape type as input"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         }
 
         // Check if we have static values or need runtime resolution
@@ -58,17 +96,14 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 runtime_arg.value_store = None;
                 ConstantOfShapeShape::Runtime(runtime_arg)
             }
-            _ => panic!(
-                "ConstantOfShape node {} requires Int64 shape data",
-                node.name
-            ),
+            _ => {
+                return Err(ProcessError::Custom(format!(
+                    "ConstantOfShape node {} requires Int64 shape data",
+                    node.name
+                )));
+            }
         };
         node.config = Some(Box::new(config));
-    }
-
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // ConstantOfShape implementation supports opset 9+
-        validate_opset(&node.node_type, opset, 9);
 
         log::debug!("ConstantOfShape rank inference for node {}", node.name);
 
@@ -115,17 +150,21 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                             );
                             r
                         }
-                        _ => panic!(
-                            "ConstantOfShape node {} requires Int64 shape input, found {:?}",
-                            node.name, tensor_data.data
-                        ),
+                        _ => {
+                            return Err(ProcessError::Custom(format!(
+                                "ConstantOfShape node {} requires Int64 shape input, found {:?}",
+                                node.name, tensor_data.data
+                            )));
+                        }
                     }
                 } else if let Some(shape) = &tensor_type.static_shape {
                     // Fall back to static shape if no constant value
-                    let r = shape
-                        .first()
-                        .copied()
-                        .expect("ConstantOfShape node must have a non-empty static shape value");
+                    let r = shape.first().copied().ok_or_else(|| {
+                        ProcessError::Custom(
+                            "ConstantOfShape node must have a non-empty static shape value"
+                                .to_string(),
+                        )
+                    })?;
                     log::debug!(
                         "ConstantOfShape derived rank from static shape: {} for {}",
                         r,
@@ -133,13 +172,18 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                     );
                     r
                 } else {
-                    panic!(
+                    return Err(ProcessError::Custom(format!(
                         "ConstantOfShape node {} must have either a constant value or a static shape",
                         node.name
-                    );
+                    )));
                 }
             }
-            _ => panic!("ConstantOfShape node requires a Tensor or Shape type as input"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         };
 
         // Update the input type to be a shape
@@ -175,6 +219,16 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             });
             log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -194,7 +248,8 @@ mod tests {
     fn test_shape_input() {
         let mut node = create_test_node(ArgType::Shape(3)).build();
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -214,7 +269,8 @@ mod tests {
         }))
         .build();
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -236,7 +292,8 @@ mod tests {
             }),
         );
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -248,11 +305,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ConstantOfShape node requires a Tensor or Shape type as input")]
     fn test_invalid_input_type() {
         let mut node = create_test_node(ArgType::Scalar(ElementType::Float32)).build();
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
 
     #[test]
@@ -272,7 +330,8 @@ mod tests {
             .build_with_graph_data(16);
 
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Verify the output has the correct rank
         match &node.outputs[0].ty {
@@ -289,7 +348,8 @@ mod tests {
         // Test when input is Shape(0), output should be Scalar
         let mut node = create_test_node(ArgType::Shape(0)).build();
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -309,7 +369,8 @@ mod tests {
         }))
         .build();
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -331,7 +392,8 @@ mod tests {
             }),
         );
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -353,7 +415,8 @@ mod tests {
             }),
         );
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Shape(rank) => {
@@ -375,7 +438,8 @@ mod tests {
             }),
         );
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -392,7 +456,8 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(1)).build();
         // No value attribute means default Float32
         let processor = ConstantOfShapeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

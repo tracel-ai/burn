@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::{
     ArgType, TensorType,
@@ -27,50 +26,82 @@ impl NodeConfig for SpaceToDepthConfig {
 pub struct SpaceToDepthProcessor;
 
 impl NodeProcessor for SpaceToDepthProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // SpaceToDepth implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
 
-        // ALL logic from space_to_depth_config inlined here
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
         let mut block_size: Option<usize> = None;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "blocksize" => block_size = Some(value.clone().into_i64() as usize),
-                _ => panic!("Unexpected attribute for SpaceToDepth: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for SpaceToDepth: {}", key),
+                    });
+                }
             }
         }
 
-        let block_size = block_size.expect("SpaceToDepth: blocksize must be provided");
-        assert!(
-            block_size > 0,
-            "SpaceToDepth: block_size must be greater than 0"
-        );
+        let block_size = block_size.ok_or_else(|| ProcessError::MissingAttribute {
+            name: "blocksize".to_string(),
+        })?;
+
+        if block_size == 0 {
+            return Err(ProcessError::InvalidAttribute {
+                name: "blocksize".to_string(),
+                reason: "block_size must be greater than 0".to_string(),
+            });
+        }
 
         let config = SpaceToDepthConfig { block_size };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("SpaceToDepth rank inference for node {}", &node.name);
 
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
-            _ => panic!("SpaceToDepth: only tensor input is valid"),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
         };
-        assert_eq!(
-            tensor.rank, 4,
-            "SpaceToDepth: only rank 4 tensors are supported"
-        );
 
-        // Get the block size from attribute
-        let block_size = node
-            .attrs
-            .get("blocksize")
-            .cloned()
-            .expect("SpaceToDepth: blocksize attribute not found")
-            .into_i64() as usize;
+        if tensor.rank != 4 {
+            return Err(ProcessError::Custom(
+                "SpaceToDepth: only rank 4 tensors are supported".to_string(),
+            ));
+        }
 
         log::debug!(
             "SpaceToDepth blocksize from attribute for {}: {:?}",
@@ -96,6 +127,16 @@ impl NodeProcessor for SpaceToDepthProcessor {
             rank: tensor.rank,
             static_shape,
         });
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -120,7 +161,8 @@ mod tests {
         let node = create_test_node(4, None, 2);
         let mut node = node;
         let processor = SpaceToDepthProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SpaceToDepthConfig>();
 
         assert_eq!(config.block_size, 2);
@@ -130,7 +172,8 @@ mod tests {
     fn test_static_shape_update_outputs() {
         let mut node = create_test_node(4, Some(vec![2, 1, 4, 6]), 2);
         let processor = SpaceToDepthProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {

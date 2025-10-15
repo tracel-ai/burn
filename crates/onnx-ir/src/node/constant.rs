@@ -1,13 +1,30 @@
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct ConstantProcessor;
 
 impl NodeProcessor for ConstantProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Constant implementation supports opset 9+
-        validate_opset(&node.node_type, opset, 9);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 9 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 9,
+                actual: opset,
+            });
+        }
+
+        // Validate output count (constants don't have inputs)
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         log::debug!("Constant rank inference for node {}", node.name);
 
@@ -67,10 +84,21 @@ impl NodeProcessor for ConstantProcessor {
                         static_shape: Some(vec![values.len()]),
                     })
                 }
-                ty => panic!("Constant value of {ty:?} is not supported"),
+                ty => {
+                    return Err(ProcessError::Custom(format!(
+                        "Constant value of {:?} is not supported",
+                        ty
+                    )));
+                }
             },
-            None => panic!("Constant node must have a value attribute"),
+            None => {
+                return Err(ProcessError::MissingAttribute {
+                    name: "value".to_string(),
+                });
+            }
         };
+
+        Ok(())
     }
 }
 
@@ -93,7 +121,8 @@ mod tests {
             .insert("value_float".to_string(), AttributeValue::Float32(6.14));
 
         let processor = ConstantProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Scalar(elem_type) => {
@@ -115,7 +144,8 @@ mod tests {
         );
 
         let processor = ConstantProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         match &node.outputs[0].ty {
             ArgType::Tensor(tensor) => {
@@ -127,11 +157,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Constant node must have a value attribute")]
     fn test_constant_missing_value() {
         let mut node = create_test_node();
 
         let processor = ConstantProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::MissingAttribute { .. })));
     }
 }
