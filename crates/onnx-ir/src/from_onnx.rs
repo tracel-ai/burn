@@ -543,12 +543,12 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data_rc.borrow());
 
-            // Process node using new single-phase approach
+            // Initial type inference pass (without preferences)
             log::debug!("Processing node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
-            // Use empty output preferences for now (will be updated when preference propagation is implemented)
+            // Use empty output preferences for initial pass
             let output_prefs = crate::processor::OutputPreferences::new();
 
             // Infer types: extracts config, validates, and determines output types
@@ -569,6 +569,9 @@ impl OnnxGraphBuilder {
 
             graph_data_rc.borrow_mut().add_node(node);
         }
+
+        // After initial processing, run preference propagation
+        self.run_preference_propagation(&graph_data_rc, opset_version);
 
         // Clear value_store references from nodes before consuming to avoid circular references
         // The nodes will still work because they've been cloned into graph_data
@@ -1040,6 +1043,112 @@ impl OnnxGraphBuilder {
                 &node.name
             );
         }
+    }
+
+    /// Run bidirectional preference propagation on the processed nodes
+    fn run_preference_propagation(
+        &self,
+        graph_data_rc: &std::rc::Rc<std::cell::RefCell<GraphData>>,
+        opset: usize,
+    ) {
+        log::debug!("Starting preference propagation");
+
+        let registry = get_processor_registry();
+        let mut graph_data = graph_data_rc.borrow_mut();
+        let nodes = graph_data.get_processed_nodes_mut();
+
+        // Backward pass: collect output preferences from consumers
+        let preferences_map = self.collect_output_preferences(nodes, registry, opset);
+
+        log::debug!(
+            "Collected preferences for {} node outputs",
+            preferences_map.len()
+        );
+
+        // Forward pass: re-run type inference with preferences
+        for node in nodes.iter_mut() {
+            let output_prefs = preferences_map
+                .get(&node.name)
+                .cloned()
+                .unwrap_or_else(crate::processor::OutputPreferences::new);
+
+            // Check if any output has preferences
+            let has_preferences = node
+                .outputs
+                .iter()
+                .any(|output| !output_prefs.get(&output.name).is_empty());
+
+            if has_preferences {
+                log::debug!(
+                    "Re-inferring types for {} with preferences: {:?}",
+                    node.name,
+                    output_prefs
+                );
+
+                let processor = registry.get(&node.node_type);
+                // Re-run inference with preferences (config is already saved)
+                let _ = processor.infer_types(node, opset, &output_prefs);
+            }
+        }
+
+        log::debug!("Preference propagation complete");
+    }
+
+    /// Collect output preferences by iterating nodes in reverse
+    fn collect_output_preferences(
+        &self,
+        nodes: &[Node],
+        registry: &ProcessorRegistry,
+        opset: usize,
+    ) -> HashMap<String, crate::processor::OutputPreferences> {
+        use crate::processor::OutputPreferences;
+
+        // Map from node name to its output preferences
+        let mut node_preferences: HashMap<String, OutputPreferences> = HashMap::new();
+
+        // Iterate nodes in reverse to collect preferences from consumers
+        for node in nodes.iter().rev() {
+            let processor = registry.get(&node.node_type);
+
+            // Get input preferences from this node
+            if let Some(input_prefs) = processor.input_preferences(node, opset) {
+                // For each input this node has preferences for
+                for input in &node.inputs {
+                    let requested_types = input_prefs.get(&input.name);
+
+                    if !requested_types.is_empty() {
+                        // Find which node produces this input
+                        for producer in nodes.iter() {
+                            for output in &producer.outputs {
+                                if output.name == input.name {
+                                    // Add preference to the producer's output preferences
+                                    let prefs =
+                                        node_preferences.entry(producer.name.clone()).or_default();
+
+                                    for requested_type in requested_types {
+                                        prefs.add(
+                                            output.name.clone(),
+                                            node.name.clone(),
+                                            requested_type.clone(),
+                                        );
+                                    }
+
+                                    log::debug!(
+                                        "Node {} requests {:?} for output {} from node {}",
+                                        node.name,
+                                        requested_types,
+                                        output.name,
+                                        producer.name
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        node_preferences
     }
 
     /// Find constants that need to be converted to Shape type during propagation

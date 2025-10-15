@@ -59,6 +59,28 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
+    fn input_preferences(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Option<crate::processor::InputPreferences> {
+        use crate::processor::InputPreferences;
+
+        if node.inputs.is_empty() {
+            return None;
+        }
+
+        // Conv2d requires 4D tensor input: [batch, channels, height, width]
+        Some(InputPreferences::new().add(
+            &node.inputs[0].name,
+            ArgType::Tensor(TensorType {
+                elem_type: crate::ElementType::Float32, // Prefer float, but will accept what's available
+                rank: 4,
+                static_shape: None,
+            }),
+        ))
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
