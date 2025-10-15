@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Concat operation
@@ -21,6 +21,32 @@ impl NodeConfig for ConcatConfig {
 pub struct ConcatProcessor;
 
 impl NodeProcessor for ConcatProcessor {
+    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+        if node.inputs.is_empty() {
+            return None;
+        }
+
+        // Check if any input is Shape type
+        let has_shape = node.inputs.iter().any(|input| input.ty.is_shape());
+
+        if !has_shape {
+            return None;
+        }
+
+        // When concatenating with Shape inputs, prefer constant rank-1 tensors to be Shape
+        let mut prefs = InputPreferences::new();
+        for input in &node.inputs {
+            if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) && input.has_value() {
+                // Prefer this constant to be Shape (rank will be determined from tensor data)
+                let value = input.into_value().unwrap(); // TODO propagate error
+                let rank = value.shape.first().unwrap(); // TODO propage error
+                prefs = prefs.add(&input.name, ArgType::Shape(*rank));
+            }
+        }
+
+        Some(prefs)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

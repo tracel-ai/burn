@@ -1,5 +1,5 @@
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Gather operation.
@@ -31,6 +31,21 @@ pub enum GatherInput {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
+    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+        if node.inputs.len() < 2 {
+            return None;
+        }
+
+        // When gathering from Shape data, prefer indices to be Shape type
+        if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
+            let value = node.inputs[1].into_value().unwrap(); // TODO propagate error
+            let rank = value.shape.first().unwrap(); // TODO propagate error
+            Some(InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(*rank)))
+        } else {
+            None
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

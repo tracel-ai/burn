@@ -1,5 +1,5 @@
 use crate::ir::{AttributeValue, Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -31,6 +31,38 @@ impl NodeConfig for ModConfig {
 pub struct ModuloProcessor;
 
 impl NodeProcessor for ModuloProcessor {
+    fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
+        if node.inputs.len() != 2 {
+            return None;
+        }
+
+        let mut prefs = InputPreferences::new();
+
+        // Type propagation for Shape arithmetic (same as Add/Sub/Mul/Div)
+        // Case 1: Shape op Constant => prefer Constant as Shape
+        if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
+            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
+        }
+
+        // Case 2: Constant op Shape => prefer Constant as Shape
+        if node.inputs[1].ty.is_shape() && node.inputs[0].has_value() {
+            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
+        }
+
+        // Type propagation for Scalar arithmetic
+        // Case 3: Scalar op Constant => prefer Constant as Scalar
+        if node.inputs[0].ty.is_scalar() && node.inputs[1].has_value() {
+            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
+        }
+
+        // Case 4: Constant op Scalar => prefer Constant as Scalar
+        if node.inputs[1].ty.is_scalar() && node.inputs[0].has_value() {
+            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
+        }
+
+        Some(prefs)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,
