@@ -330,6 +330,27 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_mul(curr)
+        });
+        CandleTensor::new(result)
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_minimum(curr)
+        });
+        CandleTensor::new(result)
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_maximum(curr)
+        });
+        CandleTensor::new(result)
+    }
+
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.exp().unwrap())
     }
@@ -342,7 +363,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
     }
 

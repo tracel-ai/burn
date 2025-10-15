@@ -303,6 +303,35 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(result_float.to_dtype(dtype).unwrap())
     }
 
+    fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        // Convert to float for computation, then convert back
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+
+        let result_float = super::utils::cumulative_with_op(&tensor_float, dim, |prev, curr| {
+            prev.broadcast_mul(curr)
+        });
+        CandleTensor::new(result_float.to_dtype(dtype).unwrap())
+    }
+
+    fn int_cummin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        // Convert to float for computation, then convert back
+        let dtype = tensor.tensor.dtype();
+        let tensor_float = tensor.tensor.to_dtype(candle_core::DType::F32).unwrap();
+
+        let result_float = super::utils::cumulative_with_op(&tensor_float, dim, |prev, curr| {
+            prev.broadcast_minimum(curr)
+        });
+        CandleTensor::new(result_float.to_dtype(dtype).unwrap())
+    }
+
+    fn int_cummax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_maximum(curr)
+        });
+        CandleTensor::new(result)
+    }
+
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor

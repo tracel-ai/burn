@@ -76,87 +76,27 @@ impl MatmulArgs for FusedMatmulArgs {
     fn view_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<Lhs>, Coords3d> {
-        let rank = comptime![state.config.rank];
-        let lhs = match comptime![state.a.clone()] {
-            Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
-            _ => panic!("Input must be concrete"),
-        };
-
-        let mut batch_strides = Sequence::new();
-        #[unroll]
-        for i in 0..rank - 2 {
-            let shape = lhs.tensor.shape(i);
-            let stride = select(shape == 1, 0, lhs.tensor.stride(i));
-            batch_strides.push(stride);
-        }
-
-        let shape_row = lhs.tensor.shape(rank - 2);
-        let shape_col = lhs.tensor.shape(rank - 1);
-
-        let stride_row = lhs.tensor.stride(rank - 2);
-        let stride_col = lhs.tensor.stride(rank - 1);
-
-        let layout = BatchedGlobalLayout::new(
-            batch_strides,
-            state.batch_shape.clone(),
-            shape_row,
-            shape_col,
-            stride_row,
-            stride_col,
-            state.lhs_memory_config,
-            1u32,
-        );
-        let buffer = GlobalInput::new(
+        global_view(
             &state.inputs,
             &state.locals,
+            state.batch_shape.clone(),
             comptime![state.a.clone()],
             comptime![state.config.clone()],
-            None,
-        );
-        View::new::<GlobalInput, Coords1d>(&buffer, layout)
+            comptime![state.lhs_memory_config],
+        )
     }
 
     fn view_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<Rhs>, Coords3d> {
-        let rank = comptime![state.config.rank];
-        let rhs = match comptime![state.b.clone()] {
-            Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
-            _ => panic!("Input must be concrete"),
-        };
-
-        let mut batch_strides = Sequence::new();
-        #[unroll]
-        for i in 0..rank - 2 {
-            let shape = rhs.tensor.shape(i);
-            let stride = select(shape == 1, 0, rhs.tensor.stride(i));
-            batch_strides.push(stride);
-        }
-
-        let shape_row = rhs.tensor.shape(rank - 2);
-        let shape_col = rhs.tensor.shape(rank - 1);
-
-        let stride_row = rhs.tensor.stride(rank - 2);
-        let stride_col = rhs.tensor.stride(rank - 1);
-
-        let layout = BatchedGlobalLayout::new(
-            batch_strides,
-            state.batch_shape.clone(),
-            shape_row,
-            shape_col,
-            stride_row,
-            stride_col,
-            state.rhs_memory_config,
-            1u32,
-        );
-        let buffer = GlobalInput::new(
+        global_view(
             &state.inputs,
             &state.locals,
+            state.batch_shape.clone(),
             comptime![state.b.clone()],
             comptime![state.config.clone()],
-            None,
-        );
-        View::new::<GlobalInput, Coords1d>(&buffer, layout)
+            comptime![state.rhs_memory_config],
+        )
     }
 
     fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
@@ -164,44 +104,15 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> CubeOption<View<Line<EO>, Coords3d>> {
         match comptime![state.c.clone()] {
             CubeOption::Some(c) => {
-                let rank = comptime![state.config.rank];
-                let acc = match c {
-                    Arg::Input(pos, ..) => state.inputs.tensors.index(pos),
-                    _ => panic!("Input must be concrete"),
-                };
-
-                let mut batch_strides = Sequence::new();
-                #[unroll]
-                for i in 0..rank - 2 {
-                    let shape = acc.tensor.shape(i);
-                    let stride = select(shape == 1, 0, acc.tensor.stride(i));
-                    batch_strides.push(stride);
-                }
-
-                let shape_row = acc.tensor.shape(rank - 2);
-                let shape_col = acc.tensor.shape(rank - 1);
-
-                let stride_row = acc.tensor.stride(rank - 2);
-                let stride_col = acc.tensor.stride(rank - 1);
-
-                let layout = BatchedGlobalLayout::new(
-                    batch_strides,
-                    state.batch_shape.clone(),
-                    shape_row,
-                    shape_col,
-                    stride_row,
-                    stride_col,
-                    state.out_memory_config,
-                    1u32,
-                );
-                let buffer = GlobalInput::new(
+                let view = global_view(
                     &state.inputs,
                     &state.locals,
-                    comptime![c.clone()],
+                    state.batch_shape.clone(),
+                    c,
                     comptime![state.config.clone()],
-                    None,
+                    comptime![state.out_memory_config],
                 );
-                CubeOption::new_Some(View::new::<GlobalInput, Coords1d>(&buffer, layout))
+                CubeOption::new_Some(view)
             }
             CubeOption::None => CubeOption::new_None(),
         }
@@ -232,7 +143,6 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_row,
             stride_col,
             state.out_memory_config,
-            1u32,
         );
         let mut buffer = FusedOutput::new(
             &state.inputs,
@@ -243,6 +153,48 @@ impl MatmulArgs for FusedMatmulArgs {
         );
         View::new_mut::<FusedOutput, Coords1d>(&mut buffer, layout)
     }
+}
+
+#[cube]
+fn global_view<E: CubePrimitive>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    batch_shape: Sequence<FastDivmod>,
+    #[comptime] arg: Arg,
+    #[comptime] config: FuseBlockConfig,
+    #[comptime] mem_config: GlobalMemoryConfig,
+) -> View<Line<E>, Coords3d> {
+    let rank = comptime![config.rank];
+    let lhs = match comptime![arg.clone()] {
+        Arg::Input(pos, ..) => inputs.tensors.index(pos),
+        _ => panic!("Input must be concrete"),
+    };
+
+    let mut batch_strides = Sequence::new();
+    #[unroll]
+    for i in 0..rank - 2 {
+        let shape = lhs.tensor.shape(i);
+        let stride = select(shape == 1, 0, lhs.tensor.stride(i));
+        batch_strides.push(stride);
+    }
+
+    let shape_row = lhs.tensor.shape(rank - 2);
+    let shape_col = lhs.tensor.shape(rank - 1);
+
+    let stride_row = lhs.tensor.stride(rank - 2);
+    let stride_col = lhs.tensor.stride(rank - 1);
+
+    let layout = BatchedGlobalLayout::new(
+        batch_strides,
+        batch_shape.clone(),
+        shape_row,
+        shape_col,
+        stride_row,
+        stride_col,
+        mem_config,
+    );
+    let buffer = GlobalInput::new(inputs, locals, arg, comptime![config.clone()], None);
+    View::new::<GlobalInput, Coords1d>(&buffer, layout)
 }
 
 #[derive(CubeType)]
