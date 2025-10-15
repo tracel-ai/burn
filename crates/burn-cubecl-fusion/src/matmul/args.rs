@@ -143,6 +143,7 @@ impl MatmulArgs for FusedMatmulArgs {
             stride_row,
             stride_col,
             state.out_memory_config,
+            1u32,
         );
         let mut buffer = FusedOutput::new(
             &state.inputs,
@@ -192,6 +193,7 @@ fn global_view<E: CubePrimitive>(
         stride_row,
         stride_col,
         mem_config,
+        1u32,
     );
     let buffer = GlobalInput::new(inputs, locals, arg, comptime![config.clone()], None);
     View::new::<GlobalInput, Coords1d>(&buffer, layout)
