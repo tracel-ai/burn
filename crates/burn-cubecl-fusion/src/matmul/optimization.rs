@@ -73,7 +73,7 @@ pub struct MatmulOptimizationTuneArg<R: Runtime> {
 pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
     trace: FuseTrace,
     trace_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R::Server, R::Channel>,
+    pub(crate) client: ComputeClient<R::Server>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) variants: MatmulVariants,
@@ -197,7 +197,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         device: R::Device,
         len: usize,
         matmul: FusedMatmul,
@@ -353,7 +353,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R::Server, R::Channel>,
+        client: &'a ComputeClient<R::Server>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
@@ -375,7 +375,7 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmul {
 impl FusedMatmul {
     fn matmul_fused<'a, R: Runtime, EG: MatmulPrecision>(
         &'a self,
-        client: &'a ComputeClient<R::Server, R::Channel>,
+        client: &'a ComputeClient<R::Server>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a FuseBlockConfig,
@@ -610,7 +610,7 @@ impl FusedMatmul {
 }
 
 fn launch_inner_fix_dtype<'a, R: Runtime, MP: MatmulPrecision, A: Algorithm>(
-    client: &ComputeClient<R::Server, R::Channel>,
+    client: &ComputeClient<R::Server>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
