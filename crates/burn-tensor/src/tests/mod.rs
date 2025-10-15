@@ -210,6 +210,9 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_cross!();
         burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
@@ -300,6 +303,9 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_cat!();
         burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_expand!();
         burn_tensor::testgen_flip!();
