@@ -1157,6 +1157,17 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with ceiled values.
     fn float_ceil(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
+    /// Returns a new tensor with truncated values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be truncated.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with truncated values.
+    fn float_trunc(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
     /// Returns a new tensor with the error function values.
     ///
     /// # Arguments

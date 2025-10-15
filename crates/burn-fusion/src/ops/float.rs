@@ -2402,6 +2402,29 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(TruncOps, B::float_trunc);
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let dtype = tensor.dtype;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::Trunc(desc.clone())),
+            TruncOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct CastOps<B: FusionBackend> {

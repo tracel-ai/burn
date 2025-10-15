@@ -437,6 +437,14 @@ where
         })
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
+            tensor
+                .mapv_into(|a| (a.to_f64()).trunc().elem())
+                .into_shared()
+        })
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
             tensor.mapv_into(|a| erf(a.to_f64()).elem()).into_shared()
