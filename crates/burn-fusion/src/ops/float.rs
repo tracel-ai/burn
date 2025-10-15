@@ -2403,7 +2403,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float_ops!(TruncOps, B::float_ceil);
+        unary_float_ops!(TruncOps, B::float_trunc);
 
         let mut streams = OperationStreams::default();
         streams.tensor(&tensor);
