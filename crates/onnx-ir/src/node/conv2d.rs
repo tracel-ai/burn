@@ -1,9 +1,6 @@
-use crate::ir::{Node, NodeConfig};
-use crate::util::validate_opset;
-
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};
-use crate::processor::NodeProcessor;
-use crate::util::same_as_input;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Conv2d operations
@@ -62,9 +59,35 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Conv implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
+
+        // Validate input count
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];
@@ -74,7 +97,9 @@ impl NodeProcessor for Conv2dProcessor {
 
         let weight_shape = node.inputs[1]
             .into_value()
-            .expect("Conv2d: weight tensor must be present")
+            .ok_or_else(|| {
+                ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
+            })?
             .shape
             .clone();
 
@@ -91,10 +116,18 @@ impl NodeProcessor for Conv2dProcessor {
                 "auto_pad" => {
                     let auto_pad = value.clone().into_string();
                     if auto_pad != "NOTSET" {
-                        panic!("Unsupported 'auto_pad' value: {auto_pad}");
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "auto_pad".to_string(),
+                            reason: format!("Unsupported 'auto_pad' value: {}", auto_pad),
+                        });
                     }
                 }
-                _ => panic!("Unexpected attribute for Conv2d: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Conv2d: {}", key),
+                    });
+                }
             }
         }
 
@@ -102,16 +135,17 @@ impl NodeProcessor for Conv2dProcessor {
         let channels_in = weight_shape[1] * group;
         let channels_out = weight_shape[0];
 
-        let padding = padding_config_2d(&pads);
+        let padding = padding_config_2d(&pads).map_err(|e| ProcessError::Custom(e))?;
 
         let kernel_size = if kernel_shape.is_empty() {
             // https://onnx.ai/onnx/operators/onnx__Conv.html#attributes
             // Spec says if kernel shape not present in attributes it should be inferred from
             // the weight tensor, which has shape (M, C/group, kH, kW).
             if weight_shape.len() != 4 {
-                panic!(
-                    "expected to infer kernel shape from a weight tensor of rank 4 but got shape {weight_shape:?}"
-                );
+                return Err(ProcessError::Custom(format!(
+                    "Conv2d: expected to infer kernel shape from a weight tensor of rank 4 but got shape {:?}",
+                    weight_shape
+                )));
             }
 
             [weight_shape[2], weight_shape[3]]
@@ -131,11 +165,36 @@ impl NodeProcessor for Conv2dProcessor {
         );
 
         node.config = Some(Box::new(config));
+
+        log::debug!("Conv2d rank inference for node {}", node.name);
+
+        // Extract input tensor type
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        // Conv2d preserves rank (same as input)
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: tensor.elem_type.clone(),
+            rank: tensor.rank,
+            static_shape: None,
+        });
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        // Conv2d preserves rank (same as input)
-        same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -199,7 +258,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.channels, [2, 4]);
@@ -225,7 +285,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -246,7 +307,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.groups, 2);
@@ -267,7 +329,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert!(config.bias);
@@ -287,7 +350,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [3, 3]);
@@ -295,7 +359,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Unsupported 'auto_pad' value"]
     fn test_conv2d_config_autopad_not_supported() {
         let node = create_test_node(
             vec![3, 3],
@@ -309,7 +372,9 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
@@ -326,7 +391,8 @@ mod tests {
         .build_with_graph_data(16);
         let mut node = node;
         let processor = Conv2dProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<Conv2dConfig>();
 
         assert_eq!(config.kernel_size, [2, 2]); // Inferred via weight tensor shape

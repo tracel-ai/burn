@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use core::cmp::max;
 use std::any::Any;
 
@@ -22,45 +21,39 @@ impl NodeConfig for GemmConfig {
     }
 }
 
-/// Update output shape for Gemm operation based on input ranks.
-pub fn gemm_output_shape(node: &mut Node) {
-    log::debug!("Gemm rank inference for node {}", node.name);
-
-    let a_rank = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        _ => panic!("Input A should be a tensor!"),
-    };
-    let b_rank = match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => tensor.rank,
-        _ => panic!("Input B should be a tensor!"),
-    };
-
-    log::debug!(
-        "Gemm input ranks for {}: a_rank={}, b_rank={}",
-        node.name,
-        a_rank,
-        b_rank
-    );
-
-    let output_rank = max(a_rank, b_rank);
-    log::debug!("Gemm output rank for {}: {}", node.name, output_rank);
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: output_rank,
-        static_shape: None,
-        elem_type: match &node.inputs[0].ty {
-            ArgType::Tensor(t) => t.elem_type.clone(),
-            _ => panic!("Unexpected type for input A"),
-        },
-    });
-}
-
 pub struct GemmProcessor;
 
 impl NodeProcessor for GemmProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Gemm implementation supports opset 11+ (optional C input)
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
+
+        // Validate input count (A, B required; C optional)
+        if node.inputs.len() < 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
         let mut alpha: f32 = 1.0;
         let mut beta: f32 = 1.0;
         let mut trans_a: i64 = 0;
@@ -72,7 +65,12 @@ impl NodeProcessor for GemmProcessor {
                 "beta" => beta = value.clone().into_f32(),
                 "transA" => trans_a = value.clone().into_i64(),
                 "transB" => trans_b = value.clone().into_i64(),
-                _ => panic!("Unexpected attribute for Gemm: {key}"),
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for Gemm: {}", key),
+                    });
+                }
             }
         }
 
@@ -83,10 +81,66 @@ impl NodeProcessor for GemmProcessor {
             trans_b,
         };
         node.config = Some(Box::new(config));
+
+        log::debug!("Gemm rank inference for node {}", node.name);
+
+        // Extract input A tensor type
+        let a_rank = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        // Extract input B tensor type
+        let b_rank = match &node.inputs[1].ty {
+            ArgType::Tensor(tensor) => tensor.rank,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[1].ty),
+                });
+            }
+        };
+
+        log::debug!(
+            "Gemm input ranks for {}: a_rank={}, b_rank={}",
+            node.name,
+            a_rank,
+            b_rank
+        );
+
+        let output_rank = max(a_rank, b_rank);
+        log::debug!("Gemm output rank for {}: {}", node.name, output_rank);
+
+        let elem_type = match &node.inputs[0].ty {
+            ArgType::Tensor(t) => t.elem_type.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            rank: output_rank,
+            static_shape: None,
+            elem_type,
+        });
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::node::gemm::gemm_output_shape(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -129,7 +183,8 @@ mod tests {
         let node = create_test_node(None, None, None, None);
         let mut node = node;
         let processor = GemmProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 1.0);
         assert_eq!(config.beta, 1.0);
@@ -142,7 +197,8 @@ mod tests {
         let node = create_test_node(Some(2.0), Some(3.0), Some(1), Some(1));
         let mut node = node;
         let processor = GemmProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 2.0);
         assert_eq!(config.beta, 3.0);
@@ -155,7 +211,8 @@ mod tests {
         let node = create_test_node(Some(0.5), None, Some(1), None);
         let mut node = node;
         let processor = GemmProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GemmConfig>();
         assert_eq!(config.alpha, 0.5);
         assert_eq!(config.beta, 1.0); // default

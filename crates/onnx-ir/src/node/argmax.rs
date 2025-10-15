@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
 
@@ -26,46 +25,71 @@ impl NodeConfig for ArgMaxConfig {
 pub struct ArgMaxProcessor;
 
 impl NodeProcessor for ArgMaxProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // ArgMax implementation supports opset 11+ (for select_last_index and empty tensor constraint)
-        validate_opset(&node.node_type, opset, 11);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
+        }
 
-        // ALL logic from argmax_config inlined here
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract the input tensor type
+        let tensor = match &node.inputs[0].ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
+
         let mut axis: i64 = 0;
         let mut keepdims = true; // default value per ONNX spec
 
-        // check if the node has only one input
-        if node.inputs.len() != 1 {
-            panic!(
-                "Argmax: multiple inputs are not supported (got {:?})",
-                node.inputs.len()
-            );
-        }
-
-        // extract the shape of the input tensor
-        let tensor = match node.inputs.first().unwrap().clone().ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Only tensor input is valid"),
-        };
-
-        // extract the attributes
+        // Extract the attributes
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "axis" => axis = value.clone().into_i64(),
                 "select_last_index" => {
                     if value.clone().into_i64() != 0 {
-                        panic!(
-                            "select_last_index=1 is not supported for argmax in burn (got {value:?})"
-                        );
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "select_last_index".to_string(),
+                            reason: "select_last_index=1 is not supported for argmax in burn"
+                                .to_string(),
+                        });
                     }
                 }
                 "keepdims" => {
-                    // keepdims=0 and keepdims=1 are both supported
                     let keepdims_val = value.clone().into_i64();
                     if keepdims_val != 0 && keepdims_val != 1 {
-                        panic!(
-                            "Only keepdims=0 or keepdims=1 is supported for argmax in burn (got {value:?})",
-                        );
+                        return Err(ProcessError::InvalidAttribute {
+                            name: "keepdims".to_string(),
+                            reason: "Only keepdims=0 or keepdims=1 is supported for argmax in burn"
+                                .to_string(),
+                        });
                     }
                     keepdims = keepdims_val != 0;
                 }
@@ -80,25 +104,9 @@ impl NodeProcessor for ArgMaxProcessor {
 
         let config = ArgMaxConfig::new(axis as usize, keepdims);
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("ArgMax rank inference for node {}", node.name);
-
-        if node.inputs.len() != 1 {
-            panic!("ArgMax: multiple inputs are not supported");
-        }
-
-        // Extract rank before calling process_config (which needs mutable borrow)
-        let input_rank = match &node.inputs[0].ty {
-            ArgType::Tensor(tensor) => tensor.rank,
-            _ => panic!("Only tensor input is valid"),
-        };
-
-        log::debug!("ArgMax input rank for {}: {}", node.name, input_rank);
-
-        // Get config to determine output rank
-        let keepdims = node.config::<ArgMaxConfig>().keepdims;
+        log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
 
         // For burn compatibility, argmax always outputs a tensor
         // When keepdims=false, we still output a tensor but with adjusted rank
@@ -106,17 +114,17 @@ impl NodeProcessor for ArgMaxProcessor {
             // keepdims=true: output rank same as input rank (dimension becomes 1)
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
-                rank: input_rank,
+                rank: tensor.rank,
                 static_shape: None,
             });
-        } else if input_rank == 1 {
+        } else if tensor.rank == 1 {
             // keepdims=false on 1D tensor: output is scalar
             node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
         } else {
             // keepdims=false on nD tensor (n > 1): output rank is input rank - 1
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
-                rank: input_rank - 1,
+                rank: tensor.rank - 1,
                 static_shape: None,
             });
         }
@@ -127,6 +135,16 @@ impl NodeProcessor for ArgMaxProcessor {
             keepdims,
             node.outputs[0].ty
         );
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -154,7 +172,8 @@ mod tests {
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 0);
@@ -167,7 +186,8 @@ mod tests {
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         let config = node.config::<ArgMaxConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
@@ -175,7 +195,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Argmax: multiple inputs are not supported")]
     fn test_argmax_config_multiple_inputs() {
         let mut node = create_test_node(0, 0, 1);
         node.inputs.push(Argument {
@@ -190,7 +209,12 @@ mod tests {
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount { .. })
+        ));
     }
 
     #[test]
@@ -199,7 +223,10 @@ mod tests {
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node_keepdims_0, 16);
+        let prefs = OutputPreferences::new();
+        processor
+            .infer_types(&mut node_keepdims_0, 16, &prefs)
+            .unwrap();
 
         let config_0 = node_keepdims_0.config::<ArgMaxConfig>();
         assert_eq!(config_0.axis, 0);
@@ -209,7 +236,10 @@ mod tests {
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node_keepdims_1, 16);
+        let prefs = OutputPreferences::new();
+        processor
+            .infer_types(&mut node_keepdims_1, 16, &prefs)
+            .unwrap();
 
         let config_1 = node_keepdims_1.config::<ArgMaxConfig>();
         assert_eq!(config_1.axis, 0);
@@ -217,23 +247,25 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Only keepdims=0 or keepdims=1 is supported for argmax in burn")]
     fn test_argmax_config_keepdims_invalid() {
         let mut node = create_test_node(0, 0, 2); // Invalid keepdims value
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
-    #[should_panic(expected = "select_last_index=1 is not supported for argmax in burn")]
     fn test_argmax_config_select_last_index_invalid() {
         let mut node = create_test_node(0, 1, 1); // Invalid select_last_index value
 
         let processor = ArgMaxProcessor;
 
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
 
     #[test]
@@ -247,8 +279,8 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with rank 1 (2 - 1 = 1, max(1, 1) = 1)
         match &node.outputs[0].ty {
@@ -271,8 +303,8 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with same rank as input (3)
         match &node.outputs[0].ty {
@@ -295,8 +327,8 @@ mod tests {
             .build();
 
         let processor = ArgMaxProcessor;
-        processor.process_config(&mut node, 16);
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar (rank 0)
         match &node.outputs[0].ty {
