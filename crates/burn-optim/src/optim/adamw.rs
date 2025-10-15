@@ -27,6 +27,12 @@ pub struct AdamWConfig {
     /// Weight decay config.
     #[config(default = 1e-4)]
     weight_decay: f32,
+
+    /// Cautious weight decay config.
+    /// See: https://arxiv.org/abs/2510.12402
+    #[config(default = false)]
+    cautious_weight_decay: bool,
+
     /// [Gradient Clipping](GradientClippingConfig) config.
     grad_clipping: Option<GradientClippingConfig>,
 }
@@ -36,6 +42,7 @@ pub struct AdamWConfig {
 pub struct AdamW {
     momentum: AdaptiveMomentumW,
     weight_decay: f32,
+    cautious_weight_decay: bool,
 }
 
 /// AdamW state.
@@ -60,15 +67,32 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW {
         // State of the optimizer.
         state: Option<Self::State<D>>,
     ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let tensor_updated = tensor.clone() - tensor.mul_scalar(lr).mul_scalar(self.weight_decay);
-
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
+
+        let decay_rate = lr * (self.weight_decay as f64);
+
+        let decayed_tensor = if decay_rate == 0.0 {
+            tensor.clone()
+        } else if self.cautious_weight_decay {
+            // Cautious weight decay.
+            // See: https://arxiv.org/abs/2510.12402
+            let tensor_pos = tensor.clone().greater_elem(0.0);
+            let grad_pos = raw_delta.clone().greater_elem(0.0);
+            let same = tensor_pos.equal(grad_pos);
+
+            // Zero out the decay where the signs of the tensors and updates are different.
+            tensor.clone() - tensor.mul_scalar(decay_rate).mask_fill(same, 0.0)
+        } else {
+            tensor.clone().mul_scalar(1.0 - decay_rate)
+        };
+
+        let tensor_updated = decayed_tensor - raw_delta.mul_scalar(lr);
 
         let state = AdamWState {
             momentum: momentum_state,
         };
 
-        (tensor_updated - raw_delta.mul_scalar(lr), Some(state))
+        (tensor_updated, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
@@ -91,6 +115,7 @@ impl AdamWConfig {
                 epsilon: self.epsilon,
             },
             weight_decay: self.weight_decay,
+            cautious_weight_decay: self.cautious_weight_decay,
         };
 
         let mut optim = OptimizerAdaptor::from(optim);
@@ -114,20 +139,21 @@ impl AdaptiveMomentumW {
         grad: Tensor<B, D>,
         state: Option<AdaptiveMomentumState<B, D>>,
     ) -> (Tensor<B, D>, AdaptiveMomentumState<B, D>) {
+        let factor_1 = 1.0 - self.beta_1;
+        let factor_2 = 1.0 - self.beta_2;
+
         let state = if let Some(mut state) = state {
             // Update first moment estimate.
-            let factor = 1.0 - self.beta_1;
             state.moment_1 = state
                 .moment_1
                 .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor));
+                .add(grad.clone().mul_scalar(factor_1));
 
             // Update second moment estimate.
-            let factor = 1.0 - self.beta_2;
             state.moment_2 = state
                 .moment_2
                 .mul_scalar(self.beta_2)
-                .add(grad.powi_scalar(2).mul_scalar(factor));
+                .add(grad.powi_scalar(2).mul_scalar(factor_2));
 
             // Update time.
             state.time += 1;
@@ -135,12 +161,10 @@ impl AdaptiveMomentumW {
             state
         } else {
             // Initialize first moment estimate.
-            let factor = 1.0 - self.beta_1;
-            let moment_1 = grad.clone().mul_scalar(factor);
+            let moment_1 = grad.clone().mul_scalar(factor_1);
 
             // Initialize second moment estimate.
-            let factor = 1.0 - self.beta_2;
-            let moment_2 = grad.powi_scalar(2).mul_scalar(factor);
+            let moment_2 = grad.powi_scalar(2).mul_scalar(factor_2);
 
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
@@ -361,6 +385,7 @@ mod tests {
                 epsilon: config.epsilon,
             },
             weight_decay: config.weight_decay,
+            cautious_weight_decay: false,
         }
         .into()
     }
