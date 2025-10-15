@@ -46,31 +46,11 @@ impl NodeProcessor for WhereProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 9 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 9,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 9)?;
+        crate::util::validate_input_count(node, 3)?;
+        crate::util::validate_output_count(node, 1)?;
 
         log::debug!("Where rank inference for node {}", node.name);
-
-        // Validate input count
-        if node.inputs.len() != 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
 
         let condition = &node.inputs[0].ty;
         let x = &node.inputs[1].ty;

@@ -53,28 +53,13 @@ impl NodeProcessor for AvgPool2dProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];

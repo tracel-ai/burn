@@ -115,27 +115,13 @@ impl NodeProcessor for SliceProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 10 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 10,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 10)?;
+
         // Validate input count (at least data, starts, ends)
-        if node.inputs.len() < 3 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 3,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_min_inputs(node, 3)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         log::debug!("Slice rank inference for node {}", node.name);
 

@@ -65,30 +65,13 @@ impl NodeProcessor for MaxPool2dProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        const MIN: usize = 11;
-
         // MaxPool implementation supports opset 11+ (for enhanced calculations)
-        if opset < MIN {
-            return Err(ProcessError::UnsupportedOpset {
-                required: MIN,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate input/output count
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
-        if node.outputs.is_empty() {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         let mut kernel_shape = Vec::new();
         let mut strides = vec![1, 1];

@@ -31,29 +31,9 @@ impl NodeProcessor for ArgMaxProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
-
-        // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
+        crate::util::validate_input_count(node, 1)?;
+        crate::util::validate_output_count(node, 1)?;
 
         // Extract the input tensor type
         let tensor = match &node.inputs[0].ty {

@@ -30,29 +30,9 @@ impl NodeProcessor for GemmProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
-
-        // Validate input count (A, B required; C optional)
-        if node.inputs.len() < 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
+        crate::util::validate_min_inputs(node, 2)?;
+        crate::util::validate_output_count(node, 1)?;
 
         let mut alpha: f32 = 1.0;
         let mut beta: f32 = 1.0;

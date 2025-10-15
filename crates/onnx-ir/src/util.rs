@@ -75,6 +75,39 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
 }
 
 /// Validate that the operator is supported in the given opset version.
+/// Returns an error if the version is too old.
+///
+/// # Arguments
+///
+/// * `opset` - The opset version being used
+/// * `min_version` - The minimum opset version that supports this operator
+///
+/// # Returns
+///
+/// * `Ok(())` if the opset version is sufficient
+/// * `Err(ProcessError::UnsupportedOpset)` if the opset version is too old
+///
+/// # Examples
+///
+/// ```ignore
+/// // In Clip processor
+/// validate_opset(opset, 11)?;  // Clip requires opset >= 11 for min/max as inputs
+/// ```
+pub fn validate_opset(
+    opset: usize,
+    min_version: usize,
+) -> Result<(), crate::processor::ProcessError> {
+    if opset < min_version {
+        Err(crate::processor::ProcessError::UnsupportedOpset {
+            required: min_version,
+            actual: opset,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate that the operator is supported in the given opset version.
 /// This function panics with a clear error message if the version is too old.
 ///
 /// # Arguments
@@ -95,17 +128,113 @@ pub fn check_opset_version(opset: &OperatorSetIdProto, min_version: i64) -> bool
 /// # Examples
 ///
 /// ```ignore
-/// // In Clip processor
-/// validate_opset(&node.node_type, opset, 11);  // Clip requires opset >= 11 for min/max as inputs
+/// // In Clip processor (when you want to panic instead of return error)
+/// validate_opset_panic(&node.node_type, opset, 11);
 /// ```
 #[track_caller]
-pub fn validate_opset(node_type: &crate::ir::NodeType, opset: usize, min_version: usize) {
+pub fn validate_opset_panic(node_type: &crate::ir::NodeType, opset: usize, min_version: usize) {
     if opset < min_version {
         panic!(
             "ONNX operator '{:?}' requires opset version >= {}, but model uses opset version {}. \
              Please use a newer version of the model or update the ONNX export to use a compatible opset version.",
             node_type, min_version, opset
         );
+    }
+}
+
+/// Validate that a node has exactly the expected number of inputs.
+/// Returns an error if the count doesn't match.
+///
+/// # Arguments
+///
+/// * `node` - The node to validate
+/// * `expected` - The expected number of inputs
+///
+/// # Returns
+///
+/// * `Ok(())` if the input count matches
+/// * `Err(ProcessError::InvalidInputCount)` if the count doesn't match
+///
+/// # Examples
+///
+/// ```ignore
+/// // Validate that Conv2d has at least 2 inputs
+/// validate_input_count(node, 2)?;
+/// ```
+pub fn validate_input_count(
+    node: &Node,
+    expected: usize,
+) -> Result<(), crate::processor::ProcessError> {
+    if node.inputs.len() != expected {
+        Err(crate::processor::ProcessError::InvalidInputCount {
+            expected,
+            actual: node.inputs.len(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate that a node has at least the minimum number of inputs.
+/// Returns an error if the count is less than the minimum.
+///
+/// # Arguments
+///
+/// * `node` - The node to validate
+/// * `min` - The minimum number of inputs required
+///
+/// # Returns
+///
+/// * `Ok(())` if the input count is sufficient
+/// * `Err(ProcessError::InvalidInputCount)` if the count is too low
+///
+/// # Examples
+///
+/// ```ignore
+/// // Validate that node has at least 2 inputs
+/// validate_min_inputs(node, 2)?;
+/// ```
+pub fn validate_min_inputs(node: &Node, min: usize) -> Result<(), crate::processor::ProcessError> {
+    if node.inputs.len() < min {
+        Err(crate::processor::ProcessError::InvalidInputCount {
+            expected: min,
+            actual: node.inputs.len(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate that a node has exactly the expected number of outputs.
+/// Returns an error if the count doesn't match.
+///
+/// # Arguments
+///
+/// * `node` - The node to validate
+/// * `expected` - The expected number of outputs
+///
+/// # Returns
+///
+/// * `Ok(())` if the output count matches
+/// * `Err(ProcessError::InvalidOutputCount)` if the count doesn't match
+///
+/// # Examples
+///
+/// ```ignore
+/// // Validate that Conv2d has exactly 1 output
+/// validate_output_count(node, 1)?;
+/// ```
+pub fn validate_output_count(
+    node: &Node,
+    expected: usize,
+) -> Result<(), crate::processor::ProcessError> {
+    if node.outputs.len() != expected {
+        Err(crate::processor::ProcessError::InvalidOutputCount {
+            expected,
+            actual: node.outputs.len(),
+        })
+    } else {
+        Ok(())
     }
 }
 

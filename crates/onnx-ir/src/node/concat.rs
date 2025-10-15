@@ -28,28 +28,13 @@ impl NodeProcessor for ConcatProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 4 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 4,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 4)?;
 
         // Validate we have at least one input
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;

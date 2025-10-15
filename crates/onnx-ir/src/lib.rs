@@ -15,3 +15,4 @@ pub use from_onnx::convert_constant_value;
 pub use from_onnx::element_type_from_proto;
 pub use from_onnx::parse_onnx;
 pub use ir::*;
+pub use util::{validate_input_count, validate_min_inputs, validate_opset, validate_output_count};

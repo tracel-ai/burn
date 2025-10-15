@@ -37,28 +37,13 @@ impl NodeProcessor for SqueezeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 13 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 13,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 13)?;
 
         // Validate we have at least one input
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input

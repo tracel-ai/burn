@@ -46,26 +46,11 @@ impl NodeProcessor for LinearProcessor {
     fn infer_types(
         &self,
         node: &mut Node,
-        opset: usize,
+        _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Note: Linear doesn't have a specific opset requirement (it's typically Gemm-based)
-        // But we validate inputs
-
-        // Validate input count (at least input and weight)
-        if node.inputs.len() < 2 {
-            return Err(ProcessError::MissingInput(
-                "Linear: missing weight tensor".to_string(),
-            ));
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_min_inputs(node, 2)?;
+        crate::util::validate_output_count(node, 1)?;
 
         let weight_shape = node.inputs[1]
             .into_value()
@@ -210,6 +195,9 @@ mod tests {
         let processor = LinearProcessor;
         let prefs = OutputPreferences::new();
         let result = processor.infer_types(&mut node, 16, &prefs);
-        assert!(matches!(result, Err(ProcessError::MissingInput(_))));
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount { .. })
+        ));
     }
 }

@@ -29,28 +29,13 @@ impl NodeProcessor for FlattenProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 9 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 9,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 9)?;
 
         // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {

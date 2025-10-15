@@ -38,29 +38,9 @@ impl NodeProcessor for DropoutProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 7 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 7,
-                actual: opset,
-            });
-        }
-
-        // Validate we have at least one input
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
-
-        // Validate output count
-        if node.outputs.is_empty() {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_opset(opset, 7)?;
+        crate::util::validate_min_inputs(node, 1)?;
+        crate::util::validate_output_count(node, 1)?;
 
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
@@ -73,12 +53,7 @@ impl NodeProcessor for DropoutProcessor {
             return Ok(());
         }
 
-        if node.inputs.len() < 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_min_inputs(node, 2)?;
 
         let prob = match node.inputs[1].into_value() {
             None => {

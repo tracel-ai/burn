@@ -42,20 +42,10 @@ impl NodeProcessor for SplitProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Split implementation supports opset 11+
-        if opset < 11 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 11,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 11)?;
 
         // Validate we have at least one input
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;

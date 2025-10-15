@@ -10,21 +10,8 @@ impl NodeProcessor for ConstantProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 9 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 9,
-                actual: opset,
-            });
-        }
-
-        // Validate output count (constants don't have inputs)
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, 9)?;
+        crate::util::validate_output_count(node, 1)?;
 
         log::debug!("Constant rank inference for node {}", node.name);
 

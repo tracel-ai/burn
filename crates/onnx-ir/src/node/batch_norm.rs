@@ -44,28 +44,13 @@ impl NodeProcessor for BatchNormProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 9 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 9,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 9)?;
 
         // Validate input count (X, scale, B, mean, var)
-        if node.inputs.len() < 5 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 5,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_min_inputs(node, 5)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         let weight_shape = node.inputs[1]
             .into_value()

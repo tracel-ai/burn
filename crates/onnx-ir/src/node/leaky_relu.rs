@@ -29,29 +29,9 @@ impl NodeProcessor for LeakyReluProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // Validate opset
-        if opset < 6 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 6,
-                actual: opset,
-            });
-        }
-
-        // Validate input count
-        if node.inputs.len() != 1 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: node.inputs.len(),
-            });
-        }
-
-        // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_opset(opset, 6)?;
+        crate::util::validate_input_count(node, 1)?;
+        crate::util::validate_output_count(node, 1)?;
 
         // Extract alpha attribute
         let mut alpha = 0.01;

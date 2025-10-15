@@ -66,28 +66,13 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset version
-        if opset < 7 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 7,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 7)?;
 
         // Validate input count
-        if node.inputs.len() != 2 {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 2,
-                actual: node.inputs.len(),
-            });
-        }
+        crate::util::validate_input_count(node, 2)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         // Apply standard broadcasting rules to infer output type
         same_as_input_broadcast(node);

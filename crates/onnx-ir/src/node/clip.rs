@@ -39,28 +39,13 @@ impl NodeProcessor for ClipProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        if opset < 6 {
-            return Err(ProcessError::UnsupportedOpset {
-                required: 6,
-                actual: opset,
-            });
-        }
+        crate::util::validate_opset(opset, 6)?;
 
         // Validate input count (at least 1 input, up to 3 for opset 11+)
-        if node.inputs.is_empty() {
-            return Err(ProcessError::InvalidInputCount {
-                expected: 1,
-                actual: 0,
-            });
-        }
+        crate::util::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        if node.outputs.len() != 1 {
-            return Err(ProcessError::InvalidOutputCount {
-                expected: 1,
-                actual: node.outputs.len(),
-            });
-        }
+        crate::util::validate_output_count(node, 1)?;
 
         fn get_clip_input(node: &Node, index: usize, param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
