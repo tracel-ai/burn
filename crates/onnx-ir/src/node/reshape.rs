@@ -241,6 +241,19 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift shape input (input[1]) if present
+        // Note: This might be a runtime argument, but we lift it anyway
+        // The extract_config method will handle whether it's static or runtime
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn input_preferences(&self, node: &Node, _opset: usize) -> Option<InputPreferences> {
         if node.inputs.len() != 2 {
             return None;

@@ -32,6 +32,21 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift min (input[1]) and max (input[2]) if present
+        // These are used in extract_config to read static values
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+        if node.inputs.len() > 2 {
+            lifted.push(node.inputs[2].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

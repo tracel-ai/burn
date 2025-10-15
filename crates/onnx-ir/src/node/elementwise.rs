@@ -23,6 +23,17 @@ use crate::util::{same_as_input, same_as_input_broadcast};
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // For PRelu, lift the slope input (input[1])
+        if node.node_type == crate::ir::NodeType::PRelu && node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

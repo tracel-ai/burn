@@ -108,6 +108,32 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift starts input (input[1]) if present
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        // Lift ends input (input[2]) if present
+        if node.inputs.len() > 2 {
+            lifted.push(node.inputs[2].name.clone());
+        }
+
+        // Lift axes input (input[3]) if present
+        if node.inputs.len() > 3 {
+            lifted.push(node.inputs[3].name.clone());
+        }
+
+        // Lift steps input (input[4]) if present
+        if node.inputs.len() > 4 {
+            lifted.push(node.inputs[4].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

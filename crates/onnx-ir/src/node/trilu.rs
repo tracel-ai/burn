@@ -31,6 +31,17 @@ impl NodeConfig for TriluConfig {
 pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift diagonal input (input[1]) if present
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

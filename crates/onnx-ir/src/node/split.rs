@@ -35,6 +35,17 @@ impl NodeConfig for SplitConfig {
 pub struct SplitProcessor;
 
 impl NodeProcessor for SplitProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift split input (input[1]) if present
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

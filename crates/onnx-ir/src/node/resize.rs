@@ -161,6 +161,27 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
 pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift roi input (input[1]) if present
+        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        // Lift scales input (input[2]) if present
+        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
+            lifted.push(node.inputs[2].name.clone());
+        }
+
+        // Lift sizes input (input[3]) if present
+        if node.inputs.len() > 3 && !node.inputs[3].name.is_empty() {
+            lifted.push(node.inputs[3].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

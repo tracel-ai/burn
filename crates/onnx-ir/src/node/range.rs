@@ -32,6 +32,27 @@ pub enum RangeInput {
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift start input (input[0])
+        if !node.inputs.is_empty() {
+            lifted.push(node.inputs[0].name.clone());
+        }
+
+        // Lift limit input (input[1])
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+
+        // Lift delta input (input[2])
+        if node.inputs.len() > 2 {
+            lifted.push(node.inputs[2].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

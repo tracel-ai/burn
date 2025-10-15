@@ -59,6 +59,20 @@ impl NodeConfig for Conv2dConfig {
 pub struct Conv2dProcessor;
 
 impl NodeProcessor for Conv2dProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        let mut lifted = Vec::new();
+
+        // Lift weight (input[1]) and optional bias (input[2])
+        if node.inputs.len() > 1 {
+            lifted.push(node.inputs[1].name.clone());
+        }
+        if node.inputs.len() > 2 {
+            lifted.push(node.inputs[2].name.clone());
+        }
+
+        Ok(lifted)
+    }
+
     fn input_preferences(
         &self,
         node: &Node,
