@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Gather operation.
@@ -32,37 +31,72 @@ pub enum GatherInput {
 pub struct GatherProcessor;
 
 impl NodeProcessor for GatherProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Gather implementation supports opset 11+ (refined documentation)
-        validate_opset(&node.node_type, opset, 11);
-        // Default: 0 per ONNX spec
-        let mut dim: i64 = 0;
-
-        // check if the node has only one input
-        if node.inputs.len() != 2 {
-            panic!("Gather: index tensor must be present");
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 11 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 11,
+                actual: opset,
+            });
         }
 
-        // extract the shape of the input tensor
-        let input_dim = match node.inputs.first().unwrap().clone().ty {
+        log::debug!("Gather rank inference for node {}", node.name);
+
+        // Validate input count
+        if node.inputs.len() != 2 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract the input rank for axis normalization
+        let input_dim = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
-            ArgType::Shape(shape_rank) => shape_rank as i64, // Shape dimension
-            other => panic!("Only tensor or shape input is valid, got {other:?}"),
+            ArgType::Shape(shape_rank) => *shape_rank as i64,
+            other => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", other),
+                });
+            }
         };
 
-        // extract the attributes
+        // Extract the axis attribute (default: 0 per ONNX spec)
+        let mut axis: i64 = 0;
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "axis" {
-                dim = value.clone().into_i64()
+                axis = value.clone().into_i64()
             }
         }
 
-        // if dim is negative, it is counted from the end
-        if dim < 0 {
-            dim += input_dim;
+        // Normalize negative axis
+        if axis < 0 {
+            axis += input_dim;
         }
 
-        // Get indices input - similar to how slice handles its inputs
+        // Validate axis is within bounds
+        if axis < 0 || axis >= input_dim {
+            return Err(ProcessError::InvalidAttribute {
+                name: "axis".to_string(),
+                reason: format!("axis {} is out of bounds for rank {}", axis, input_dim),
+            });
+        }
+
+        // Get indices input and extract config
         let indices_input = &node.inputs[1];
         log::debug!(
             "Gather indices input for {}: {:?}",
@@ -87,10 +121,15 @@ impl NodeProcessor for GatherProcessor {
                     );
                     GatherInput::Static(int64_vals)
                 }
-                other => panic!("Gather indices must be int32 or int64, got {other:?}"),
+                other => {
+                    return Err(ProcessError::Custom(format!(
+                        "Gather indices must be int32 or int64, got {:?}",
+                        other
+                    )));
+                }
             }
         } else {
-            // Runtime indices - clone the argument but clear value_store to maintain Send+Sync
+            // Runtime indices
             log::debug!("Gather {} has runtime indices", node.name);
             let mut runtime_arg = indices_input.clone();
             runtime_arg.value_store = None;
@@ -99,18 +138,11 @@ impl NodeProcessor for GatherProcessor {
 
         let config = GatherConfig {
             indices,
-            axis: dim as usize,
+            axis: axis as usize,
         };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        log::debug!("Gather rank inference for node {}", node.name);
-
-        if node.inputs.len() != 2 {
-            panic!("Gather requires two inputs: data and indices");
-        }
-
+        // Infer output type based on indices rank
         let indices_rank = match &node.inputs[1].ty {
             ArgType::Tensor(tensor) => tensor.rank,
             ArgType::Scalar(_) => 0,
@@ -175,8 +207,23 @@ impl NodeProcessor for GatherProcessor {
                     );
                 }
             }
-            ty => panic!("Only tensor/shape input is valid, got {ty:?}"),
+            ty => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", ty),
+                });
+            }
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -207,7 +254,8 @@ mod tests {
         let node = create_test_node(0, 3, false).build();
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
@@ -217,7 +265,8 @@ mod tests {
         let node = create_test_node(-2, 3, false).build();
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 1); // -2 + 3 = 1
     }
@@ -227,19 +276,27 @@ mod tests {
         let node = create_test_node(0, 4, true).build(); // Shape of a 4D tensor
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
     }
 
     #[test]
-    #[should_panic(expected = "Gather: index tensor must be present")]
     fn test_gather_config_missing_index() {
         let mut node = create_test_node(0, 3, false).build();
         node.inputs.pop(); // Remove the indices input
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 2,
+                actual: 1
+            })
+        ));
     }
 
     fn create_runtime_gather_node(axis: i64, input_rank: usize) -> NodeBuilder {
@@ -255,7 +312,8 @@ mod tests {
         let node = create_runtime_gather_node(0, 3).build();
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
 
@@ -279,7 +337,8 @@ mod tests {
         let node = builder.build_with_graph_data(16);
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 1);
 
@@ -303,8 +362,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar, not tensor
         match &node.outputs[0].ty {
@@ -326,8 +385,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output tensor with rank 2 (1 + 2 - 1)
         match &node.outputs[0].ty {
@@ -352,8 +411,8 @@ mod tests {
 
         // This should not panic - it was panicking before the fix
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(1) since we're gathering from Shape(3) with Shape(1) indices
         match &node.outputs[0].ty {
@@ -375,8 +434,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output scalar when gathering from shape with scalar indices
         match &node.outputs[0].ty {
@@ -399,8 +458,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(2) since indices are Shape(2)
         match &node.outputs[0].ty {
@@ -422,8 +481,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(3) since indices are Shape(3)
         match &node.outputs[0].ty {
@@ -445,8 +504,8 @@ mod tests {
             .build();
 
         let processor = GatherProcessor;
-
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         // Should output Shape(1) for 1D tensor indices (indices_rank = 1)
         match &node.outputs[0].ty {
@@ -469,7 +528,8 @@ mod tests {
 
         let mut node = node;
         let processor = GatherProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<GatherConfig>();
         assert_eq!(config.axis, 0);
 

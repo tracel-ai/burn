@@ -1,24 +1,44 @@
 use crate::ir::{ArgType, ElementType, Node};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct SizeProcessor;
 
 impl NodeProcessor for SizeProcessor {
-    fn first_pass(&self, node: &mut Node, opset: usize) {
-        // Size implementation supports opset 1+
-        validate_opset(&node.node_type, opset, 1);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 1 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 1,
+                actual: opset,
+            });
+        }
 
         log::debug!("Size rank inference for node {}", node.name);
 
-        assert_eq!(
-            node.inputs.len(),
-            1,
-            "Size: expected 1 input, found {}",
-            node.inputs.len()
-        );
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+
+        Ok(())
     }
 }
 
@@ -41,7 +61,8 @@ mod tests {
         let mut node = create_test_node(4);
 
         let processor = SizeProcessor;
-        processor.first_pass(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert!(matches!(
             &node.outputs[0].ty,

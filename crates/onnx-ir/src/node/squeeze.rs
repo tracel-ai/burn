@@ -1,5 +1,4 @@
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
 use std::any::Any;
@@ -31,9 +30,35 @@ impl NodeConfig for SqueezeConfig {
 pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Squeeze implementation supports opset 13+ (axes as input)
-        validate_opset(&node.node_type, opset, 13);
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 13 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 13,
+                actual: opset,
+            });
+        }
+
+        // Validate we have at least one input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 0,
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
 
         fn get_squeeze_axes(node: &Node) -> Option<SqueezeInput> {
             // In ONNX opset 13+, axes are provided as a second input
@@ -51,49 +76,38 @@ impl NodeProcessor for SqueezeProcessor {
                 }
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
-                    _ => panic!("Squeeze: axes must be int64 type"),
+                    _ => return None, // Invalid type
                 },
             }
         }
 
         let axes = get_squeeze_axes(node);
-        let config = SqueezeConfig { axes };
+        let config = SqueezeConfig { axes: axes.clone() };
         node.config = Some(Box::new(config));
-    }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
         log::debug!("Squeeze rank inference for node {}", node.name);
 
-        // Extract axes from config
-        let config = node.config::<SqueezeConfig>();
-        // TODO mark axes input as Shape input if constant
-        let axes = match &config.axes {
+        // Extract axes for type inference
+        let axes_vec = match &axes {
             Some(SqueezeInput::Static(axes_vec)) => Some(axes_vec.clone()),
-            Some(SqueezeInput::Runtime(_)) => {
-                // Runtime axes - cannot infer rank without static information
-                None
-            }
+            Some(SqueezeInput::Runtime(_)) => None,
             None => None,
         };
 
-        log::debug!("Squeeze axes for {}: {:?}", node.name, axes);
+        log::debug!("Squeeze axes for {}: {:?}", node.name, axes_vec);
 
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 log::debug!("Squeeze input rank for {}: {}", node.name, tensor.rank);
-                let output_rank = match axes {
+                let output_rank = match axes_vec {
                     None => {
                         // When axes is None, ONNX spec squeezes all dimensions of size 1
-                        // Without static shape info, we can't know which dims are size 1
-                        // The output type will be corrected later if ONNX provides it
-                        // TODO: Infer rank from output tensor shape based on static shape inference
                         if let Some(ref static_shape) = tensor.static_shape {
-                            // Count the number of dimensions not equal to 1
                             static_shape.iter().filter(|&&dim| dim != 1).count()
                         } else {
-                            panic!(
-                                "Squeeze: Cannot infer output rank when axes is None and input tensor static shape is unknown. Please provide static shape information for accurate inference."
-                            );
+                            return Err(ProcessError::Custom(
+                                "Squeeze: Cannot infer output rank when axes is None and input tensor static shape is unknown".to_string()
+                            ));
                         }
                     }
                     Some(ref axes_vec) => tensor.rank - axes_vec.len(),
@@ -109,36 +123,39 @@ impl NodeProcessor for SqueezeProcessor {
             ArgType::Shape(shape_rank) => {
                 log::debug!("Squeeze input is Shape({}) for {}", shape_rank, node.name);
 
-                // Shape is always a 1D array. We can only squeeze axis 0.
-                // - If Shape has 1 element (Shape(1)), squeezing axis 0 produces a scalar
-                // - If Shape has >1 elements (Shape(n) where n>1), squeezing axis 0 is a no-op
-                //   because the dimension has size > 1
-
-                if let Some(ref axes_vec) = axes
+                if let Some(ref axes_vec) = axes_vec
                     && !axes_vec.is_empty()
                     && (axes_vec.len() != 1 || axes_vec[0] != 0)
                 {
-                    panic!(
-                        "Squeeze on Shape input only supports squeezing axis 0, got axes: {axes_vec:?}"
-                    );
+                    return Err(ProcessError::Custom(format!(
+                        "Squeeze on Shape input only supports squeezing axis 0, got axes: {:?}",
+                        axes_vec
+                    )));
                 }
 
                 if *shape_rank == 1 {
-                    // Shape(1) squeezed on axis 0 produces a scalar
                     node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
                     log::debug!("Squeeze Shape(1) to Scalar for {}", node.name);
                 } else {
-                    // Shape(n) where n > 1 remains unchanged
                     node.outputs[0].ty = ArgType::Shape(*shape_rank);
                     log::debug!("Squeeze Shape({}) unchanged for {}", shape_rank, node.name);
                 }
             }
             ArgType::Scalar(scalar_type) => {
-                // Scalar squeeze is a no-op
                 node.outputs[0].ty = ArgType::Scalar(scalar_type.clone());
                 log::debug!("Squeeze Scalar unchanged for {}", node.name);
             }
         }
+
+        Ok(())
+    }
+
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -181,7 +198,8 @@ mod tests {
         let node = create_test_node(Some(vec![0, 2]), 4).build_with_graph_data(16);
         let mut node = node;
         let processor = SqueezeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Static(ref axes)) if axes == &vec![0, 2]));
     }
@@ -191,7 +209,8 @@ mod tests {
         let node = create_test_node(None, 4).build();
         let mut node = node;
         let processor = SqueezeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(config.axes.is_none());
     }
@@ -201,7 +220,8 @@ mod tests {
         let node = create_runtime_squeeze_node().build();
         let mut node = node;
         let processor = SqueezeProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SqueezeConfig>();
         assert!(matches!(config.axes, Some(SqueezeInput::Runtime(ref arg)) if arg.name == "axes"));
     }
