@@ -71,6 +71,7 @@ mod slice_assign;
 mod sort_argsort;
 mod split;
 mod sqrt;
+mod square;
 mod squeeze;
 mod stack;
 mod sub;

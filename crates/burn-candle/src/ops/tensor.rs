@@ -342,7 +342,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
     }
 

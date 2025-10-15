@@ -550,7 +550,7 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         struct Powf;
 
         #[cube]
