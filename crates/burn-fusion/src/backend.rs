@@ -159,7 +159,7 @@ pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
 pub type Client<R> = <R as FusionRuntime>::FusionClient;
 
 /// Trait that defines a runtime that will benefits from fused operations.
-pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
+pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.

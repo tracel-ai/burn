@@ -3,15 +3,21 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
+use burn_common::device::DeviceState;
 use burn_ir::{OperationIr, TensorIr};
 use burn_tensor::{DType, Shape, TensorData};
-use spin::Mutex;
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
 pub struct MutexFusionClient<R: FusionRuntime> {
-    server: Arc<Mutex<FusionServer<R>>>,
+    server: DeviceState<FusionServer<R>>,
     device: FusionDevice<R>,
+}
+
+impl<R: FusionRuntime> Default for FusionServer<R> {
+    fn default() -> Self {
+        todo!()
+    }
 }
 
 impl<R> Clone for MutexFusionClient<R>
@@ -31,9 +37,12 @@ where
     R: FusionRuntime<FusionClient = Self> + 'static,
 {
     fn new(device: FusionDevice<R>) -> Self {
+        let server = FusionServer::new(device.clone());
+        let server = DeviceState::insert(&device, server).unwrap();
+
         Self {
             device: device.clone(),
-            server: Arc::new(Mutex::new(FusionServer::new(device))),
+            server,
         }
     }
 
