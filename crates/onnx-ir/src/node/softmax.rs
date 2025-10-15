@@ -1,6 +1,5 @@
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::NodeProcessor;
-use crate::util::validate_opset;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for Softmax operations
@@ -23,28 +22,50 @@ impl NodeConfig for SoftmaxConfig {
 pub struct SoftmaxProcessor;
 
 impl NodeProcessor for SoftmaxProcessor {
-    fn process_config(&self, node: &mut Node, opset: usize) {
-        // Softmax implementation supports opset 13+ (default axis change)
-        validate_opset(&node.node_type, opset, 13);
-        // ALL logic from softmax_config inlined here
-        // the axis is the last dimension (Default: 1 per ONNX spec)
-        let mut axis: i64 = -1;
-
-        // check if the node has only one input
-        if node.inputs.len() != 1 {
-            panic!(
-                "Softmax: multiple inputs are not supported (got {:?})",
-                node.inputs.len()
-            );
+    fn infer_types(
+        &self,
+        node: &mut Node,
+        opset: usize,
+        _output_preferences: &OutputPreferences,
+    ) -> Result<(), ProcessError> {
+        // Validate opset
+        if opset < 13 {
+            return Err(ProcessError::UnsupportedOpset {
+                required: 13,
+                actual: opset,
+            });
         }
 
-        // extract the shape of the input tensor
-        let tensor = match node.inputs.first().unwrap().clone().ty {
-            ArgType::Tensor(tensor) => tensor,
-            _ => panic!("Only tensor input is valid"),
+        // Validate input count
+        if node.inputs.len() != 1 {
+            return Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: node.inputs.len(),
+            });
+        }
+
+        // Validate output count
+        if node.outputs.len() != 1 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // Extract the shape of the input tensor
+        let tensor = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.clone(),
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor".to_string(),
+                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
+                });
+            }
         };
 
-        // extract the attributes
+        // Extract the axis attribute (default: -1 per ONNX spec)
+        let mut axis: i64 = -1;
+
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
@@ -60,10 +81,19 @@ impl NodeProcessor for SoftmaxProcessor {
             axis: axis as usize,
         };
         node.config = Some(Box::new(config));
+
+        // Infer output type
+        crate::util::same_as_input(node);
+
+        Ok(())
     }
 
-    fn first_pass(&self, node: &mut Node, _opset: usize) {
-        crate::util::same_as_input(node);
+    fn extract_config(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        Ok(node.config.as_ref().map(|c| c.clone_box()))
     }
 }
 
@@ -86,7 +116,8 @@ mod tests {
         let node = create_test_node(-1, 3);
         let mut node = node;
         let processor = SoftmaxProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 2); // -1 + 3 = 2 (last dimension)
     }
@@ -96,13 +127,13 @@ mod tests {
         let node = create_test_node(1, 3);
         let mut node = node;
         let processor = SoftmaxProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
         let config = node.config::<SoftmaxConfig>();
         assert_eq!(config.axis, 1);
     }
 
     #[test]
-    #[should_panic(expected = "Softmax: multiple inputs are not supported")]
     fn test_softmax_config_multiple_inputs() {
         let mut node = create_test_node(1, 3);
         // Add an extra input
@@ -115,6 +146,14 @@ mod tests {
         node.inputs.push(extra_input);
         let mut node = node;
         let processor = SoftmaxProcessor;
-        processor.process_config(&mut node, 16);
+        let prefs = OutputPreferences::new();
+        let result = processor.infer_types(&mut node, 16, &prefs);
+        assert!(matches!(
+            result,
+            Err(ProcessError::InvalidInputCount {
+                expected: 1,
+                actual: 2
+            })
+        ));
     }
 }

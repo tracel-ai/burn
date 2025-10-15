@@ -91,10 +91,7 @@ impl NodeProcessor for FlattenProcessor {
         node.config = Some(Box::new(config));
 
         // Infer output type - Flatten to a 2D tensor
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            rank: 2,
-            ..tensor
-        });
+        node.outputs[0].ty = ArgType::Tensor(TensorType { rank: 2, ..tensor });
 
         Ok(())
     }

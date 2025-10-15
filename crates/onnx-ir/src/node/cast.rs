@@ -62,14 +62,11 @@ impl NodeProcessor for CastProcessor {
 
         // Extract the target element type from attributes
         let elem_type = match node.attrs.get("to") {
-            Some(AttributeValue::Int64(type_id)) => {
-                element_type_from_proto(*type_id as i32).map_err(|_| {
-                    ProcessError::InvalidAttribute {
-                        name: "to".to_string(),
-                        reason: format!("unsupported dtype: {}", type_id),
-                    }
-                })?
-            }
+            Some(AttributeValue::Int64(type_id)) => element_type_from_proto(*type_id as i32)
+                .map_err(|_| ProcessError::InvalidAttribute {
+                    name: "to".to_string(),
+                    reason: format!("unsupported dtype: {}", type_id),
+                })?,
             Some(_) => {
                 return Err(ProcessError::InvalidAttribute {
                     name: "to".to_string(),

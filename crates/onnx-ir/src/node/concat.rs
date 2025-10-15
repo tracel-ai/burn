@@ -61,9 +61,7 @@ impl NodeProcessor for ConcatProcessor {
             }
         }
 
-        let axis = axis.ok_or_else(|| {
-            ProcessError::MissingAttribute("axis".to_string())
-        })?;
+        let axis = axis.ok_or_else(|| ProcessError::MissingAttribute("axis".to_string()))?;
 
         // extract the rank based on input type
         let rank = match &node.inputs.first().unwrap().ty {
