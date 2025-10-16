@@ -4,16 +4,13 @@ gcp_image_family = "tracel-ci-ubuntu-2404-amd64-nvidia"
 # https://cloud.google.com/compute/docs/accelerator-optimized-machines
 # put the faster machine on first place for possibly faster 'Benchmarks Started' feedback in PRs
 gcp_machine_types = [
-  "a2-highgpu-1g", # 1 A100 40GB
-  "g2-standard-4", # 1 L4 24GB
+    "a2-highgpu-1g", # 1 A100 40GB
+    "g2-standard-4", # 1 L4 24GB
 ]
 # define the zone for each machine type
 # be sure to check what machine types are available in each region
 # https://cloud.google.com/compute/docs/gpus/gpu-regions-zones#view-using-table
-gcp_zones = [
-  "us-central1-c",
-  "us-central1-c",
-]
+gcp_zones = ["us-central1-c", "us-central1-c"]
 repo_full = "tracel-ai/burn"
 rust_toolchain = "stable"
 rust_version = "stable"
@@ -24,7 +21,6 @@ github_repository = "burn-bench"
 github_branch = "main"
 github_workflow = "benchmarks.yml"
 # vulkan autotune seems to take ages, disabling it for now
-# backends = ["cuda-fusion", "vulkan-fusion", "wgpu-fusion"]
-backends = ["cuda-fusion"]
-benches = ["matmul"]
+backends = ["cuda-fusion", "vulkan-fusion", "cuda"]
+benches = ["matmul", "transformer_encoder", "reduce", "custom_gelu"]
 dtypes = ["f16"]
