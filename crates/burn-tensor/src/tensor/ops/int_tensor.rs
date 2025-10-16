@@ -237,8 +237,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -249,8 +249,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -264,8 +264,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -276,8 +276,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -291,8 +291,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -303,8 +303,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -315,8 +315,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -327,8 +327,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -339,8 +339,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -351,8 +351,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -363,8 +363,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -375,8 +375,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -389,8 +389,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -401,8 +401,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -413,8 +413,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side IntTensor.
-    /// * `rhs` - The right hand side IntTensor.
+    /// * `lhs` - The left-hand side IntTensor.
+    /// * `rhs` - The right-hand side IntTensor.
     ///
     /// # Returns
     ///
@@ -427,8 +427,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side floatTensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side floatTensor.
     ///
     /// # Returns
     ///
@@ -439,30 +439,97 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Element-wise power with a scalar.
     ///
+    /// # Backend Implementors Note
+    ///
+    /// A number of common exponent cases can be implemented with operations
+    /// which are much cheaper than generic exponentiation.
+    ///
+    /// This (`Backend` impl overridable) operation handles generic optimizations
+    /// for several common integer exponent cases; and then dispatches to
+    /// the (`Backend` impl overridable) [`Self::int_powi_scalar_impl`]
+    /// operation to handle the generic case.
+    ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powi_scalar(B::int_into_float(lhs), rhs))
+        let exp = rhs.elem::<i32>();
+        match exp {
+            0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
+            1 => lhs,
+            2 => Self::int_mul(lhs.clone(), lhs),
+            _ => Self::int_powi_scalar_impl(lhs, rhs),
+        }
+    }
+
+    /// Element-wise power with a scalar.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::int_powi_scalar`] in the fallback case.
+    ///
+    /// By default, this performs a relatively expensive conversion to float,
+    /// exponentiation in float, and conversion back to int.
+    /// This reduces the minimal operation set for `Backend`s,
+    /// at the cost of performance.
+    ///
+    /// This is a good target for specialized optimizations in `Backend` implementations.
+    ///
+    /// As a general rule, this should not be called directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
+        B::float_into_int(B::float_powi_scalar_impl(B::int_into_float(lhs), rhs))
     }
 
     /// Element-wise power with a floatTensor.
     ///
+    /// Handles a number of special cases, then calls [`Self::int_powf_scalar_impl`].
+    ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf_scalar(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
-        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs))
+        if num_traits::Float::floor(rhs) == rhs {
+            let exp = B::IntElem::from_elem(rhs as i32);
+            Self::int_powi_scalar(lhs, exp)
+        } else {
+            Self::int_powf_scalar_impl(lhs, rhs)
+        }
+    }
+
+    /// Element-wise power with a floatTensor.
+    ///
+    /// Fallback handler for [`Self::int_powf_scalar`].
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn int_powf_scalar_impl(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
+        B::float_into_int(B::float_powf_scalar_impl(B::int_into_float(lhs), rhs))
     }
 
     /// Clamps a tensor under a minimum value.
@@ -514,8 +581,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -526,8 +593,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -538,8 +605,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -550,8 +617,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -562,8 +629,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -574,8 +641,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -585,8 +652,8 @@ pub trait IntTensorOps<B: Backend> {
     /// Element-wise modulus.
     ///
     /// # Arguments
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -596,8 +663,8 @@ pub trait IntTensorOps<B: Backend> {
     /// Element-wise modulus with a scalar.
     ///
     /// # Arguments
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
     ///
     /// # Returns
     ///
@@ -608,8 +675,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
     ///
     /// # Returns
     ///
@@ -766,6 +833,45 @@ pub trait IntTensorOps<B: Backend> {
     /// A tensor with the same shape where each element is the cumulative sum
     /// of all elements up to and including that position along the dimension.
     fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative product
+    /// of all elements up to and including that position along the dimension.
+    fn int_cumprod(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the minimum
+    /// of all elements up to and including that position along the dimension.
+    fn int_cummin(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn int_cummax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
 
     /// Gets the indices of the maximum elements along a dimension.
     ///
