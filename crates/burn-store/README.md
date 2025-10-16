@@ -11,6 +11,8 @@ interoperability, and advanced tensor management.
 
 ### Core Capabilities
 
+- **Burnpack Format** - Native Burn format with CBOR metadata, memory-mapped loading, ParamId
+  persistence for stateful training, and no-std support
 - **SafeTensors Format** - Industry-standard format for secure and efficient tensor serialization
 - **PyTorch Support** - Direct loading of PyTorch .pth/.pt files with automatic weight
   transformation
@@ -20,7 +22,7 @@ interoperability, and advanced tensor management.
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
-- **No-std Support** - Core functionality available in embedded and WASM environments
+- **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM environments
 
 ### Advanced Features
 
@@ -34,16 +36,38 @@ interoperability, and advanced tensor management.
 
 ### Basic Save and Load
 
+#### Burnpack (Native Format)
+
+```rust
+use burn_store::{ModuleSnapshot, BurnpackStore};
+
+// Save a model with metadata
+let mut store = BurnpackStore::from_file("model.bpk")
+    .metadata("version", "1.0")
+    .metadata("description", "My trained model");
+model.save_into(&mut store)?;
+
+// Load a model (automatically memory-mapped when available)
+let mut store = BurnpackStore::from_file("model.bpk");
+model.load_from(&mut store)?;
+```
+
+**Performance**: Burnpack provides faster loading times and reduced memory overhead compared to other formats.
+
+**Training State Persistence**: Burnpack automatically preserves parameter identifiers (ParamId) for stateful training continuation.
+
+#### SafeTensors
+
 ```rust
 use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 // Save a model
 let mut store = SafetensorsStore::from_file("model.safetensors");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load a model
 let mut store = SafetensorsStore::from_file("model.safetensors");
-model.apply_from(&mut store)?;
+model.load_from(&mut store)?;
 ```
 
 ### Filtering Tensors
@@ -54,7 +78,7 @@ let mut store = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .metadata("subset", "encoder_only");
 
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load with multiple filter patterns (OR logic)
 let mut store = SafetensorsStore::from_file("model.safetensors")
@@ -62,7 +86,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_regex(r".*\.bias$")          // OR include any bias tensors
     .with_full_path("decoder.scale"); // OR include specific tensor
 
-model.apply_from(&mut store)?;
+model.load_from(&mut store)?;
 ```
 
 ### PyTorch Interoperability
@@ -75,20 +99,20 @@ let mut store = PytorchStore::from_file("pytorch_model.pth")
     .with_top_level_key("state_dict")         // Access nested state dict
     .allow_partial(true);                     // Skip unknown tensors
 
-burn_model.apply_from(&mut store)?;
+burn_model.load_from(&mut store)?;
 
 // Load PyTorch model from SafeTensors
 let mut store = SafetensorsStore::from_file("pytorch_model.safetensors")
     .with_from_adapter(PyTorchToBurnAdapter)  // Auto-transpose linear weights
     .allow_partial(true);                     // Skip unknown PyTorch tensors
 
-burn_model.apply_from(&mut store)?;
+burn_model.load_from(&mut store)?;
 
 // Save Burn model for PyTorch
 let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
     .with_to_adapter(BurnToPyTorchAdapter);   // Convert back to PyTorch format
 
-burn_model.collect_to(&mut store)?;
+burn_model.save_into(&mut store)?;
 ```
 
 ### Tensor Name Remapping
@@ -119,16 +143,23 @@ let mut store = PytorchStore::from_file("model.pth")
 ### Memory Operations
 
 ```rust
-// Save to memory buffer
-let mut store = SafetensorsStore::from_bytes(None)
-    .with_regex(r"^encoder\..*");
-model.collect_to(&mut store)?;
+// Burnpack: Save to memory buffer
+let mut store = BurnpackStore::from_bytes(None)
+    .with_regex(r"^encoder\..*")
+    .metadata("subset", "encoder_only");
+model.save_into(&mut store)?;
 let bytes = store.get_bytes()?;
 
-// Load from memory buffer
-let mut store = SafetensorsStore::from_bytes(Some(bytes))
+// Burnpack: Load from memory buffer (no-std compatible)
+let mut store = BurnpackStore::from_bytes(Some(bytes))
     .allow_partial(true);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
+
+// SafeTensors: Memory operations
+let mut store = SafetensorsStore::from_bytes(None)
+    .with_regex(r"^encoder\..*");
+model.save_into(&mut store)?;
+let bytes = store.get_bytes()?;
 
 println!("Loaded {} tensors", result.applied.len());
 if !result.missing.is_empty() {
@@ -136,7 +167,7 @@ if !result.missing.is_empty() {
 }
 ```
 
-SafetensorsStore supports no-std environments when using byte operations
+Both BurnpackStore and SafetensorsStore support no-std environments when using byte operations
 
 ### Model Surgery and Partial Operations
 
@@ -171,12 +202,12 @@ model2.apply(snapshots, None, None);
 // Export only specific layers
 let mut store = SafetensorsStore::from_file("encoder_only.safetensors")
     .with_regex(r"^encoder\..*");
-model.collect_to(&mut store)?;
+model.save_into(&mut store)?;
 
 // Load with missing tensors allowed
 let mut store = SafetensorsStore::from_file("pretrained.safetensors")
     .allow_partial(true);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 println!("Loaded: {}, Missing: {:?}", result.applied.len(), result.missing);
 ```
 
@@ -196,12 +227,12 @@ target_model.apply(merged, None, None);
 
 // Alternative: Sequential loading from files
 let mut base_store = SafetensorsStore::from_file("base.safetensors");
-model.apply_from(&mut base_store)?;
+model.load_from(&mut base_store)?;
 
 let mut encoder_store = SafetensorsStore::from_file("encoder.safetensors")
     .with_regex(r"^encoder\..*")
     .allow_partial(true);
-model.apply_from(&mut encoder_store)?;  // Overlays encoder weights
+model.load_from(&mut encoder_store)?;  // Overlays encoder weights
 ```
 
 ### Complete Example: Migrating PyTorch Models
@@ -223,7 +254,7 @@ let mut store = PytorchStore::from_file("pytorch_transformer.pth")
     .allow_partial(true);
 
 let mut model = TransformerModel::new(&device);
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 
 println!("Successfully migrated {} tensors", result.applied.len());
 if !result.errors.is_empty() {
@@ -235,7 +266,7 @@ let mut save_store = SafetensorsStore::from_file("migrated_model.safetensors")
     .metadata("source", "pytorch")
     .metadata("converted_by", "burn-store");
 
-model.collect_to(&mut save_store)?;
+model.save_into(&mut save_store)?;
 ```
 
 ## Advanced Usage
@@ -265,7 +296,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
 ### Handling Load Results
 
 ```rust
-let result = model.apply_from(&mut store)?;
+let result = model.load_from(&mut store)?;
 
 // Detailed result information
 println!("Applied: {} tensors", result.applied.len());
@@ -282,12 +313,14 @@ if !result.errors.is_empty() {
 
 ## Benchmarks
 
+### Loading Benchmarks
+
 ```bash
 # Generate model files first (one-time setup)
 cd crates/burn-store
 uv run benches/generate_unified_models.py
 
-# Run unified benchmark with default backend (NdArray CPU)
+# Run unified loading benchmark with default backend (NdArray CPU)
 cargo bench --bench unified_loading
 
 # Run with specific backend
@@ -298,7 +331,26 @@ cargo bench --bench unified_loading --features candle   # Candle backend
 cargo bench --bench unified_loading --features tch      # LibTorch
 
 # Run with multiple backends
-cargo bench --bench unified_loading --features "wgpu metal"
+cargo bench --bench unified_loading --features wgpu,tch
+```
+
+### Saving Benchmarks
+
+Compares 3 saving methods: BurnpackStore, NamedMpkFileRecorder, and SafetensorsStore.
+
+```bash
+# Run unified saving benchmark with default backend (NdArray CPU)
+cargo bench --bench unified_saving
+
+# Run with specific backend
+cargo bench --bench unified_saving --features metal    # Apple GPU
+cargo bench --bench unified_saving --features wgpu     # WebGPU
+cargo bench --bench unified_saving --features cuda     # NVIDIA GPU
+cargo bench --bench unified_saving --features candle   # Candle backend
+cargo bench --bench unified_saving --features tch      # LibTorch
+
+# Run with multiple backends
+cargo bench --bench unified_saving --features wgpu,tch
 ```
 
 ## API Overview
@@ -327,10 +379,22 @@ The stores provide a fluent API for configuration:
 
 #### Configuration
 
-- `metadata(key, value)` - Add custom metadata (SafeTensors only)
+- `metadata(key, value)` - Add custom metadata (Burnpack and SafeTensors)
 - `allow_partial(bool)` - Continue on missing tensors
 - `validate(bool)` - Toggle validation
 - `with_top_level_key(key)` - Access nested dict in PyTorch files
+- `overwrite(bool)` - Allow overwriting existing files (Burnpack)
+
+### Inspecting Burnpack Files
+
+Generate and examine a sample file:
+
+```bash
+cargo run --example burnpack_inspect sample.bpk
+hexdump -C sample.bpk | head -20
+```
+
+The example creates a sample model and outputs inspection commands for examining the binary format.
 
 ## License
 

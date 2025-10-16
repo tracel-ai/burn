@@ -14,7 +14,7 @@ fn shape_mismatch_errors() {
 
     // Save module
     let mut save_store = SafetensorsStore::from_bytes(None);
-    module.collect_to(&mut save_store).unwrap();
+    module.save_into(&mut save_store).unwrap();
 
     // Try to load into incompatible module (different dimensions)
     let mut incompatible_module = LinearConfig::new(3, 3)
@@ -31,7 +31,7 @@ fn shape_mismatch_errors() {
         p.set_data(data_arc.as_ref().clone());
     }
 
-    let result = incompatible_module.apply_from(&mut load_store).unwrap();
+    let result = incompatible_module.load_from(&mut load_store).unwrap();
 
     // Should have errors due to shape mismatch
     assert!(!result.errors.is_empty());
@@ -46,6 +46,6 @@ fn shape_mismatch_errors() {
         p.set_data(data_arc.as_ref().clone());
     }
 
-    let validation_result = incompatible_module.apply_from(&mut load_store_with_validation);
+    let validation_result = incompatible_module.load_from(&mut load_store_with_validation);
     assert!(validation_result.is_err());
 }

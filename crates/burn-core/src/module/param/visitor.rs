@@ -1,4 +1,4 @@
-use super::ParamId;
+use super::{Param, ParamId};
 use crate::module::{Module, ModuleVisitor};
 use alloc::vec::Vec;
 use burn_tensor::{Bool, Int, Tensor, backend::Backend};
@@ -14,14 +14,14 @@ where
     B: Backend,
     M: Module<B>,
 {
-    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        self.param_ids.push(id);
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+        self.param_ids.push(param.id);
     }
-    fn visit_int<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D, Int>) {
-        self.param_ids.push(id);
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
+        self.param_ids.push(param.id);
     }
-    fn visit_bool<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D, Bool>) {
-        self.param_ids.push(id);
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
+        self.param_ids.push(param.id);
     }
 }
 
