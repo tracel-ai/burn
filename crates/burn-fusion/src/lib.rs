@@ -18,7 +18,6 @@ pub mod stream;
 pub(crate) mod search;
 
 mod backend;
-mod fusion;
 mod ops;
 mod server;
 mod tensor;
@@ -26,6 +25,5 @@ mod tensor;
 pub(crate) use server::*;
 
 pub use backend::*;
-pub use fusion::*;
 pub use ops::NoOp;
 pub use tensor::*;

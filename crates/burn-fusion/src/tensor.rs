@@ -1,6 +1,5 @@
 use crate::{
     Client, FusionBackend, FusionRuntime,
-    client::FusionClient,
     stream::{Operation, OperationStreams, StreamId},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
@@ -19,7 +18,7 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub id: TensorId,
     /// The shape of the tensor.
     pub shape: Shape,
-    /// The [fusion client](FusionClient).
+    /// The fusion client.
     pub client: Client<R>,
     /// The datatype of the tensor.
     pub dtype: DType,

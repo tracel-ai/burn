@@ -320,7 +320,7 @@ fn both_matches_symmetric_qint8(lhs: &QuantScheme, rhs: &QuantScheme) -> bool {
     })
 }
 
-fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server, R::Channel>) -> bool {
+fn features_enabled<R: Runtime>(client: &ComputeClient<R::Server>) -> bool {
     i8::supported_uses(client).contains(TypeUsage::Conversion)
         && client.properties().features.dynamic_line_size
 }
