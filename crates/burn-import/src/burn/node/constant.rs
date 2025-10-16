@@ -331,13 +331,18 @@ impl OnnxIntoNode for ConstantNode {
 
                     let tensor_data = match &tensor.elem_type {
                         ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                            serialize_float_data(tensor_data.data.clone(), tensor_data.shape.clone())
+                            serialize_float_data(
+                                tensor_data.data.clone(),
+                                tensor_data.shape.clone(),
+                            )
                         }
                         ElementType::Int32
                         | ElementType::Int64
                         | ElementType::Uint16
                         | ElementType::Uint8
-                        | ElementType::Int8 => serialize_int_data(tensor_data.data.clone(), tensor_data.shape.clone()),
+                        | ElementType::Int8 => {
+                            serialize_int_data(tensor_data.data.clone(), tensor_data.shape.clone())
+                        }
                         ElementType::Bool => {
                             serialize_bool_data(tensor_data.data.clone(), tensor_data.shape.clone())
                         }

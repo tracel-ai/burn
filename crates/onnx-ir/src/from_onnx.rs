@@ -478,6 +478,15 @@ impl GraphData {
     pub(crate) fn get_expected_type(&self, arg_name: &str) -> Option<&ArgType> {
         self.expected_types.get(arg_name)
     }
+
+    /// Check if a constant output name corresponds to an initializer
+    /// Initializer constants have names starting with "constant_init_"
+    /// Returns false for ONNX Constant nodes
+    pub(crate) fn is_initializer_output(&self, output_name: &str) -> bool {
+        self.get_constant_value(output_name)
+            .map(|node| node.name.starts_with("constant_init_"))
+            .unwrap_or(false)
+    }
 }
 
 #[derive(Default)]
@@ -749,13 +758,17 @@ impl OnnxGraphBuilder {
                     )
                 });
 
-            // Filter to only lift inputs that actually have constant values
+            // Filter to only lift inputs that are initializers (model weights/params)
+            // ONNX Constant nodes should NOT be lifted - they remain as runtime arguments
             // Check GraphData directly to avoid RefCell borrow conflicts
             let lifted: Vec<String> = {
                 let graph_data = graph_data_rc.borrow();
                 potential_lifts
                     .into_iter()
-                    .filter(|input_name| graph_data.has_value(input_name))
+                    .filter(|input_name| {
+                        graph_data.has_value(input_name)
+                            && graph_data.is_initializer_output(input_name)
+                    })
                     .collect()
             }; // Drop immutable borrow here
 

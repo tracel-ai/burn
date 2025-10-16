@@ -1,11 +1,10 @@
-use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
 /// Configuration for the Gather operation.
 #[derive(Debug, Clone)]
 pub struct GatherConfig {
-    pub indices: GatherInput,
     pub axis: usize,
 }
 
@@ -17,15 +16,6 @@ impl NodeConfig for GatherConfig {
     fn clone_box(&self) -> Box<dyn NodeConfig> {
         Box::new(self.clone())
     }
-}
-
-/// Represents either a static value or a runtime argument for gather indices.
-#[derive(Debug, Clone)]
-pub enum GatherInput {
-    /// Static value known at compile time.
-    Static(Vec<i64>),
-    /// Runtime argument determined during execution.
-    Runtime(crate::ir::Argument),
 }
 
 pub struct GatherProcessor;
@@ -216,33 +206,7 @@ impl NodeProcessor for GatherProcessor {
             axis += input_dim;
         }
 
-        // Get indices input
-        let indices_input = &node.inputs[1];
-
-        let indices = if let Some(value) = indices_input.into_value() {
-            // Static indices
-            match &value.data {
-                Data::Int64s(vals) => GatherInput::Static(vals.clone()),
-                Data::Int32s(vals) => {
-                    let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
-                    GatherInput::Static(int64_vals)
-                }
-                other => {
-                    return Err(ProcessError::Custom(format!(
-                        "Gather indices must be int32 or int64, got {:?}",
-                        other
-                    )));
-                }
-            }
-        } else {
-            // Runtime indices
-            let mut runtime_arg = indices_input.clone();
-            runtime_arg.value_store = None;
-            GatherInput::Runtime(runtime_arg)
-        };
-
         let config = GatherConfig {
-            indices,
             axis: axis as usize,
         };
         Ok(Some(Box::new(config)))
@@ -325,62 +289,6 @@ mod tests {
                 actual: 1
             })
         ));
-    }
-
-    fn create_runtime_gather_node(axis: i64, input_rank: usize) -> NodeBuilder {
-        NodeBuilder::new(NodeType::Gather, "test_runtime_gather")
-            .attr_int("axis", axis)
-            .input_tensor_f32("data", input_rank, None)
-            .input_tensor_i64("indices", 1, None) // No static value - runtime input
-            .output_tensor_f32("output", input_rank, None)
-    }
-
-    #[test]
-    fn test_gather_config_runtime_indices() {
-        let node = create_runtime_gather_node(0, 3).build();
-        let mut node = node;
-        let processor = GatherProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
-        assert_eq!(config.axis, 0);
-
-        // Check that indices is runtime
-        match &config.indices {
-            GatherInput::Runtime(arg) => {
-                assert_eq!(arg.name, "indices");
-            }
-            _ => panic!("Expected runtime indices"),
-        }
-    }
-
-    #[test]
-    fn test_gather_config_static_indices() {
-        let builder = NodeBuilder::new(NodeType::Gather, "test_static_gather")
-            .attr_int("axis", 1)
-            .input_tensor_f32("data", 3, None)
-            .input_tensor_i64_data("indices", vec![0, 2, 1], vec![3])
-            .output_tensor_f32("output", 3, None);
-
-        let node = builder.build_with_graph_data(16);
-        let mut node = node;
-        let processor = GatherProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
-        assert_eq!(config.axis, 1);
-
-        // Check that indices is static
-        match &config.indices {
-            GatherInput::Static(vals) => {
-                assert_eq!(*vals, vec![0, 2, 1]);
-            }
-            _ => panic!("Expected static indices"),
-        }
     }
 
     #[test]
@@ -559,34 +467,6 @@ mod tests {
                 assert_eq!(*rank, 1, "Expected Shape(1) output for 1D tensor indices");
             }
             other => panic!("Expected Shape(1) output, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_gather_config_with_shape_indices() {
-        // Test gather_config with Shape indices (runtime)
-        let node = NodeBuilder::new(NodeType::Gather, "test_gather_config_shape")
-            .attr_int("axis", 0)
-            .input_shape("data", 3)
-            .add_input("indices", ArgType::Shape(2)) // Shape(2) as indices
-            .output_shape("output", 2)
-            .build();
-
-        let mut node = node;
-        let processor = GatherProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        node.config = config;
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-        let config = node.config::<GatherConfig>();
-        assert_eq!(config.axis, 0);
-
-        // Check that Shape indices are treated as runtime
-        match &config.indices {
-            GatherInput::Runtime(arg) => {
-                assert_eq!(arg.name, "indices");
-            }
-            _ => panic!("Expected runtime Shape indices"),
         }
     }
 }
