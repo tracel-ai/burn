@@ -74,6 +74,8 @@ pub struct GraphData {
     constant_references: HashMap<String, usize>,
     /// Maps constant output names to node indices
     constant_nodes: HashMap<String, usize>,
+    /// Tracks which node indices correspond to initializers (for lifting logic)
+    initializer_nodes: HashSet<usize>,
     /// Nodes marked for removal
     nodes_to_remove: HashSet<usize>,
     /// Cached values from consumed constants (constant node removed, but value still accessible)
@@ -105,10 +107,14 @@ impl GraphData {
             tensor_data_map.insert(initializer.name.clone(), tensor_data);
         }
 
+        // Track initializer node indices for lifting logic
+        let mut initializer_nodes = HashSet::new();
+
         // Create Constant nodes for all initializers
         for (idx, initializer) in initializers.iter().enumerate() {
             if let Some(arg) = constants_map.get(&initializer.name) {
-                let const_name = format!("constant_init_{}", idx + 1);
+                // Use same naming scheme as other constants: "constant1", "constant2", etc.
+                let const_name = format!("constant{}", idx + 1);
                 let output_name = format!("{}_out1", const_name);
 
                 let mut constant_node = Node {
@@ -137,6 +143,9 @@ impl GraphData {
                 // Register this constant
                 constant_nodes.insert(output_name.clone(), node_idx);
                 constant_references.insert(output_name.clone(), 0);
+
+                // Mark this as an initializer node for lifting logic
+                initializer_nodes.insert(node_idx);
 
                 // Map the original initializer name to this constant node
                 input_name_map.insert(initializer.name.clone(), IOEntry::Node(node_idx, 0));
@@ -185,6 +194,7 @@ impl GraphData {
             passed_inputs: HashSet::new(),
             constant_references,
             constant_nodes,
+            initializer_nodes,
             nodes_to_remove: HashSet::new(),
             consumed_values: HashMap::new(),
             expected_types: HashMap::new(),
@@ -480,11 +490,12 @@ impl GraphData {
     }
 
     /// Check if a constant output name corresponds to an initializer
-    /// Initializer constants have names starting with "constant_init_"
+    /// Uses the initializer_nodes set to identify initializers
     /// Returns false for ONNX Constant nodes
     pub(crate) fn is_initializer_output(&self, output_name: &str) -> bool {
-        self.get_constant_value(output_name)
-            .map(|node| node.name.starts_with("constant_init_"))
+        self.constant_nodes
+            .get(output_name)
+            .map(|&node_idx| self.initializer_nodes.contains(&node_idx))
             .unwrap_or(false)
     }
 }
@@ -667,6 +678,13 @@ impl OnnxGraphBuilder {
             &model_proto.graph.initializer,
         );
 
+        // Initialize Constant node counter to account for initializers
+        // so ONNX Constant nodes continue numbering after initializers
+        let num_initializers = model_proto.graph.initializer.len();
+        if num_initializers > 0 {
+            self.node_name_counter.insert(NodeType::Constant, num_initializers);
+        }
+
         // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
 
@@ -758,17 +776,14 @@ impl OnnxGraphBuilder {
                     )
                 });
 
-            // Filter to only lift inputs that are initializers (model weights/params)
-            // ONNX Constant nodes should NOT be lifted - they remain as runtime arguments
+            // Filter to only lift inputs that are constants (have values available)
+            // All constants are liftable - initializers, ONNX Constant nodes, etc.
             // Check GraphData directly to avoid RefCell borrow conflicts
             let lifted: Vec<String> = {
                 let graph_data = graph_data_rc.borrow();
                 potential_lifts
                     .into_iter()
-                    .filter(|input_name| {
-                        graph_data.has_value(input_name)
-                            && graph_data.is_initializer_output(input_name)
-                    })
+                    .filter(|input_name| graph_data.has_value(input_name))
                     .collect()
             }; // Drop immutable borrow here
 
@@ -874,12 +889,12 @@ impl OnnxGraphBuilder {
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes, opset_version);
 
-        // Filter out nodes marked for removal AND lifted constants
-        // Lifted constants have their values in node configs and shouldn't be model parameters
-        // Non-lifted constants (like weights/biases) should remain
+        // Filter out only nodes explicitly marked for removal
+        // Lifted constants should REMAIN in the graph as model parameters
+        // Multiple nodes may need the same constant - lifting by one node doesn't mean others don't need it
 
         log::debug!(
-            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}",
+            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={} (kept in graph)",
             processed_nodes.len(),
             nodes_to_remove,
             lifted_constants.len()
@@ -887,18 +902,12 @@ impl OnnxGraphBuilder {
 
         let mut i = 0;
         processed_nodes.retain(|node| {
-            let is_lifted_constant = node
-                .outputs
-                .first()
-                .is_some_and(|output| lifted_constants.contains(&output.name));
-
-            let keep = !nodes_to_remove.contains(&i) && !is_lifted_constant;
+            let keep = !nodes_to_remove.contains(&i);
             if !keep {
                 log::debug!(
-                    "Filtering out node at index {}: {} (lifted={})",
+                    "Filtering out node at index {}: {}",
                     i,
-                    node.name,
-                    is_lifted_constant
+                    node.name
                 );
             }
             i += 1;
