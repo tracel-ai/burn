@@ -207,6 +207,34 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 // We were unable to statically determine the input value, so we'll need to fetch it at runtime
                 let mut runtime_arg = node.inputs[0].clone();
                 runtime_arg.value_store = None;
+
+                // Determine the rank for the Shape type
+                // This will be properly inferred in infer_types, but we need to set it here
+                // so burn-import gets the correct type
+                let rank = match &runtime_arg.ty {
+                    ArgType::Shape(rank) => *rank,
+                    ArgType::Tensor(tensor_type) => {
+                        // If it's still a Tensor, infer rank from static shape or from the first dimension
+                        if let Some(ref static_shape) = tensor_type.static_shape {
+                            static_shape.first().copied().unwrap_or(0)
+                        } else {
+                            // No static shape available - this will be properly handled in infer_types
+                            // For now, use 0 as a placeholder (will be updated)
+                            0
+                        }
+                    }
+                    _ => {
+                        return Err(ProcessError::Custom(format!(
+                            "ConstantOfShape node {} input must be Tensor or Shape type",
+                            node.name
+                        )));
+                    }
+                };
+
+                // Update the argument type to Shape
+                // This ensures burn-import receives the correct type
+                runtime_arg.ty = ArgType::Shape(rank);
+
                 ConstantOfShapeShape::Runtime(runtime_arg)
             }
             _ => {

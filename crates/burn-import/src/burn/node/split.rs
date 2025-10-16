@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use crate::burn::{BurnImports, Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use onnx_ir::node::split::SplitConfig;
 use proc_macro2::TokenStream;
@@ -63,6 +63,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Split(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // When split_sizes is used, we generate vec![...] which needs the vec macro
+        if self.config.split_sizes.is_some() {
+            imports.register("alloc::vec");
+        }
     }
 }
 
