@@ -758,9 +758,6 @@ impl OnnxGraphBuilder {
         // These should be filtered out of the final graph
         let mut lifted_constants = HashSet::new();
 
-        // Track which node lifted each constant: constant_name -> node_name
-        let mut lifted_by: HashMap<String, String> = HashMap::new();
-
         // PASS 2: Process nodes with collected preferences
         while let Some(node_proto) = node_iter.next() {
             let mut node = convert_node_proto(node_proto, &graph_data_rc.borrow());
@@ -855,12 +852,7 @@ impl OnnxGraphBuilder {
                         // Track this as a lifted constant for potential removal
                         // Lifted constants have their values in node configs and shouldn't be model parameters
                         lifted_constants.insert(input_name.clone());
-                        lifted_by.insert(input_name.clone(), node.name.clone());
-                        log::debug!(
-                            "Marked constant {} for removal (lifted by {})",
-                            input_name,
-                            node.name
-                        );
+                        log::debug!("Marked constant {} for removal", input_name);
                     } else {
                         log::warn!(
                             "Failed to lift constant {} for node {} - value not found",
@@ -950,37 +942,24 @@ impl OnnxGraphBuilder {
         self.convert_shape_constants(&mut processed_nodes, opset_version);
 
         // Determine which lifted constants can be removed
-        // A lifted constant can be removed if:
-        // 1. It's ONLY used by the node that lifted it (not used by other nodes), AND
-        // 2. It's NOT an initializer (initializers are module weights/biases that must be saved)
+        // A lifted constant can be removed if it's ONLY used by ONE node (the node that lifted it)
         //
-        // Build a map of constant_name -> nodes that use it (excluding the node that lifted it)
-        let mut constant_users: HashMap<String, Vec<String>> = HashMap::new();
+        // Build a map of constant_name -> count of nodes that use it
+        let mut constant_user_counts: HashMap<String, usize> = HashMap::new();
         for node in &processed_nodes {
             for input in &node.inputs {
-                // If this is a lifted constant and this node is NOT the one that lifted it
-                if lifted_constants.contains(&input.name)
-                    && let Some(lifter_name) = lifted_by.get(&input.name)
-                {
-                    // Only count this as a user if it's a DIFFERENT node than the lifter
-                    if &node.name != lifter_name {
-                        constant_users
-                            .entry(input.name.clone())
-                            .or_default()
-                            .push(node.name.clone());
-                    }
+                if lifted_constants.contains(&input.name) {
+                    *constant_user_counts.entry(input.name.clone()).or_insert(0) += 1;
                 }
             }
         }
 
-        // Filter out nodes marked for removal AND lifted constants not needed by other nodes
+        // Filter out nodes marked for removal AND lifted constants used by only one node
         log::debug!(
-            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}, constants_with_other_users={}, initializer_nodes={:?}",
+            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}",
             processed_nodes.len(),
             nodes_to_remove,
-            lifted_constants.len(),
-            constant_users.len(),
-            initializer_node_indices
+            lifted_constants.len()
         );
 
         let mut i = 0;
@@ -990,27 +969,27 @@ impl OnnxGraphBuilder {
                 .first()
                 .is_some_and(|output| lifted_constants.contains(&output.name));
 
-            // Check if this is an initializer (weights/biases that must be saved)
-            let is_initializer = initializer_node_indices.contains(&i);
+            // If this is a lifted constant, check how many nodes use it
+            // Remove if used by only 1 node (the node that lifted it)
+            let used_by_multiple = if is_lifted_constant {
+                node.outputs
+                    .first()
+                    .and_then(|output| constant_user_counts.get(&output.name))
+                    .map(|count| *count > 1)
+                    .unwrap_or(false)
+            } else {
+                false
+            };
 
-            // Keep the constant if:
-            // - It's used by OTHER nodes (not just the node that lifted it), OR
-            // - It's an initializer (module weights/biases must remain as Param fields)
-            let needed_by_others = node
-                .outputs
-                .first()
-                .is_some_and(|output| constant_users.contains_key(&output.name));
-
-            let keep = !nodes_to_remove.contains(&i) && (!is_lifted_constant || needed_by_others || is_initializer);
+            let keep = !nodes_to_remove.contains(&i) && (!is_lifted_constant || used_by_multiple);
 
             if !keep {
                 log::debug!(
-                    "Filtering out node at index {}: {} (lifted={}, needed_by_others={}, is_initializer={})",
+                    "Filtering out node at index {}: {} (lifted={}, used_by_multiple={})",
                     i,
                     node.name,
                     is_lifted_constant,
-                    needed_by_others,
-                    is_initializer
+                    used_by_multiple
                 );
             }
             i += 1;
