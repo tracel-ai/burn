@@ -1696,10 +1696,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc =
-            ReduceDimOpIr::create_with_dtype(tensor.into_ir(), dim, B::IntElem::dtype(), || {
-                client.create_empty_handle()
-            });
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
             .register(
@@ -1773,10 +1770,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc =
-            ReduceDimOpIr::create_with_dtype(tensor.into_ir(), dim, B::IntElem::dtype(), || {
-                client.create_empty_handle()
-            });
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
             .register(

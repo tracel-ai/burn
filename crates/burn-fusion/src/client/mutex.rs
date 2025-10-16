@@ -4,7 +4,7 @@ use crate::{
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_tensor::{DType, Shape, TensorData};
+use burn_tensor::TensorData;
 use spin::Mutex;
 use std::sync::Arc;
 
@@ -46,7 +46,6 @@ where
     where
         O: Operation<R> + 'static,
     {
-        println!("register op: {repr:?}");
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()
@@ -60,7 +59,6 @@ where
                 )
             })
             .collect();
-        println!("w/ outputs {outputs:?}");
 
         self.server
             .lock()

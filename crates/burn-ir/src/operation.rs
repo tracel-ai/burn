@@ -1766,10 +1766,10 @@ impl NumericOperationIr {
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::MaxDimWithIndices(repr) => {
-                Box::new([&repr.out_indices, &repr.out].into_iter())
+                Box::new([&repr.out, &repr.out_indices].into_iter())
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
-                Box::new([&repr.out_indices, &repr.out].into_iter())
+                Box::new([&repr.out, &repr.out_indices].into_iter())
             }
             NumericOperationIr::Min(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::MaxDim(repr) => Box::new([&repr.out].into_iter()),

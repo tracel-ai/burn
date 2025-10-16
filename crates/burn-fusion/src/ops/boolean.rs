@@ -510,10 +510,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                println!("Permute execute");
-                println!("in: {:?}", self.desc.input);
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                println!("out: {:?}", self.desc.out);
                 let output = B::bool_permute(input, self.desc.axes.as_slice());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -523,7 +520,6 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let client = tensor.client.clone();
         let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
-            println!("create empty handle");
             client.create_empty_handle()
         });
 
