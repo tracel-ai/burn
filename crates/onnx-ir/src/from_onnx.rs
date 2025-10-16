@@ -704,7 +704,6 @@ impl OnnxGraphBuilder {
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
-            self.handle_unsqueeze(&mut node, &graph_data_rc.borrow());
 
             // Get preferences for this node (collected in pass 1)
             let output_prefs = preferences_map
@@ -1312,22 +1311,6 @@ impl OnnxGraphBuilder {
         }
     }
 
-    /// Check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
-    /// Needs to be called after node renaming to ensure that the rhs name is correct
-    fn handle_unsqueeze(&mut self, node: &mut Node, graph_data: &GraphData) {
-        if node.node_type == NodeType::Unsqueeze && node.inputs.len() > 1 {
-            // Check if rhs is a constant using GraphData directly
-            let rhs_is_constant = graph_data.has_value(&node.inputs[1].name);
-
-            if !rhs_is_constant {
-                // if the output has a shape, it's only because it's a graph output
-                if let Some(out_arg) = graph_data.get_graph_output(&node.outputs[0].name) {
-                    remap_unsqueeze_to_reshape(node, out_arg);
-                }
-            }
-        }
-    }
-
     fn handle_identity(
         &mut self,
         node: &mut Node,
@@ -1571,33 +1554,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     graph
 }
 
-/// Remap the unsqueeze node to a reshape node, Should only be called after
-/// node renaming has been done. avoids marking rhs as passed so that it can be
-/// properly deleted if nothing else uses it
-/// Remap the unsqueeze node to a reshape node
-pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
-    // Get the shape information from the output argument's type
-    if let ArgType::Tensor(ref tensor_type) = out_arg.ty
-        && let Some(ref shape_vec) = tensor_type.static_shape
-    {
-        let inner = shape_vec.iter().map(|&x| x as i64).collect::<Vec<i64>>();
-        let shape_len = inner.len();
-
-        // Create a shape argument (the reshape shape will be a runtime input, not a constant with inline value)
-        // In the new architecture, if we need a constant, it should be created as a Constant node
-        // For now, we create a Shape type input
-        let rhs_arg = Argument {
-            name: format!("{}_generated_shape", &node.name),
-            ty: ArgType::Shape(shape_len),
-            value_store: None,
-        };
-
-        // Update the node
-        node.inputs[1] = rhs_arg;
-        node.outputs[0] = out_arg.clone();
-        node.node_type = NodeType::Reshape;
-    }
-}
 // Define a trait for topological sorting
 trait TopologicalSortable {
     fn is_top_sorted(&self) -> bool;
