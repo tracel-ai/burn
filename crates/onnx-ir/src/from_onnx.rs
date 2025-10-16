@@ -544,6 +544,7 @@ impl OnnxGraphBuilder {
     fn collect_preferences_before_processing(
         &mut self,
         node_protos: &[NodeProto],
+        initializers: &[TensorProto],
         opset: usize,
     ) -> HashMap<String, crate::processor::OutputPreferences> {
         use crate::processor::OutputPreferences;
@@ -555,7 +556,19 @@ impl OnnxGraphBuilder {
         let mut node_preferences: HashMap<String, OutputPreferences> = HashMap::new();
 
         // Build output_to_producer map: output_name -> (node_index, output_index)
+        // This includes both regular nodes and initializers
         let mut output_to_producer: HashMap<String, (usize, usize)> = HashMap::new();
+
+        // Add initializers to the map (they will become constant1, constant2, etc.)
+        // Use special node_idx that won't conflict with regular nodes (negative values represented as very large usize)
+        for (init_idx, initializer) in initializers.iter().enumerate() {
+            if !initializer.name.is_empty() {
+                // Map initializer name to a synthetic index that indicates it's an initializer
+                output_to_producer.insert(initializer.name.clone(), (usize::MAX - init_idx, 0));
+            }
+        }
+
+        // Add regular node outputs
         for (node_idx, node_proto) in node_protos.iter().enumerate() {
             for (output_idx, output_name) in node_proto.output.iter().enumerate() {
                 if !output_name.is_empty() {
@@ -603,23 +616,37 @@ impl OnnxGraphBuilder {
                         if let Some(&(producer_idx, output_idx)) =
                             output_to_producer.get(&node_proto.input[input_idx])
                         {
-                            let producer_proto = &node_protos[producer_idx];
+                            // Check if this is an initializer (marked with usize::MAX - init_idx)
+                            let (producer_name, producer_output_name) =
+                                if producer_idx >= usize::MAX / 2 {
+                                    // This is an initializer
+                                    let init_idx = usize::MAX - producer_idx;
+                                    let const_num = init_idx + 1; // constant1, constant2, etc.
+                                    let producer_name = format!("constant{}", const_num);
+                                    let producer_output_name =
+                                        format!("{}_out{}", producer_name, output_idx + 1);
+                                    (producer_name, producer_output_name)
+                                } else {
+                                    // Regular node
+                                    let producer_proto = &node_protos[producer_idx];
 
-                            // Get the producer's renamed name
-                            let producer_node_type =
-                                NodeType::from_str(producer_proto.op_type.as_str())
-                                    .expect("Unknown node type");
-                            let producer_counter = self
-                                .node_name_counter
-                                .get(&producer_node_type)
-                                .unwrap_or(&0);
-                            let producer_name =
-                                format!("{}{}", producer_node_type, producer_counter)
-                                    .to_lowercase();
+                                    // Get the producer's renamed name
+                                    let producer_node_type =
+                                        NodeType::from_str(producer_proto.op_type.as_str())
+                                            .expect("Unknown node type");
+                                    let producer_counter = self
+                                        .node_name_counter
+                                        .get(&producer_node_type)
+                                        .unwrap_or(&0);
+                                    let producer_name =
+                                        format!("{}{}", producer_node_type, producer_counter)
+                                            .to_lowercase();
 
-                            // Get producer's output name (will be renamed)
-                            let producer_output_name =
-                                format!("{}_out{}", producer_name, output_idx + 1);
+                                    // Get producer's output name (will be renamed)
+                                    let producer_output_name =
+                                        format!("{}_out{}", producer_name, output_idx + 1);
+                                    (producer_name, producer_output_name)
+                                };
 
                             // Add preferences to the producer
                             let prefs = node_preferences.entry(producer_name.clone()).or_default();
@@ -645,8 +672,13 @@ impl OnnxGraphBuilder {
             }
         }
 
-        // Reset counter for actual processing
+        // Reset counters for actual processing, but preserve the Constant counter
+        // The Constant counter tracks initializers and must be preserved for consistent naming
+        let constant_counter = self.node_name_counter.get(&NodeType::Constant).copied();
         self.node_name_counter.clear();
+        if let Some(count) = constant_counter {
+            self.node_name_counter.insert(NodeType::Constant, count);
+        }
 
         log::debug!(
             "Collected preferences for {} producers",
@@ -668,22 +700,39 @@ impl OnnxGraphBuilder {
             .map(|opset| opset.version as usize)
             .unwrap_or(MIN_OPSET_VERSION as usize);
 
-        // PASS 1: Collect input preferences before processing
-        let preferences_map =
-            self.collect_preferences_before_processing(&model_proto.graph.node, opset_version);
+        // Initialize Constant node counter to account for initializers
+        // BEFORE collecting preferences so preference lookup uses correct names
+        let num_initializers = model_proto.graph.initializer.len();
+        if num_initializers > 0 {
+            self.node_name_counter
+                .insert(NodeType::Constant, num_initializers);
+        }
 
-        let graph_data = GraphData::new(
+        // PASS 1: Collect input preferences before processing
+        let preferences_map = self.collect_preferences_before_processing(
+            &model_proto.graph.node,
+            &model_proto.graph.initializer,
+            opset_version,
+        );
+
+        let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
 
-        // Initialize Constant node counter to account for initializers
-        // so ONNX Constant nodes continue numbering after initializers
-        let num_initializers = model_proto.graph.initializer.len();
-        if num_initializers > 0 {
-            self.node_name_counter
-                .insert(NodeType::Constant, num_initializers);
+        // Apply preferences to initializer constant nodes
+        // These were created in GraphData::new() and missed the preference application
+        let registry = get_processor_registry();
+        let processor = registry.get(&NodeType::Constant);
+        for i in 0..model_proto.graph.initializer.len() {
+            let node_name = format!("constant{}", i + 1);
+            if let Some(prefs) = preferences_map.get(&node_name) {
+                log::debug!("Applying preferences to initializer constant {}", node_name);
+                if let Some(node) = graph_data.get_processed_nodes_mut().get_mut(i) {
+                    let _ = processor.infer_types(node, opset_version, prefs);
+                }
+            }
         }
 
         // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access

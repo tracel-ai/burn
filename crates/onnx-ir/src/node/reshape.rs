@@ -259,13 +259,15 @@ impl NodeProcessor for ReshapeProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
+        use crate::processor::ArgPreference;
+
         if node.inputs.len() != 2 {
             return Ok(None);
         }
 
         // Prefer Shape type for shape input (second input)
         Ok(Some(
-            InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(0)),
+            InputPreferences::new().add(&node.inputs[1].name, ArgPreference::Shape),
         ))
     }
 

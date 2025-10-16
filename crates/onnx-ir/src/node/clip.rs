@@ -38,10 +38,10 @@ impl NodeProcessor for ClipProcessor {
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
-        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() && node.inputs[1].has_value() {
+        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
             lifted.push(node.inputs[1].name.clone());
         }
-        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() && node.inputs[2].has_value() {
+        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
             lifted.push(node.inputs[2].name.clone());
         }
 

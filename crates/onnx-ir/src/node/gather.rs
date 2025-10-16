@@ -26,20 +26,16 @@ impl NodeProcessor for GatherProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
+        use crate::processor::ArgPreference;
+
         if node.inputs.len() < 2 {
             return Ok(None);
         }
 
         // When gathering from Shape data, prefer indices to be Shape type
-        if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
-            let value = node.inputs[1].into_value().ok_or_else(|| {
-                ProcessError::Custom("Gather: failed to get value for indices tensor".to_string())
-            })?;
-            let rank = value.shape.first().ok_or_else(|| {
-                ProcessError::Custom("Gather: indices tensor has no dimensions".to_string())
-            })?;
+        if node.inputs[0].ty.is_shape() {
             Ok(Some(
-                InputPreferences::new().add(&node.inputs[1].name, ArgType::Shape(*rank)),
+                InputPreferences::new().add(&node.inputs[1].name, ArgPreference::Shape),
             ))
         } else {
             Ok(None)

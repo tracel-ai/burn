@@ -3,13 +3,20 @@
 //! This module defines the `NodeProcessor` trait with support for type preferences
 //! and proper error handling.
 
-use crate::ir::{ArgType, Node, NodeConfig, NodeType};
+use crate::ir::{Node, NodeConfig, NodeType};
 use std::collections::HashMap;
 
 /// Type preferences for node inputs
 #[derive(Debug, Default, Clone)]
 pub struct InputPreferences {
-    preferences: HashMap<String, Vec<ArgType>>,
+    preferences: HashMap<String, Vec<ArgPreference>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ArgPreference {
+    Scalar,
+    Shape,
+    Tensor,
 }
 
 impl InputPreferences {
@@ -17,7 +24,7 @@ impl InputPreferences {
         Self::default()
     }
 
-    pub fn add(mut self, input_name: impl Into<String>, ty: ArgType) -> Self {
+    pub fn add(mut self, input_name: impl Into<String>, ty: ArgPreference) -> Self {
         self.preferences
             .entry(input_name.into())
             .or_default()
@@ -25,7 +32,7 @@ impl InputPreferences {
         self
     }
 
-    pub fn get(&self, input_name: &str) -> &[ArgType] {
+    pub fn get(&self, input_name: &str) -> &[ArgPreference] {
         self.preferences
             .get(input_name)
             .map_or(&[], |v| v.as_slice())
@@ -36,7 +43,7 @@ impl InputPreferences {
 #[derive(Debug, Default, Clone)]
 pub struct OutputPreferences {
     // output_name -> [(consumer_name, requested_type)]
-    requests: HashMap<String, Vec<(String, ArgType)>>,
+    requests: HashMap<String, Vec<(String, ArgPreference)>>,
 }
 
 impl OutputPreferences {
@@ -48,7 +55,7 @@ impl OutputPreferences {
         &mut self,
         output_name: impl Into<String>,
         consumer: impl Into<String>,
-        ty: ArgType,
+        ty: ArgPreference,
     ) {
         self.requests
             .entry(output_name.into())
@@ -56,7 +63,7 @@ impl OutputPreferences {
             .push((consumer.into(), ty));
     }
 
-    pub fn get(&self, output_name: &str) -> &[(String, ArgType)] {
+    pub fn get(&self, output_name: &str) -> &[(String, ArgPreference)] {
         self.requests.get(output_name).map_or(&[], |v| v.as_slice())
     }
 }

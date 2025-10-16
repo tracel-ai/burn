@@ -24,6 +24,8 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
+        use crate::processor::ArgPreference;
+
         if node.inputs.len() != 2 {
             return Ok(None);
         }
@@ -37,13 +39,13 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         // - half_shape = old_shape / 2
 
         // Case 1: Shape op Constant => prefer Constant as Shape
-        if node.inputs[0].ty.is_shape() && node.inputs[1].has_value() {
-            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
+        if node.inputs[0].ty.is_shape() {
+            prefs = prefs.add(&node.inputs[1].name, ArgPreference::Shape);
         }
 
         // Case 2: Constant op Shape => prefer Constant as Shape
-        if node.inputs[1].ty.is_shape() && node.inputs[0].has_value() {
-            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
+        if node.inputs[1].ty.is_shape() {
+            prefs = prefs.add(&node.inputs[0].name, ArgPreference::Shape);
         }
 
         // Type propagation for Scalar arithmetic:
@@ -51,13 +53,13 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         // This preserves scalar semantics through arithmetic operations.
 
         // Case 3: Scalar op Constant => prefer Constant as Scalar
-        if node.inputs[0].ty.is_scalar() && node.inputs[1].has_value() {
-            prefs = prefs.add(&node.inputs[1].name, node.inputs[0].ty.clone());
+        if node.inputs[0].ty.is_scalar() {
+            prefs = prefs.add(&node.inputs[1].name, ArgPreference::Scalar);
         }
 
         // Case 4: Constant op Scalar => prefer Constant as Scalar
-        if node.inputs[1].ty.is_scalar() && node.inputs[0].has_value() {
-            prefs = prefs.add(&node.inputs[0].name, node.inputs[1].ty.clone());
+        if node.inputs[1].ty.is_scalar() {
+            prefs = prefs.add(&node.inputs[0].name, ArgPreference::Scalar);
         }
 
         Ok(Some(prefs))

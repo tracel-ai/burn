@@ -310,7 +310,8 @@ impl Argument {
     }
 
     /// Check if this argument has a value (i.e., points to a Constant node)
-    pub fn has_value(&self) -> bool {
+    fn has_value(&self) -> bool {
+        // TODO Remove this
         self.value_store
             .as_ref()
             .map(|store| store.borrow().has_value(&self.name))

@@ -26,6 +26,8 @@ impl NodeProcessor for ConcatProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<InputPreferences>, ProcessError> {
+        use crate::processor::ArgPreference;
+
         if node.inputs.is_empty() {
             return Ok(None);
         }
@@ -40,18 +42,9 @@ impl NodeProcessor for ConcatProcessor {
         // When concatenating with Shape inputs, prefer constant rank-1 tensors to be Shape
         let mut prefs = InputPreferences::new();
         for input in &node.inputs {
-            if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) && input.has_value() {
-                // Prefer this constant to be Shape (rank will be determined from tensor data)
-                let value = input.into_value().ok_or_else(|| {
-                    ProcessError::Custom(format!(
-                        "Concat: failed to get value for tensor {}",
-                        input.name
-                    ))
-                })?;
-                let rank = value.shape.first().ok_or_else(|| {
-                    ProcessError::Custom(format!("Concat: tensor {} has no dimensions", input.name))
-                })?;
-                prefs = prefs.add(&input.name, ArgType::Shape(*rank));
+            if matches!(&input.ty, ArgType::Tensor(t) if t.rank == 1) {
+                // Prefer this constant to be Shape
+                prefs = prefs.add(&input.name, ArgPreference::Shape);
             }
         }
 

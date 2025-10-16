@@ -93,12 +93,12 @@ impl NodeProcessor for ConstantProcessor {
             // Check if any consumer wants Shape type
             let wants_shape = preferences
                 .iter()
-                .any(|(_, ty)| matches!(ty, ArgType::Shape(_)));
+                .any(|(_, ty)| matches!(ty, crate::processor::ArgPreference::Shape));
 
             // Check if any consumer wants Scalar type
             let wants_scalar = preferences
                 .iter()
-                .any(|(_, ty)| matches!(ty, ArgType::Scalar(_)));
+                .any(|(_, ty)| matches!(ty, crate::processor::ArgPreference::Scalar));
 
             match &base_type {
                 // Convert 1D tensor to Shape if requested and we have static shape info
@@ -236,7 +236,7 @@ mod tests {
         prefs.add(
             node.outputs[0].name.clone(),
             "consumer_node",
-            ArgType::Shape(3),
+            crate::processor::ArgPreference::Shape,
         );
 
         let processor = ConstantProcessor;
@@ -294,7 +294,7 @@ mod tests {
         prefs.add(
             node.outputs[0].name.clone(),
             "consumer_node",
-            ArgType::Scalar(ElementType::Float32),
+            crate::processor::ArgPreference::Scalar,
         );
 
         let processor = ConstantProcessor;
@@ -325,7 +325,7 @@ mod tests {
         prefs.add(
             node.outputs[0].name.clone(),
             "consumer_node",
-            ArgType::Shape(2),
+            crate::processor::ArgPreference::Shape,
         );
 
         let processor = ConstantProcessor;

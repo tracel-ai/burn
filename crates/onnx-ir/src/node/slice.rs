@@ -108,6 +108,22 @@ fn calculate_shape_slice_output_len(
 pub struct SliceProcessor;
 
 impl NodeProcessor for SliceProcessor {
+    fn input_preferences(
+        &self,
+        node: &Node,
+        _opset: usize,
+    ) -> Result<Option<crate::processor::InputPreferences>, ProcessError> {
+        use crate::processor::{ArgPreference, InputPreferences};
+
+        let mut prefs = InputPreferences::new();
+        for input in node.inputs.iter().skip(1) {
+            // Prefer this constant to be Shape
+            prefs = prefs.add(&input.name, ArgPreference::Shape);
+        }
+
+        Ok(Some(prefs))
+    }
+
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
         let mut lifted = Vec::new();
 
@@ -228,6 +244,31 @@ impl NodeProcessor for SliceProcessor {
                 None => return Ok(None),
             };
 
+            // Check if this is a Shape type (preferred for Slice parameters)
+            if matches!(input.ty, ArgType::Shape(_)) {
+                // Try to get static value if available
+                match input.into_value() {
+                    Some(TensorData {
+                        data: Data::Int64s(values),
+                        ..
+                    }) => return Ok(Some(SliceInput::Static(values.clone()))),
+                    Some(v) => {
+                        return Err(ProcessError::Custom(format!(
+                            "Slice Shape input at index {} must be int64 but got {:?}",
+                            index, v
+                        )));
+                    }
+                    None => {
+                        // Shape type without value means it's a runtime Shape (e.g., from Shape node)
+                        // Treat it as a runtime input
+                        let mut runtime_arg = input.clone();
+                        runtime_arg.value_store = None;
+                        return Ok(Some(SliceInput::Runtime(runtime_arg)));
+                    }
+                }
+            }
+
+            // Otherwise, handle as Tensor (backward compatibility)
             match input.into_value() {
                 None => {
                     let mut runtime_arg = input.clone();
