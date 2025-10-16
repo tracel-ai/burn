@@ -22,5 +22,5 @@ github_branch = "main"
 github_workflow = "benchmarks.yml"
 # vulkan autotune seems to take ages, disabling it for now
 backends = ["cuda-fusion", "vulkan-fusion", "cuda"]
-benches = ["matmul", "transformer_encoder", "reduce", "custom_gelu"]
+benches = ["matmul", "transformer-encoder", "reduce", "custom-gelu"]
 dtypes = ["f16"]
