@@ -39,11 +39,11 @@ impl<R: Runtime> MatmulBuilder<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings = FuseSettings {
-            broadcast: false,
+            broadcast: true,
             output_shape_updates: false,
-            inplace: false,
-            vectorization: VectorizationSetting::Deactivated,
-            ref_layout: RefLayoutSetting::OnlyContiguous,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
+            ref_layout: RefLayoutSetting::Any,
         };
 
         Self {
