@@ -500,7 +500,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::GatherElements,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::gather_elements::GatherElementsProcessor),
         );
         registry.register(
             NodeType::Slice,
@@ -539,7 +539,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::IsNaN,
-            Box::new(crate::node::comparison::ComparisonProcessor),
+            Box::new(crate::node::is_nan::IsNaNProcessor),
         );
 
         // Special operations

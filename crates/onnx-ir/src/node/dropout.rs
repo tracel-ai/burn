@@ -40,10 +40,29 @@ impl NodeProcessor for DropoutProcessor {
     ) -> Result<(), ProcessError> {
         crate::util::validate_opset(opset, 7)?;
         crate::util::validate_min_inputs(node, 1)?;
-        crate::util::validate_output_count(node, 1)?;
 
-        // Infer output type
+        // Dropout can have 1 or 2 outputs (second output is optional mask)
+        if node.outputs.is_empty() || node.outputs.len() > 2 {
+            return Err(ProcessError::InvalidOutputCount {
+                expected: 1,
+                actual: node.outputs.len(),
+            });
+        }
+
+        // First output: same type as input
         same_as_input(node);
+
+        // Second output (mask): boolean tensor with same shape as input, if present
+        if node.outputs.len() == 2 {
+            let input_type = &node.inputs[0].ty;
+            if let crate::ir::ArgType::Tensor(input_tensor) = input_type {
+                node.outputs[1].ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                    elem_type: crate::ir::ElementType::Bool,
+                    rank: input_tensor.rank,
+                    static_shape: input_tensor.static_shape.clone(),
+                });
+            }
+        }
 
         Ok(())
     }
