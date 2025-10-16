@@ -76,8 +76,11 @@ pub struct GraphData {
     constant_nodes: HashMap<String, usize>,
     /// Nodes marked for removal
     nodes_to_remove: HashSet<usize>,
+    /// Initializer constant nodes that should be removed (only used for value storage)
+    initializer_node_indices: HashSet<usize>,
     /// Cached values from consumed constants (constant node removed, but value still accessible)
-    consumed_values: HashMap<String, TensorData>,
+    /// Also used for lifted constants that need to be accessible via into_value()
+    pub(crate) consumed_values: HashMap<String, TensorData>,
     /// Type expectations set via should_be() method
     /// Maps argument names to their expected types
     expected_types: HashMap<String, ArgType>,
@@ -103,6 +106,9 @@ impl GraphData {
             constants_map.insert(initializer.name.clone(), arg);
             tensor_data_map.insert(initializer.name.clone(), tensor_data);
         }
+
+        // Track initializer constant nodes for removal
+        let mut initializer_node_indices = HashSet::new();
 
         // Create Constant nodes for all initializers
         for (idx, initializer) in initializers.iter().enumerate() {
@@ -131,15 +137,17 @@ impl GraphData {
                     );
                 }
 
+                let node_idx = processed_nodes.len();
+
                 // Register this constant
-                constant_nodes.insert(output_name.clone(), processed_nodes.len());
+                constant_nodes.insert(output_name.clone(), node_idx);
                 constant_references.insert(output_name.clone(), 0);
 
                 // Map the original initializer name to this constant node
-                input_name_map.insert(
-                    initializer.name.clone(),
-                    IOEntry::Node(processed_nodes.len(), 0),
-                );
+                input_name_map.insert(initializer.name.clone(), IOEntry::Node(node_idx, 0));
+
+                // Mark for removal - these nodes are only for value storage
+                initializer_node_indices.insert(node_idx);
 
                 processed_nodes.push(constant_node);
             }
@@ -186,6 +194,7 @@ impl GraphData {
             constant_references,
             constant_nodes,
             nodes_to_remove: HashSet::new(),
+            initializer_node_indices,
             consumed_values: HashMap::new(),
             expected_types: HashMap::new(),
         }
@@ -692,7 +701,22 @@ impl OnnxGraphBuilder {
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
             coalesce(&mut node, &mut node_iter, &mut graph_data_rc.borrow_mut());
+
+            // Handle Identity conversion before processing
+            // This converts Identity nodes with constant inputs into Constant nodes
+            let was_identity = node.node_type == NodeType::Identity;
             self.handle_identity(&mut node);
+
+            // If an Identity was converted to a Constant, register it for value access
+            // The output will be renamed by add_node() to "{node_name}_out1", so register with that name
+            if was_identity && node.node_type == NodeType::Constant && !node.outputs.is_empty() {
+                let future_output_name = format!("{}_out1", node.name);
+                let node_idx = graph_data_rc.borrow().get_current_index();
+                graph_data_rc
+                    .borrow_mut()
+                    .register_constant(future_output_name, node_idx);
+            }
+
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
@@ -707,6 +731,35 @@ impl OnnxGraphBuilder {
             log::debug!("Processing node: {}", node.name);
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
+
+            // Lift constants (ensure constant inputs are accessible)
+            let lifted = processor
+                .lift_constants(&mut node, opset_version)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed to lift constants for node {} (type: {:?}): {:?}",
+                        node.name, node.node_type, e
+                    )
+                });
+
+            // Make lifted constants accessible by caching their values
+            // Identity nodes with constant values have already been converted to Constant nodes
+            for input_name in &lifted {
+                let mut graph_data = graph_data_rc.borrow_mut();
+
+                // Get the value from the constant and cache it
+                if let Some(value) = graph_data.get_value(input_name) {
+                    // Cache the value to ensure it stays available for burn-import
+                    graph_data.consumed_values.insert(input_name.clone(), value);
+                    log::debug!("Lifted constant {} for node {}", input_name, node.name);
+                } else {
+                    log::warn!(
+                        "Failed to lift constant {} for node {} - value not found",
+                        input_name,
+                        node.name
+                    );
+                }
+            }
 
             // Extract config first
             let config = processor
@@ -738,30 +791,36 @@ impl OnnxGraphBuilder {
             graph_data_rc.borrow_mut().add_node(node);
         }
 
-        // Clear value_store references from nodes before consuming to avoid circular references
-        // The nodes will still work because they've been cloned into graph_data
+        // Extract the processed graph data and preserve consumed_values for burn-import
         let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
             let mut graph_data = graph_data_rc.borrow_mut();
-            // Clear value_stores from processed nodes before consuming
-            for node in graph_data.get_processed_nodes_mut() {
-                for arg in &mut node.inputs {
-                    arg.value_store = None;
-                }
-                for arg in &mut node.outputs {
-                    arg.value_store = None;
-                }
-            }
-            // Now we can safely consume (will be moved out after borrow ends)
-            std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume()
+
+            // Extract consumed_values before consuming
+            let consumed_values = std::mem::take(&mut graph_data.consumed_values);
+
+            // Consume the old graph_data
+            let result =
+                std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume();
+
+            // Restore consumed_values so burn-import can access them via into_value()
+            graph_data.consumed_values = consumed_values;
+
+            result
         };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes, opset_version);
 
-        // Remove the graph inputs/output that are not used by any node
+        // Extract initializer indices from the (now empty) GraphData before filtering
+        let initializer_indices = {
+            let graph_data = graph_data_rc.borrow();
+            graph_data.initializer_node_indices.clone()
+        };
+
+        // Remove nodes marked for removal and initializer constants
         let mut i = 0;
         processed_nodes.retain(|_| {
-            let keep = !nodes_to_remove.contains(&i);
+            let keep = !nodes_to_remove.contains(&i) && !initializer_indices.contains(&i);
             i += 1;
             keep
         });
@@ -1200,13 +1259,33 @@ impl OnnxGraphBuilder {
     }
 
     fn handle_identity(&mut self, node: &mut Node) {
-        // Identity nodes are now passed through as-is
-        // No constant conversion needed since all initializers are already Constants
-        if node.node_type == NodeType::Identity {
-            log::debug!(
-                "Identity node will pass through to burn-import: {}",
-                &node.name
-            );
+        // Convert Identity nodes that pass through constants/initializers into Constant nodes
+        // This allows lift_constants to work with actual Constant nodes
+        if node.node_type == NodeType::Identity && !node.inputs.is_empty() {
+            // Check if the input has a constant value
+            if node.inputs[0].has_value() {
+                // Clone the input name before mutating the node
+                let input_name = node.inputs[0].name.clone();
+
+                // Get the value and convert this Identity to a Constant
+                if let Some(value) = node.inputs[0].into_value() {
+                    // Transform the Identity into a Constant node
+                    node.node_type = NodeType::Constant;
+                    node.inputs.clear(); // Constants have no inputs
+
+                    // Store the value in attributes
+                    node.attrs.insert(
+                        "value".to_string(),
+                        crate::ir::AttributeValue::Tensor(value),
+                    );
+
+                    log::debug!(
+                        "Converted Identity {} to Constant (value from {})",
+                        node.name,
+                        input_name
+                    );
+                }
+            }
         }
     }
 
