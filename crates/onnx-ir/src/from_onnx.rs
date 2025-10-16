@@ -682,7 +682,8 @@ impl OnnxGraphBuilder {
         // so ONNX Constant nodes continue numbering after initializers
         let num_initializers = model_proto.graph.initializer.len();
         if num_initializers > 0 {
-            self.node_name_counter.insert(NodeType::Constant, num_initializers);
+            self.node_name_counter
+                .insert(NodeType::Constant, num_initializers);
         }
 
         // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access
@@ -707,6 +708,9 @@ impl OnnxGraphBuilder {
         // Track which constants were lifted into configs
         // These should be filtered out of the final graph
         let mut lifted_constants = HashSet::new();
+
+        // Track which node lifted each constant: constant_name -> node_name
+        let mut lifted_by: HashMap<String, String> = HashMap::new();
 
         // PASS 2: Process nodes with collected preferences
         while let Some(node_proto) = node_iter.next() {
@@ -802,7 +806,12 @@ impl OnnxGraphBuilder {
                         // Track this as a lifted constant for potential removal
                         // Lifted constants have their values in node configs and shouldn't be model parameters
                         lifted_constants.insert(input_name.clone());
-                        log::debug!("Marked constant {} for removal (lifted)", input_name);
+                        lifted_by.insert(input_name.clone(), node.name.clone());
+                        log::debug!(
+                            "Marked constant {} for removal (lifted by {})",
+                            input_name,
+                            node.name
+                        );
                     } else {
                         log::warn!(
                             "Failed to lift constant {} for node {} - value not found",
@@ -870,11 +879,13 @@ impl OnnxGraphBuilder {
         }
 
         // Extract the processed graph data and preserve consumed_values for burn-import
-        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
+        // Also extract initializer_nodes BEFORE consuming graph_data
+        let (mut processed_nodes, inputs, outputs, nodes_to_remove, initializer_node_indices) = {
             let mut graph_data = graph_data_rc.borrow_mut();
 
-            // Extract consumed_values before consuming
+            // Extract consumed_values and initializer_nodes before consuming
             let consumed_values = std::mem::take(&mut graph_data.consumed_values);
+            let initializer_nodes = graph_data.initializer_nodes.clone();
 
             // Consume the old graph_data
             let result =
@@ -883,31 +894,74 @@ impl OnnxGraphBuilder {
             // Restore consumed_values so burn-import can access them via into_value()
             graph_data.consumed_values = consumed_values;
 
-            (result.0, result.1, result.2, result.3)
+            (result.0, result.1, result.2, result.3, initializer_nodes)
         };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes, opset_version);
 
-        // Filter out only nodes explicitly marked for removal
-        // Lifted constants should REMAIN in the graph as model parameters
-        // Multiple nodes may need the same constant - lifting by one node doesn't mean others don't need it
+        // Determine which lifted constants can be removed
+        // A lifted constant can be removed if:
+        // 1. It's ONLY used by the node that lifted it (not used by other nodes), AND
+        // 2. It's NOT an initializer (initializers are module weights/biases that must be saved)
+        //
+        // Build a map of constant_name -> nodes that use it (excluding the node that lifted it)
+        let mut constant_users: HashMap<String, Vec<String>> = HashMap::new();
+        for node in &processed_nodes {
+            for input in &node.inputs {
+                // If this is a lifted constant and this node is NOT the one that lifted it
+                if lifted_constants.contains(&input.name)
+                    && let Some(lifter_name) = lifted_by.get(&input.name)
+                {
+                    // Only count this as a user if it's a DIFFERENT node than the lifter
+                    if &node.name != lifter_name {
+                        constant_users
+                            .entry(input.name.clone())
+                            .or_default()
+                            .push(node.name.clone());
+                    }
+                }
+            }
+        }
 
+        // Filter out nodes marked for removal AND lifted constants not needed by other nodes
         log::debug!(
-            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={} (kept in graph)",
+            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}, constants_with_other_users={}, initializer_nodes={:?}",
             processed_nodes.len(),
             nodes_to_remove,
-            lifted_constants.len()
+            lifted_constants.len(),
+            constant_users.len(),
+            initializer_node_indices
         );
 
         let mut i = 0;
         processed_nodes.retain(|node| {
-            let keep = !nodes_to_remove.contains(&i);
+            let is_lifted_constant = node
+                .outputs
+                .first()
+                .is_some_and(|output| lifted_constants.contains(&output.name));
+
+            // Check if this is an initializer (weights/biases that must be saved)
+            let is_initializer = initializer_node_indices.contains(&i);
+
+            // Keep the constant if:
+            // - It's used by OTHER nodes (not just the node that lifted it), OR
+            // - It's an initializer (module weights/biases must remain as Param fields)
+            let needed_by_others = node
+                .outputs
+                .first()
+                .is_some_and(|output| constant_users.contains_key(&output.name));
+
+            let keep = !nodes_to_remove.contains(&i) && (!is_lifted_constant || needed_by_others || is_initializer);
+
             if !keep {
                 log::debug!(
-                    "Filtering out node at index {}: {}",
+                    "Filtering out node at index {}: {} (lifted={}, needed_by_others={}, is_initializer={})",
                     i,
-                    node.name
+                    node.name,
+                    is_lifted_constant,
+                    needed_by_others,
+                    is_initializer
                 );
             }
             i += 1;
