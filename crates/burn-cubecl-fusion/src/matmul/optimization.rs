@@ -2,7 +2,6 @@ use std::any::TypeId;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::CubeFusionHandle;
 use crate::FallbackOperation;
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::FusePrecision;
@@ -14,6 +13,7 @@ use crate::shared::trace::VectorizationHandle;
 use crate::shared::trace::vectorization::LineSizeOverrides;
 use crate::shared::trace::vectorization::Vect;
 use crate::shared::trace::vectorization::vectorization_default;
+use crate::{CubeFusionHandle, matmul::args::MatmulArg};
 
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
@@ -23,6 +23,10 @@ use cubecl::features::TypeUsage;
 use cubecl::matmul::components::AccG;
 use cubecl::matmul::components::AccS;
 use cubecl::matmul::components::tile::io::Filled;
+use cubecl::matmul::components::{
+    self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
+    tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
+};
 use cubecl::matmul::kernels::layered::Selection;
 use cubecl::matmul::kernels::layered::double_buffering::CyclicDoubleBufferingAlgorithm;
 use cubecl::matmul::kernels::layered::double_buffering::DoubleBufferingArgs;
@@ -41,13 +45,6 @@ use cubecl::matmul::{
 };
 use cubecl::std::tensor::{MatrixBatchLayout, matrix_batch_layout};
 use cubecl::{client::ComputeClient, prelude::*};
-use cubecl::{
-    matmul::components::{
-        self, AvailableLineSizes, LhsG, MatmulProblem, MatmulSetupError, RhsG, RhsS,
-        tile::{TileMatmulFamily, accelerated::AcceleratedMatmul},
-    },
-    std::CubeOption,
-};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -287,8 +284,8 @@ pub enum FusedMatmulSelector {
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
 pub struct FusedMatmul {
-    lhs: Arg,
-    rhs: Arg,
+    lhs: MatmulArg,
+    rhs: MatmulArg,
     out: Arg,
     pub(crate) op: BinaryOpIr,
     pub(crate) selector: FusedMatmulSelector,
@@ -380,12 +377,12 @@ impl FusedMatmul {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a FuseBlockConfig,
     ) -> Result<(), FusedMatmulError> {
-        let lhs_shape = inputs.shape(&self.lhs);
-        let rhs_shape = inputs.shape(&self.rhs);
+        let lhs_shape = inputs.shape(self.lhs.data());
+        let rhs_shape = inputs.shape(self.rhs.data());
         let out_shape = outputs.shape_ref(&config.ref_layout, config.rank as usize);
 
-        let lhs_strides = inputs.strides(&self.lhs);
-        let rhs_strides = inputs.strides(&self.rhs);
+        let lhs_strides = inputs.strides(self.lhs.data());
+        let rhs_strides = inputs.strides(self.rhs.data());
 
         let check_layout = |strides| match matrix_batch_layout(strides) {
             MatrixBatchLayout::Contiguous => (false, false),
@@ -410,8 +407,8 @@ impl FusedMatmul {
         let n = rhs_shape[rank - 1] as u32;
 
         let line_sizes = MatmulLineSizes {
-            lhs: inputs.line_size(&self.lhs),
-            rhs: inputs.line_size(&self.rhs),
+            lhs: inputs.line_size(self.lhs.data()),
+            rhs: inputs.line_size(self.rhs.data()),
             out: match &config.ref_layout {
                 RefLayout::Concrete(arg) => match arg {
                     Arg::Input(..) => inputs.line_size(arg),
@@ -454,7 +451,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -480,7 +477,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -509,7 +506,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -533,7 +530,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -553,7 +550,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -573,7 +570,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -593,7 +590,7 @@ impl FusedMatmul {
                         config.clone(),
                         self.lhs.clone(),
                         self.rhs.clone(),
-                        CubeOption::None,
+                        Option::None,
                         self.out.clone(),
                     ),
                     outputs,
@@ -675,11 +672,11 @@ fn line_size_overrides<R: Runtime, A: Algorithm>(
     let elem_rhs = matmul.rhs.precision().into_type();
     let elem_out = matmul.out.precision().into_type();
 
-    let lhs_id = match &matmul.lhs {
+    let lhs_id = match matmul.lhs.data() {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
         _ => unreachable!(),
     };
-    let rhs_id = match &matmul.rhs {
+    let rhs_id = match matmul.rhs.data() {
         Arg::Input(pos, ..) => trace.resources.inputs.get_id(*pos as usize).unwrap(),
         _ => unreachable!(),
     };

@@ -1,26 +1,38 @@
+use std::marker::PhantomData;
+
 use cubecl::{
+    intrinsic,
     matmul::components::{
-        MatmulIdent,
+        MatmulIdent, MatrixLayout,
         global::{
             GlobalConfig,
             args::MatmulArgs,
-            memory::{BatchedGlobalLayout, GlobalMemoryConfig},
+            memory::{
+                BatchedGlobalLayout, BatchedGlobalLayoutExpand, BatchedGlobalScaleLayout,
+                BatchedGlobalScaleLayoutExpand, BlockScaledLayout, GlobalMemoryConfig,
+            },
         },
     },
     prelude::*,
     std::{
         CubeOption, FastDivmod,
+        quant::{
+            RunWithQuantType,
+            view::{QuantizedView, run_with_quant_type},
+        },
         tensor::{
-            View,
-            layout::{Coords1d, Coords3d},
+            View, ViewExpand,
+            layout::{Coords1d, Coords2d, Coords3d},
         },
     },
 };
+use cubecl_quant::scheme::{QuantLevel, QuantScheme};
+use serde::{Deserialize, Serialize};
 
 use crate::shared::{
-    ir::{Arg, FuseBlockConfig, GlobalArgs, LocalArgs},
+    ir::{Arg, FuseBlockConfig, FusePrecision, GlobalArgs, LocalArgs},
     kernel::init_locals,
-    view::{FusedOutput, GlobalInput},
+    view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
 
 #[derive(Clone)]
@@ -32,11 +44,11 @@ pub struct FusedMatmulInput {
     #[cube(comptime)]
     config: FuseBlockConfig,
     #[cube(comptime)]
-    a: Arg,
+    a: MatmulArg,
     #[cube(comptime)]
-    b: Arg,
+    b: MatmulArg,
     #[cube(comptime)]
-    c: CubeOption<Arg>,
+    c: Option<MatmulArg>,
     #[cube(comptime)]
     out: Arg,
 }
@@ -103,7 +115,7 @@ impl MatmulArgs for FusedMatmulArgs {
         state: &Self::State<Lhs, Rhs, EO>,
     ) -> CubeOption<View<Line<EO>, Coords3d>> {
         match comptime![state.c.clone()] {
-            CubeOption::Some(c) => {
+            Option::Some(c) => {
                 let view = global_view(
                     &state.inputs,
                     &state.locals,
@@ -114,7 +126,7 @@ impl MatmulArgs for FusedMatmulArgs {
                 );
                 CubeOption::new_Some(view)
             }
-            CubeOption::None => CubeOption::new_None(),
+            Option::None => CubeOption::new_None(),
         }
     }
 
@@ -157,16 +169,93 @@ impl MatmulArgs for FusedMatmulArgs {
 }
 
 #[cube]
-fn global_view<E: CubePrimitive>(
+fn global_view<E: Numeric>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     batch_shape: Sequence<FastDivmod>,
-    #[comptime] arg: Arg,
+    #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
     #[comptime] mem_config: GlobalMemoryConfig,
 ) -> View<Line<E>, Coords3d> {
     let rank = comptime![config.rank];
-    let lhs = match comptime![arg.clone()] {
+    let data = comptime![arg.data().clone()];
+    let data_tensor = match comptime![data.clone()] {
+        Arg::Input(pos, ..) => inputs.tensors.index(pos),
+        _ => panic!("Input must be concrete"),
+    };
+
+    let mut shape_row = data_tensor.tensor.shape(rank - 2);
+    let mut shape_col = data_tensor.tensor.shape(rank - 1);
+    let mut packing = comptime![1u32];
+
+    if comptime![arg.scheme().is_some()] {
+        let scheme = comptime![arg.scheme().unwrap()];
+        let num_quants = comptime![scheme.num_quants() as u32];
+        comptime![packing = num_quants];
+        match comptime![mem_config.matrix_layout] {
+            MatrixLayout::RowMajor => shape_col *= num_quants,
+            MatrixLayout::ColMajor => shape_row *= num_quants,
+        };
+    }
+
+    let shape = (shape_row, shape_col);
+
+    let data_layout = global_layout(
+        inputs,
+        batch_shape.clone(),
+        shape,
+        comptime![arg.data().clone()],
+        comptime![config.clone()],
+        mem_config,
+        packing,
+    );
+    let data_buf = GlobalInput::new(inputs, locals, data, comptime![config.clone()], None);
+
+    match comptime![arg.clone()] {
+        MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(&data_buf, data_layout),
+        MatmulArg::Quantized { scales, scheme, .. } => {
+            let scales_layout = match comptime![scheme.level] {
+                QuantLevel::Tensor => BatchedGlobalScaleLayout::new_PerTensor(shape),
+                QuantLevel::Block(block_size) => {
+                    let block_size = comptime![block_size.as_dim::<2>()];
+                    let mem_config = comptime![GlobalMemoryConfig {
+                        global_line_size: 1,
+                        ..mem_config
+                    }];
+                    let scales_layout = global_layout(
+                        inputs,
+                        batch_shape,
+                        shape,
+                        comptime![scales.clone()],
+                        comptime![config.clone()],
+                        mem_config,
+                        1u32,
+                    );
+                    BatchedGlobalScaleLayout::new_BlockScaled(BlockScaledLayout::new(
+                        shape,
+                        scales_layout,
+                        comptime![(block_size[0] as u32, block_size[1] as u32)],
+                    ))
+                }
+            };
+            let scales_buf = GlobalInput::new(inputs, locals, scales, config, None);
+            create_quant_view_dynamic(data_buf, data_layout, scales_buf, scales_layout, scheme)
+        }
+    }
+}
+
+#[cube]
+fn global_layout(
+    inputs: &GlobalArgs,
+    batch_shape: Sequence<FastDivmod>,
+    shape: Coords2d,
+    #[comptime] arg: Arg,
+    #[comptime] config: FuseBlockConfig,
+    #[comptime] mem_config: GlobalMemoryConfig,
+    #[comptime] packing: u32,
+) -> BatchedGlobalLayout {
+    let rank = comptime![config.rank];
+    let data_tensor = match comptime![arg.clone()] {
         Arg::Input(pos, ..) => inputs.tensors.index(pos),
         _ => panic!("Input must be concrete"),
     };
@@ -174,18 +263,17 @@ fn global_view<E: CubePrimitive>(
     let mut batch_strides = Sequence::new();
     #[unroll]
     for i in 0..rank - 2 {
-        let shape = lhs.tensor.shape(i);
-        let stride = select(shape == 1, 0, lhs.tensor.stride(i));
+        let shape = data_tensor.tensor.shape(i);
+        let stride = select(shape == 1, 0, data_tensor.tensor.stride(i));
         batch_strides.push(stride);
     }
 
-    let shape_row = lhs.tensor.shape(rank - 2);
-    let shape_col = lhs.tensor.shape(rank - 1);
+    let (shape_row, shape_col) = shape;
 
-    let stride_row = lhs.tensor.stride(rank - 2);
-    let stride_col = lhs.tensor.stride(rank - 1);
+    let stride_row = data_tensor.tensor.stride(rank - 2);
+    let stride_col = data_tensor.tensor.stride(rank - 1);
 
-    let layout = BatchedGlobalLayout::new(
+    BatchedGlobalLayout::new(
         batch_strides,
         batch_shape.clone(),
         shape_row,
@@ -193,10 +281,71 @@ fn global_view<E: CubePrimitive>(
         stride_row,
         stride_col,
         mem_config,
-        1u32,
-    );
-    let buffer = GlobalInput::new(inputs, locals, arg, comptime![config.clone()], None);
-    View::new::<GlobalInput, Coords1d>(&buffer, layout)
+        packing,
+    )
+}
+
+struct CreateQuantView<'a, E: Numeric> {
+    scope: &'a mut Scope,
+    data_buf: GlobalInputExpand,
+    data_layout: BatchedGlobalLayoutExpand,
+    scales_buf: GlobalInputExpand,
+    scales_layout: BatchedGlobalScaleLayoutExpand,
+    scheme: QuantScheme,
+    _ty: PhantomData<E>,
+}
+
+impl<'a, E: Numeric> RunWithQuantType for CreateQuantView<'a, E> {
+    type Output = ViewExpand<Line<E>, Coords3d>;
+
+    fn execute<Q: CubePrimitive, S: CubePrimitive>(self) -> Self::Output {
+        create_quant_view::expand::<E, Q, S>(
+            self.scope,
+            self.data_buf,
+            self.data_layout,
+            self.scales_buf,
+            self.scales_layout,
+            self.scheme,
+        )
+    }
+}
+
+#[cube]
+#[allow(unused)]
+fn create_quant_view_dynamic<E: Numeric>(
+    data_buf: GlobalInput,
+    data_layout: BatchedGlobalLayout,
+    scales_buf: GlobalInput,
+    scales_layout: BatchedGlobalScaleLayout,
+    #[comptime] scheme: QuantScheme,
+) -> View<Line<E>, Coords3d> {
+    intrinsic!(|scope| {
+        let func = CreateQuantView {
+            scope,
+            data_buf,
+            data_layout,
+            scales_buf,
+            scales_layout,
+            scheme,
+            _ty: PhantomData,
+        };
+        run_with_quant_type(func, scheme)
+    })
+}
+
+#[cube]
+fn create_quant_view<E: Numeric, Q: CubePrimitive, S: CubePrimitive>(
+    data_buf: GlobalInput,
+    data_layout: BatchedGlobalLayout,
+    scales_buf: GlobalInput,
+    scales_layout: BatchedGlobalScaleLayout,
+    #[comptime] scheme: QuantScheme,
+) -> View<Line<E>, Coords3d> {
+    let data_view: View<Line<Q>, Coords3d> =
+        View::new::<GlobalInput, Coords1d>(&data_buf, data_layout);
+    let scales_view: View<S, Coords3d> =
+        View::new::<GlobalInput, Coords1d>(&scales_buf, scales_layout);
+    QuantizedView::new(data_view, scales_view, scheme).view()
 }
 
 #[derive(CubeType)]
@@ -207,11 +356,11 @@ pub struct FusedMatmulState {
     #[cube(comptime)]
     config: FuseBlockConfig,
     #[cube(comptime)]
-    a: Arg,
+    a: MatmulArg,
     #[cube(comptime)]
-    b: Arg,
+    b: MatmulArg,
     #[cube(comptime)]
-    c: CubeOption<Arg>,
+    c: Option<MatmulArg>,
     #[cube(comptime)]
     out: Arg,
     #[cube(comptime)]
@@ -249,6 +398,41 @@ impl FusedMatmulState {
             lhs_memory_config,
             rhs_memory_config,
             out_memory_config,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+/// Argument to a matmul operation.
+pub enum MatmulArg {
+    Normal(Arg),
+    Quantized {
+        data: Arg,
+        scales: Arg,
+        precision: FusePrecision,
+        scheme: QuantScheme,
+    },
+}
+
+impl MatmulArg {
+    pub fn data(&self) -> &Arg {
+        match self {
+            MatmulArg::Normal(arg) => arg,
+            MatmulArg::Quantized { data, .. } => data,
+        }
+    }
+
+    pub fn scheme(&self) -> Option<&QuantScheme> {
+        match self {
+            MatmulArg::Normal(_) => None,
+            MatmulArg::Quantized { scheme, .. } => Some(scheme),
+        }
+    }
+
+    pub fn precision(&self) -> FusePrecision {
+        match self {
+            MatmulArg::Normal(arg) => arg.precision(),
+            MatmulArg::Quantized { precision, .. } => *precision,
         }
     }
 }

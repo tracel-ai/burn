@@ -4,6 +4,7 @@ use cubecl::Runtime;
 
 use crate::{
     CubeOptimization,
+    matmul::args::MatmulArg,
     shared::{
         builder::FuseOptimizationBuilder,
         ir::FusePrecision,
@@ -67,8 +68,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
                 let out = self.builder.output_unhandled(&op.out);
 
                 self.matmul = Some(FusedMatmul::new(
-                    lhs,
-                    rhs,
+                    MatmulArg::Normal(lhs),
+                    MatmulArg::Normal(rhs),
                     out,
                     op.clone(),
                     Default::default(),
