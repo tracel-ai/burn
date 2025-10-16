@@ -260,15 +260,25 @@ impl OnnxIntoNode for ConstantNode {
             }
         }
 
-        // Helper to serialize data - hardcoded to f32
-        fn serialize_data(data: Data, shape: Vec<usize>) -> TensorData {
+        // Helper to serialize float data - converts to f32
+        fn serialize_float_data(data: Data, shape: Vec<usize>) -> TensorData {
             match data {
                 Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
                 Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
                 Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                _ => panic!("Unsupported tensor element type"),
+                _ => panic!("Expected float data for serialize_float_data"),
+            }
+        }
+
+        // Helper to serialize int data - converts to i32
+        fn serialize_int_data(data: Data, shape: Vec<usize>) -> TensorData {
+            match data {
+                Data::Int32s(val) => TensorData::new(val, shape).convert::<i32>(),
+                Data::Int64s(val) => TensorData::new(val, shape).convert::<i32>(),
+                Data::Uint16s(val) => TensorData::new(val, shape).convert::<i32>(),
+                Data::Uint8s(val) => TensorData::new(val, shape).convert::<i32>(),
+                Data::Int8s(val) => TensorData::new(val, shape).convert::<i32>(),
+                _ => panic!("Expected int data for serialize_int_data, got: {:?}", data),
             }
         }
 
@@ -321,12 +331,13 @@ impl OnnxIntoNode for ConstantNode {
 
                     let tensor_data = match &tensor.elem_type {
                         ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                            serialize_data(tensor_data.data.clone(), tensor_data.shape.clone())
+                            serialize_float_data(tensor_data.data.clone(), tensor_data.shape.clone())
                         }
                         ElementType::Int32
                         | ElementType::Int64
+                        | ElementType::Uint16
                         | ElementType::Uint8
-                        | ElementType::Int8 => serialize_data(tensor_data.data.clone(), tensor_data.shape.clone()),
+                        | ElementType::Int8 => serialize_int_data(tensor_data.data.clone(), tensor_data.shape.clone()),
                         ElementType::Bool => {
                             serialize_bool_data(tensor_data.data.clone(), tensor_data.shape.clone())
                         }

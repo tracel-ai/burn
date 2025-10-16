@@ -317,16 +317,13 @@ impl Argument {
             .unwrap_or(false)
     }
 
-    /// Convert the constant behind this argument into a value
-    /// The value is retrieved from the Constant node's attributes
-    /// The constant node is marked as consumed and removed from the graph,
-    /// but the value remains accessible via the consumed cache
+    /// Get the constant value for this argument
+    /// The value is retrieved from the Constant node's attributes or consumed cache
+    /// The constant node is NOT removed - all Constant nodes are kept in the graph
     pub fn into_value(&self) -> Option<TensorData> {
-        self.value_store.as_ref().and_then(|store| {
-            let value = store.borrow().get_value(&self.name)?;
-            store.borrow_mut().mark_consumed(&self.name);
-            Some(value)
-        })
+        self.value_store
+            .as_ref()
+            .and_then(|store| store.borrow().get_value(&self.name))
     }
 
     /// Indicate that this argument is expected to be a specific type

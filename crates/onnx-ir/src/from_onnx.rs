@@ -76,8 +76,6 @@ pub struct GraphData {
     constant_nodes: HashMap<String, usize>,
     /// Nodes marked for removal
     nodes_to_remove: HashSet<usize>,
-    /// Initializer constant nodes that should be removed (only used for value storage)
-    initializer_node_indices: HashSet<usize>,
     /// Cached values from consumed constants (constant node removed, but value still accessible)
     /// Also used for lifted constants that need to be accessible via into_value()
     pub(crate) consumed_values: HashMap<String, TensorData>,
@@ -106,9 +104,6 @@ impl GraphData {
             constants_map.insert(initializer.name.clone(), arg);
             tensor_data_map.insert(initializer.name.clone(), tensor_data);
         }
-
-        // Track initializer constant nodes for removal
-        let mut initializer_node_indices = HashSet::new();
 
         // Create Constant nodes for all initializers
         for (idx, initializer) in initializers.iter().enumerate() {
@@ -145,9 +140,6 @@ impl GraphData {
 
                 // Map the original initializer name to this constant node
                 input_name_map.insert(initializer.name.clone(), IOEntry::Node(node_idx, 0));
-
-                // Mark for removal - these nodes are only for value storage
-                initializer_node_indices.insert(node_idx);
 
                 processed_nodes.push(constant_node);
             }
@@ -194,7 +186,6 @@ impl GraphData {
             constant_references,
             constant_nodes,
             nodes_to_remove: HashSet::new(),
-            initializer_node_indices,
             consumed_values: HashMap::new(),
             expected_types: HashMap::new(),
         }
@@ -686,6 +677,10 @@ impl OnnxGraphBuilder {
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
+        // Track which constants were lifted into configs
+        // These should be filtered out of the final graph
+        let mut lifted_constants = HashSet::new();
+
         // PASS 2: Process nodes with collected preferences
         while let Some(node_proto) = node_iter.next() {
             let mut node = convert_node_proto(node_proto, &graph_data_rc.borrow());
@@ -735,7 +730,9 @@ impl OnnxGraphBuilder {
                 {
                     let mut graph_data = graph_data_rc.borrow_mut();
                     if !graph_data.constant_nodes.contains_key(&future_output_name) {
-                        graph_data.constant_nodes.insert(future_output_name.clone(), node_idx);
+                        graph_data
+                            .constant_nodes
+                            .insert(future_output_name.clone(), node_idx);
                         graph_data.constant_references.insert(future_output_name, 0);
                     }
                 } // Explicitly drop mutable borrow here
@@ -774,6 +771,11 @@ impl OnnxGraphBuilder {
                         // Cache the value to ensure it stays available for burn-import
                         graph_data.consumed_values.insert(input_name.clone(), value);
                         log::debug!("Lifted constant {} for node {}", input_name, node.name);
+
+                        // Track this as a lifted constant for potential removal
+                        // Lifted constants have their values in node configs and shouldn't be model parameters
+                        lifted_constants.insert(input_name.clone());
+                        log::debug!("Marked constant {} for removal (lifted)", input_name);
                     } else {
                         log::warn!(
                             "Failed to lift constant {} for node {} - value not found",
@@ -814,6 +816,32 @@ impl OnnxGraphBuilder {
             graph_data_rc.borrow_mut().add_node(node);
         }
 
+        // Cache all Constant node values for burn-import to access
+        // This ensures burn-import can generate code for ALL constants, not just lifted ones
+        {
+            let mut graph_data = graph_data_rc.borrow_mut();
+
+            // Collect constant nodes that need caching (to avoid borrow issues)
+            let constant_outputs: Vec<String> = graph_data
+                .processed_nodes
+                .iter()
+                .filter(|node| node.node_type == NodeType::Constant && !node.outputs.is_empty())
+                .map(|node| node.outputs[0].name.clone())
+                .collect();
+
+            // Cache values for all constant nodes
+            for output_name in constant_outputs {
+                if !graph_data.consumed_values.contains_key(&output_name)
+                    && let Some(value) = graph_data.get_value(&output_name)
+                {
+                    graph_data
+                        .consumed_values
+                        .insert(output_name.clone(), value);
+                    log::debug!("Cached constant {} value for burn-import", output_name);
+                }
+            }
+        }
+
         // Extract the processed graph data and preserve consumed_values for burn-import
         let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
             let mut graph_data = graph_data_rc.borrow_mut();
@@ -828,25 +856,44 @@ impl OnnxGraphBuilder {
             // Restore consumed_values so burn-import can access them via into_value()
             graph_data.consumed_values = consumed_values;
 
-            result
+            (result.0, result.1, result.2, result.3)
         };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
         self.convert_shape_constants(&mut processed_nodes, opset_version);
 
-        // Extract initializer indices from the (now empty) GraphData before filtering
-        let initializer_indices = {
-            let graph_data = graph_data_rc.borrow();
-            graph_data.initializer_node_indices.clone()
-        };
+        // Filter out nodes marked for removal AND lifted constants
+        // Lifted constants have their values in node configs and shouldn't be model parameters
+        // Non-lifted constants (like weights/biases) should remain
 
-        // Remove nodes marked for removal and initializer constants
+        log::debug!(
+            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}",
+            processed_nodes.len(),
+            nodes_to_remove,
+            lifted_constants.len()
+        );
+
         let mut i = 0;
-        processed_nodes.retain(|_| {
-            let keep = !nodes_to_remove.contains(&i) && !initializer_indices.contains(&i);
+        processed_nodes.retain(|node| {
+            let is_lifted_constant = node
+                .outputs
+                .first()
+                .is_some_and(|output| lifted_constants.contains(&output.name));
+
+            let keep = !nodes_to_remove.contains(&i) && !is_lifted_constant;
+            if !keep {
+                log::debug!(
+                    "Filtering out node at index {}: {} (lifted={})",
+                    i,
+                    node.name,
+                    is_lifted_constant
+                );
+            }
             i += 1;
             keep
         });
+
+        log::debug!("After filtering: {} nodes remain", processed_nodes.len());
 
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
@@ -1300,7 +1347,7 @@ impl OnnxGraphBuilder {
             if has_value {
                 // Get the value and convert this Identity to a Constant
                 let value = {
-                    let mut graph_data = graph_data_rc.borrow_mut();
+                    let graph_data = graph_data_rc.borrow_mut();
                     graph_data.get_value(&input_name)
                 };
 

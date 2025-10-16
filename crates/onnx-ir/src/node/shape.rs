@@ -37,9 +37,24 @@ impl NodeProcessor for ShapeProcessor {
         // Validate output count
         crate::util::validate_output_count(node, 1)?;
 
-        // Get reference to config for type inference
-        let config = node.config::<ShapeConfig>();
-        let dim = config.end - config.start;
+        // Determine output dimension based on input type
+        let dim = match &node.inputs[0].ty {
+            ArgType::Tensor(_) => {
+                // Shape of a Tensor: output has (end - start) elements
+                let config = node.config::<ShapeConfig>();
+                config.end - config.start
+            }
+            ArgType::Shape(_) => {
+                // Shape of a Shape: output is always a 1-element array containing the length
+                1
+            }
+            _ => {
+                return Err(ProcessError::TypeMismatch {
+                    expected: "Tensor or Shape".to_string(),
+                    actual: format!("{:?}", node.inputs[0].ty),
+                });
+            }
+        };
 
         // Infer output type - Shape always outputs Shape type
         node.outputs[0].ty = ArgType::Shape(dim);

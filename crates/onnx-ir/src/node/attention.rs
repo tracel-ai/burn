@@ -108,13 +108,11 @@ impl NodeProcessor for AttentionProcessor {
         let v = extract_tensor(node.inputs.get(2), "V")?.ok_or_else(|| {
             ProcessError::Custom("Attention: V input must be present".to_string())
         })?;
-        let y = extract_tensor(node.outputs.first(), "Y")?.ok_or_else(|| {
-            ProcessError::Custom("Attention: Y output must be present".to_string())
-        })?;
 
-        if q.rank != k.rank || q.rank != v.rank || q.rank != y.rank {
+        // Validate that Q, K, V have the same rank (output Y will be inferred)
+        if q.rank != k.rank || q.rank != v.rank {
             return Err(ProcessError::Custom(
-                "Attention: Q, K, V, Y parameters must have the same rank".to_string(),
+                "Attention: Q, K, V parameters must have the same rank".to_string(),
             ));
         }
         if q.rank != 3 && q.rank != 4 {

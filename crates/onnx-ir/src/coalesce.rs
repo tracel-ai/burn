@@ -178,11 +178,7 @@ pub(crate) fn convert_matmul_to_linear(
 }
 
 /// Helper function to check if the peeked node is an Add node with bias
-fn is_add_node_with_bias(
-    peek_node: &Node,
-    current_node: &Node,
-    graph_data: &GraphData,
-) -> bool {
+fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &GraphData) -> bool {
     // Check structural requirements first
     if peek_node.node_type != NodeType::Add || peek_node.inputs.len() != 2 {
         return false;

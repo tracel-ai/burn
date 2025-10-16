@@ -27,6 +27,16 @@ impl NodeConfig for ConstantOfShapeShape {
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
+        // The shape input can be lifted if it's a constant
+        // This allows ConstantOfShape to use static shape values when available
+        if !node.inputs.is_empty() {
+            Ok(vec![node.inputs[0].name.clone()])
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

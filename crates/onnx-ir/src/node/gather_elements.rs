@@ -47,14 +47,14 @@ impl NodeProcessor for GatherElementsProcessor {
         crate::util::validate_output_count(node, 1)?;
 
         // Output has the same shape as indices input, same type as data input
-        if let crate::ir::ArgType::Tensor(data_tensor) = &node.inputs[0].ty {
-            if let crate::ir::ArgType::Tensor(indices_tensor) = &node.inputs[1].ty {
-                node.outputs[0].ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                    elem_type: data_tensor.elem_type.clone(),
-                    rank: indices_tensor.rank,
-                    static_shape: indices_tensor.static_shape.clone(),
-                });
-            }
+        if let crate::ir::ArgType::Tensor(data_tensor) = &node.inputs[0].ty
+            && let crate::ir::ArgType::Tensor(indices_tensor) = &node.inputs[1].ty
+        {
+            node.outputs[0].ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                elem_type: data_tensor.elem_type.clone(),
+                rank: indices_tensor.rank,
+                static_shape: indices_tensor.static_shape.clone(),
+            });
         }
 
         Ok(())

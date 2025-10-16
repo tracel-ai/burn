@@ -1,5 +1,5 @@
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::Node;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct IsNaNProcessor;
 

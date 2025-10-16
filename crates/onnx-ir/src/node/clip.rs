@@ -35,14 +35,13 @@ impl NodeProcessor for ClipProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
         let mut lifted = Vec::new();
 
-        // Lift min (input[1]) and max (input[2]) if present
+        // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
-        // The caller will filter by has_value() to only lift actual constants
-        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
+        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() && node.inputs[1].has_value() {
             lifted.push(node.inputs[1].name.clone());
         }
-        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
+        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() && node.inputs[2].has_value() {
             lifted.push(node.inputs[2].name.clone());
         }
 
@@ -385,7 +384,8 @@ mod tests {
     #[test]
     fn test_clip_lift_constants_with_static_inputs() {
         // Test that lift_constants only lifts inputs with constant values
-        let mut node = create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
+        let mut node =
+            create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
         let processor = ClipProcessor;
 
         // Constant inputs should be lifted
