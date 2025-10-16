@@ -30,7 +30,7 @@ use burn_store::{
 };
 use divan::{AllocProfiler, Bencher};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
@@ -77,14 +77,13 @@ fn get_model_dir() -> PathBuf {
 }
 
 /// Generate Burnpack and NamedMpk files from existing SafeTensors file
-fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBuf) {
+fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
     type TestBackend = NdArrayBackend;
     let device = Default::default();
 
     // Load the model from SafeTensors
     let mut model = LargeModel::<TestBackend>::new(&device);
-    let mut store =
-        SafetensorsStore::from_file(st_path.clone()).with_from_adapter(PyTorchToBurnAdapter);
+    let mut store = SafetensorsStore::from_file(st_path).with_from_adapter(PyTorchToBurnAdapter);
     model
         .load_from(&mut store)
         .expect("Failed to load from SafeTensors");
@@ -92,7 +91,7 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
     // Save as Burnpack
     if !bp_path.exists() {
         println!("  Creating Burnpack file...");
-        let mut burnpack_store = BurnpackStore::from_file(bp_path.clone());
+        let mut burnpack_store = BurnpackStore::from_file(bp_path);
         model
             .save_into(&mut burnpack_store)
             .expect("Failed to save as Burnpack");
@@ -103,7 +102,7 @@ fn generate_burn_formats(st_path: &PathBuf, bp_path: &PathBuf, mpk_path: &PathBu
         println!("  Creating NamedMpk file...");
         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
         model
-            .save_file(mpk_path.clone(), &recorder)
+            .save_file(mpk_path, &recorder)
             .expect("Failed to save as NamedMpk");
     }
 }
@@ -121,7 +120,7 @@ fn get_model_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
 /// Check if model files exist
 fn check_model_files() -> Result<(), String> {
-    let (bp_path, mpk_path, st_path, pt_path) = get_model_paths();
+    let (_, _, st_path, pt_path) = get_model_paths();
 
     // For now, only check safetensors and pytorch files (will generate burnpack/mpk later)
     if !st_path.exists() || !pt_path.exists() {
