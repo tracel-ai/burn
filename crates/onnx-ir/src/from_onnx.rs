@@ -772,6 +772,10 @@ impl OnnxGraphBuilder {
 
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
+
+            // Track node type before coalesce
+            let node_type_before_coalesce = node.node_type.clone();
+
             coalesce(&mut node, &mut node_iter, &mut graph_data_rc.borrow_mut());
 
             // Re-attach value_stores after coalesce (which may add new inputs from fusion)
@@ -780,6 +784,11 @@ impl OnnxGraphBuilder {
             }
             for arg in &mut node.outputs {
                 arg.value_store = Some(graph_data_rc.clone());
+            }
+
+            // If coalesce changed the node type (e.g., Gemm->Linear, MatMul->Linear), rename it
+            if node.node_type != node_type_before_coalesce {
+                self.handle_node_renaming(&mut node);
             }
 
             // Handle Identity conversion before processing
