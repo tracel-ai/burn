@@ -7,7 +7,7 @@ use crate::{
     optim::{GradientsParams, Optimizer},
 };
 
-use burn::module::{AutodiffModule, ModuleMapper, ParamId};
+use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
@@ -119,10 +119,11 @@ where
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let (id, tensor, mapper) = param.consume();
         let grad = self.grads.remove(id);
 
-        if let Some(grad) = grad {
+        let tensor = if let Some(grad) = grad {
             let device = grad.device();
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
@@ -149,9 +150,11 @@ where
             if is_require_grad {
                 tensor = tensor.require_grad();
             }
-            return tensor;
-        }
+            tensor
+        } else {
+            tensor
+        };
 
-        tensor
+        Param::from_mapped_value(id, tensor, mapper)
     }
 }

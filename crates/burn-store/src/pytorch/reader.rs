@@ -166,9 +166,9 @@ pub enum ByteOrder {
 /// legacy format (0.1.10-1.5), and simple pickle files.
 ///
 /// # Example
-/// ```ignore
-/// use burn_store::pytorch::PytorchReader;
-///
+/// ```rust,no_run
+/// # use burn_store::pytorch::PytorchReader;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Load a checkpoint file
 /// let reader = PytorchReader::new("model.pt")?;
 ///
@@ -181,8 +181,10 @@ pub enum ByteOrder {
 /// }
 ///
 /// // Check file metadata
-/// println!("Format: {:?}", reader.format_type());
+/// println!("Format: {:?}", reader.metadata().format_type);
 /// println!("Tensor count: {}", reader.metadata().tensor_count);
+/// # Ok(())
+/// # }
 /// ```
 pub struct PytorchReader {
     tensors: HashMap<String, TensorSnapshot>,
@@ -212,8 +214,12 @@ impl PytorchReader {
     /// * `key` - Top-level key to extract (e.g., "state_dict")
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust,no_run
+    /// # use burn_store::pytorch::PytorchReader;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let reader = PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_top_level_key<P: AsRef<Path>>(path: P, key: &str) -> Result<Self> {
         let (tensors, metadata) = load_pytorch_file_with_metadata(path.as_ref(), Some(key))?;
@@ -317,10 +323,10 @@ impl PytorchReader {
     /// reading or deserialization fails.
     ///
     /// # Example
-    /// ```ignore
-    /// use burn_store::pytorch::PytorchReader;
-    /// use serde::Deserialize;
-    ///
+    /// ```rust,no_run
+    /// # use burn_store::pytorch::PytorchReader;
+    /// # use serde::Deserialize;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// #[derive(Debug, Deserialize)]
     /// struct ModelConfig {
     ///     hidden_size: usize,
@@ -328,6 +334,8 @@ impl PytorchReader {
     /// }
     ///
     /// let config: ModelConfig = PytorchReader::load_config("model.pth", Some("config"))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn load_config<D, P>(path: P, top_level_key: Option<&str>) -> Result<D>
     where

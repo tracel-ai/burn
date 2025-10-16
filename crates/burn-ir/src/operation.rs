@@ -112,6 +112,8 @@ pub enum FloatOperationIr {
     Floor(UnaryOpIr),
     /// Operation corresponding to [ceil](burn_tensor::ops::FloatTensorOps::float_ceil).
     Ceil(UnaryOpIr),
+    /// Operation corresponding to [trunc](burn_tensor::ops::FloatTensorOps::float_trunc).
+    Trunc(UnaryOpIr),
     /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
@@ -1947,6 +1949,7 @@ impl FloatOperationIr {
             FloatOperationIr::Round(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Floor(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Ceil(repr) => vec![&repr.input, &repr.out],
+            FloatOperationIr::Trunc(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Quantize(repr) => vec![&repr.tensor, &repr.qparams.scales, &repr.out],
             FloatOperationIr::Dequantize(repr) => vec![&repr.input, &repr.out],
@@ -2005,6 +2008,9 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Ceil(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Trunc(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Quantize(repr) => {

@@ -1186,6 +1186,21 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Float(dtype, FloatOperationIr::Trunc(desc)));
+
+        out
+    }
+
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;

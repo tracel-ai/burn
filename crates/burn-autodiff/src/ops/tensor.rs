@@ -2325,6 +2325,42 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Trunc;
+        retro_unary!(RetroTrunc, B::float_trunc);
+
+        impl<B: Backend> Backward<B, 1> for Trunc {
+            type State = (Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape, device) = ops.state;
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_zeros(shape, &device, grad.dtype().into())
+                })
+            }
+        }
+
+        match Trunc
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroTrunc::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (tensor.primitive.shape(), B::float_device(&tensor.primitive)),
+                B::float_trunc(tensor.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_trunc(tensor.primitive)),
+        }
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Erf;

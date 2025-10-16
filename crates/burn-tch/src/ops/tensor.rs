@@ -410,6 +410,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor.unary_ops(|mut tensor| tensor.ceil_(), |tensor| tensor.ceil())
     }
 
+    fn float_trunc(tensor: TchTensor) -> TchTensor {
+        tensor.unary_ops(|mut tensor| tensor.trunc_(), |tensor| tensor.trunc())
+    }
+
     fn float_erf(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf())
     }

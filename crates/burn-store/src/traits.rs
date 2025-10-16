@@ -99,32 +99,32 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
         applier.into_result()
     }
 
-    /// Collects tensor snapshots into a [`ModuleSnapshoter`] for saving.
+    /// Saves tensor snapshots into a [`ModuleStore`].
     ///
-    /// This method allows using a `ModuleSnapshoter` implementation to handle the
+    /// This method allows using a `ModuleStore` implementation to handle the
     /// collection and writing logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will collect and save the tensors
-    fn collect_to<P>(&self, store: &mut P) -> Result<(), P::Error>
+    /// * `store` - A mutable reference to a [`ModuleStore`] that will collect and save the tensors
+    fn save_into<P>(&self, store: &mut P) -> Result<(), P::Error>
     where
-        P: ModuleSnapshoter,
+        P: ModuleStore,
     {
         store.collect_from(self)
     }
 
-    /// Applies tensor data from a [`ModuleSnapshoter`] for loading.
+    /// Loads tensor data from a [`ModuleStore`].
     ///
-    /// This method allows using a `ModuleSnapshoter` implementation to handle the
+    /// This method allows using a `ModuleStore` implementation to handle the
     /// loading and application logic in a configurable way.
     ///
     /// # Arguments
     ///
-    /// * `store` - A mutable reference to a [`ModuleSnapshoter`] that will load and apply tensors
-    fn apply_from<P>(&mut self, store: &mut P) -> Result<ApplyResult, P::Error>
+    /// * `store` - A mutable reference to a [`ModuleStore`] that will load and apply tensors
+    fn load_from<P>(&mut self, store: &mut P) -> Result<ApplyResult, P::Error>
     where
-        P: ModuleSnapshoter,
+        P: ModuleStore,
     {
         store.apply_to(self)
     }
@@ -132,10 +132,10 @@ pub trait ModuleSnapshot<B: Backend>: Module<B> {
 
 /// A trait for handling module storage operations.
 ///
-/// `ModuleSnapshoter` provides a unified interface for saving and loading module
+/// `ModuleStore` provides a unified interface for saving and loading module
 /// tensor data with support for various storage formats and advanced features like filtering,
 /// remapping, and metadata handling.
-pub trait ModuleSnapshoter {
+pub trait ModuleStore {
     /// The error type that can be returned during storage operations.
     ///
     /// This should be a format-specific error type that provides detailed

@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::ModuleSnapshoter;
+use crate::ModuleStore;
 use crate::pytorch::PytorchStore;
 use burn_core::module::Module;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
