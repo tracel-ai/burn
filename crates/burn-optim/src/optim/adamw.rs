@@ -78,10 +78,10 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW {
             // See: https://arxiv.org/abs/2510.12402
             let tensor_pos = tensor.clone().greater_elem(0.0);
             let grad_pos = raw_delta.clone().greater_elem(0.0);
-            let same = tensor_pos.equal(grad_pos);
+            let differ = tensor_pos.not_equal(grad_pos);
 
-            // Zero out the decay where the signs of the tensors and updates are different.
-            tensor.clone() - tensor.mul_scalar(decay_rate).mask_fill(same, 0.0)
+            // Zero out the decay where the decay is counter to the update direction.
+            tensor.clone() - tensor.mul_scalar(decay_rate).mask_fill(differ, 0.0)
         } else {
             tensor.clone().mul_scalar(1.0 - decay_rate)
         };
