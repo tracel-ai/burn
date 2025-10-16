@@ -2,9 +2,9 @@ use alloc::vec::Vec;
 
 use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, CreationOpIr, FlipOpIr, InitOperationIr,
-    OperationIr, PermuteOpIr, RepeatDimOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
-    UnaryOpIr, UnfoldOpIr,
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
+    InitOperationIr, OperationIr, PermuteOpIr, RepeatDimOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{Device, Element, Shape, Slice, TensorData};

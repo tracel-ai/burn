@@ -145,7 +145,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let dtype = dtype.into();
         let client = get_client::<B>(device);
-        let desc = FullOpIr::create(shape, dtype, fill_value, || client.create_empty_handle());
+        let value = ScalarIr::with_dtype(fill_value, &dtype);
+        let desc = FullOpIr::create(shape, dtype, value, || client.create_empty_handle());
 
         client
             .register(
@@ -267,6 +268,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -304,6 +306,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
+        let min = ScalarIr::with_dtype(min, &tensor.dtype);
+        let max = ScalarIr::with_dtype(max, &tensor.dtype);
         let desc = ClampOpIr::create(tensor.into_ir(), min, max, || client.create_empty_handle());
 
         client
@@ -343,6 +347,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -382,6 +387,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -421,6 +427,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -460,6 +467,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -901,6 +909,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor, &mask]);
 
         let client = tensor.client.clone();
+        let value = ScalarIr::with_dtype(value, &tensor.dtype);
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -945,6 +954,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -992,6 +1002,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -1039,6 +1050,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -1083,6 +1095,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -1130,6 +1143,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -1427,6 +1441,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1600,10 +1615,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc =
-            ReduceDimOpIr::create_with_dtype(tensor.into_ir(), dim, B::IntElem::dtype(), || {
-                client.create_empty_handle()
-            });
+        // TODO: rename `create_with_dtype` specifically for ARG / indices
+        let desc = ReduceDimOpIr::create_arg(tensor.into_ir(), dim, B::IntElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
         client
             .register(
@@ -1656,10 +1671,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc =
-            ReduceDimOpIr::create_with_dtype(tensor.into_ir(), dim, B::IntElem::dtype(), || {
-                client.create_empty_handle()
-            });
+        let desc = ReduceDimOpIr::create_arg(tensor.into_ir(), dim, B::IntElem::dtype(), || {
+            client.create_empty_handle()
+        });
 
         client
             .register(

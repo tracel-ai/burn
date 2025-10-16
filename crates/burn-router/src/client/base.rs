@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_common::future::DynFut;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
-    FloatDType, Shape, TensorData,
+    TensorData,
     backend::{DeviceId, DeviceOps},
 };
 use core::ops::DerefMut;

@@ -3,11 +3,12 @@ use burn_tensor::backend::Backend;
 
 use crate::{BackendRouter, OperationOutput, RunnerChannel, RunnerClient, get_client};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr, FlipOpIr,
-    FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
+    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
+    FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
     MatmulOpIr, NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
-    ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
-    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr,
+    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
+    UnfoldOpIr,
 };
 use burn_tensor::ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor};
 use burn_tensor::{Device, Distribution, Element, FloatDType, Shape, Slice, TensorData};
@@ -62,9 +63,9 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        let desc = FullOpIr::create(shape, dtype.into(), fill_value, || {
-            client.create_empty_handle()
-        });
+        let dtype = dtype.into();
+        let value = ScalarIr::with_dtype(fill_value, &dtype);
+        let desc = FullOpIr::create(shape, dtype, value, || client.create_empty_handle());
 
         client
             .register(OperationIr::NumericFloat(
@@ -132,6 +133,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -148,6 +150,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         max: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
+        let min = ScalarIr::with_dtype(min, &tensor.dtype);
+        let max = ScalarIr::with_dtype(max, &tensor.dtype);
         let desc = ClampOpIr::create(tensor.into_ir(), min, max, || client.create_empty_handle());
 
         client
@@ -174,6 +178,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -200,6 +205,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -226,6 +232,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -252,6 +259,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -447,6 +455,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         value: FloatElem<Self>,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
+        let value = ScalarIr::with_dtype(value, &tensor.dtype);
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -475,6 +484,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -506,6 +516,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -537,6 +548,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -568,6 +580,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -599,6 +612,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -757,6 +771,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         let client = lhs.client.clone();
+        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -899,12 +914,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create_with_dtype(
-            tensor.into_ir(),
-            dim,
-            IntElem::<Self>::dtype(),
-            || client.create_empty_handle(),
-        );
+        let desc =
+            ReduceDimOpIr::create_arg(tensor.into_ir(), dim, IntElem::<Self>::dtype(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(OperationIr::NumericFloat(
@@ -927,12 +940,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create_with_dtype(
-            tensor.into_ir(),
-            dim,
-            IntElem::<Self>::dtype(),
-            || client.create_empty_handle(),
-        );
+        let desc =
+            ReduceDimOpIr::create_arg(tensor.into_ir(), dim, IntElem::<Self>::dtype(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(OperationIr::NumericFloat(

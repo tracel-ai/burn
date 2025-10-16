@@ -51,7 +51,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::Conv1d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv1d(desc)))
+            .output()
     }
 
     fn conv2d(
@@ -87,7 +89,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::Conv2d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv2d(desc)))
+            .output()
     }
 
     fn conv3d(
@@ -130,7 +134,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::Conv3d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv3d(desc)))
+            .output()
     }
 
     fn conv_transpose1d(
@@ -160,9 +166,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose1d(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::ConvTranspose1d(
+                desc,
+            )))
+            .output()
     }
 
     fn conv_transpose2d(
@@ -200,9 +208,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose2d(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::ConvTranspose2d(
+                desc,
+            )))
+            .output()
     }
 
     fn conv_transpose3d(
@@ -254,9 +264,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose3d(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::ConvTranspose3d(
+                desc,
+            )))
+            .output()
     }
 
     fn avg_pool1d(
@@ -281,7 +293,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AvgPool1d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool1d(desc)))
+            .output()
     }
 
     fn avg_pool2d(
@@ -309,7 +323,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AvgPool2d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool2d(desc)))
+            .output()
     }
 
     fn avg_pool1d_backward(
@@ -333,9 +349,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AvgPool1dBackward(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool1dBackward(
+                desc,
+            )))
+            .output()
     }
 
     fn avg_pool2d_backward(
@@ -359,9 +377,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AvgPool2dBackward(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool2dBackward(
+                desc,
+            )))
+            .output()
     }
 
     fn max_pool1d(
@@ -386,7 +406,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::MaxPool1d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::MaxPool1d(desc)))
+            .output()
     }
 
     fn max_pool2d(
@@ -424,7 +446,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::MaxPool2d(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::MaxPool2d(desc)))
+            .output()
     }
 
     fn max_pool1d_with_indices(
@@ -576,9 +600,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool1d(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool1d(
+                desc,
+            )))
+            .output()
     }
 
     fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
@@ -593,9 +619,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool2d(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool2d(
+                desc,
+            )))
+            .output()
     }
 
     fn adaptive_avg_pool1d_backward(
@@ -611,9 +639,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(
-            ModuleOperationIr::AdaptiveAvgPool1dBackward(desc),
-        )).output()
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::AdaptiveAvgPool1dBackward(desc),
+            ))
+            .output()
     }
 
     fn adaptive_avg_pool2d_backward(
@@ -629,9 +659,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(
-            ModuleOperationIr::AdaptiveAvgPool2dBackward(desc),
-        )).output()
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::AdaptiveAvgPool2dBackward(desc),
+            ))
+            .output()
     }
 
     fn interpolate(
@@ -651,7 +683,9 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::Interpolate(desc))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Interpolate(desc)))
+            .output()
     }
 
     fn interpolate_backward(
@@ -671,9 +705,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::InterpolateBackward(
-            desc,
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::InterpolateBackward(
+                desc,
+            )))
+            .output()
     }
 
     fn deform_conv2d(
@@ -713,9 +749,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Module(ModuleOperationIr::DeformableConv2d(
-            Box::new(desc),
-        ))).output()
+        client
+            .register(OperationIr::Module(ModuleOperationIr::DeformableConv2d(
+                Box::new(desc),
+            )))
+            .output()
     }
 
     fn deform_conv2d_backward(
@@ -761,3 +799,5 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         DeformConv2dBackward::new(input_grad, offset_grad, weight_grad, mask_grad, bias_grad)
     }
 }
+
+// TODO

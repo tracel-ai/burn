@@ -62,7 +62,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -107,7 +107,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -165,7 +165,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             weight.into_ir(),
             mask.map(|mask| mask.into_ir()),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -247,7 +247,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             mask.map(|mask| mask.into_ir()),
             bias.map(|bias| bias.into_ir()),
             output_grad.into_ir(),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -303,7 +303,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -348,7 +348,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -393,7 +393,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -438,7 +438,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             weight.into_ir(),
             bias.map(|bias| bias.into_ir()),
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 
@@ -1069,7 +1069,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&x]);
 
         let client = x.client.clone();
-        let desc = InterpolateOpIr::create(x.into_ir(), output_size, options, || {
+        let desc = InterpolateOpIr::create(x.into_ir(), output_size, options.into(), || {
             client.create_empty_handle()
         });
 
@@ -1108,7 +1108,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.into_ir(),
             grad.into_ir(),
             output_size,
-            options,
+            options.into(),
             || client.create_empty_handle(),
         );
 

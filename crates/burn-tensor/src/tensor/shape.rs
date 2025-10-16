@@ -239,9 +239,29 @@ impl Shape {
     }
 
     /// Repeated the specified `dim` a number of `times`.
-    pub fn repeat(mut self, dim: usize, times: usize) -> Self {
+    pub fn repeat(mut self, dim: usize, times: usize) -> Result<Shape, ShapeError> {
+        if dim >= self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim,
+                rank: self.rank(),
+            });
+        }
+
         self.dims[dim] *= times;
-        self
+        Ok(self)
+    }
+
+    /// Returns a new shape where the specified `dim` is reduced to size 1.
+    pub fn reduce(mut self, dim: usize) -> Result<Shape, ShapeError> {
+        if dim >= self.rank() {
+            return Err(ShapeError::OutOfBounds {
+                dim,
+                rank: self.rank(),
+            });
+        }
+
+        self.dims[dim] = 1;
+        Ok(self)
     }
 
     /// Concatenates all shapes into a new one along the given dimension.
@@ -730,8 +750,32 @@ mod tests {
     fn test_shape_repeat() {
         let shape = Shape::new([2, 3, 4, 5]);
 
-        let shape = shape.repeat(2, 3);
-        assert_eq!(shape, Shape::new([2, 3, 12, 5]));
+        let out = shape.repeat(2, 3).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 12, 5]));
+    }
+
+    #[test]
+    fn test_shape_repeat_invalid() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.repeat(5, 3);
+        assert_eq!(out, Err(ShapeError::OutOfBounds { dim: 5, rank: 4 }));
+    }
+
+    #[test]
+    fn test_shape_reduce() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.reduce(2).unwrap();
+        assert_eq!(out, Shape::new([2, 3, 1, 5]));
+    }
+
+    #[test]
+    fn test_shape_reduce_invalid() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        let out = shape.reduce(5);
+        assert_eq!(out, Err(ShapeError::OutOfBounds { dim: 5, rank: 4 }));
     }
 
     #[test]
@@ -1058,7 +1102,7 @@ mod tests {
         let shape = Shape::new([2, 3, 4, 5]);
         let reshaped = Shape::new([1, 2, 12, 5]);
         let out = shape.reshape(reshaped.clone()).unwrap();
-        assert_eq!(out, expanded);
+        assert_eq!(out, reshaped);
     }
 
     #[test]

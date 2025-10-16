@@ -5,7 +5,7 @@ use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_tensor::{DType, FloatDType, Shape, TensorData, backend::Backend};
+use burn_tensor::{DType, Shape, TensorData, backend::Backend};
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
@@ -131,7 +131,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         let mut ctx = self.context.lock().unwrap();
 
         let handles = &mut ctx.handles;
-        match op {
+        match &op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationIr::BaseFloat(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
