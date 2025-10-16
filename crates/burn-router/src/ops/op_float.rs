@@ -949,6 +949,56 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::CumProd(desc)));
+
+        out
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::CumMin(desc)));
+
+        out
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            axis: dim,
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::BaseFloat(BaseOperationIr::CumMax(desc)));
+        out
+    }
+
     fn float_exp(lhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
@@ -994,7 +1044,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
@@ -1132,6 +1182,21 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationIr::Float(dtype, FloatOperationIr::Ceil(desc)));
+
+        out
+    }
+
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Float(dtype, FloatOperationIr::Trunc(desc)));
 
         out
     }
