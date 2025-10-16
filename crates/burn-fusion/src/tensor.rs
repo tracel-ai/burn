@@ -18,7 +18,7 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub id: TensorId,
     /// The shape of the tensor.
     pub shape: Shape,
-    /// The [fusion client](FusionClient).
+    /// The fusion client.
     pub client: Client<R>,
     /// The datatype of the tensor.
     pub dtype: DType,
