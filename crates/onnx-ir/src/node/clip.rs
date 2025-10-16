@@ -372,13 +372,15 @@ mod tests {
 
     #[test]
     fn test_clip_lift_constants_with_runtime_inputs() {
-        // Test that lift_constants doesn't try to lift runtime inputs
+        // Test that lift_constants returns input names (filtering happens in from_onnx.rs)
         let mut node = create_test_node_with_runtime_inputs().build();
         let processor = ClipProcessor;
 
-        // Runtime inputs without constant values should not be lifted
+        // lift_constants returns potential inputs to lift (has_value filtering happens later)
         let lifted = processor.lift_constants(&mut node, 16).unwrap();
-        assert!(lifted.is_empty());
+        assert_eq!(lifted.len(), 2); // min and max inputs
+        assert_eq!(lifted[0], "min");
+        assert_eq!(lifted[1], "max");
     }
 
     #[test]

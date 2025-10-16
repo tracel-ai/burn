@@ -774,6 +774,14 @@ impl OnnxGraphBuilder {
             self.handle_node_renaming(&mut node);
             coalesce(&mut node, &mut node_iter, &mut graph_data_rc.borrow_mut());
 
+            // Re-attach value_stores after coalesce (which may add new inputs from fusion)
+            for arg in &mut node.inputs {
+                arg.value_store = Some(graph_data_rc.clone());
+            }
+            for arg in &mut node.outputs {
+                arg.value_store = Some(graph_data_rc.clone());
+            }
+
             // Handle Identity conversion before processing
             // This converts Identity nodes with constant inputs into Constant nodes
             self.handle_identity(&mut node, &graph_data_rc);
@@ -920,13 +928,11 @@ impl OnnxGraphBuilder {
         }
 
         // Extract the processed graph data and preserve consumed_values for burn-import
-        // Also extract initializer_nodes BEFORE consuming graph_data
-        let (mut processed_nodes, inputs, outputs, nodes_to_remove, initializer_node_indices) = {
+        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
             let mut graph_data = graph_data_rc.borrow_mut();
 
-            // Extract consumed_values and initializer_nodes before consuming
+            // Extract consumed_values before consuming
             let consumed_values = std::mem::take(&mut graph_data.consumed_values);
-            let initializer_nodes = graph_data.initializer_nodes.clone();
 
             // Consume the old graph_data
             let result =
@@ -935,7 +941,7 @@ impl OnnxGraphBuilder {
             // Restore consumed_values so burn-import can access them via into_value()
             graph_data.consumed_values = consumed_values;
 
-            (result.0, result.1, result.2, result.3, initializer_nodes)
+            (result.0, result.1, result.2, result.3)
         };
 
         // Convert Constant nodes to Shape type when used with Shape in binary operations
