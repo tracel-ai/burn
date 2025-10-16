@@ -268,13 +268,9 @@ where
     }
 
     fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
-        let out = kernel::matmul::matmul::<R, half::f16>(
-            lhs.clone(),
-            rhs.clone(),
-            None,
-            MatmulStrategy::Cube,
-        )
-        .unwrap();
+        let out =
+            kernel::matmul::matmul::<R, F>(lhs.clone(), rhs.clone(), None, MatmulStrategy::Cube)
+                .unwrap();
         match lhs.propagation() {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
