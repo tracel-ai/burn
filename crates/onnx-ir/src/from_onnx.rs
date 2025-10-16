@@ -704,18 +704,7 @@ impl OnnxGraphBuilder {
 
             // Handle Identity conversion before processing
             // This converts Identity nodes with constant inputs into Constant nodes
-            let was_identity = node.node_type == NodeType::Identity;
-            self.handle_identity(&mut node);
-
-            // If an Identity was converted to a Constant, register it for value access
-            // The output will be renamed by add_node() to "{node_name}_out1", so register with that name
-            if was_identity && node.node_type == NodeType::Constant && !node.outputs.is_empty() {
-                let future_output_name = format!("{}_out1", node.name);
-                let node_idx = graph_data_rc.borrow().get_current_index();
-                graph_data_rc
-                    .borrow_mut()
-                    .register_constant(future_output_name, node_idx);
-            }
+            self.handle_identity(&mut node, &graph_data_rc);
 
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
@@ -732,8 +721,30 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
+            // Register ALL Constant nodes so their values can be accessed via has_value() and get_value()
+            // This includes: initializer constants (already registered), converted Identity nodes,
+            // and explicit ONNX Constant nodes
+            if node.node_type == NodeType::Constant && !node.outputs.is_empty() {
+                let future_output_name = format!("{}_out1", node.name);
+                let node_idx = {
+                    let graph_data = graph_data_rc.borrow();
+                    graph_data.get_current_index()
+                };
+
+                // Only register if not already registered (e.g., initializer constants)
+                {
+                    let mut graph_data = graph_data_rc.borrow_mut();
+                    if !graph_data.constant_nodes.contains_key(&future_output_name) {
+                        graph_data.constant_nodes.insert(future_output_name.clone(), node_idx);
+                        graph_data.constant_references.insert(future_output_name, 0);
+                    }
+                } // Explicitly drop mutable borrow here
+            }
+
             // Lift constants (ensure constant inputs are accessible)
-            let lifted = processor
+            // lift_constants returns a list of input names that COULD be lifted
+            // We filter by has_value() to only lift actual constants
+            let potential_lifts = processor
                 .lift_constants(&mut node, opset_version)
                 .unwrap_or_else(|e| {
                     panic!(
@@ -742,23 +753,35 @@ impl OnnxGraphBuilder {
                     )
                 });
 
+            // Filter to only lift inputs that actually have constant values
+            // Check GraphData directly to avoid RefCell borrow conflicts
+            let lifted: Vec<String> = {
+                let graph_data = graph_data_rc.borrow();
+                potential_lifts
+                    .into_iter()
+                    .filter(|input_name| graph_data.has_value(input_name))
+                    .collect()
+            }; // Drop immutable borrow here
+
             // Make lifted constants accessible by caching their values
             // Identity nodes with constant values have already been converted to Constant nodes
             for input_name in &lifted {
-                let mut graph_data = graph_data_rc.borrow_mut();
+                {
+                    let mut graph_data = graph_data_rc.borrow_mut();
 
-                // Get the value from the constant and cache it
-                if let Some(value) = graph_data.get_value(input_name) {
-                    // Cache the value to ensure it stays available for burn-import
-                    graph_data.consumed_values.insert(input_name.clone(), value);
-                    log::debug!("Lifted constant {} for node {}", input_name, node.name);
-                } else {
-                    log::warn!(
-                        "Failed to lift constant {} for node {} - value not found",
-                        input_name,
-                        node.name
-                    );
-                }
+                    // Get the value from the constant and cache it
+                    if let Some(value) = graph_data.get_value(input_name) {
+                        // Cache the value to ensure it stays available for burn-import
+                        graph_data.consumed_values.insert(input_name.clone(), value);
+                        log::debug!("Lifted constant {} for node {}", input_name, node.name);
+                    } else {
+                        log::warn!(
+                            "Failed to lift constant {} for node {} - value not found",
+                            input_name,
+                            node.name
+                        );
+                    }
+                } // Explicitly drop mutable borrow before next iteration
             }
 
             // Extract config first
@@ -1246,8 +1269,8 @@ impl OnnxGraphBuilder {
     /// Needs to be called after node renaming to ensure that the rhs name is correct
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_data: &GraphData) {
         if node.node_type == NodeType::Unsqueeze && node.inputs.len() > 1 {
-            // Check if rhs is a constant using the new has_value method
-            let rhs_is_constant = node.inputs[1].has_value();
+            // Check if rhs is a constant using GraphData directly
+            let rhs_is_constant = graph_data.has_value(&node.inputs[1].name);
 
             if !rhs_is_constant {
                 // if the output has a shape, it's only because it's a graph output
@@ -1258,17 +1281,30 @@ impl OnnxGraphBuilder {
         }
     }
 
-    fn handle_identity(&mut self, node: &mut Node) {
+    fn handle_identity(
+        &mut self,
+        node: &mut Node,
+        graph_data_rc: &std::rc::Rc<std::cell::RefCell<GraphData>>,
+    ) {
         // Convert Identity nodes that pass through constants/initializers into Constant nodes
         // This allows lift_constants to work with actual Constant nodes
         if node.node_type == NodeType::Identity && !node.inputs.is_empty() {
-            // Check if the input has a constant value
-            if node.inputs[0].has_value() {
-                // Clone the input name before mutating the node
-                let input_name = node.inputs[0].name.clone();
+            let input_name = node.inputs[0].name.clone();
 
+            // Check if the input has a constant value using GraphData directly
+            let has_value = {
+                let graph_data = graph_data_rc.borrow();
+                graph_data.has_value(&input_name)
+            };
+
+            if has_value {
                 // Get the value and convert this Identity to a Constant
-                if let Some(value) = node.inputs[0].into_value() {
+                let value = {
+                    let mut graph_data = graph_data_rc.borrow_mut();
+                    graph_data.get_value(&input_name)
+                };
+
+                if let Some(value) = value {
                     // Transform the Identity into a Constant node
                     node.node_type = NodeType::Constant;
                     node.inputs.clear(); // Constants have no inputs

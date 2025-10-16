@@ -36,11 +36,13 @@ impl NodeProcessor for ClipProcessor {
         let mut lifted = Vec::new();
 
         // Lift min (input[1]) and max (input[2]) if present
-        // These are used in extract_config to read static values
-        if node.inputs.len() > 1 {
+        // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
+        // For Opset 11+: min/max are optional inputs that might be constants or runtime values
+        // The caller will filter by has_value() to only lift actual constants
+        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
             lifted.push(node.inputs[1].name.clone());
         }
-        if node.inputs.len() > 2 {
+        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
             lifted.push(node.inputs[2].name.clone());
         }
 
@@ -75,6 +77,12 @@ impl NodeProcessor for ClipProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         fn get_clip_input(node: &Node, index: usize, _param_name: &str) -> Option<ClipInput> {
             let input = node.inputs.get(index)?;
+
+            // In ONNX, optional inputs are represented by empty strings
+            // If the input name is empty, treat it as not provided (None)
+            if input.name.is_empty() {
+                return None;
+            }
 
             match input.into_value() {
                 None => {
@@ -350,5 +358,38 @@ mod tests {
         // Extract config first - this should fail with an error
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
+    }
+
+    #[test]
+    fn test_clip_lift_constants_with_attributes_only() {
+        // Test that lift_constants doesn't try to lift when using attributes (Opset 6-10)
+        let mut node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
+        let processor = ClipProcessor;
+
+        // This should return an empty list since attributes are not lifted
+        let lifted = processor.lift_constants(&mut node, 16).unwrap();
+        assert!(lifted.is_empty());
+    }
+
+    #[test]
+    fn test_clip_lift_constants_with_runtime_inputs() {
+        // Test that lift_constants doesn't try to lift runtime inputs
+        let mut node = create_test_node_with_runtime_inputs().build();
+        let processor = ClipProcessor;
+
+        // Runtime inputs without constant values should not be lifted
+        let lifted = processor.lift_constants(&mut node, 16).unwrap();
+        assert!(lifted.is_empty());
+    }
+
+    #[test]
+    fn test_clip_lift_constants_with_static_inputs() {
+        // Test that lift_constants only lifts inputs with constant values
+        let mut node = create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
+        let processor = ClipProcessor;
+
+        // Constant inputs should be lifted
+        let lifted = processor.lift_constants(&mut node, 16).unwrap();
+        assert_eq!(lifted.len(), 2);
     }
 }

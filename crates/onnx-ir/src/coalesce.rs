@@ -62,7 +62,10 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
         "Linear node must have at least 2 input"
     );
 
-    assert!(node.inputs[1].has_value(), "Input must have a value");
+    assert!(
+        graph_data.has_value(&node.inputs[1].name),
+        "Input must have a value"
+    );
 
     // Get the constant node that holds the weight
     let weight_input_name = &node.inputs[1].name;
@@ -147,7 +150,7 @@ pub(crate) fn convert_matmul_to_linear(
     }
 
     // if the second input does not have a value, it is not a weight, then proceed to the next node
-    if !node.inputs[1].has_value() {
+    if !graph_data.has_value(&node.inputs[1].name) {
         return;
     }
 
@@ -165,7 +168,7 @@ pub(crate) fn convert_matmul_to_linear(
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_data);
-        if is_add_node_with_bias(&peek_node, node) {
+        if is_add_node_with_bias(&peek_node, node, graph_data) {
             convert_and_remove_add_node(&peek_node, node);
 
             // You don't have to remove it if it's never stored in the first place
@@ -175,13 +178,21 @@ pub(crate) fn convert_matmul_to_linear(
 }
 
 /// Helper function to check if the peeked node is an Add node with bias
-fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
-    peek_node.node_type == NodeType::Add
-        && peek_node.inputs.len() == 2
-        && ((peek_node.inputs[0].name == current_node.outputs[0].name
-            && peek_node.inputs[1].has_value())
-            || (peek_node.inputs[1].name == current_node.outputs[0].name
-                && peek_node.inputs[0].has_value()))
+fn is_add_node_with_bias(
+    peek_node: &Node,
+    current_node: &Node,
+    graph_data: &GraphData,
+) -> bool {
+    // Check structural requirements first
+    if peek_node.node_type != NodeType::Add || peek_node.inputs.len() != 2 {
+        return false;
+    }
+
+    // Check if one input is the matmul output and the other has a value
+    (peek_node.inputs[0].name == current_node.outputs[0].name
+        && graph_data.has_value(&peek_node.inputs[1].name))
+        || (peek_node.inputs[1].name == current_node.outputs[0].name
+            && graph_data.has_value(&peek_node.inputs[0].name))
 }
 
 /// Helper function to convert and remove the Add node
