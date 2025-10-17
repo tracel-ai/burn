@@ -70,20 +70,13 @@ pub struct GraphData {
     input_key_map: HashMap<String, String>,
     /// Tracks which inputs have been used by nodes
     passed_inputs: HashSet<usize>,
-    /// Reference counts for constant nodes (keyed by output name)
-    constant_references: HashMap<String, usize>,
     /// Maps constant output names to node indices
     constant_nodes: HashMap<String, usize>,
-    /// Tracks which node indices correspond to initializers (for lifting logic)
-    initializer_nodes: HashSet<usize>,
     /// Nodes marked for removal
     nodes_to_remove: HashSet<usize>,
     /// Cached values from consumed constants (constant node removed, but value still accessible)
     /// Also used for lifted constants that need to be accessible via into_value()
     pub(crate) consumed_values: HashMap<String, TensorData>,
-    /// Type expectations set via should_be() method
-    /// Maps argument names to their expected types
-    expected_types: HashMap<String, ArgType>,
 }
 
 impl GraphData {
@@ -95,7 +88,6 @@ impl GraphData {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
         let mut processed_nodes = Vec::new();
-        let mut constant_references = HashMap::new();
         let mut constant_nodes = HashMap::new();
 
         // Convert all initializers to Constant nodes immediately
@@ -106,9 +98,6 @@ impl GraphData {
             constants_map.insert(initializer.name.clone(), arg);
             tensor_data_map.insert(initializer.name.clone(), tensor_data);
         }
-
-        // Track initializer node indices for lifting logic
-        let mut initializer_nodes = HashSet::new();
 
         // Create Constant nodes for all initializers
         for (idx, initializer) in initializers.iter().enumerate() {
@@ -142,10 +131,6 @@ impl GraphData {
 
                 // Register this constant
                 constant_nodes.insert(output_name.clone(), node_idx);
-                constant_references.insert(output_name.clone(), 0);
-
-                // Mark this as an initializer node for lifting logic
-                initializer_nodes.insert(node_idx);
 
                 // Map the original initializer name to this constant node
                 input_name_map.insert(initializer.name.clone(), IOEntry::Node(node_idx, 0));
@@ -192,12 +177,9 @@ impl GraphData {
             input_name_map,
             input_key_map,
             passed_inputs: HashSet::new(),
-            constant_references,
             constant_nodes,
-            initializer_nodes,
             nodes_to_remove: HashSet::new(),
             consumed_values: HashMap::new(),
-            expected_types: HashMap::new(),
         }
     }
 
@@ -287,45 +269,10 @@ impl GraphData {
         )
     }
 
-    /// Used to get the output of the graph by name. Only used to remap unsqueeze nodes
-    pub fn get_graph_output(&self, name: &str) -> Option<&Argument> {
-        self.outputs.iter().find(|x| x.name == name)
-    }
-
     // Since Nodes are added at the end of conversion, the current index is the length of the processed nodes
     /// Get the current index of the processed nodes. Useful when lifting values or marking nodes for removal
     pub fn get_current_index(&self) -> usize {
         self.processed_nodes.len()
-    }
-
-    /// Register a constant node and initialize its reference count to 0
-    pub(crate) fn register_constant(&mut self, output_name: String, node_idx: usize) {
-        self.constant_nodes.insert(output_name.clone(), node_idx);
-        self.constant_references.insert(output_name, 0);
-    }
-
-    /// Increment the reference count for a constant
-    pub(crate) fn increment_constant_ref(&mut self, output_name: &str) {
-        if let Some(count) = self.constant_references.get_mut(output_name) {
-            *count += 1;
-        }
-    }
-
-    /// Decrement the reference count for a constant and mark it for removal if count reaches 0
-    /// Returns true if the constant was marked for removal
-    pub(crate) fn decrement_constant_ref(&mut self, output_name: &str) -> bool {
-        if let Some(count) = self.constant_references.get_mut(output_name) {
-            if *count > 0 {
-                *count -= 1;
-            }
-            if *count == 0
-                && let Some(&node_idx) = self.constant_nodes.get(output_name)
-            {
-                self.nodes_to_remove.insert(node_idx);
-                return true;
-            }
-        }
-        false
     }
 
     /// Check if an argument name corresponds to a constant node
@@ -374,44 +321,9 @@ impl GraphData {
         })
     }
 
-    /// Mark a constant as consumed, removing it from active nodes and caching its value
-    pub(crate) fn mark_consumed(&mut self, name: &str) {
-        // Extract value from constant node before removing it
-        if let Some(node) = self.get_constant_value(name)
-            && let Some(crate::ir::AttributeValue::Tensor(tensor)) = node.attrs.get("value")
-        {
-            self.consumed_values
-                .insert(name.to_string(), tensor.clone());
-        }
-
-        // Decrement reference count and mark for removal
-        self.decrement_constant_ref(name);
-    }
-
-    /// Attach value store reference to an argument
-    /// This allows the argument to access constant values without explicitly passing GraphData
-    pub(crate) fn attach_value_store_to_arg(
-        &self,
-        arg: &mut Argument,
-        store: std::rc::Rc<std::cell::RefCell<GraphData>>,
-    ) {
-        arg.value_store = Some(store);
-    }
-
-    /// Helper to create a shared reference to GraphData
-    /// This is used when converting nodes to attach value stores
-    pub(crate) fn create_shared_ref(self) -> std::rc::Rc<std::cell::RefCell<GraphData>> {
-        std::rc::Rc::new(std::cell::RefCell::new(self))
-    }
-
-    /// Get mutable access to processed nodes
-    /// This is used to clear value_stores before consuming GraphData
-    pub(crate) fn get_processed_nodes_mut(&mut self) -> &mut Vec<Node> {
-        &mut self.processed_nodes
-    }
-
     /// Register a test constant in GraphData. This is used by test utilities to add constant
     /// values that can be retrieved via `into_value()`.
+    #[cfg(test)]
     pub(crate) fn register_test_constant(
         &mut self,
         name: String,
@@ -473,30 +385,16 @@ impl GraphData {
         // Register this constant
         let node_idx = self.processed_nodes.len();
         self.constant_nodes.insert(name.clone(), node_idx);
-        self.constant_references.insert(name.clone(), 0);
 
         self.processed_nodes.push(constant_node);
     }
 
     /// Set the expected type for an argument
     /// This is called by Argument::should_be() to record type expectations
-    pub(crate) fn set_expected_type(&mut self, arg_name: String, expected_ty: ArgType) {
-        self.expected_types.insert(arg_name, expected_ty);
-    }
-
-    /// Get the expected type for an argument, if any
-    pub(crate) fn get_expected_type(&self, arg_name: &str) -> Option<&ArgType> {
-        self.expected_types.get(arg_name)
-    }
-
-    /// Check if a constant output name corresponds to an initializer
-    /// Uses the initializer_nodes set to identify initializers
-    /// Returns false for ONNX Constant nodes
-    pub(crate) fn is_initializer_output(&self, output_name: &str) -> bool {
-        self.constant_nodes
-            .get(output_name)
-            .map(|&node_idx| self.initializer_nodes.contains(&node_idx))
-            .unwrap_or(false)
+    /// Note: Currently unused - this is a stub for future type inference enhancements
+    pub(crate) fn set_expected_type(&mut self, _arg_name: String, _expected_ty: ArgType) {
+        // Stub method - expected_types field was removed since it's never read
+        // Kept for compatibility with Argument::should_be() calls
     }
 }
 
@@ -508,11 +406,7 @@ pub(crate) struct OnnxGraphBuilder {
 impl OnnxGraphBuilder {
     /// Run iterative type inference with preference propagation
     /// This alternates between type inference and preference collection until convergence
-    fn iterative_type_inference_with_preferences(
-        &self,
-        nodes: &mut [Node],
-        opset: usize,
-    ) {
+    fn iterative_type_inference_with_preferences(&self, nodes: &mut [Node], opset: usize) {
         use crate::processor::ArgPreference;
 
         let registry = get_processor_registry();
@@ -526,7 +420,8 @@ impl OnnxGraphBuilder {
             log::debug!("Type inference iteration {}", iteration);
 
             // Step 1: Build OutputPreferences map from collected preferences
-            let mut node_preferences: HashMap<String, crate::processor::OutputPreferences> = HashMap::new();
+            let mut node_preferences: HashMap<String, crate::processor::OutputPreferences> =
+                HashMap::new();
 
             for (output_name, consumer_name, pref_type_str) in &collected_preferences {
                 let pref = match pref_type_str.as_str() {
@@ -539,10 +434,11 @@ impl OnnxGraphBuilder {
                 // Find producer node for this output
                 for node in nodes.iter() {
                     if node.outputs.iter().any(|o| &o.name == output_name) {
-                        node_preferences
-                            .entry(node.name.clone())
-                            .or_default()
-                            .add(output_name.clone(), consumer_name.clone(), pref);
+                        node_preferences.entry(node.name.clone()).or_default().add(
+                            output_name.clone(),
+                            consumer_name.clone(),
+                            pref,
+                        );
                         break;
                     }
                 }
@@ -631,11 +527,11 @@ impl OnnxGraphBuilder {
 
             for node in nodes.iter_mut() {
                 for input in &mut node.inputs {
-                    if let Some(new_type) = output_types.get(&input.name) {
-                        if input.ty != *new_type {
-                            types_changed = true;
-                            input.ty = new_type.clone();
-                        }
+                    if let Some(new_type) = output_types.get(&input.name)
+                        && input.ty != *new_type
+                    {
+                        types_changed = true;
+                        input.ty = new_type.clone();
                     }
                 }
             }
@@ -657,16 +553,23 @@ impl OnnxGraphBuilder {
 
                         // Find which node produces this input
                         for producer_node in nodes.iter() {
-                            if let Some(output) = producer_node.outputs.iter().find(|o| o.name == input.name) {
+                            if let Some(output) =
+                                producer_node.outputs.iter().find(|o| o.name == input.name)
+                            {
                                 // Check each requested preference type
                                 for req_type in requested_types {
                                     let pref_type_str = match req_type {
                                         ArgPreference::Scalar => "Scalar",
                                         ArgPreference::Shape => "Shape",
                                         ArgPreference::Tensor => "Tensor",
-                                    }.to_string();
+                                    }
+                                    .to_string();
 
-                                    let key = (output.name.clone(), consumer_node.name.clone(), pref_type_str);
+                                    let key = (
+                                        output.name.clone(),
+                                        consumer_node.name.clone(),
+                                        pref_type_str,
+                                    );
 
                                     // Only add if this is a NEW preference
                                     if !collected_preferences.contains(&key) {
@@ -705,7 +608,10 @@ impl OnnxGraphBuilder {
             );
         }
 
-        log::warn!("Type inference iteration limit ({}) reached without convergence", max_iterations);
+        log::warn!(
+            "Type inference iteration limit ({}) reached without convergence",
+            max_iterations
+        );
     }
 
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
@@ -727,7 +633,7 @@ impl OnnxGraphBuilder {
                 .insert(NodeType::Constant, num_initializers);
         }
 
-        let mut graph_data = GraphData::new(
+        let graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
@@ -751,10 +657,6 @@ impl OnnxGraphBuilder {
         }
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
-
-        // Track which constants were lifted into configs
-        // These should be filtered out of the final graph
-        let mut lifted_constants = HashSet::new();
 
         // PASS 2: Process nodes with collected preferences
         while let Some(node_proto) = node_iter.next() {
@@ -806,7 +708,11 @@ impl OnnxGraphBuilder {
                     };
 
                     if let Some(tensor_data) = constant_value {
-                        log::debug!("Converting Identity node {} to Constant (input: {})", node.name, input_name);
+                        log::debug!(
+                            "Converting Identity node {} to Constant (input: {})",
+                            node.name,
+                            input_name
+                        );
 
                         node.node_type = NodeType::Constant;
                         node.attrs.insert(
@@ -851,7 +757,6 @@ impl OnnxGraphBuilder {
                         graph_data
                             .constant_nodes
                             .insert(future_output_name.clone(), node_idx);
-                        graph_data.constant_references.insert(future_output_name, 0);
                     }
                 } // Explicitly drop mutable borrow here
             }
@@ -890,11 +795,6 @@ impl OnnxGraphBuilder {
                         // Cache the value to ensure it stays available for burn-import
                         graph_data.consumed_values.insert(input_name.clone(), value);
                         log::debug!("Lifted constant {} for node {}", input_name, node.name);
-
-                        // Track this as a lifted constant for potential removal
-                        // Lifted constants have their values in node configs and shouldn't be model parameters
-                        lifted_constants.insert(input_name.clone());
-                        log::debug!("Marked constant {} for removal", input_name);
                     } else {
                         log::warn!(
                             "Failed to lift constant {} for node {} - value not found",
@@ -995,11 +895,7 @@ impl OnnxGraphBuilder {
             let keep = !nodes_to_remove.contains(&i);
 
             if !keep {
-                log::debug!(
-                    "Filtering out node at index {}: {}",
-                    i,
-                    node.name
-                );
+                log::debug!("Filtering out node at index {}: {}", i, node.name);
             }
             i += 1;
             keep
@@ -1032,7 +928,6 @@ impl OnnxGraphBuilder {
 
         node.name.clone_from(&new_name);
     }
-
 }
 
 /// Parses an ONNX model file and converts it to an intermediate representation.

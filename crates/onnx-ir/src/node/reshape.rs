@@ -202,13 +202,6 @@ fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     None
 }
 
-/// Validate reshape node has correct attributes and inputs
-fn validate_reshape_node(node: &Node) {
-    if node.inputs.len() != 2 {
-        panic!("Reshape requires exactly 2 inputs");
-    }
-}
-
 /// Extract shape input as either static or runtime
 fn extract_shape_input(node: &Node) -> ReshapeInput {
     match &node.inputs[1].ty {

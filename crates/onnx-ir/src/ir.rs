@@ -325,15 +325,6 @@ impl Argument {
         }
     }
 
-    /// Check if this argument has a value (i.e., points to a Constant node)
-    fn has_value(&self) -> bool {
-        // TODO Remove this
-        self.value_store
-            .as_ref()
-            .map(|store| store.borrow().has_value(&self.name))
-            .unwrap_or(false)
-    }
-
     /// Get the constant value for this argument
     /// The value is retrieved from the Constant node's attributes or consumed cache
     /// The constant node is NOT removed - all Constant nodes are kept in the graph
