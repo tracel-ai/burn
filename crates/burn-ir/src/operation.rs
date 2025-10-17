@@ -1759,10 +1759,10 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::IntRandom(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
-            NumericOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
-            NumericOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
-            NumericOperationIr::CumSum(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumSum(repr) => Box::new([&repr.out].into_iter()),
         }
     }
     fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {

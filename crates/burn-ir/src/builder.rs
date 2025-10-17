@@ -253,7 +253,7 @@ impl_ir_create!(
         dim: usize,
         indices: TensorIr
     },
-    shape = tensor.shape.clone(), // TODO: check dims compat between tensor and indices
+    shape = indices.shape.clone(), // TODO: check dims compat between tensor and indices
     dtype = tensor.dtype
 );
 
@@ -738,8 +738,8 @@ impl_ir_create!(
     UnfoldOpIr {
         input: TensorIr,
         dim: usize,
-        step: usize,
-        size: usize
+        size: usize,
+        step: usize
     },
     shape = calculate_unfold_shape(input.shape.clone(), dim, size, step),
     dtype = input.dtype
