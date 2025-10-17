@@ -321,6 +321,7 @@ impl<R: FusionRuntime> OperationOutput<R> for Vec<FusionTensor<R>> {
 
     fn outputs(mut self) -> (FusionTensor<R>, FusionTensor<R>) {
         debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
-        (self.pop().unwrap(), self.pop().unwrap())
+        let (b, a) = (self.pop().unwrap(), self.pop().unwrap());
+        (a, b)
     }
 }

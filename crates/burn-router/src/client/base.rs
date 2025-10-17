@@ -136,8 +136,7 @@ impl<C: RunnerClient> OperationOutput<C> for Vec<RouterTensor<C>> {
 
     fn outputs(mut self) -> (RouterTensor<C>, RouterTensor<C>) {
         debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
-        let b = self.pop().unwrap();
-        let a = self.pop().unwrap();
+        let (b, a) = (self.pop().unwrap(), self.pop().unwrap());
         (a, b)
     }
 }
