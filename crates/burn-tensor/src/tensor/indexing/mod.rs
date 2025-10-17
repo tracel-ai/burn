@@ -246,6 +246,7 @@ pub fn ravel_dims<const R: usize, I: AsIndex>(coords: [I; R], dims: &[usize]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_ravel() {
