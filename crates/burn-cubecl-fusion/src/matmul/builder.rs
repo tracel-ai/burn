@@ -1,5 +1,6 @@
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{FloatOperationIr, OperationIr};
+use burn_tensor::DType;
 use cubecl::Runtime;
 
 use crate::{
@@ -63,13 +64,39 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
 
         if self.matmul.is_none() {
             if let OperationIr::Float(_, FloatOperationIr::Matmul(op)) = operation {
-                let lhs = self.builder.input_unhandled(&op.lhs);
-                let rhs = self.builder.input_unhandled(&op.rhs);
+                // Precision shouldn't be hardcoded but I don't know how to get float precision of the backend
+                let lhs = match op.lhs.dtype {
+                    DType::QFloat(scheme) => {
+                        let (data, scales) =
+                            self.builder.input_quantized_unhandled(&op.lhs).unwrap();
+                        MatmulArg::Quantized {
+                            data,
+                            scales,
+                            precision: FusePrecision::F32,
+                            scheme,
+                        }
+                    }
+                    _ => MatmulArg::Normal(self.builder.input_unhandled(&op.lhs)),
+                };
+                let rhs = match op.rhs.dtype {
+                    DType::QFloat(scheme) => {
+                        let (data, scales) =
+                            self.builder.input_quantized_unhandled(&op.rhs).unwrap();
+                        MatmulArg::Quantized {
+                            data,
+                            scales,
+                            precision: FusePrecision::F32,
+                            scheme,
+                        }
+                    }
+                    _ => MatmulArg::Normal(self.builder.input_unhandled(&op.rhs)),
+                };
+
                 let out = self.builder.output_unhandled(&op.out);
 
                 self.matmul = Some(FusedMatmul::new(
-                    MatmulArg::Normal(lhs),
-                    MatmulArg::Normal(rhs),
+                    lhs,
+                    rhs,
                     out,
                     op.clone(),
                     Default::default(),
