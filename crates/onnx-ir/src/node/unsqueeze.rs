@@ -474,9 +474,9 @@ mod tests {
         node.attrs.clear(); // Remove the axes attribute
         node.inputs = vec![node.inputs[0].clone()]; // Remove the axes input
 
-        let mut node = node;
+        let node = node;
         let processor = UnsqueezeProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(
             result,
@@ -494,9 +494,9 @@ mod tests {
             tensor.rank = 2; // Invalid rank for axes
         }
 
-        let mut node = node;
+        let node = node;
         let processor = UnsqueezeProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -506,9 +506,9 @@ mod tests {
         let mut node = create_test_node_with_input(2, vec![0], false).build();
         node.inputs[1].ty = ArgType::Shape(1); // Invalid type for axes
 
-        let mut node = node;
+        let node = node;
         let processor = UnsqueezeProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }

@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn test_pad_config_mixed_static_runtime_pads() {
         // Static pads, runtime constant_value
-        let mut builder = NodeBuilder::new(NodeType::Pad, "test_pad")
+        let builder = NodeBuilder::new(NodeType::Pad, "test_pad")
             .input_tensor_f32("data", 2, None)
             .input_tensor_i64_data("pads", vec![0, 0, 1, 1], vec![4]) // Static
             .input_tensor_f32("constant_value", 0, None) // Runtime
@@ -527,9 +527,9 @@ mod tests {
     fn test_pad_config_no_inputs() {
         let mut node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
         node.inputs = vec![];
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(
             result,
@@ -542,9 +542,9 @@ mod tests {
         let mut node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -563,9 +563,9 @@ mod tests {
             }),
             value_store: None,
         });
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -574,9 +574,9 @@ mod tests {
     fn test_pad_config_negative_pad() {
         let node = create_test_node(Some(vec![0, 0, -1, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
@@ -585,9 +585,9 @@ mod tests {
     fn test_pad_config_unsupported_mode() {
         let node = create_test_node(Some(vec![0, 0, 1, 1]), None, None, None, Some("reflect"), 2)
             .build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
@@ -595,9 +595,9 @@ mod tests {
     #[test]
     fn test_pad_config_no_pads() {
         let node = create_test_node(None, None, None, None, None, 2).build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -606,9 +606,9 @@ mod tests {
     fn test_pad_config_invalid_pads_length() {
         let node = create_test_node(Some(vec![0, 0, 1]), None, None, None, None, 2)
             .build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::InvalidAttribute { .. })));
     }
@@ -617,9 +617,9 @@ mod tests {
     fn test_pad_config_invalid_tensor_rank() {
         let node =
             create_test_node(Some(vec![0, 1]), None, None, None, None, 1).build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }
@@ -629,9 +629,9 @@ mod tests {
         // For a 3D tensor, we try to set non-zero padding on first dimension
         let node = create_test_node(Some(vec![1, 0, 0, 0, 1, 1]), None, None, None, None, 3)
             .build_with_graph_data(16);
-        let mut node = node;
+        let node = node;
         let processor = PadProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::Custom(_))));
     }

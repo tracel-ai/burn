@@ -490,9 +490,9 @@ mod tests {
         let mut node = create_test_node("nearest", Some(vec![1.0, 1.0, 2.0, 2.0]), None, None)
             .build_with_graph_data(16);
         node.attrs.clear(); // Remove all attributes including mode
-        let mut node = node;
+        let node = node;
         let processor = ResizeProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }

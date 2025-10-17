@@ -179,7 +179,7 @@ impl NodeProcessor for TopKProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{AttributeValue, NodeType, RuntimeInputRef};
+    use crate::ir::{AttributeValue, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
@@ -255,7 +255,7 @@ mod tests {
         node.attrs.insert("k".to_string(), AttributeValue::Int64(5));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
         let processor = TopKProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -422,9 +422,9 @@ mod tests {
         node.attrs.insert("k".to_string(), AttributeValue::Int64(3));
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
-        let mut node = node;
+        let node = node;
         let processor = TopKProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }
@@ -434,9 +434,9 @@ mod tests {
         // Test when k is neither provided as input nor attribute
         let node = create_test_node(3, None, None).build();
 
-        let mut node = node;
+        let node = node;
         let processor = TopKProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::MissingAttribute(_))));
     }

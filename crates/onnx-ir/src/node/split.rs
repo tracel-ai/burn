@@ -199,7 +199,7 @@ impl NodeProcessor for SplitProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, AttributeValue, ElementType, NodeType, RuntimeInputRef};
+    use crate::ir::{ArgType, AttributeValue, ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 
@@ -293,7 +293,7 @@ mod tests {
         node.inputs[0].ty = ArgType::Scalar(ElementType::Float32);
 
         let processor = SplitProcessor;
-        let prefs = OutputPreferences::new();
+        let _prefs = OutputPreferences::new();
         let result = processor.extract_config(&node, 16);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
     }

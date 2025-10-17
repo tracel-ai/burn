@@ -180,7 +180,7 @@ mod tests {
         // Input 1: min (optional)
         // Input 2: max (optional)
         // We need to maintain the correct positions even if values are None
-        let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", min)
             .input_scalar_tensor_f32("max", max)
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn test_clip_config_mixed_static_runtime() {
         // Static min, runtime max
-        let mut builder = NodeBuilder::new(NodeType::Clip, "test_clip")
+        let builder = NodeBuilder::new(NodeType::Clip, "test_clip")
             .input_tensor_f32("X", 4, None)
             .input_scalar_tensor_f32("min", Some(-1.0)) // Static
             .input_tensor_f32("max", 0, None) // Runtime
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn test_clip_config_no_min_max() {
         let node = create_test_node_with_attributes(None, None);
-        let mut node = node;
+        let node = node;
         let processor = ClipProcessor;
 
         // Extract config first - this should fail with an error

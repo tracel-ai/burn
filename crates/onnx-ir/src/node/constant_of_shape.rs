@@ -221,7 +221,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{AttributeValue, Data, NodeType, RuntimeInputRef, TensorData};
+    use crate::ir::{AttributeValue, Data, NodeType, TensorData};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input_ty: ArgType) -> NodeBuilder {

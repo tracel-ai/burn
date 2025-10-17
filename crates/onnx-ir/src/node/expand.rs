@@ -159,7 +159,7 @@ impl NodeProcessor for ExpandProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType, TensorData};
+    use crate::ir::{ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(
