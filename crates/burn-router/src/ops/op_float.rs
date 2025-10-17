@@ -702,7 +702,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseFloat(BaseOperationIr::CumSum(desc)))
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::CumSum(desc),
+            ))
             .output()
     }
 
@@ -711,7 +714,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseFloat(BaseOperationIr::CumProd(desc)))
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::CumProd(desc),
+            ))
             .output()
     }
 
@@ -720,7 +726,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseFloat(BaseOperationIr::CumMin(desc)))
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::CumMin(desc),
+            ))
             .output()
     }
 
@@ -729,7 +738,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseFloat(BaseOperationIr::CumMax(desc)))
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::CumMax(desc),
+            ))
             .output()
     }
 

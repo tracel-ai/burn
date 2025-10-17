@@ -279,28 +279,6 @@ pub enum BaseOperationIr {
     Cat(CatOpIr),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(CastOpIr),
-
-    /// Operation corresponding to:
-    ///
-    /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
-    /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
-    CumSum(DimOpIr),
-
-    // TODO: cumulative ops should be in *numeric* ops
-    /// Operation corresponding to:
-    ///
-    /// Float => [cumprod](burn_tensor::ops::FloatTensorOps::float_cumprod).
-    /// Int => [cumprod](burn_tensor::ops::IntTensorOps::int_cumprod).
-    CumProd(DimOpIr),
-    /// Float => [cummin](burn_tensor::ops::FloatTensorOps::float_cummin).
-    /// Int => [cummin](burn_tensor::ops::IntTensorOps::int_cummin).
-    CumMin(DimOpIr),
-
-    /// Operation corresponding to:
-    ///
-    /// Float => [cummax](burn_tensor::ops::FloatTensorOps::float_cummax).
-    /// Int => [cummax](burn_tensor::ops::IntTensorOps::int_cummax).
-    CumMax(DimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [empty](burn_tensor::ops::FloatTensorOps::float_empty).
@@ -434,19 +412,16 @@ pub enum NumericOperationIr {
     /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
     SumDim(ReduceDimOpIr),
-
     /// Operation corresponding to:
     ///
     /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
     /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
     Prod(ReduceOpIr),
-
     /// Operation corresponding to:
     ///
     /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
     ProdDim(ReduceDimOpIr),
-
     /// Operation corresponding to:
     ///
     /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
@@ -556,6 +531,26 @@ pub enum NumericOperationIr {
     /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
     /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
     Powf(BinaryOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
+    CumSum(DimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [cumprod](burn_tensor::ops::FloatTensorOps::float_cumprod).
+    /// Int => [cumprod](burn_tensor::ops::IntTensorOps::int_cumprod).
+    CumProd(DimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [cummin](burn_tensor::ops::FloatTensorOps::float_cummin).
+    /// Int => [cummin](burn_tensor::ops::IntTensorOps::int_cummin).
+    CumMin(DimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [cummax](burn_tensor::ops::FloatTensorOps::float_cummax).
+    /// Int => [cummax](burn_tensor::ops::IntTensorOps::int_cummax).
+    CumMax(DimOpIr),
 }
 
 /// Operation intermediate representation specific to an int tensor.
@@ -1568,10 +1563,6 @@ impl BaseOperationIr {
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new(repr.tensors.iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.input].into_iter()),
-            BaseOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
-            BaseOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
-            BaseOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
-            BaseOperationIr::CumSum(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Unfold(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Empty(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Ones(_repr) => Box::new([].into_iter()),
@@ -1592,10 +1583,6 @@ impl BaseOperationIr {
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::CumSum(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Unfold(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Empty(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Ones(repr) => Box::new([&repr.out].into_iter()),
@@ -1644,18 +1631,6 @@ impl BaseOperationIr {
                 }
             }
             BaseOperationIr::Cast(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::CumSum(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::CumProd(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::CumMin(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::CumMax(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Unfold(repr) => {
@@ -1725,6 +1700,10 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::IntRandom(_repr) => Box::new([].into_iter()),
             NumericOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            NumericOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumSum(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -1780,6 +1759,10 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::IntRandom(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumSum(repr) => Box::new([&repr.input].into_iter()),
         }
     }
     fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
@@ -1938,6 +1921,18 @@ impl NumericOperationIr {
             NumericOperationIr::Powf(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::CumSum(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::CumProd(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::CumMin(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::CumMax(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
             }
         };
 

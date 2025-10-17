@@ -615,7 +615,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseInt(BaseOperationIr::CumSum(desc)))
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::CumSum(desc),
+            ))
             .output()
     }
 
@@ -624,7 +627,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseInt(BaseOperationIr::CumProd(desc)))
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::CumProd(desc),
+            ))
             .output()
     }
 
@@ -633,7 +639,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseInt(BaseOperationIr::CumMin(desc)))
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::CumMin(desc),
+            ))
             .output()
     }
 
@@ -642,7 +651,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::BaseInt(BaseOperationIr::CumMax(desc)))
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::CumMax(desc),
+            ))
             .output()
     }
 

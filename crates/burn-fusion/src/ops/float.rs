@@ -1291,7 +1291,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::BaseFloat(BaseOperationIr::CumSum(desc.clone())),
+                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::CumSum(desc.clone())),
                 CumsumOps::<B>::new(desc),
             )
             .output()
@@ -1320,7 +1320,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::BaseFloat(BaseOperationIr::CumProd(desc.clone())),
+                OperationIr::NumericFloat(
+                    desc.out.dtype,
+                    NumericOperationIr::CumProd(desc.clone()),
+                ),
                 CumprodOps::<B>::new(desc),
             )
             .output()
@@ -1349,7 +1352,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::BaseFloat(BaseOperationIr::CumMin(desc.clone())),
+                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::CumMin(desc.clone())),
                 CumminOps::<B>::new(desc),
             )
             .output()
@@ -1378,7 +1381,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::BaseFloat(BaseOperationIr::CumMax(desc.clone())),
+                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::CumMax(desc.clone())),
                 CummaxOps::<B>::new(desc),
             )
             .output()

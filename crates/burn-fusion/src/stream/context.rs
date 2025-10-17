@@ -871,6 +871,26 @@ impl RelativeOps for NumericOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::CumSum(desc) => NumericOperationIr::CumSum(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
+            NumericOperationIr::CumProd(desc) => NumericOperationIr::CumProd(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
+            NumericOperationIr::CumMin(desc) => NumericOperationIr::CumMin(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
+            NumericOperationIr::CumMax(desc) => NumericOperationIr::CumMax(DimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis,
+            }),
         }
     }
 }
@@ -951,26 +971,6 @@ impl RelativeOps for BaseOperationIr {
             BaseOperationIr::Cast(desc) => BaseOperationIr::Cast(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
-            }),
-            BaseOperationIr::CumSum(desc) => BaseOperationIr::CumSum(DimOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-                axis: desc.axis,
-            }),
-            BaseOperationIr::CumProd(desc) => BaseOperationIr::CumProd(DimOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-                axis: desc.axis,
-            }),
-            BaseOperationIr::CumMin(desc) => BaseOperationIr::CumMin(DimOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-                axis: desc.axis,
-            }),
-            BaseOperationIr::CumMax(desc) => BaseOperationIr::CumMax(DimOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-                axis: desc.axis,
             }),
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
             BaseOperationIr::Ones(desc) => BaseOperationIr::Ones(desc.to_relative(converter)),

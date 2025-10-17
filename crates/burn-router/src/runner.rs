@@ -207,26 +207,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_cast(tensor, desc.out.dtype.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::CumSum(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_cumsum(tensor, desc.axis);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumProd(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_cumprod(tensor, desc.axis);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumMin(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_cummin(tensor, desc.axis);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumMax(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_cummax(tensor, desc.axis);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::float_empty(shape, &self.device, desc.out.dtype.into());
@@ -313,26 +293,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
-                BaseOperationIr::CumSum(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_cumsum(tensor, desc.axis);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumProd(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_cumprod(tensor, desc.axis);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumMin(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_cummin(tensor, desc.axis);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::CumMax(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_cummax(tensor, desc.axis);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::int_empty(shape, &self.device, desc.out.dtype.into());
@@ -423,12 +383,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Cast(_) => unreachable!(),
-                BaseOperationIr::CumSum(_) => unreachable!("cumsum not supported for bool tensors"),
-                BaseOperationIr::CumProd(_) => {
-                    unreachable!("cumprod not supported for bool tensors")
-                }
-                BaseOperationIr::CumMin(_) => unreachable!("cummin not supported for bool tensors"),
-                BaseOperationIr::CumMax(_) => unreachable!("cummax not supported for bool tensors"),
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::bool_empty(shape, &self.device);
@@ -627,6 +581,26 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::Powf(desc) => {
                     binary_float_ops!(handles, desc, B::float_powf)
                 }
+                NumericOperationIr::CumSum(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cumsum(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumProd(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cumprod(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumMin(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cummin(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumMax(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cummax(tensor, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::NumericInt(_dtype, op) => match op {
                 NumericOperationIr::Add(desc) => {
@@ -817,6 +791,26 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let rhs = handles.get_float_tensor::<B>(&desc.rhs);
 
                     let output = B::int_powf(lhs, rhs);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumSum(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cumsum(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumProd(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cumprod(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumMin(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cummin(tensor, desc.axis);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::CumMax(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cummax(tensor, desc.axis);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
