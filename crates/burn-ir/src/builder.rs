@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+use alloc::vec::Vec;
 use burn_tensor::{
     DType, Distribution, Shape, Slice, calculate_matmul_output,
     ops::{

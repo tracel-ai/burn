@@ -6,18 +6,6 @@ use core::{
 };
 use serde::{Deserialize, Serialize};
 
-// TODO
-// Add to `Shape`:
-// - squeeze/unsqueeze
-// maybe `shape.slice(..)`, but we can only slice the dimensions, not elements
-// i.e., a single `Slice` arg.
-// shape.slice(0..1)
-// pub fn slice<S: Into<Slice>(&self, slice: S) -> Self
-//
-// Refactor:
-// - tensor: movedim, flatten
-// - any IR shape ops (fusion / router / etc)
-
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Shape {
