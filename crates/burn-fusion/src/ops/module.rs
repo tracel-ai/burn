@@ -1,6 +1,6 @@
 use crate::{
     Fusion, FusionBackend,
-    client::{FusionClient, OperationOutput},
+    client::OperationOutput,
     stream::{OperationStreams, execution::Operation},
 };
 use burn_ir::*;

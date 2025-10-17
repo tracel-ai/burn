@@ -1,4 +1,4 @@
-use crate::{Float, Tensor, backend::Backend};
+use crate::{Float, Tensor, TensorPrimitive, backend::Backend};
 
 impl<B, const D: usize> Tensor<B, D, Float>
 where
@@ -35,11 +35,8 @@ where
     /// }
     /// ```
     pub fn trunc(self) -> Self {
-        // truncate(x) = ⌊x⌋ if x ≥ 0, and ⌈x⌉ if x < 0
-        // This preserves the sign of zero and handles all special cases correctly
-        let is_negative = self.clone().lower_elem(0.0);
-        let floored = self.clone().floor();
-        let ceiled = self.ceil();
-        floored.mask_where(is_negative, ceiled)
+        Self::new(TensorPrimitive::Float(B::float_trunc(
+            self.primitive.tensor(),
+        )))
     }
 }

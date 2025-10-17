@@ -1,20 +1,26 @@
-use super::FusionClient;
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
+use burn_common::device::{Device, DeviceContext, DeviceState};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::TensorData;
-use spin::Mutex;
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
-pub struct MutexFusionClient<R: FusionRuntime> {
-    server: Arc<Mutex<FusionServer<R>>>,
+pub struct GlobalFusionClient<R: FusionRuntime> {
+    server: DeviceContext<FusionServer<R>>,
     device: FusionDevice<R>,
 }
 
-impl<R> Clone for MutexFusionClient<R>
+impl<R: FusionRuntime> DeviceState for FusionServer<R> {
+    fn init(device_id: burn_common::device::DeviceId) -> Self {
+        let device = FusionDevice::<R>::from_id(device_id);
+        FusionServer::new(device)
+    }
+}
+
+impl<R> Clone for GlobalFusionClient<R>
 where
     R: FusionRuntime,
 {
@@ -25,19 +31,33 @@ where
         }
     }
 }
-
-impl<R> FusionClient<R> for MutexFusionClient<R>
+impl<R> GlobalFusionClient<R>
 where
-    R: FusionRuntime<FusionClient = Self> + 'static,
+    R: FusionRuntime + 'static,
 {
-    fn new(device: FusionDevice<R>) -> Self {
+    /// Loads the client from the given device.
+    pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server: Arc::new(Mutex::new(FusionServer::new(device))),
+            server: DeviceContext::locate(device),
+        }
+    }
+}
+
+impl<R> GlobalFusionClient<R>
+where
+    R: FusionRuntime + 'static,
+{
+    /// Create a new client for the given [device](FusionRuntime::FusionDevice).
+    pub fn new(device: FusionDevice<R>) -> Self {
+        Self {
+            device: device.clone(),
+            server: DeviceContext::locate(&device),
         }
     }
 
-    fn register<O>(
+    /// Register a new [tensor operation intermediate representation](OperationIr).
+    pub fn register<O>(
         &self,
         streams: OperationStreams,
         repr: OperationIr,
@@ -67,20 +87,24 @@ where
         outputs
     }
 
-    fn drain(&self) {
+    /// Register all lazy computation.
+    pub fn drain(&self) {
         let id = StreamId::current();
         self.server.lock().drain_stream(id);
     }
 
-    fn create_empty_handle(&self) -> TensorId {
+    /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
+    pub fn create_empty_handle(&self) -> TensorId {
         self.server.lock().create_empty_handle()
     }
 
-    fn device(&self) -> &FusionDevice<R> {
+    /// Get the current device used by all operations handled by this client.
+    pub fn device(&self) -> &FusionDevice<R> {
         &self.device
     }
 
-    fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
+    /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).
+    pub fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(id, handle);
@@ -89,7 +113,8 @@ where
         id
     }
 
-    fn read_tensor_float<B>(
+    /// Read the values contained by a float tensor.
+    pub fn read_tensor_float<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -100,7 +125,8 @@ where
         self.server.lock().read_float::<B>(tensor, stream)
     }
 
-    fn read_tensor_int<B>(
+    /// Read the values contained by an int tensor.
+    pub fn read_tensor_int<B>(
         self,
         tensor: TensorIr,
         id: StreamId,
@@ -111,7 +137,8 @@ where
         self.server.lock().read_int::<B>(tensor, id)
     }
 
-    fn read_tensor_bool<B>(
+    /// Read the values contained by a bool tensor.
+    pub fn read_tensor_bool<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -122,7 +149,8 @@ where
         self.server.lock().read_bool::<B>(tensor, stream)
     }
 
-    fn read_tensor_quantized<B>(
+    /// Read the values contained by a quantized tensor.
+    pub fn read_tensor_quantized<B>(
         self,
         tensor: TensorIr,
         stream: StreamId,
@@ -133,7 +161,8 @@ where
         self.server.lock().read_quantized::<B>(tensor, stream)
     }
 
-    fn change_client_float<B>(
+    /// Change the client of the given float tensor.
+    pub fn change_client_float<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -159,7 +188,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_int<B>(
+    /// Change the client of the given int tensor.
+    pub fn change_client_int<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -185,7 +215,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_bool<B>(
+    /// Change the client of the given bool tensor.
+    pub fn change_client_bool<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -211,7 +242,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_quantized<B>(
+    /// Change the client of the given quantized tensor.
+    pub fn change_client_quantized<B>(
         &self,
         tensor: TensorIr,
         client: Self,
@@ -233,7 +265,8 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
+    /// Resolve the given float tensor to a primitive tensor.
+    pub fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -242,7 +275,8 @@ where
         server.resolve_server_float::<B>(&tensor.into_ir())
     }
 
-    fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
+    /// Resolve the given int tensor to a primitive tensor.
+    pub fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -251,12 +285,42 @@ where
         server.resolve_server_int::<B>(&tensor.into_ir())
     }
 
-    fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
+    /// Resolve the given bool tensor to a primitive tensor.
+    pub fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_bool::<B>(&tensor.into_ir())
+    }
+}
+
+/// Extension trait to extract outputs when registering an operation.
+pub trait OperationOutput<R: FusionRuntime> {
+    /// Extract a single output tensor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than one output.
+    fn output(self) -> FusionTensor<R>;
+
+    /// Extract a pair of output tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than two outputs.
+    fn outputs(self) -> (FusionTensor<R>, FusionTensor<R>);
+}
+
+impl<R: FusionRuntime> OperationOutput<R> for Vec<FusionTensor<R>> {
+    fn output(mut self) -> FusionTensor<R> {
+        debug_assert_eq!(self.len(), 1, "expected single output, got {}", self.len());
+        self.pop().unwrap()
+    }
+
+    fn outputs(mut self) -> (FusionTensor<R>, FusionTensor<R>) {
+        debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
+        (self.pop().unwrap(), self.pop().unwrap())
     }
 }

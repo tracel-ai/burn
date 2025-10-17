@@ -1,7 +1,7 @@
 use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
-    client::{FusionClient, OperationOutput},
+    client::OperationOutput,
     get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
@@ -2029,6 +2029,23 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::Ceil(desc.clone())),
                 CeilOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(TruncOps, B::float_trunc);
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Trunc(desc.clone())),
+                TruncOps::<B>::new(desc),
             )
             .output()
     }

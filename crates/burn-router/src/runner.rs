@@ -927,6 +927,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 FloatOperationIr::Ceil(desc) => {
                     unary_float_ops!(handles, desc, B::float_ceil)
                 }
+                FloatOperationIr::Trunc(desc) => {
+                    unary_float_ops!(handles, desc, B::float_trunc)
+                }
                 FloatOperationIr::IntoInt(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 

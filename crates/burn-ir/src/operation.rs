@@ -115,6 +115,8 @@ pub enum FloatOperationIr {
     Floor(UnaryOpIr),
     /// Operation corresponding to [ceil](burn_tensor::ops::FloatTensorOps::float_ceil).
     Ceil(UnaryOpIr),
+    /// Operation corresponding to [trunc](burn_tensor::ops::FloatTensorOps::float_trunc).
+    Trunc(UnaryOpIr),
     /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
     IntoInt(CastOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
@@ -1962,6 +1964,7 @@ impl FloatOperationIr {
             FloatOperationIr::Round(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Floor(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Ceil(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::Trunc(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IntoInt(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::Quantize(repr) => {
                 Box::new([&repr.tensor, &repr.qparams.scales].into_iter())
@@ -1989,6 +1992,7 @@ impl FloatOperationIr {
             FloatOperationIr::Round(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Floor(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Ceil(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Trunc(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IntoInt(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Quantize(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.out].into_iter()),
@@ -2047,6 +2051,9 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Ceil(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Trunc(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Quantize(repr) => {

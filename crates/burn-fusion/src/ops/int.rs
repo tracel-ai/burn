@@ -1,7 +1,7 @@
 use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
-    client::{FusionClient, OperationOutput},
+    client::OperationOutput,
     get_client, reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,

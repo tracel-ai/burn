@@ -1,6 +1,6 @@
 use crate::{
     Fusion, FusionBackend,
-    client::{FusionClient, OperationOutput},
+    client::OperationOutput,
     get_client,
     stream::{OperationStreams, execution::Operation},
 };

@@ -417,6 +417,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.ceil().unwrap())
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // truncate(x) = ⌊x⌋ if x ≥ 0, and ⌈x⌉ if x < 0
+        // This preserves the sign of zero and handles all special cases correctly
+        let is_negative = tensor.tensor.lt(0.0).unwrap();
+        let floored = tensor.tensor.floor().unwrap();
+        let ceiled = tensor.tensor.ceil().unwrap();
+        CandleTensor::new(is_negative.where_cond(&ceiled, &floored).unwrap())
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.erf().unwrap())
     }

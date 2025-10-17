@@ -168,7 +168,7 @@ impl FuseTrace {
     /// Run a trace with the given [runner](TraceRunner).
     pub fn run<R: Runtime, BT: CubeElement, Runner: TraceRunner<R>>(
         &self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,

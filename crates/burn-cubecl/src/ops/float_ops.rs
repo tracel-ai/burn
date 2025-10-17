@@ -622,6 +622,10 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Ceil)
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Trunc)
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Erf)
     }

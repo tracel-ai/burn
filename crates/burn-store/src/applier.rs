@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
-use burn_core::module::{ModuleMapper, ParamId};
-use burn_tensor::{Bool, DType, Int, Tensor, backend::Backend};
+use burn_core::module::{ModuleMapper, Param};
+use burn_tensor::{Bool, DType, Int, Shape, Tensor, backend::Backend};
 
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 
@@ -83,6 +83,8 @@ impl core::fmt::Display for ApplyError {
         }
     }
 }
+
+impl core::error::Error for ApplyError {}
 
 /// Result of applying tensor snapshots to a module
 #[derive(Debug, Clone)]
@@ -221,8 +223,13 @@ impl<B: Backend> Applier<B> {
         }
     }
 
-    /// Apply a tensor snapshot to the current tensor (generic over tensor kind)
-    fn apply_tensor<const D: usize, K>(&mut self, tensor: Tensor<B, D, K>) -> Tensor<B, D, K>
+    /// Apply a tensor snapshot with shape validation
+    /// Returns None if snapshot not found, filtered, or validation fails
+    fn apply_tensor<const D: usize, K>(
+        &mut self,
+        target_device: &B::Device,
+        target_shape: Shape,
+    ) -> Option<Tensor<B, D, K>>
     where
         K: burn_tensor::TensorKind<B>,
         K: burn_tensor::BasicOps<B>,
@@ -233,13 +240,16 @@ impl<B: Backend> Applier<B> {
         // Check if we have a snapshot for this path
         let snapshot = match self.snapshots.get(&path) {
             Some(s) => s,
-            None => return tensor,
+            None => {
+                // No snapshot available - signal caller not to apply
+                return None;
+            }
         };
 
         // Check if we should apply based on filter
         if !self.should_apply() {
-            self.skipped.insert(path);
-            return tensor;
+            self.skipped.insert(path.clone());
+            return None;
         }
 
         // Apply adapter with current container context
@@ -251,34 +261,22 @@ impl<B: Backend> Applier<B> {
                     path: path.clone(),
                     message: format!("Failed to load tensor data: {:?}", e),
                 });
-                return tensor;
+                return None; // Signal caller to fall back to initialization
             }
         };
 
         // Validate shape
-        let expected_shape = tensor.shape().dims;
-        if data.shape != expected_shape {
+        if data.shape != target_shape.dims {
             self.errors.push(ApplyError::ShapeMismatch {
                 path: path.clone(),
-                expected: expected_shape,
+                expected: target_shape.dims,
                 found: data.shape.clone(),
             });
-            return tensor;
-        }
-
-        // Validate dtype
-        let expected_dtype = tensor.dtype();
-        if data.dtype != expected_dtype {
-            self.errors.push(ApplyError::DTypeMismatch {
-                path: path.clone(),
-                expected: expected_dtype,
-                found: data.dtype,
-            });
-            return tensor;
+            return None; // Signal caller to fall back to initialization
         }
 
         self.applied.push(path);
-        Tensor::from_data(data, &tensor.device())
+        Some(Tensor::from_data(data, target_device))
     }
 }
 
@@ -293,32 +291,133 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         self.container_stack.pop();
     }
 
-    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-        if self.path_stack.is_empty() {
-            return tensor;
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+        let param_id = param.id;
+        let target_device = param.lazy_device();
+        let target_shape = param.lazy_shape();
+
+        // Try to apply snapshot with shape validation
+        match self.apply_tensor(&target_device, target_shape) {
+            Some(tensor) => {
+                // We have a tensor to apply - load it
+                param.transform_for_load(tensor, param_id)
+            }
+            None => {
+                // No snapshot, filtered, or validation failed - return param unchanged
+                param
+            }
         }
-        self.apply_tensor(tensor)
     }
 
     fn map_int<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, Int>,
-    ) -> Tensor<B, D, Int> {
-        if self.path_stack.is_empty() {
-            return tensor;
+        param: Param<Tensor<B, D, Int>>,
+    ) -> Param<Tensor<B, D, Int>> {
+        let param_id = param.id;
+        let target_device = param.lazy_device();
+        let target_shape = param.lazy_shape();
+
+        // Try to apply snapshot with shape validation
+        match self.apply_tensor(&target_device, target_shape) {
+            Some(tensor) => {
+                // We have a tensor to apply - load it
+                param.transform_for_load(tensor, param_id)
+            }
+            None => {
+                // No snapshot, filtered, or validation failed - return param unchanged
+                param
+            }
         }
-        self.apply_tensor(tensor)
     }
 
     fn map_bool<const D: usize>(
         &mut self,
-        _id: ParamId,
-        tensor: Tensor<B, D, Bool>,
-    ) -> Tensor<B, D, Bool> {
-        if self.path_stack.is_empty() {
-            return tensor;
+        param: Param<Tensor<B, D, Bool>>,
+    ) -> Param<Tensor<B, D, Bool>> {
+        let param_id = param.id;
+        let target_device = param.lazy_device();
+        let target_shape = param.lazy_shape();
+
+        // Try to apply snapshot with shape validation
+        match self.apply_tensor(&target_device, target_shape) {
+            Some(tensor) => {
+                // We have a tensor to apply - load it
+                param.transform_for_load(tensor, param_id)
+            }
+            None => {
+                // No snapshot, filtered, or validation failed - return param unchanged
+                param
+            }
         }
-        self.apply_tensor(tensor)
+    }
+}
+
+#[cfg(all(test, feature = "std", target_has_atomic = "ptr"))]
+mod tests {
+    use super::*;
+    use burn_core::module::{ModuleMapper, Param, ParamId};
+    use burn_tensor::Tensor;
+
+    type TestBackend = burn_ndarray::NdArray;
+
+    #[test]
+    fn root_level_parameters() {
+        let device = Default::default();
+
+        // Create root-level parameters (not inside any module)
+        let weight = Param::<Tensor<TestBackend, 2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let bias = Param::<Tensor<TestBackend, 1>>::from_data([5.0, 6.0], &device);
+
+        // Create snapshots with root-level paths (single-element path, no nested modules)
+        let weight_snapshot = crate::TensorSnapshot::from_data(
+            weight.val().to_data(),
+            vec!["weight".to_string()], // root-level parameter name
+            vec![],                     // no container
+            ParamId::new(),
+        );
+
+        let bias_snapshot = crate::TensorSnapshot::from_data(
+            bias.val().to_data(),
+            vec!["bias".to_string()], // root-level parameter name
+            vec![],                   // no container
+            ParamId::new(),
+        );
+
+        // Create applier with root-level snapshots
+        let mut applier =
+            Applier::<TestBackend>::new(vec![weight_snapshot, bias_snapshot], None, None);
+
+        // Create new params to load into
+        let weight_target = Param::initialized(
+            ParamId::new(),
+            Tensor::<TestBackend, 2>::zeros([2, 2], &device),
+        );
+        let bias_target = Param::initialized(
+            ParamId::new(),
+            Tensor::<TestBackend, 1>::zeros([2], &device),
+        );
+
+        // Apply using the ModuleMapper interface - simulate module traversal
+        // Enter "weight" path (as if we're visiting a field named "weight")
+        applier.enter_module("weight", "");
+        let weight_loaded = applier.map_float(weight_target);
+        applier.exit_module("weight", "");
+
+        // Enter "bias" path (as if we're visiting a field named "bias")
+        applier.enter_module("bias", "");
+        let bias_loaded = applier.map_float(bias_target);
+        applier.exit_module("bias", "");
+
+        // Verify values were loaded
+        let weight_data = weight_loaded.val().to_data().to_vec::<f32>().unwrap();
+        let bias_data = bias_loaded.val().to_data().to_vec::<f32>().unwrap();
+
+        assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(bias_data, vec![5.0, 6.0]);
+
+        // Verify applier result
+        let result = applier.into_result();
+        assert_eq!(result.applied.len(), 2);
+        assert_eq!(result.errors.len(), 0);
     }
 }
