@@ -121,10 +121,7 @@ impl NodeProcessor for UnsqueezeProcessor {
                     UnsqueezeConfig::Static(shape.clone())
                 } else {
                     // Runtime input - store reference instead of cloning the argument
-                    UnsqueezeConfig::Runtime(RuntimeInputRef::new(
-                        node.inputs[1].name.clone(),
-                        1,
-                    ))
+                    UnsqueezeConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
                 }
             }
             _ => {

@@ -1,4 +1,6 @@
-use crate::ir::{RuntimeInputRef, ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
+use crate::ir::{
+    ArgType, Data, ElementType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
+};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -98,9 +100,10 @@ impl NodeProcessor for RangeProcessor {
             })?;
 
             match input.into_value() {
-                None => {
-                    Ok(RangeInput::Runtime(RuntimeInputRef::new(input.name.clone(), index)))
-                }
+                None => Ok(RangeInput::Runtime(RuntimeInputRef::new(
+                    input.name.clone(),
+                    index,
+                ))),
                 Some(TensorData {
                     data: Data::Int64s(values),
                     ..

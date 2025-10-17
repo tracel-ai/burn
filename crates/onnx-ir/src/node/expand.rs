@@ -144,10 +144,7 @@ impl NodeProcessor for ExpandProcessor {
             }) => ExpandShape::Static(shape.clone()),
             None => {
                 // Runtime shape - store reference instead of cloning the argument
-                ExpandShape::Runtime(RuntimeInputRef::new(
-                    node.inputs[1].name.clone(),
-                    1,
-                ))
+                ExpandShape::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
             Some(_) => {
                 return Err(ProcessError::Custom(

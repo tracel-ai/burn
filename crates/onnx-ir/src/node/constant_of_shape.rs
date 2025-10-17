@@ -205,10 +205,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             }) => ConstantOfShapeShape::Static(shape.clone()),
             None => {
                 // Runtime input - store reference instead of cloning the argument
-                ConstantOfShapeShape::Runtime(RuntimeInputRef::new(
-                    node.inputs[0].name.clone(),
-                    0,
-                ))
+                ConstantOfShapeShape::Runtime(RuntimeInputRef::new(node.inputs[0].name.clone(), 0))
             }
             _ => {
                 return Err(ProcessError::Custom(format!(
@@ -224,7 +221,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{RuntimeInputRef, AttributeValue, Data, NodeType, TensorData};
+    use crate::ir::{AttributeValue, Data, NodeType, RuntimeInputRef, TensorData};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input_ty: ArgType) -> NodeBuilder {

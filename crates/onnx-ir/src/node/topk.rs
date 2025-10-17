@@ -1,4 +1,4 @@
-use crate::ir::{RuntimeInputRef, ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -179,7 +179,7 @@ impl NodeProcessor for TopKProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{RuntimeInputRef, AttributeValue, NodeType};
+    use crate::ir::{AttributeValue, NodeType, RuntimeInputRef};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 

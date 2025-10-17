@@ -1,4 +1,6 @@
-use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType};
+use crate::ir::{
+    ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
+};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

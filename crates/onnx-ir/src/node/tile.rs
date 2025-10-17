@@ -1,6 +1,6 @@
+use crate::ir::RuntimeInputRef;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{Node, NodeConfig};
-use crate::ir::RuntimeInputRef;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for tile repeats.

@@ -1,7 +1,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::util::same_as_input;
 
-use crate::ir::{RuntimeInputRef, Data, Node, NodeConfig};
+use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for dropout ratio.

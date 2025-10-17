@@ -1,4 +1,4 @@
-use crate::ir::{RuntimeInputRef, Data, Node, NodeConfig};
+use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
