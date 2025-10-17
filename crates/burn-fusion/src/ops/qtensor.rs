@@ -470,17 +470,29 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
+    fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         #[derive(new, Debug)]
         struct MatmulOps<B: FusionBackend> {
             desc: BinaryOpIr,
+            lhs_quantized: bool,
+            rhs_quantized: bool,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MatmulOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = handles.get_quantized_tensor::<B>(&self.desc.lhs);
-                let rhs = handles.get_quantized_tensor::<B>(&self.desc.rhs);
+                let lhs = match self.lhs_quantized {
+                    true => {
+                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.lhs))
+                    }
+                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.lhs)),
+                };
+                let rhs = match self.rhs_quantized {
+                    true => {
+                        TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.rhs))
+                    }
+                    false => TensorPrimitive::Float(handles.get_float_tensor::<B>(&self.desc.rhs)),
+                };
                 let output = B::q_matmul(lhs, rhs);
                 match output {
                     TensorPrimitive::Float(output) => {
@@ -493,28 +505,65 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
+        let mut propagation = QuantPropagation::Inhibit;
+        let mut scheme = QuantScheme::default();
         let mut streams = OperationStreams::default();
-        streams.tensor(&lhs);
-        streams.tensor(&rhs);
+        let mut lhs_quantized = false;
+        let mut rhs_quantized = false;
+        match &lhs {
+            TensorPrimitive::QFloat(lhs) => {
+                propagation = lhs.propagation();
+                scheme = *lhs.scheme();
+                lhs_quantized = true;
+                streams.tensor(lhs);
+            }
+            TensorPrimitive::Float(lhs) => {
+                streams.tensor(lhs);
+            }
+        }
+        match &rhs {
+            TensorPrimitive::QFloat(rhs) => {
+                propagation = rhs.propagation();
+                scheme = *rhs.scheme();
+                rhs_quantized = true;
+                streams.tensor(rhs);
+            }
+            TensorPrimitive::Float(rhs) => {
+                streams.tensor(rhs);
+            }
+        }
 
-        let propagation = lhs.propagation();
         let dtype = match propagation {
-            QuantPropagation::Propagate => lhs.dtype,
+            QuantPropagation::Propagate => DType::QFloat(scheme),
             QuantPropagation::Inhibit => B::FloatElem::dtype(),
         };
-        let shape = Shape::matmul(&lhs.shape, &rhs.shape).unwrap();
+        let shape = Shape::matmul(&lhs.shape(), &rhs.shape()).unwrap();
 
-        let out = lhs.client.tensor_uninitialized(shape, dtype);
+        let client = match &lhs {
+            TensorPrimitive::Float(lhs) => lhs.client.clone(),
+            TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
+        };
+
+        let lhs = match lhs {
+            TensorPrimitive::Float(lhs) => lhs.into_ir(),
+            TensorPrimitive::QFloat(lhs) => lhs.into_ir(),
+        };
+        let rhs = match rhs {
+            TensorPrimitive::Float(rhs) => rhs.into_ir(),
+            TensorPrimitive::QFloat(rhs) => rhs.into_ir(),
+        };
+
+        let out = client.tensor_uninitialized(shape, dtype);
         let desc = BinaryOpIr {
-            lhs: lhs.into_ir(),
-            rhs: rhs.into_ir(),
+            lhs,
+            rhs,
             out: out.to_ir_out(),
         };
 
         out.client.register(
             streams,
             OperationIr::Float(dtype, FloatOperationIr::Matmul(desc.clone())),
-            MatmulOps::<B>::new(desc),
+            MatmulOps::<B>::new(desc, lhs_quantized, rhs_quantized),
         );
 
         match propagation {

@@ -6,7 +6,10 @@ use burn_tensor::{
         QuantScheme, QuantValue, QuantizationParametersPrimitive, params_shape,
     },
 };
-use cubecl::server::{Allocation, AllocationDescriptor};
+use cubecl::{
+    matmul::components::{AccG, AccS, LhsG, LhsS, RhsG, RhsS},
+    server::{Allocation, AllocationDescriptor},
+};
 use cubecl_quant::scheme::QuantStore;
 
 use crate::{
@@ -267,13 +270,43 @@ where
         unimplemented!()
     }
 
-    fn q_matmul(lhs: QuantizedTensor<Self>, rhs: QuantizedTensor<Self>) -> TensorPrimitive<Self> {
-        let out =
-            kernel::matmul::matmul::<R, F>(lhs.clone(), rhs.clone(), None, MatmulStrategy::Cube)
-                .unwrap();
-        match lhs.propagation() {
+    fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
+        let (propagation, scheme) = match (&lhs, &rhs) {
+            (TensorPrimitive::QFloat(lhs), _) => (lhs.propagation(), *lhs.scheme()),
+            (_, TensorPrimitive::QFloat(rhs)) => (rhs.propagation(), *rhs.scheme()),
+            _ => unreachable!(),
+        };
+
+        // Inherit precision for mixed inputs, default to `FloatElem` for fully quantized.
+        let out_dtype = match (&lhs, &rhs) {
+            (TensorPrimitive::Float(lhs), _) => lhs.dtype,
+            (_, TensorPrimitive::Float(rhs)) => rhs.dtype,
+            _ => F::dtype(),
+        };
+
+        let (lhs_dtype, lhs) = match lhs {
+            TensorPrimitive::Float(lhs) => (lhs.dtype, lhs),
+            TensorPrimitive::QFloat(lhs) => (out_dtype, lhs),
+        };
+        let (rhs_dtype, rhs) = match rhs {
+            TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
+            TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
+        };
+
+        let out = execute_with_dtype!(float(lhs_dtype), LP, {
+            execute_with_dtype!(float(rhs_dtype), RP, {
+                execute_with_dtype!(float(out_dtype), OP, {
+                    type MP = (LhsG<LP>, RhsG<RP>, AccG<OP>, LhsS<LP>, RhsS<RP>, AccS<OP>);
+
+                    kernel::matmul::matmul::<R, MP>(lhs, rhs, None, MatmulStrategy::default())
+                        .unwrap()
+                })
+            })
+        });
+
+        match propagation {
             QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out, lhs.scheme()))
+                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }
             QuantPropagation::Inhibit => TensorPrimitive::Float(out),
         }

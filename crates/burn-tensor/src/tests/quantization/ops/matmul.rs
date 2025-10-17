@@ -132,11 +132,17 @@ mod tests {
         // more sense to re-quantize the input back at this time. Better usability.
         //
         // This might be handled differently in the future (dequantize on read in fusion?).
+        // Now implemented properly as mixed precision
         let tensor_1 = TestTensor::<2>::from([[1.0, 6.35], [2.0, 3.0], [1.0, 3.0]]);
-        let tensor_2 = QTensor::<TestBackend, 2>::int8([[4.0, 8.0, 12.7], [2.0, 3.0, 6.0]]);
+        let tensor_2 =
+            QTensor::<TestBackend, 2>::int8([[4.0, 8.0, 12.7, 1.6], [2.0, 3.0, 6.0, 4.0]]);
         let tensor_3 = tensor_1.matmul(tensor_2);
 
-        let expected = TensorData::from([[16.7, 27.05, 50.8], [14., 25., 43.4], [10., 17., 30.7]]);
+        let expected = TensorData::from([
+            [16.7, 27.05, 50.8, 27.0],
+            [14., 25., 43.4, 15.2],
+            [10., 17., 30.7, 13.6],
+        ]);
         let output = tensor_3.into_data();
         output.assert_approx_eq::<FT>(&expected, Tolerance::default());
 

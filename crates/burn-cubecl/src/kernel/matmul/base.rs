@@ -1,9 +1,9 @@
 use super::init_matmul_output;
-use crate::{CubeRuntime, element::MatmulElement, tensor::CubeTensor};
+use crate::{CubeElement, CubeRuntime, tensor::CubeTensor};
 use burn_tensor::quantization::QTensorPrimitive;
 use cubecl::matmul::{
     MatmulInputHandleRef,
-    components::{AccG, MatmulSetupError},
+    components::{AccG, MatmulPrecision, MatmulSetupError, MatrixPrecision},
 };
 
 #[cfg(feature = "autotune")]
@@ -30,7 +30,7 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: CubeRuntime, E: MatmulElement>(
+pub fn matmul<R: CubeRuntime, MP: MatmulPrecision<Acc: MatrixPrecision<Global: CubeElement>>>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
     out: Option<CubeTensor<R>>,
@@ -38,16 +38,16 @@ pub fn matmul<R: CubeRuntime, E: MatmulElement>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = out.unwrap_or_else(|| init_matmul_output::<R, AccG<E>>(&lhs, &rhs));
-            launch_matmul::<R, E>(&Default::default(), lhs, rhs, out.clone())?;
+            let out = out.unwrap_or_else(|| init_matmul_output::<R, AccG<MP>>(&lhs, &rhs));
+            launch_matmul::<R, MP>(&Default::default(), lhs, rhs, out.clone())?;
             Ok(out)
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => Ok(matmul_autotune::<R, E>(lhs, rhs, out)),
+        MatmulStrategy::Autotune => Ok(matmul_autotune::<R, MP>(lhs, rhs, out)),
     }
 }
 
-pub(crate) fn launch_matmul<R: CubeRuntime, E: MatmulElement>(
+pub(crate) fn launch_matmul<R: CubeRuntime, MP: MatmulPrecision>(
     strategy: &cubecl::matmul::Strategy,
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
@@ -77,7 +77,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime, E: MatmulElement>(
         ),
     };
 
-    cubecl::matmul::launch_ref::<R, E>(
+    cubecl::matmul::launch_ref::<R, MP>(
         strategy,
         client,
         &lhs_handle,
