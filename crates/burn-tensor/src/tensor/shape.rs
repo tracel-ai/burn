@@ -1,4 +1,4 @@
-use crate::indexing::canonicalize_index;
+use crate::indexing::ravel_dims;
 use crate::{AsIndex, Slice, SliceArg};
 use alloc::vec::Vec;
 use core::{
@@ -86,25 +86,7 @@ impl Shape {
     /// # Returns
     /// - the ravel offset index.
     pub fn ravel<const R: usize, I: AsIndex>(&self, coords: [I; R]) -> usize {
-        assert_eq!(
-            self.rank(),
-            R,
-            "Shape rank mismatch: expected {}, got {R}",
-            self.rank(),
-        );
-
-        let mut ravel_idx = 0;
-        let mut stride = 1;
-
-        for i in (0..R).rev() {
-            let dim = self[i];
-            let coord = canonicalize_index(coords[i], dim, false);
-
-            ravel_idx += coord * stride;
-            stride *= dim;
-        }
-
-        ravel_idx
+        ravel_dims(coords, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
