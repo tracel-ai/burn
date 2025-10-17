@@ -77,10 +77,10 @@ mod fusion {
     use super::*;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        client::FusionClient,
+        client::{FusionClient, OperationOutput},
         stream::{Operation, OperationStreams},
     };
-    use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
+    use burn_ir::{CustomOpIr, HandleContainer, OperationIr, TensorIr};
     use burn_tensor::Shape;
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
@@ -111,19 +111,21 @@ mod fusion {
                 }
             }
 
-            let mut streams = OperationStreams::default();
-            streams.tensor(&img);
-            let out = client.tensor_uninitialized(Shape::new([height, width]), B::IntElem::dtype());
-
-            let desc =
-                CustomOpIr::new("connected_components", &[img.into_ir()], &[out.to_ir_out()]);
-            client.register(
-                streams,
-                OperationIr::Custom(desc.clone()),
-                ConnComp::<B>::new(desc, conn),
+            let streams = OperationStreams::with_inputs([&img]);
+            let out = TensorIr::uninit(
+                client.create_empty_handle(),
+                Shape::new([height, width]),
+                B::IntElem::dtype(),
             );
 
-            out
+            let desc = CustomOpIr::new("connected_components", &[img.into_ir()], &[out]);
+            client
+                .register(
+                    streams,
+                    OperationIr::Custom(desc.clone()),
+                    ConnComp::<B>::new(desc, conn),
+                )
+                .output()
         }
 
         fn connected_components_with_stats(
@@ -166,39 +168,31 @@ mod fusion {
                 }
             }
 
-            let mut streams = OperationStreams::default();
-            streams.tensor(&img);
-            let out = client.tensor_uninitialized(Shape::new([height, width]), B::IntElem::dtype());
-            let area =
-                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
-            let left =
-                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
-            let top =
-                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
-            let right =
-                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
-            let bottom =
-                client.tensor_uninitialized(Shape::new([height * width]), B::IntElem::dtype());
-            let max_label = client.tensor_uninitialized(Shape::new([1]), B::IntElem::dtype());
+            let dtype = B::IntElem::dtype();
+            let shape = Shape::new([height, width]);
+            let shape_flat = shape.clone().flatten();
+            let streams = OperationStreams::with_inputs([&img]);
+            let out = TensorIr::uninit(client.create_empty_handle(), shape.clone(), dtype);
+            let area = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
+            let left = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
+            let top = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
+            let right = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
+            let bottom = TensorIr::uninit(client.create_empty_handle(), shape_flat, dtype);
+            let max_label = TensorIr::uninit(client.create_empty_handle(), [1].into(), dtype);
 
             let desc = CustomOpIr::new(
                 "connected_components",
                 &[img.into_ir()],
-                &[
-                    out.to_ir_out(),
-                    area.to_ir_out(),
-                    left.to_ir_out(),
-                    top.to_ir_out(),
-                    right.to_ir_out(),
-                    bottom.to_ir_out(),
-                    max_label.to_ir_out(),
-                ],
+                &[out, area, left, top, right, bottom, max_label],
             );
-            client.register(
-                streams,
-                OperationIr::Custom(desc.clone()),
-                ConnCompStats::<B>::new(desc, conn, opts),
-            );
+            let [out, area, left, top, right, bottom, max_label] = client
+                .register(
+                    streams,
+                    OperationIr::Custom(desc.clone()),
+                    ConnCompStats::<B>::new(desc, conn, opts),
+                )
+                .try_into()
+                .unwrap();
 
             let stats = ConnectedStatsPrimitive {
                 area,

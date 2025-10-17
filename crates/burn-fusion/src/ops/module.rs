@@ -226,17 +226,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
-        let mut has_bias = false;
-        let mut has_mask = false;
+        let has_bias = bias.is_some();
+        let has_mask = mask.is_some();
 
         let mut streams = OperationStreams::with_inputs([&x, &offset, &weight, &output_grad]);
         if let Some(bias) = bias.as_ref() {
             streams.tensor(bias);
-            has_bias = true;
         }
         if let Some(mask) = mask.as_ref() {
             streams.tensor(mask);
-            has_mask = true;
         }
 
         let client = x.client.clone();

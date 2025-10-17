@@ -106,10 +106,11 @@ macro_rules! impl_multi_backend_types {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
                 fn register(&self, op: OperationIr) -> Vec<RouterTensor<Self>> {
+                    // TODO: map tensors to new client (self) just like register_tensor_data
                     match self {
-                        Self::$DefaultBackend(runner) => runner.register(op),
+                        Self::$DefaultBackend(runner) => runner.register(op).into_iter().map(|t| t.to_client(self.clone())).collect(),
                         $(
-                            Self::$OtherBackend(runner) => runner.register(op),
+                            Self::$OtherBackend(runner) => runner.register(op).into_iter().map(|t| t.to_client(self.clone())).collect(),
                         )+
                     }
                 }
@@ -125,15 +126,9 @@ macro_rules! impl_multi_backend_types {
 
                 fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
                     match self {
-                        Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_tensor_data_desc(data);
-                            RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                        }
+                        Self::$DefaultBackend(runner) => runner.register_tensor_data(data).to_client(self.clone()),
                         $(
-                            Self::$OtherBackend(runner) => {
-                                let desc = runner.register_tensor_data_desc(data);
-                                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-                            }
+                            Self::$OtherBackend(runner) => runner.register_tensor_data(data).to_client(self.clone()),
                         )+
                     }
                 }

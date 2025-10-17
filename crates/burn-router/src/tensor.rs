@@ -85,6 +85,10 @@ impl<C: RunnerClient> RouterTensor<C> {
             TensorStatus::ReadOnly
         }
     }
+
+    pub(crate) fn to_client<C2: RunnerClient>(self, client: C2) -> RouterTensor<C2> {
+        RouterTensor::new(self.id, self.shape.clone(), self.dtype, client)
+    }
 }
 
 impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
