@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{RuntimeInputRef, ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -8,7 +8,7 @@ pub enum OneHotDepthInput {
     /// Static depth known at compile time.
     Static(usize),
     /// Runtime depth determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Represents either a static value or a runtime argument for OneHot on/off values.
@@ -17,7 +17,7 @@ pub enum OneHotValuesInput {
     /// Static values known at compile time.
     Static([f32; 2]),
     /// Runtime values determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for OneHot operation
@@ -104,9 +104,7 @@ impl NodeProcessor for OneHotProcessor {
         let depth = match node.inputs[1].into_value() {
             None => {
                 // Runtime input - no static value available
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                OneHotDepthInput::Runtime(runtime_arg)
+                OneHotDepthInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
             Some(tensor_data) => {
                 let depth_value = tensor_data.data.into_i64();
@@ -117,9 +115,7 @@ impl NodeProcessor for OneHotProcessor {
         let values = match node.inputs[2].into_value() {
             None => {
                 // Runtime input - no static value available
-                let mut runtime_arg = node.inputs[2].clone();
-                runtime_arg.value_store = None;
-                OneHotValuesInput::Runtime(runtime_arg)
+                OneHotValuesInput::Runtime(RuntimeInputRef::new(node.inputs[2].name.clone(), 2))
             }
             Some(tensor_data) => {
                 let values_vec = tensor_data.data.into_f32s();

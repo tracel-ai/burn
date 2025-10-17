@@ -1,6 +1,6 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig};
+use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig, RuntimeInputRef};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for pad values.
@@ -8,8 +8,8 @@ use std::any::Any;
 pub enum PadInput {
     /// Static pads known at compile time.
     Static(Vec<usize>),
-    /// Runtime pads determined during execution.
-    Runtime(crate::ir::Argument),
+    /// Runtime pads determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Represents either a static value or a runtime argument for constant value.
@@ -17,8 +17,8 @@ pub enum PadInput {
 pub enum ConstantValueInput {
     /// Static constant value known at compile time.
     Static(f32),
-    /// Runtime constant value determined during execution.
-    Runtime(crate::ir::Argument),
+    /// Runtime constant value determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for the Pad operation.
@@ -158,10 +158,11 @@ impl NodeProcessor for PadProcessor {
                 let input = &node.inputs[1];
                 match input.into_value() {
                     None => {
-                        // Runtime input - no static value available
-                        let mut runtime_arg = input.clone();
-                        runtime_arg.value_store = None;
-                        return Ok(PadInput::Runtime(runtime_arg));
+                        // Runtime input - store reference instead of cloning the argument
+                        return Ok(PadInput::Runtime(RuntimeInputRef::new(
+                            input.name.clone(),
+                            1,
+                        )));
                     }
                     Some(tensor_data) => {
                         let pads = tensor_data
@@ -244,10 +245,11 @@ impl NodeProcessor for PadProcessor {
             if let Some(input) = node.inputs.get(2) {
                 match input.into_value() {
                     None => {
-                        // Runtime input - no static value available
-                        let mut runtime_arg = input.clone();
-                        runtime_arg.value_store = None;
-                        return Ok(ConstantValueInput::Runtime(runtime_arg));
+                        // Runtime input - store reference instead of cloning the argument
+                        return Ok(ConstantValueInput::Runtime(RuntimeInputRef::new(
+                            input.name.clone(),
+                            2,
+                        )));
                     }
                     Some(tensor_data) => {
                         // TODO: Support int, boolean

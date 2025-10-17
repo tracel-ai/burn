@@ -1,14 +1,20 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Shape parameter for ConstantOfShape (codegen side)
+#[derive(Debug, Clone)]
+pub enum ConstantOfShapeShapeParam {
+    Static(Vec<i64>),
+    Runtime(Type),
+}
 
 /// Node for ConstantOfShape operation.
 #[derive(Debug, Clone)]
 pub struct ConstantOfShapeNode {
-    pub shape: ConstantOfShapeShape,
+    pub shape: ConstantOfShapeShapeParam,
     pub output: Type,
     pub value: ConstantValue,
 }
@@ -28,7 +34,7 @@ pub enum ConstantValue {
 }
 
 impl ConstantOfShapeNode {
-    pub fn new(shape: ConstantOfShapeShape, output: Type, value: ConstantValue) -> Self {
+    pub fn new(shape: ConstantOfShapeShapeParam, output: Type, value: ConstantValue) -> Self {
         // Verify output type
         assert!(
             matches!(output, Type::Tensor(_) | Type::Scalar(_) | Type::Shape(_)),
@@ -95,8 +101,8 @@ impl From<bool> for ConstantValue {
 impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
     fn input_types(&self) -> Vec<Type> {
         match &self.shape {
-            ConstantOfShapeShape::Static(_) => vec![],
-            ConstantOfShapeShape::Runtime(arg) => vec![Type::from(arg)],
+            ConstantOfShapeShapeParam::Static(_) => vec![],
+            ConstantOfShapeShapeParam::Runtime(t) => vec![t.clone()],
         }
     }
 
@@ -110,7 +116,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
         // Generate shape expression based on Static or Runtime
         let shape_expr = match &self.shape {
-            ConstantOfShapeShape::Static(static_shape) => {
+            ConstantOfShapeShapeParam::Static(static_shape) => {
                 // We have static shape values - embed them directly in the code
                 let shape_values = static_shape.iter().map(|v| {
                     let val = *v as usize;
@@ -118,10 +124,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
                 });
                 quote! { [#(#shape_values),*] }
             }
-            ConstantOfShapeShape::Runtime(arg) => {
+            ConstantOfShapeShapeParam::Runtime(t) => {
                 // Runtime shape input
-                let input = Type::from(arg);
-                let input_name = input.name();
+                let input_name = t.name();
                 quote! { #input_name }
             }
         };
@@ -186,8 +191,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::ir::Data;
+        use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
+
         // Get the shape configuration from onnx-ir
-        let shape = node.config::<onnx_ir::node::constant_of_shape::ConstantOfShapeShape>();
+        let onnx_shape = node.config::<ConstantOfShapeShape>();
+
+        // Convert from onnx-ir enum to codegen enum
+        let shape = match onnx_shape {
+            ConstantOfShapeShape::Static(values) => {
+                ConstantOfShapeShapeParam::Static(values.clone())
+            }
+            ConstantOfShapeShape::Runtime(runtime_ref) => {
+                let arg = &node.inputs[runtime_ref.input_index];
+                ConstantOfShapeShapeParam::Runtime(Type::from(arg))
+            }
+        };
 
         let output = Type::from(node.outputs.first().unwrap());
 
@@ -207,7 +225,7 @@ impl OnnxIntoNode for ConstantOfShapeNode {
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 
-        ConstantOfShapeNode::new(shape.clone(), output, value)
+        ConstantOfShapeNode::new(shape, output, value)
     }
 }
 
@@ -237,16 +255,12 @@ mod tests {
 
     #[test]
     fn test_codegen_nodes() {
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
+        use crate::burn::ShapeType;
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let mut arg = Argument::new("shape1".to_string());
-        arg.ty = ArgType::Shape(4);
-
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(arg),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape1", 4))),
             Type::Tensor(TensorType::new_float("tensor2", 4)),
             ConstantValue::Float32(1.25f32),
         ));
@@ -283,17 +297,12 @@ mod tests {
 
     #[test]
     fn test_codegen_scalar_output() {
-        use crate::burn::ScalarType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
+        use crate::burn::{ScalarType, ShapeType};
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let mut arg = Argument::new("shape1".to_string());
-        arg.ty = ArgType::Shape(0);
-
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(arg),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape1", 0))),
             Type::Scalar(ScalarType::new("scalar1", crate::burn::ScalarKind::Float32)),
             ConstantValue::Float32(42.0f32),
         ));
@@ -331,16 +340,11 @@ mod tests {
     #[test]
     fn test_codegen_shape_output() {
         use crate::burn::ShapeType;
-        use onnx_ir::Argument;
-        use onnx_ir::ir::ArgType;
 
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let mut arg = Argument::new("shape_input".to_string());
-        arg.ty = ArgType::Shape(1);
-
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Runtime(arg),
+            ConstantOfShapeShapeParam::Runtime(Type::Shape(ShapeType::new("shape_input", 1))),
             Type::Shape(ShapeType::new("shape_output", 1)),
             ConstantValue::Int64(10i64),
         ));
@@ -385,7 +389,7 @@ mod tests {
 
         // Test with static shape values
         graph.register(ConstantOfShapeNode::new(
-            ConstantOfShapeShape::Static(vec![2, 3, 4]),
+            ConstantOfShapeShapeParam::Static(vec![2, 3, 4]),
             Type::Tensor(TensorType::new_float("tensor1", 3)),
             ConstantValue::Float32(0.5f32),
         ));

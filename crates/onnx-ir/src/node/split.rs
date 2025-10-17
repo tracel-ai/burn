@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node, NodeConfig, TensorType};
+use crate::ir::{RuntimeInputRef, ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -8,7 +8,7 @@ pub enum SplitSizesInput {
     /// Static split sizes known at compile time.
     Static(Vec<usize>),
     /// Runtime split sizes determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for the Split operation.
@@ -154,9 +154,7 @@ impl NodeProcessor for SplitProcessor {
             split_sizes = match node.inputs[1].into_value() {
                 None => {
                     // Runtime input - no static value available
-                    let mut runtime_arg = node.inputs[1].clone();
-                    runtime_arg.value_store = None;
-                    Some(SplitSizesInput::Runtime(runtime_arg))
+                    Some(SplitSizesInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1)))
                 }
                 Some(tensor_data) => {
                     let sizes = tensor_data.data.clone().into_usizes();
@@ -198,7 +196,7 @@ impl NodeProcessor for SplitProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ArgType, AttributeValue, ElementType, NodeType};
+    use crate::ir::{RuntimeInputRef, ArgType, AttributeValue, ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 

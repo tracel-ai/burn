@@ -1,6 +1,6 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, Data, Node, NodeConfig, TensorType};
+use crate::ir::{RuntimeInputRef, ArgType, Data, Node, NodeConfig, TensorType};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for squeeze axes.
@@ -9,7 +9,7 @@ pub enum SqueezeInput {
     /// Static axes known at compile time.
     Static(Vec<i64>),
     /// Runtime axes determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for Squeeze operation
@@ -85,7 +85,17 @@ impl NodeProcessor for SqueezeProcessor {
                             ));
                         }
                     }
-                    Some(ref axes_vec) => tensor.rank - axes_vec.len(),
+                    Some(ref axes_vec) => {
+                        // Validate that we're not trying to squeeze more axes than the tensor has
+                        if axes_vec.len() > tensor.rank {
+                            return Err(ProcessError::Custom(format!(
+                                "Squeeze: Cannot squeeze {} axes from a rank {} tensor",
+                                axes_vec.len(),
+                                tensor.rank
+                            )));
+                        }
+                        tensor.rank - axes_vec.len()
+                    }
                 };
                 log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
@@ -140,9 +150,7 @@ impl NodeProcessor for SqueezeProcessor {
             match input.into_value() {
                 None => {
                     // Runtime input - no static value available
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(SqueezeInput::Runtime(runtime_arg))
+                    Some(SqueezeInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1)))
                 }
                 Some(value) => match &value.data {
                     Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),

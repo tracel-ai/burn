@@ -119,17 +119,26 @@ impl OnnxIntoNode for RangeNode {
 
         let start = match &config.start {
             RangeInput::Static(value) => RangeParam::Static(*value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
+            RangeInput::Runtime(runtime_ref) => {
+                let arg = &node.inputs[runtime_ref.input_index];
+                RangeParam::Runtime(Type::from(arg))
+            }
         };
 
         let limit = match &config.limit {
             RangeInput::Static(value) => RangeParam::Static(*value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
+            RangeInput::Runtime(runtime_ref) => {
+                let arg = &node.inputs[runtime_ref.input_index];
+                RangeParam::Runtime(Type::from(arg))
+            }
         };
 
         let delta = match &config.delta {
             RangeInput::Static(value) => RangeParam::Static(*value),
-            RangeInput::Runtime(arg) => RangeParam::Runtime(Type::from(arg)),
+            RangeInput::Runtime(runtime_ref) => {
+                let arg = &node.inputs[runtime_ref.input_index];
+                RangeParam::Runtime(Type::from(arg))
+            }
         };
 
         Self::new(start, limit, delta, output)

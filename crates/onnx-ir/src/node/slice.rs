@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Data, Node, NodeConfig, TensorData};
+use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -26,8 +26,8 @@ impl NodeConfig for SliceConfig {
 pub enum SliceInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime argument determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Normalize negative axes to positive indices based on tensor rank.
@@ -260,10 +260,11 @@ impl NodeProcessor for SliceProcessor {
                     }
                     None => {
                         // Shape type without value means it's a runtime Shape (e.g., from Shape node)
-                        // Treat it as a runtime input
-                        let mut runtime_arg = input.clone();
-                        runtime_arg.value_store = None;
-                        return Ok(Some(SliceInput::Runtime(runtime_arg)));
+                        // Runtime input - store reference instead of cloning the argument
+                        return Ok(Some(SliceInput::Runtime(RuntimeInputRef::new(
+                            input.name.clone(),
+                            index,
+                        ))));
                     }
                 }
             }
@@ -271,9 +272,11 @@ impl NodeProcessor for SliceProcessor {
             // Otherwise, handle as Tensor (backward compatibility)
             match input.into_value() {
                 None => {
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Ok(Some(SliceInput::Runtime(runtime_arg)))
+                    // Runtime input - store reference instead of cloning the argument
+                    Ok(Some(SliceInput::Runtime(RuntimeInputRef::new(
+                        input.name.clone(),
+                        index,
+                    ))))
                 }
                 Some(TensorData {
                     data: Data::Int64s(values),

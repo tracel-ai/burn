@@ -1,9 +1,16 @@
 use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::record::PrecisionSettings;
-use onnx_ir::node::expand::ExpandShape;
+use onnx_ir::Argument;
 use proc_macro2::TokenStream;
 use quote::quote;
+
+/// Burn-import version of ExpandShape that stores Argument instead of RuntimeInputRef
+#[derive(Debug, Clone)]
+pub enum ExpandShape {
+    Static(Vec<i64>),
+    Runtime(Argument),
+}
 
 #[derive(Debug, Clone, new)]
 pub struct ExpandNode {
@@ -63,8 +70,18 @@ impl OnnxIntoNode for ExpandNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let shape = node.config::<onnx_ir::node::expand::ExpandShape>();
-        Self::new(input, output, shape.clone())
+        let config = node.config::<onnx_ir::node::expand::ExpandShape>();
+
+        // Convert from onnx-ir ExpandShape (with RuntimeInputRef) to burn-import ExpandShape (with Argument)
+        let shape = match config {
+            onnx_ir::node::expand::ExpandShape::Static(s) => ExpandShape::Static(s.clone()),
+            onnx_ir::node::expand::ExpandShape::Runtime(shape_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let shape_arg = node.inputs[shape_ref.input_index].clone();
+                ExpandShape::Runtime(shape_arg)
+            }
+        };
+        Self::new(input, output, shape)
     }
 }
 

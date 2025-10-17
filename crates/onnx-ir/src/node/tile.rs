@@ -1,5 +1,6 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{Node, NodeConfig};
+use crate::ir::RuntimeInputRef;
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for tile repeats.
@@ -8,7 +9,7 @@ pub enum TileInput {
     /// Static repeats known at compile time.
     Static(Vec<usize>),
     /// Runtime repeats determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for the Tile operation.
@@ -73,10 +74,8 @@ impl NodeProcessor for TileProcessor {
             if let Some(input) = node.inputs.get(1) {
                 match input.into_value() {
                     None => {
-                        // Runtime input - no static value available
-                        let mut runtime_arg = input.clone();
-                        runtime_arg.value_store = None;
-                        TileInput::Runtime(runtime_arg)
+                        // Runtime input - store reference instead of cloning the argument
+                        TileInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1))
                     }
                     Some(tensor_data) => {
                         let repeats = tensor_data

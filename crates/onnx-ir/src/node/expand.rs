@@ -1,7 +1,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     ElementType,
-    ir::{ArgType, Data, Node, NodeConfig, TensorData, TensorType},
+    ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType},
 };
 use std::any::Any;
 
@@ -10,8 +10,8 @@ use std::any::Any;
 pub enum ExpandShape {
     /// Static shape information known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape that will be determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime shape determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 impl NodeConfig for ExpandShape {
@@ -143,10 +143,11 @@ impl NodeProcessor for ExpandProcessor {
                 ..
             }) => ExpandShape::Static(shape.clone()),
             None => {
-                // Runtime shape - will need to fetch it at runtime
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                ExpandShape::Runtime(runtime_arg)
+                // Runtime shape - store reference instead of cloning the argument
+                ExpandShape::Runtime(RuntimeInputRef::new(
+                    node.inputs[1].name.clone(),
+                    1,
+                ))
             }
             Some(_) => {
                 return Err(ProcessError::Custom(

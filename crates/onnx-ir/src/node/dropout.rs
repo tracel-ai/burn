@@ -1,7 +1,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::util::same_as_input;
 
-use crate::ir::{Data, Node, NodeConfig};
+use crate::ir::{RuntimeInputRef, Data, Node, NodeConfig};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for dropout ratio.
@@ -10,7 +10,7 @@ pub enum DropoutInput {
     /// Static ratio known at compile time.
     Static(f64),
     /// Runtime ratio determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for Dropout operations
@@ -91,9 +91,7 @@ impl NodeProcessor for DropoutProcessor {
             Some(input) => match input.into_value() {
                 None => {
                     // Runtime input - no static value available
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    DropoutInput::Runtime(runtime_arg)
+                    DropoutInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1))
                 }
                 Some(tensor_data) => {
                     let ratio = tensor_data.data.into_scalar();

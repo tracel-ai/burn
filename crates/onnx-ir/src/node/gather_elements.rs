@@ -1,4 +1,4 @@
-use crate::ir::{Data, Node, NodeConfig};
+use crate::ir::{RuntimeInputRef, Data, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -25,7 +25,7 @@ pub enum GatherElementsInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
     /// Runtime argument determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 pub struct GatherElementsProcessor;
@@ -117,9 +117,7 @@ impl NodeProcessor for GatherElementsProcessor {
             }
         } else {
             // Runtime indices
-            let mut runtime_arg = indices_input.clone();
-            runtime_arg.value_store = None;
-            GatherElementsInput::Runtime(runtime_arg)
+            GatherElementsInput::Runtime(RuntimeInputRef::new(indices_input.name.clone(), 1))
         };
 
         let config = GatherElementsConfig {

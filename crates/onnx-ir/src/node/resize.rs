@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Node, NodeConfig, TensorData};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 use std::any::Any;
@@ -51,8 +51,8 @@ impl NodeConfig for ResizeConfig {
 pub enum ResizeScales {
     /// Static scales known at compile time.
     Static(Vec<f32>),
-    /// Runtime scales determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime scales determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Represents either a static value or a runtime argument for resize sizes.
@@ -60,8 +60,8 @@ pub enum ResizeScales {
 pub enum ResizeSizes {
     /// Static sizes known at compile time.
     Static(Vec<usize>),
-    /// Runtime sizes determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime sizes determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Extract scales input as either static or runtime
@@ -89,17 +89,20 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
                             Some(ResizeScales::Static(scales))
                         }
                         None => {
-                            let mut runtime_arg = input.clone();
-                            runtime_arg.value_store = None;
-                            Some(ResizeScales::Runtime(runtime_arg))
+                            // Runtime input - store reference instead of cloning the argument
+                            Some(ResizeScales::Runtime(RuntimeInputRef::new(
+                                input.name.clone(),
+                                2,
+                            )))
                         }
                     }
                 }
                 ArgType::Shape(_) => {
-                    // Shape input for scales - treat as runtime
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(ResizeScales::Runtime(runtime_arg))
+                    // Shape input for scales - store reference instead of cloning the argument
+                    Some(ResizeScales::Runtime(RuntimeInputRef::new(
+                        input.name.clone(),
+                        2,
+                    )))
                 }
                 _ => None,
             }
@@ -138,18 +141,21 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
                             Some(ResizeSizes::Static(sizes))
                         }
                         None => {
-                            let mut runtime_arg = input.clone();
-                            runtime_arg.value_store = None;
-                            Some(ResizeSizes::Runtime(runtime_arg))
+                            // Runtime input - store reference instead of cloning the argument
+                            Some(ResizeSizes::Runtime(RuntimeInputRef::new(
+                                input.name.clone(),
+                                3,
+                            )))
                         }
                     }
                 }
                 ArgType::Shape(_rank) => {
-                    // Shape input for sizes - this is the key case we're fixing
+                    // Shape input for sizes - store reference instead of cloning the argument
                     // The Shape type represents the shape of a tensor, which is exactly what we need
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(ResizeSizes::Runtime(runtime_arg))
+                    Some(ResizeSizes::Runtime(RuntimeInputRef::new(
+                        input.name.clone(),
+                        3,
+                    )))
                 }
                 _ => None,
             }

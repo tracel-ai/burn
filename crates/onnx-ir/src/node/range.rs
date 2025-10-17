@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
+use crate::ir::{RuntimeInputRef, ArgType, Data, ElementType, Node, NodeConfig, TensorData, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -26,7 +26,7 @@ pub enum RangeInput {
     /// Static value known at compile time.
     Static(i64),
     /// Runtime argument determined during execution .
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 pub struct RangeProcessor;
@@ -99,9 +99,7 @@ impl NodeProcessor for RangeProcessor {
 
             match input.into_value() {
                 None => {
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Ok(RangeInput::Runtime(runtime_arg))
+                    Ok(RangeInput::Runtime(RuntimeInputRef::new(input.name.clone(), index)))
                 }
                 Some(TensorData {
                     data: Data::Int64s(values),

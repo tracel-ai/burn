@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
+use crate::ir::{RuntimeInputRef, ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -8,7 +8,7 @@ pub enum TopKInput {
     /// Static k known at compile time.
     Static(usize),
     /// Runtime k determined during execution.
-    Runtime(crate::ir::Argument),
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for the TopK operation.
@@ -139,9 +139,7 @@ impl NodeProcessor for TopKProcessor {
             Some(k_tensor) => match k_tensor.into_value() {
                 None => {
                     // Runtime input - no static value available
-                    let mut runtime_arg = k_tensor.clone();
-                    runtime_arg.value_store = None;
-                    TopKInput::Runtime(runtime_arg)
+                    TopKInput::Runtime(RuntimeInputRef::new(k_tensor.name.clone(), 1))
                 }
                 Some(tensor_data) => {
                     let k_value = tensor_data.data.into_i64s()[0];
@@ -181,7 +179,7 @@ impl NodeProcessor for TopKProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{AttributeValue, NodeType};
+    use crate::ir::{RuntimeInputRef, AttributeValue, NodeType};
     use crate::node::test_utils::NodeBuilder;
     use std::collections::HashMap;
 

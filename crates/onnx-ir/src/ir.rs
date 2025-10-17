@@ -5,6 +5,22 @@ use strum::{Display, EnumString};
 
 use crate::protos::TensorProto;
 
+/// Reference to a runtime input by name and index.
+/// Used in configs to point to node inputs instead of storing stale copies.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuntimeInputRef {
+    /// Name of the input argument
+    pub name: String,
+    /// Index in the node's inputs array
+    pub input_index: usize,
+}
+
+impl RuntimeInputRef {
+    pub fn new(name: String, input_index: usize) -> Self {
+        Self { name, input_index }
+    }
+}
+
 /// Trait for node-specific configuration
 /// Each node type can have its own configuration struct that implements this trait
 pub trait NodeConfig {

@@ -290,8 +290,10 @@ impl OnnxIntoNode for ResizeNode {
             Some(onnx_ir::node::resize::ResizeScales::Static(s)) => {
                 Some(ResizeScales::Static(s.clone()))
             }
-            Some(onnx_ir::node::resize::ResizeScales::Runtime(arg)) => {
-                Some(ResizeScales::Runtime(Type::from(arg)))
+            Some(onnx_ir::node::resize::ResizeScales::Runtime(scales_ref)) => {
+                // Get the actual argument using the RuntimeInputRef
+                let scales_arg = &node.inputs[scales_ref.input_index];
+                Some(ResizeScales::Runtime(Type::from(scales_arg)))
             }
             None => None,
         };
@@ -300,8 +302,10 @@ impl OnnxIntoNode for ResizeNode {
             Some(onnx_ir::node::resize::ResizeSizes::Static(s)) => {
                 Some(ResizeSizes::Static(s.clone()))
             }
-            Some(onnx_ir::node::resize::ResizeSizes::Runtime(arg)) => {
-                Some(ResizeSizes::Runtime(Type::from(arg)))
+            Some(onnx_ir::node::resize::ResizeSizes::Runtime(sizes_ref)) => {
+                // Get the actual argument using the RuntimeInputRef
+                let sizes_arg = &node.inputs[sizes_ref.input_index];
+                Some(ResizeSizes::Runtime(Type::from(sizes_arg)))
             }
             None => None,
         };

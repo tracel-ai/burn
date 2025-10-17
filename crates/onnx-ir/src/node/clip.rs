@@ -1,4 +1,4 @@
-use crate::ir::{Data, Node, NodeConfig};
+use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::util::same_as_input;
 use std::any::Any;
@@ -8,8 +8,8 @@ use std::any::Any;
 pub enum ClipInput {
     /// Static value known at compile time.
     Static(f64),
-    /// Runtime argument determined during execution.
-    Runtime(crate::ir::Argument),
+    /// Runtime argument determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Configuration for Clip operation
@@ -85,10 +85,11 @@ impl NodeProcessor for ClipProcessor {
 
             match input.into_value() {
                 None => {
-                    // Runtime input - no static value available
-                    let mut runtime_arg = input.clone();
-                    runtime_arg.value_store = None;
-                    Some(ClipInput::Runtime(runtime_arg))
+                    // Runtime input - store reference instead of cloning the argument
+                    Some(ClipInput::Runtime(RuntimeInputRef::new(
+                        input.name.clone(),
+                        index,
+                    )))
                 }
                 Some(tensor_data) => {
                     // Static input - extract the scalar value

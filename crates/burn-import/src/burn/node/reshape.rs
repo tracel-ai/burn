@@ -223,7 +223,9 @@ impl OnnxIntoNode for ReshapeNode {
             onnx_ir::node::reshape::ReshapeInput::Static(shape) => {
                 Self::new(input, output, shape.clone())
             }
-            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_arg) => {
+            onnx_ir::node::reshape::ReshapeInput::Runtime(shape_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let shape_arg = &node.inputs[shape_ref.input_index];
                 let shape_input = Type::from(shape_arg);
                 Self::new(input, output, shape_input)
             }

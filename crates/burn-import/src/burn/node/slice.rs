@@ -603,13 +603,21 @@ impl OnnxIntoNode for SliceNode {
         // Convert starts parameter
         let starts_param = match &config.starts {
             SliceInput::Static(values) => SliceParam::Static(values.clone()),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
+            SliceInput::Runtime(starts_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let starts_arg = &node.inputs[starts_ref.input_index];
+                SliceParam::Runtime(Type::from(starts_arg))
+            }
         };
 
         // Convert ends parameter
         let ends_param = match &config.ends {
             SliceInput::Static(values) => SliceParam::Static(values.clone()),
-            SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
+            SliceInput::Runtime(ends_ref) => {
+                // Get the actual argument using the RuntimeInputRef
+                let ends_arg = &node.inputs[ends_ref.input_index];
+                SliceParam::Runtime(Type::from(ends_arg))
+            }
         };
 
         let mut slice_node = Self::new(input, output, starts_param, ends_param);
@@ -618,7 +626,11 @@ impl OnnxIntoNode for SliceNode {
         if let Some(ref axes) = config.axes {
             let axes_param = match axes {
                 SliceInput::Static(values) => SliceParam::Static(values.clone()),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
+                SliceInput::Runtime(axes_ref) => {
+                    // Get the actual argument using the RuntimeInputRef
+                    let axes_arg = &node.inputs[axes_ref.input_index];
+                    SliceParam::Runtime(Type::from(axes_arg))
+                }
             };
             slice_node = slice_node.with_axes(axes_param);
         }
@@ -627,7 +639,11 @@ impl OnnxIntoNode for SliceNode {
         if let Some(ref steps) = config.steps {
             let steps_param = match steps {
                 SliceInput::Static(values) => SliceParam::Static(values.clone()),
-                SliceInput::Runtime(arg) => SliceParam::Runtime(Type::from(arg)),
+                SliceInput::Runtime(steps_ref) => {
+                    // Get the actual argument using the RuntimeInputRef
+                    let steps_arg = &node.inputs[steps_ref.input_index];
+                    SliceParam::Runtime(Type::from(steps_arg))
+                }
             };
             slice_node = slice_node.with_steps(steps_param);
         }

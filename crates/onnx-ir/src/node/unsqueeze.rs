@@ -8,7 +8,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     TensorData,
-    ir::{ArgType, Data, Node, NodeConfig, TensorType},
+    ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorType},
 };
 use std::any::Any;
 
@@ -17,8 +17,8 @@ use std::any::Any;
 pub enum UnsqueezeConfig {
     /// Static axes known at compile time.
     Static(Vec<i64>),
-    /// Runtime axes that will be determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime axes determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 impl NodeConfig for UnsqueezeConfig {
@@ -98,21 +98,33 @@ impl NodeProcessor for UnsqueezeProcessor {
 
         let config = match &node.inputs[1].ty {
             ArgType::Tensor(tensor) => {
-                if tensor.rank != 1 {
+                // Validate tensor rank if it's non-zero
+                // (rank of 0 means not yet inferred, which is OK during initial config extraction)
+                if tensor.rank != 0 && tensor.rank != 1 {
                     return Err(ProcessError::Custom(
                         "Unsqueeze: axes tensor must be 1D".to_string(),
                     ));
                 }
+
                 if let Some(TensorData {
                     data: Data::Int64s(shape),
+                    shape: data_shape,
                     ..
                 }) = input_value.into_value().as_ref()
                 {
+                    // Validate actual tensor data shape
+                    if data_shape.len() != 1 {
+                        return Err(ProcessError::Custom(
+                            "Unsqueeze: axes tensor must be 1D".to_string(),
+                        ));
+                    }
                     UnsqueezeConfig::Static(shape.clone())
                 } else {
-                    let mut runtime_arg = node.inputs[1].clone();
-                    runtime_arg.value_store = None;
-                    UnsqueezeConfig::Runtime(runtime_arg)
+                    // Runtime input - store reference instead of cloning the argument
+                    UnsqueezeConfig::Runtime(RuntimeInputRef::new(
+                        node.inputs[1].name.clone(),
+                        1,
+                    ))
                 }
             }
             _ => {
