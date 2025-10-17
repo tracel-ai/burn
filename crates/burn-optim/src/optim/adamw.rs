@@ -12,7 +12,7 @@ use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 #[allow(unused_imports)]
 use num_traits::Float as _;
 
-/// AdamW configuration.
+/// [`AdamW`] Configuration.
 #[derive(Config, Debug)]
 pub struct AdamWConfig {
     /// Parameter for AdamW.
@@ -29,6 +29,7 @@ pub struct AdamWConfig {
     weight_decay: f32,
 
     /// Cautious weight decay config.
+    ///
     /// See: https://arxiv.org/abs/2510.12402
     #[config(default = false)]
     cautious_weight_decay: bool,
@@ -37,7 +38,13 @@ pub struct AdamWConfig {
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-/// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
+/// AdamW optimizer.
+///
+/// See:
+/// - [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
+/// - [Cautious Weight Decay, 2025](https://arxiv.org/abs/2510.12402)
+///
+/// Configured by [`AdamWConfig`].
 #[derive(Clone)]
 pub struct AdamW {
     momentum: AdaptiveMomentumW,
@@ -76,8 +83,8 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW {
         } else if self.cautious_weight_decay {
             // Cautious weight decay.
             // See: https://arxiv.org/abs/2510.12402
-            let tensor_pos = tensor.clone().greater_elem(0.0);
-            let grad_pos = raw_delta.clone().greater_elem(0.0);
+            let tensor_pos = tensor.clone().greater_equal_elem(0.0);
+            let grad_pos = momentum_state.moment_1.clone().greater_equal_elem(0.0);
             let differ = tensor_pos.not_equal(grad_pos);
 
             // Zero out the decay where the decay is counter to the update direction.
