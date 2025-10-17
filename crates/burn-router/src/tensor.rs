@@ -86,7 +86,7 @@ impl<C: RunnerClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) fn to_client<C2: RunnerClient>(self, client: C2) -> RouterTensor<C2> {
+    pub(crate) fn into_client<C2: RunnerClient>(self, client: C2) -> RouterTensor<C2> {
         RouterTensor::new(self.id, self.shape.clone(), self.dtype, client)
     }
 }

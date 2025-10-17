@@ -131,6 +131,7 @@ macro_rules! impl_ir_create {
     (@create_fn $op:ident { $( $field:ident : $ty:ty ),* $(,)? } , $shape:expr, $dtype:expr) => {
         #[doc = "Create a new operation IR from the given inputs."]
         #[doc = "`new_id` should generate a unique `TensorId` for the uninitialized output tensor."]
+        #[allow(clippy::too_many_arguments)]
         pub fn create($( $field : $ty ),*, new_id: impl FnOnce() -> crate::TensorId) -> $op {
             let shape = $shape;
             let dtype = $dtype;
@@ -161,6 +162,7 @@ macro_rules! impl_ir_create {
             impl_ir_create!(@create_fn $op { $( $field : $ty ),* }, $shape, $dtype);
 
             #[doc = "Create a new operation IR from the given inputs and the given output dtype."]
+            #[allow(clippy::too_many_arguments)]
             pub fn $fn_name($( $field : $ty ),*, $extra: $extra_ty, new_id: impl FnOnce() -> crate::TensorId) -> Self {
                 let shape = $shape;
                 let _ = $dtype; // still validates dtype if needed
@@ -798,6 +800,7 @@ impl ReduceDimWithIndicesOpIr {
 }
 
 impl DeformConv2dBackwardOpIr {
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         x: TensorIr,
         offset: TensorIr,

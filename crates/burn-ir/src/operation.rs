@@ -2222,34 +2222,34 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::Conv1d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
             ModuleOperationIr::Conv2d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
             ModuleOperationIr::Conv3d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
             ModuleOperationIr::DeformableConv2d(repr) => match (&repr.mask, &repr.bias) {
                 (Some(mask), Some(bias)) => {
-                    Box::new([&repr.x, &repr.offset, &repr.weight, &mask, &bias].into_iter())
+                    Box::new([&repr.x, &repr.offset, &repr.weight, mask, bias].into_iter())
                 }
                 (Some(mask), None) => {
-                    Box::new([&repr.x, &repr.offset, &repr.weight, &mask].into_iter())
+                    Box::new([&repr.x, &repr.offset, &repr.weight, mask].into_iter())
                 }
                 (None, Some(bias)) => {
-                    Box::new([&repr.x, &repr.offset, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.offset, &repr.weight, bias].into_iter())
                 }
                 (None, None) => Box::new([&repr.x, &repr.offset, &repr.weight].into_iter()),
             },
@@ -2277,21 +2277,21 @@ impl ModuleOperationIr {
             },
             ModuleOperationIr::ConvTranspose1d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
             ModuleOperationIr::ConvTranspose2d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
             ModuleOperationIr::ConvTranspose3d(repr) => {
                 if let Some(bias) = &repr.bias {
-                    Box::new([&repr.x, &repr.weight, &bias].into_iter())
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
