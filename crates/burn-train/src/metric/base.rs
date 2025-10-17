@@ -146,7 +146,8 @@ impl NumericEntry {
         }
     }
 
-    pub(crate) fn deserialize(entry: &str) -> Result<Self, String> {
+    /// De-serialize a string representing NumericEntry and returns a Result containing the corresponding NumericEntry.jk
+    pub fn deserialize(entry: &str) -> Result<Self, String> {
         // Check for comma separated values
         let values = entry.split(',').collect::<Vec<_>>();
         let num_values = values.len();
