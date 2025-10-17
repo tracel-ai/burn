@@ -1,4 +1,5 @@
-use crate::{Slice, SliceArg};
+use crate::indexing::canonicalize_index;
+use crate::{AsIndex, Slice, SliceArg};
 use alloc::vec::Vec;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
@@ -73,6 +74,37 @@ impl Shape {
     pub fn flatten(mut self) -> Self {
         self.dims = [self.num_elements()].into();
         self
+    }
+
+    /// Compute the ravel index for the given coordinates.
+    ///
+    /// This returns the row-major order raveling.
+    ///
+    /// # Arguments
+    /// - `coords`: must be the same size as `self.rank()`.
+    ///
+    /// # Returns
+    /// - the ravel offset index.
+    pub fn ravel<const R: usize, I: AsIndex>(&self, coords: [I; R]) -> usize {
+        assert_eq!(
+            self.rank(),
+            R,
+            "Shape rank mismatch: expected {}, got {R}",
+            self.rank(),
+        );
+
+        let mut ravel_idx = 0;
+        let mut stride = 1;
+
+        for i in (0..R).rev() {
+            let dim = self[i];
+            let coord = canonicalize_index(coords[i], dim, false);
+
+            ravel_idx += coord * stride;
+            stride *= dim;
+        }
+
+        ravel_idx
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -628,6 +660,17 @@ mod tests {
         let shape = shape.flatten();
         assert_eq!(shape.num_elements(), 120);
         assert_eq!(&shape.dims, &[120]);
+    }
+
+    #[test]
+    fn test_ravel() {
+        let shape = Shape::new([2, 3, 4, 5]);
+
+        assert_eq!(shape.ravel([0, 0, 0, 0]), 0);
+        assert_eq!(
+            shape.ravel([1, 2, 3, 4]),
+            1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
+        );
     }
 
     #[test]
