@@ -77,7 +77,6 @@ mod fusion {
     use super::*;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        client::FusionClient,
         stream::{Operation, OperationStreams},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr};

@@ -25,7 +25,7 @@ pub fn full<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor filled with `value`
 pub fn full_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     shape: Shape,
     device: R::Device,
     value: E,
@@ -67,7 +67,7 @@ pub fn zeros<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -
 
 /// Create a tensor filled with zeros
 pub fn zeros_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -83,7 +83,7 @@ pub fn ones<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) ->
 
 /// Create a tensor filled with ones
 pub fn ones_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -92,7 +92,7 @@ pub fn ones_device<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
@@ -103,7 +103,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 
 /// Create a tensor with uninitialized memory
 pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {

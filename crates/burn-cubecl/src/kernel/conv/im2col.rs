@@ -402,7 +402,7 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server, R::Channel>,
+    client: &ComputeClient<R::Server>,
     device: &R::Device,
     handle: TensorHandle<R, E>,
 ) -> CubeTensor<R> {

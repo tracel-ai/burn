@@ -17,7 +17,7 @@ use crate::shared::{
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
     trace: FuseTrace,
-    client: ComputeClient<R::Server, R::Channel>,
+    client: ComputeClient<R::Server>,
     device: R::Device,
     len: usize,
 }
@@ -77,7 +77,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R::Server, R::Channel>,
+        client: &'a ComputeClient<R::Server>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &[FuseBlockConfig],
