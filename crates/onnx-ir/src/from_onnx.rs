@@ -506,186 +506,132 @@ pub(crate) struct OnnxGraphBuilder {
 }
 
 impl OnnxGraphBuilder {
-    /// Create a minimal node structure from NodeProto for preference collection
-    /// This doesn't resolve inputs, just creates placeholder Arguments
-    fn create_minimal_node_for_preferences(node_proto: &NodeProto) -> Node {
-        use std::str::FromStr;
-
-        let name = node_proto.name.clone();
-        let node_type = NodeType::from_str(node_proto.op_type.as_str()).expect("Unknown node type");
-
-        // Create placeholder arguments (just names, no types)
-        let inputs = node_proto
-            .input
-            .iter()
-            .map(|name| Argument::new(name.clone()))
-            .collect();
-
-        let outputs = node_proto
-            .output
-            .iter()
-            .map(|name| Argument::new(name.clone()))
-            .collect();
-
-        let attrs = crate::proto_conversion::convert_vec_attrs_proto(node_proto.attribute.clone());
-
-        Node {
-            node_type,
-            name,
-            inputs,
-            outputs,
-            attrs,
-            config: None,
-        }
-    }
-
-    /// Collect output preferences from all nodes before processing (Pass 1)
-    /// Returns a map of node_name -> OutputPreferences
-    fn collect_preferences_before_processing(
-        &mut self,
-        node_protos: &[NodeProto],
-        initializers: &[TensorProto],
+    /// Run iterative type inference with preference propagation
+    /// This alternates between type inference and preference collection until convergence
+    fn iterative_type_inference_with_preferences(
+        &self,
+        nodes: &mut [Node],
         opset: usize,
-    ) -> HashMap<String, crate::processor::OutputPreferences> {
-        use crate::processor::OutputPreferences;
-        use std::str::FromStr;
-
-        log::debug!("Collecting input preferences (pass 1)");
+    ) {
+        use crate::processor::ArgPreference;
 
         let registry = get_processor_registry();
-        let mut node_preferences: HashMap<String, OutputPreferences> = HashMap::new();
 
-        // Build output_to_producer map: output_name -> (node_index, output_index)
-        // This includes both regular nodes and initializers
-        let mut output_to_producer: HashMap<String, (usize, usize)> = HashMap::new();
+        // Track collected preferences: (producer_output_name, consumer_name, pref_type_str)
+        let mut collected_preferences: HashSet<(String, String, String)> = HashSet::new();
 
-        // Add initializers to the map (they will become constant1, constant2, etc.)
-        // Use special node_idx that won't conflict with regular nodes (negative values represented as very large usize)
-        for (init_idx, initializer) in initializers.iter().enumerate() {
-            if !initializer.name.is_empty() {
-                // Map initializer name to a synthetic index that indicates it's an initializer
-                output_to_producer.insert(initializer.name.clone(), (usize::MAX - init_idx, 0));
-            }
-        }
+        let max_iterations = 100; // Safety limit to prevent infinite loops
 
-        // Add regular node outputs
-        for (node_idx, node_proto) in node_protos.iter().enumerate() {
-            for (output_idx, output_name) in node_proto.output.iter().enumerate() {
-                if !output_name.is_empty() {
-                    output_to_producer.insert(output_name.clone(), (node_idx, output_idx));
+        for iteration in 1..=max_iterations {
+            log::debug!("Type inference iteration {}", iteration);
+
+            // Step 1: Build OutputPreferences map from collected preferences
+            let mut node_preferences: HashMap<String, crate::processor::OutputPreferences> = HashMap::new();
+
+            for (output_name, consumer_name, pref_type_str) in &collected_preferences {
+                let pref = match pref_type_str.as_str() {
+                    "Scalar" => ArgPreference::Scalar,
+                    "Shape" => ArgPreference::Shape,
+                    "Tensor" => ArgPreference::Tensor,
+                    _ => continue,
+                };
+
+                // Find producer node for this output
+                for node in nodes.iter() {
+                    if node.outputs.iter().any(|o| &o.name == output_name) {
+                        node_preferences
+                            .entry(node.name.clone())
+                            .or_default()
+                            .add(output_name.clone(), consumer_name.clone(), pref);
+                        break;
+                    }
                 }
             }
-        }
 
-        // Process nodes in REVERSE order to collect preferences
-        for (consumer_idx, node_proto) in node_protos.iter().enumerate().rev() {
-            // Create minimal node for input_preferences
-            let mut node = Self::create_minimal_node_for_preferences(node_proto);
+            // Step 2: Run infer_types on all nodes with current preferences
+            for node in nodes.iter_mut() {
+                let prefs = node_preferences
+                    .get(&node.name)
+                    .cloned()
+                    .unwrap_or_else(crate::processor::OutputPreferences::new);
 
-            // Apply node type remapping
-            remap_node_type(&mut node);
+                let processor = registry.get(&node.node_type);
+                let _ = processor.infer_types(node, opset, &prefs);
+            }
 
-            // Apply node renaming to match what will happen in pass 2
-            self.node_name_counter
-                .entry(node.node_type.clone())
-                .and_modify(|e| *e += 1)
-                .or_insert(1);
-            let renamed = format!(
-                "{}{}",
-                node.node_type, self.node_name_counter[&node.node_type]
-            )
-            .to_lowercase();
-            node.name = renamed.clone();
+            // Step 2.5: Sync input types from producer outputs
+            // After inference, propagate output types to consuming nodes' inputs
+            let output_types: HashMap<String, ArgType> = nodes
+                .iter()
+                .flat_map(|n| n.outputs.iter().map(|o| (o.name.clone(), o.ty.clone())))
+                .collect();
 
-            let processor = registry.get(&node.node_type);
+            for node in nodes.iter_mut() {
+                for input in &mut node.inputs {
+                    if let Some(new_type) = output_types.get(&input.name) {
+                        input.ty = new_type.clone();
+                    }
+                }
+            }
 
-            // Get input preferences from this consumer node
-            if let Ok(Some(input_prefs)) = processor.input_preferences(&node, opset) {
-                log::debug!(
-                    "Node {} (index {}) has input preferences",
-                    node.name,
-                    consumer_idx
-                );
+            // Step 3: Collect NEW input_preferences based on inferred types
+            let mut new_preferences_found = false;
 
-                // For each input this consumer has preferences for
-                for (input_idx, input) in node.inputs.iter().enumerate() {
-                    let requested_types = input_prefs.get(&input.name);
+            for consumer_node in nodes.iter() {
+                let processor = registry.get(&consumer_node.node_type);
 
-                    if !requested_types.is_empty() {
+                if let Ok(Some(input_prefs)) = processor.input_preferences(consumer_node, opset) {
+                    // For each input this consumer has preferences for
+                    for input in &consumer_node.inputs {
+                        let requested_types = input_prefs.get(&input.name);
+
+                        if requested_types.is_empty() {
+                            continue;
+                        }
+
                         // Find which node produces this input
-                        if let Some(&(producer_idx, output_idx)) =
-                            output_to_producer.get(&node_proto.input[input_idx])
-                        {
-                            // Check if this is an initializer (marked with usize::MAX - init_idx)
-                            let (producer_name, producer_output_name) =
-                                if producer_idx >= usize::MAX / 2 {
-                                    // This is an initializer
-                                    let init_idx = usize::MAX - producer_idx;
-                                    let const_num = init_idx + 1; // constant1, constant2, etc.
-                                    let producer_name = format!("constant{}", const_num);
-                                    let producer_output_name =
-                                        format!("{}_out{}", producer_name, output_idx + 1);
-                                    (producer_name, producer_output_name)
-                                } else {
-                                    // Regular node
-                                    let producer_proto = &node_protos[producer_idx];
+                        for producer_node in nodes.iter() {
+                            if let Some(output) = producer_node.outputs.iter().find(|o| o.name == input.name) {
+                                // Check each requested preference type
+                                for req_type in requested_types {
+                                    let pref_type_str = match req_type {
+                                        ArgPreference::Scalar => "Scalar",
+                                        ArgPreference::Shape => "Shape",
+                                        ArgPreference::Tensor => "Tensor",
+                                    }.to_string();
 
-                                    // Get the producer's renamed name
-                                    let producer_node_type =
-                                        NodeType::from_str(producer_proto.op_type.as_str())
-                                            .expect("Unknown node type");
-                                    let producer_counter = self
-                                        .node_name_counter
-                                        .get(&producer_node_type)
-                                        .unwrap_or(&0);
-                                    let producer_name =
-                                        format!("{}{}", producer_node_type, producer_counter)
-                                            .to_lowercase();
+                                    let key = (output.name.clone(), consumer_node.name.clone(), pref_type_str);
 
-                                    // Get producer's output name (will be renamed)
-                                    let producer_output_name =
-                                        format!("{}_out{}", producer_name, output_idx + 1);
-                                    (producer_name, producer_output_name)
-                                };
+                                    // Only add if this is a NEW preference
+                                    if !collected_preferences.contains(&key) {
+                                        collected_preferences.insert(key.clone());
+                                        new_preferences_found = true;
 
-                            // Add preferences to the producer
-                            let prefs = node_preferences.entry(producer_name.clone()).or_default();
-
-                            for requested_type in requested_types {
-                                prefs.add(
-                                    producer_output_name.clone(),
-                                    node.name.clone(),
-                                    requested_type.clone(),
-                                );
+                                        log::debug!(
+                                            "Iteration {}: Node {} requests {:?} for output {} from node {}",
+                                            iteration,
+                                            consumer_node.name,
+                                            req_type,
+                                            output.name,
+                                            producer_node.name
+                                        );
+                                    }
+                                }
+                                break;
                             }
-
-                            log::debug!(
-                                "Node {} requests {:?} for output {} from node {}",
-                                node.name,
-                                requested_types,
-                                producer_output_name,
-                                producer_name
-                            );
                         }
                     }
                 }
             }
+
+            // Step 4: Check convergence
+            if !new_preferences_found {
+                log::debug!("Type inference converged after {} iterations", iteration);
+                return;
+            }
         }
 
-        // Reset counters for actual processing, but preserve the Constant counter
-        // The Constant counter tracks initializers and must be preserved for consistent naming
-        let constant_counter = self.node_name_counter.get(&NodeType::Constant).copied();
-        self.node_name_counter.clear();
-        if let Some(count) = constant_counter {
-            self.node_name_counter.insert(NodeType::Constant, count);
-        }
-
-        log::debug!(
-            "Collected preferences for {} producers",
-            node_preferences.len()
-        );
-
-        node_preferences
+        log::warn!("Type inference iteration limit ({}) reached without convergence", max_iterations);
     }
 
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
@@ -701,39 +647,17 @@ impl OnnxGraphBuilder {
             .unwrap_or(MIN_OPSET_VERSION as usize);
 
         // Initialize Constant node counter to account for initializers
-        // BEFORE collecting preferences so preference lookup uses correct names
         let num_initializers = model_proto.graph.initializer.len();
         if num_initializers > 0 {
             self.node_name_counter
                 .insert(NodeType::Constant, num_initializers);
         }
 
-        // PASS 1: Collect input preferences before processing
-        let preferences_map = self.collect_preferences_before_processing(
-            &model_proto.graph.node,
-            &model_proto.graph.initializer,
-            opset_version,
-        );
-
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
-
-        // Apply preferences to initializer constant nodes
-        // These were created in GraphData::new() and missed the preference application
-        let registry = get_processor_registry();
-        let processor = registry.get(&NodeType::Constant);
-        for i in 0..model_proto.graph.initializer.len() {
-            let node_name = format!("constant{}", i + 1);
-            if let Some(prefs) = preferences_map.get(&node_name) {
-                log::debug!("Applying preferences to initializer constant {}", node_name);
-                if let Some(node) = graph_data.get_processed_nodes_mut().get_mut(i) {
-                    let _ = processor.infer_types(node, opset_version, prefs);
-                }
-            }
-        }
 
         // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
@@ -791,15 +715,46 @@ impl OnnxGraphBuilder {
                 self.handle_node_renaming(&mut node);
             }
 
+            // Convert Identity nodes with constant inputs to Constant nodes
+            // This allows burn-import to access the constant values via into_value()
+            if node.node_type == NodeType::Identity && !node.inputs.is_empty() {
+                let input_name = &node.inputs[0].name;
+                let has_constant_input = {
+                    let graph_data = graph_data_rc.borrow();
+                    graph_data.is_constant(input_name)
+                };
+
+                if has_constant_input {
+                    // Convert Identity to Constant node
+                    let constant_value = {
+                        let graph_data = graph_data_rc.borrow();
+                        graph_data.get_value(input_name)
+                    };
+
+                    if let Some(tensor_data) = constant_value {
+                        log::debug!("Converting Identity node {} to Constant (input: {})", node.name, input_name);
+
+                        node.node_type = NodeType::Constant;
+                        node.attrs.insert(
+                            "value".to_string(),
+                            crate::ir::AttributeValue::Tensor(tensor_data),
+                        );
+                        node.inputs.clear(); // Constant nodes have no inputs
+
+                        // Rename since we changed type
+                        self.handle_node_renaming(&mut node);
+
+                        // Re-attach value_stores after renaming
+                        for arg in &mut node.outputs {
+                            arg.value_store = Some(graph_data_rc.clone());
+                        }
+                    }
+                }
+            }
+
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
-
-            // Get preferences for this node (collected in pass 1)
-            let output_prefs = preferences_map
-                .get(&node.name)
-                .cloned()
-                .unwrap_or_else(crate::processor::OutputPreferences::new);
 
             log::debug!("Processing node: {}", node.name);
             let registry = get_processor_registry();
@@ -887,23 +842,20 @@ impl OnnxGraphBuilder {
                 });
             node.config = config;
 
-            // Infer types with preferences (from pass 1)
-            processor
-                .infer_types(&mut node, opset_version, &output_prefs)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Failed to infer types for node {} (type: {:?}): {:?}",
-                        node.name, node.node_type, e
-                    )
-                });
-
-            log::debug!(
-                "Type inference result for {}: {:?}",
-                node.name,
-                node.outputs
-            );
-
+            // Add node to graph (type inference happens later in iterative loop)
             graph_data_rc.borrow_mut().add_node(node);
+        }
+
+        // Run iterative type inference with preference propagation
+        // This allows preferences to be collected based on inferred types,
+        // enabling scenarios like Concat requesting Shape types after seeing Shape inputs
+        log::debug!("Starting iterative type inference with preference propagation");
+        {
+            // Temporarily extract nodes to avoid holding mutable borrow during iteration
+            // (iteration may need immutable borrows for into_value() calls)
+            let mut nodes = std::mem::take(&mut graph_data_rc.borrow_mut().processed_nodes);
+            self.iterative_type_inference_with_preferences(&mut nodes, opset_version);
+            graph_data_rc.borrow_mut().processed_nodes = nodes;
         }
 
         // Cache all Constant node values for burn-import to access
