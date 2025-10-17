@@ -5,19 +5,20 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use core::ops::{Index, IndexMut};
 use cubecl_quant::scheme::QuantScheme;
 use half::{bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use crate::{
-    DType, Distribution, Element, ElementConversion,
+    AsIndex, DType, Distribution, Element, ElementConversion,
     quantization::{QuantValue, QuantizationStrategy, QuantizedBytes},
     tensor::Bytes,
 };
 
-use rand::RngCore;
-
 use super::quantization::{QuantLevel, QuantMode};
+use crate::indexing::ravel_dims;
+use rand::RngCore;
 
 /// The things that can go wrong when manipulating tensor data.
 #[derive(Debug)]
@@ -52,6 +53,32 @@ impl TensorData {
             bytes: Bytes::from_elems(value),
             shape,
             dtype: E::dtype(),
+        }
+    }
+
+    /// Gets an index view.
+    ///
+    /// # Example
+    /// ```rust, ignore
+    /// let value = data.index_view::<f32>()[[2, 3, 4]];
+    /// ```
+    pub fn index_view<'a, E: Element>(&'a self) -> TensorDataIndexView<'a, E> {
+        TensorDataIndexView {
+            data: self,
+            _phantom: core::marker::PhantomData,
+        }
+    }
+
+    /// Gets a mutable index view.
+    ///
+    /// # Example
+    /// ```rust, ignore
+    /// data.mut_index_view::<f32>()[[2, 3, 4]] = 1.0;
+    /// ```
+    pub fn mut_index_view<'a, E: Element>(&'a mut self) -> TensorDataIndexViewMut<'a, E> {
+        TensorDataIndexViewMut {
+            data: self,
+            _phantom: core::marker::PhantomData,
         }
     }
 
@@ -882,6 +909,45 @@ impl core::fmt::Display for TensorData {
     }
 }
 
+/// An [`Index`] view for [`TensorData`].
+pub struct TensorDataIndexView<'a, E: Element> {
+    data: &'a TensorData,
+    _phantom: core::marker::PhantomData<&'a E>,
+}
+
+impl<'a, E: Element, I: AsIndex, const R: usize> Index<[I; R]> for TensorDataIndexView<'a, E> {
+    type Output = E;
+
+    fn index(&self, index: [I; R]) -> &Self::Output {
+        let idx = ravel_dims(index, &self.data.shape);
+        &self.data.as_slice::<E>().unwrap()[idx]
+    }
+}
+
+/// A mutable [`Index`] view for [`TensorData`].
+pub struct TensorDataIndexViewMut<'a, E: Element> {
+    data: &'a mut TensorData,
+    _phantom: core::marker::PhantomData<&'a E>,
+}
+
+impl<'a, E: Element, I: AsIndex, const R: usize> Index<[I; R]> for TensorDataIndexViewMut<'a, E> {
+    type Output = E;
+
+    fn index(&self, index: [I; R]) -> &Self::Output {
+        let idx = ravel_dims(index, &self.data.shape);
+        &self.data.as_slice::<E>().unwrap()[idx]
+    }
+}
+
+impl<'a, E: Element, I: AsIndex, const R: usize> IndexMut<[I; R]>
+    for TensorDataIndexViewMut<'a, E>
+{
+    fn index_mut(&mut self, index: [I; R]) -> &mut Self::Output {
+        let idx = ravel_dims(index, &self.data.shape);
+        &mut (self.data.as_mut_slice::<E>().unwrap()[idx])
+    }
+}
+
 /// The tolerance used to compare to floating point numbers.
 ///
 /// Generally, two numbers `x` and `y` are approximately equal if
@@ -1095,6 +1161,39 @@ mod tests {
         );
 
         assert_eq!(data.rank(), 3);
+    }
+
+    #[test]
+    fn index_view() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        assert_eq!(
+            data.index_view::<f32>()[[1, 2, 3]],
+            data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
+        )
+    }
+
+    #[test]
+    fn mut_index_view() {
+        let shape = Shape::new([3, 5, 6]);
+        let mut data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        assert_eq!(
+            data.index_view::<f32>()[[1, 2, 3]],
+            data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
+        );
+
+        data.mut_index_view::<f32>()[[1, 2, 3]] = 3.0;
+        assert_eq!(data.index_view::<f32>()[[1, 2, 3]], 3.0,);
     }
 
     #[test]
