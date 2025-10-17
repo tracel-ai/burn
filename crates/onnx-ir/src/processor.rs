@@ -106,7 +106,35 @@ pub enum ProcessError {
 /// Each node type implements this trait to declare how to process nodes
 /// during type inference and configuration extraction.
 pub trait NodeProcessor: Send + Sync {
-    /// Declare what types this node prefers for its inputs
+    /// Declare what types this node prefers to receive on its inputs.
+    ///
+    /// This method allows a node to request specific types from its input producers.
+    /// The system propagates these preferences back to producer nodes as `output_preferences`,
+    /// which producers can optionally honor when setting their output types.
+    ///
+    /// # How it works:
+    /// 1. Consumer node declares `input_preferences()` - what types it prefers for each input
+    /// 2. System collects these and maps them to `OutputPreferences` for producer nodes
+    /// 3. Producer nodes receive these in `infer_types(node, opset, output_preferences)`
+    /// 4. Producers can optionally honor these preferences (e.g., Constant can convert to Shape/Scalar)
+    ///
+    /// # Example:
+    /// ```rust,ignore
+    /// // ArithmeticBinaryProcessor (Add, Sub, etc.) prefers Shape inputs when one operand is Shape
+    /// fn input_preferences(&self, node: &Node, _opset: usize) -> Result<Option<InputPreferences>, ProcessError> {
+    ///     if node.inputs[0].ty.is_shape() {
+    ///         // Request the second input to also be Shape for better type consistency
+    ///         Ok(Some(InputPreferences::new().add(&node.inputs[1].name, ArgPreference::Shape)))
+    ///     } else {
+    ///         Ok(None)
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// # Important:
+    /// - Preferences are requests, not requirements - producers may ignore them
+    /// - Not all producers honor preferences (e.g., Shape node always outputs Shape)
+    /// - Preferences help optimize type representations (e.g., Constant as Shape vs Tensor)
     fn input_preferences(
         &self,
         _node: &Node,

@@ -53,6 +53,14 @@ impl NodeProcessor for CastProcessor {
         let input = &mut node.inputs[0];
         let output = &mut node.outputs[0];
 
+        log::debug!(
+            "Cast infer_types for node {}: input.ty={:?}, output.ty={:?}, target={:?}",
+            node.name,
+            input.ty,
+            output.ty,
+            elem_type
+        );
+
         match input.ty.clone() {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
@@ -72,6 +80,11 @@ impl NodeProcessor for CastProcessor {
             ArgType::Shape(rank) => {
                 // When casting Shape to float or bool types, convert to 1D tensor
                 // This allows Shape values to be used in tensor operations
+                log::debug!(
+                    "Cast: input is Shape({}), target elem_type is {:?}",
+                    rank,
+                    elem_type
+                );
                 match elem_type {
                     ElementType::Float32
                     | ElementType::Float64
@@ -83,17 +96,20 @@ impl NodeProcessor for CastProcessor {
                             static_shape: Some(vec![rank]),
                         });
                         log::debug!(
-                            "Cast converting Shape({}) to rank-1 tensor of {:?}",
+                            "Cast converting Shape({}) to rank-1 tensor of {:?}, output.ty is now {:?}",
                             rank,
-                            elem_type
+                            elem_type,
+                            output.ty
                         );
                     }
                     _ => {
                         // For int types, keep as Shape
                         // This matches Burn's representation where shapes are always [i64; N]
+                        log::debug!("Cast: keeping Shape({}) for int type {:?}", rank, elem_type);
                         output.ty = ArgType::Shape(rank);
                     }
                 }
+                log::debug!("Cast: output type set to {:?}", output.ty);
             }
         }
 

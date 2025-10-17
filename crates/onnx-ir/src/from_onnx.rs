@@ -548,19 +548,82 @@ impl OnnxGraphBuilder {
                 }
             }
 
-            // Step 2: Run infer_types on all nodes with current preferences
-            for node in nodes.iter_mut() {
+            // Step 2: Sync input types from producer outputs BEFORE inference
+            // This ensures nodes see correct input types after the first iteration.
+            //
+            // Why we skip iteration 1:
+            // On iteration 1, all outputs have default types (Tensor rank=0 from proto).
+            // Pre-syncing these defaults can cause problems for nodes like Concat/Reshape
+            // that need to see actual inferred types. So we let iteration 1 run infer_types
+            // first, then start pre-syncing from iteration 2 onwards.
+            //
+            // Why pre-sync is critical (starting iteration 2):
+            // Without pre-sync, on iteration 2+:
+            //   - Shape outputs Shape(3)
+            //   - Cast still sees stale Tensor(rank=0) input
+            //   - Cast incorrectly outputs Scalar
+            //   - Add requests Scalar preference
+            //
+            // With pre-sync, on iteration 2+:
+            //   - Shape has output Shape(3) in iteration 1
+            //   - Pre-sync propagates Shape(3) to Cast's input
+            //   - Cast sees Shape(3), outputs correctly
+            if iteration > 1 {
+                let output_types: HashMap<String, ArgType> = nodes
+                    .iter()
+                    .flat_map(|n| n.outputs.iter().map(|o| (o.name.clone(), o.ty.clone())))
+                    .collect();
+
+                for node in nodes.iter_mut() {
+                    for input in &mut node.inputs {
+                        if let Some(new_type) = output_types.get(&input.name) {
+                            input.ty = new_type.clone();
+                        }
+                    }
+                }
+            }
+
+            // Step 3: Run infer_types on all nodes with current preferences
+            // AND sync types after each node to allow downstream nodes to see updated types
+            // within the same iteration (intra-iteration propagation)
+            let mut types_changed = false;
+
+            for i in 0..nodes.len() {
+                // Get preferences for this node
                 let prefs = node_preferences
-                    .get(&node.name)
+                    .get(&nodes[i].name)
                     .cloned()
                     .unwrap_or_else(crate::processor::OutputPreferences::new);
 
-                let processor = registry.get(&node.node_type);
-                let _ = processor.infer_types(node, opset, &prefs);
+                // Run type inference on this node
+                let processor = registry.get(&nodes[i].node_type);
+                let _ = processor.infer_types(&mut nodes[i], opset, &prefs);
+
+                // Immediately sync this node's output types to downstream nodes' inputs
+                // This allows downstream nodes to see correct types in the same iteration
+                let current_outputs: Vec<(String, ArgType)> = nodes[i]
+                    .outputs
+                    .iter()
+                    .map(|o| (o.name.clone(), o.ty.clone()))
+                    .collect();
+
+                for output_pair in &current_outputs {
+                    let (output_name, output_ty) = output_pair;
+
+                    // Update all downstream nodes that use this output
+                    for downstream_node in &mut nodes[i + 1..] {
+                        for input in &mut downstream_node.inputs {
+                            if &input.name == output_name && input.ty != *output_ty {
+                                types_changed = true;
+                                input.ty = output_ty.clone();
+                            }
+                        }
+                    }
+                }
             }
 
-            // Step 2.5: Sync input types from producer outputs
-            // After inference, propagate output types to consuming nodes' inputs
+            // Step 3.5: Final sync pass to catch any cross-iteration changes
+            // This handles cases where earlier nodes were updated by later nodes' outputs
             let output_types: HashMap<String, ArgType> = nodes
                 .iter()
                 .flat_map(|n| n.outputs.iter().map(|o| (o.name.clone(), o.ty.clone())))
@@ -569,12 +632,15 @@ impl OnnxGraphBuilder {
             for node in nodes.iter_mut() {
                 for input in &mut node.inputs {
                     if let Some(new_type) = output_types.get(&input.name) {
-                        input.ty = new_type.clone();
+                        if input.ty != *new_type {
+                            types_changed = true;
+                            input.ty = new_type.clone();
+                        }
                     }
                 }
             }
 
-            // Step 3: Collect NEW input_preferences based on inferred types
+            // Step 4: Collect NEW input_preferences based on inferred types
             let mut new_preferences_found = false;
 
             for consumer_node in nodes.iter() {
@@ -624,11 +690,19 @@ impl OnnxGraphBuilder {
                 }
             }
 
-            // Step 4: Check convergence
-            if !new_preferences_found {
+            // Step 5: Check convergence
+            // Continue iterating if either types changed or new preferences were found
+            if !types_changed && !new_preferences_found {
                 log::debug!("Type inference converged after {} iterations", iteration);
                 return;
             }
+
+            log::debug!(
+                "Iteration {} complete: types_changed={}, new_preferences_found={}",
+                iteration,
+                types_changed,
+                new_preferences_found
+            );
         }
 
         log::warn!("Type inference iteration limit ({}) reached without convergence", max_iterations);
@@ -901,55 +975,30 @@ impl OnnxGraphBuilder {
             (result.0, result.1, result.2, result.3)
         };
 
-        // Determine which lifted constants can be removed
-        // A lifted constant can be removed if it's ONLY used by ONE node (the node that lifted it)
+        // Filter out only nodes explicitly marked for removal
+        // Do NOT remove lifted constants automatically - they may still be needed as runtime inputs
         //
-        // Build a map of constant_name -> count of nodes that use it
-        let mut constant_user_counts: HashMap<String, usize> = HashMap::new();
-        for node in &processed_nodes {
-            for input in &node.inputs {
-                if lifted_constants.contains(&input.name) {
-                    *constant_user_counts.entry(input.name.clone()).or_insert(0) += 1;
-                }
-            }
-        }
-
-        // Filter out nodes marked for removal AND lifted constants used by only one node
+        // Lifted constants fall into two categories:
+        // 1. Fully embedded in configs (e.g., Reshape with Static shape) - could be removed
+        // 2. Accessed for type inference but still needed at runtime (e.g., Reshape with Runtime shape) - MUST NOT be removed
+        //
+        // Since distinguishing between these requires inspecting configs, we conservatively keep all lifted constants.
+        // Only remove constants explicitly marked in nodes_to_remove (e.g., via reference counting).
         log::debug!(
-            "Filtering nodes: total={}, nodes_to_remove={:?}, lifted_constants={}",
+            "Filtering nodes: total={}, nodes_to_remove={:?}",
             processed_nodes.len(),
-            nodes_to_remove,
-            lifted_constants.len()
+            nodes_to_remove
         );
 
         let mut i = 0;
         processed_nodes.retain(|node| {
-            let is_lifted_constant = node
-                .outputs
-                .first()
-                .is_some_and(|output| lifted_constants.contains(&output.name));
-
-            // If this is a lifted constant, check how many nodes use it
-            // Remove if used by only 1 node (the node that lifted it)
-            let used_by_multiple = if is_lifted_constant {
-                node.outputs
-                    .first()
-                    .and_then(|output| constant_user_counts.get(&output.name))
-                    .map(|count| *count > 1)
-                    .unwrap_or(false)
-            } else {
-                false
-            };
-
-            let keep = !nodes_to_remove.contains(&i) && (!is_lifted_constant || used_by_multiple);
+            let keep = !nodes_to_remove.contains(&i);
 
             if !keep {
                 log::debug!(
-                    "Filtering out node at index {}: {} (lifted={}, used_by_multiple={})",
+                    "Filtering out node at index {}: {}",
                     i,
-                    node.name,
-                    is_lifted_constant,
-                    used_by_multiple
+                    node.name
                 );
             }
             i += 1;

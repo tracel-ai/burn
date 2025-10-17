@@ -176,7 +176,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 }
             }
 
-            _ => panic!("Cast: unsupported type combination"),
+            _ => panic!("Cast: unsupported type combination: input={:?}, output={:?}", self.input, self.output),
         }
     }
 

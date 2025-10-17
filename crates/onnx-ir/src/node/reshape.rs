@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, TensorData, TensorType};
+use crate::ir::{ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -23,8 +23,8 @@ impl NodeConfig for ReshapeConfig {
 pub enum ReshapeInput {
     /// Static shape known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape determined during execution .
-    Runtime(crate::ir::Argument),
+    /// Runtime shape determined during execution - references node.inputs[input_index].
+    Runtime(RuntimeInputRef),
 }
 
 /// Update output rank for Reshape based on shape input if constant, otherwise use input rank.
@@ -212,10 +212,8 @@ fn extract_shape_input(node: &Node) -> ReshapeInput {
     match &node.inputs[1].ty {
         ArgType::Tensor(_) => extract_tensor_shape(node),
         ArgType::Shape(_) => {
-            // Clone argument but clear value_store to maintain Send+Sync
-            let mut runtime_arg = node.inputs[1].clone();
-            runtime_arg.value_store = None;
-            ReshapeInput::Runtime(runtime_arg)
+            // Runtime input - store reference instead of cloning the argument
+            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
         }
         _ => panic!("Reshape: second input must be either a Tensor or Shape type"),
     }
@@ -229,10 +227,8 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
             ReshapeInput::Static(data.clone().into_i64s())
         }
         None => {
-            // Clone argument but clear value_store to maintain Send+Sync
-            let mut runtime_arg = node.inputs[1].clone();
-            runtime_arg.value_store = None;
-            ReshapeInput::Runtime(runtime_arg)
+            // Runtime input - store reference instead of cloning the argument
+            ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
         }
     }
 }
@@ -312,23 +308,25 @@ impl NodeProcessor for ReshapeProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract shape input as either static or runtime
         let shape = match &node.inputs[1].ty {
-            ArgType::Tensor(_) => {
+            ArgType::Tensor(_tensor) => {
                 // Extract shape from tensor input
+                // Note: We don't validate rank here because extract_config runs before type inference
+                // The rank might be 0 initially and will be updated during type inference
                 match node.inputs[1].into_value() {
-                    Some(TensorData { data, .. }) => ReshapeInput::Static(data.clone().into_i64s()),
+                    Some(TensorData { data, shape, .. }) => {
+                        // Only validate when we have actual tensor data
+                        assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
+                        ReshapeInput::Static(data.clone().into_i64s())
+                    }
                     None => {
-                        // Clone argument but clear value_store to maintain Send+Sync
-                        let mut runtime_arg = node.inputs[1].clone();
-                        runtime_arg.value_store = None;
-                        ReshapeInput::Runtime(runtime_arg)
+                        // Runtime input - store reference instead of cloning the argument
+                        ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
                     }
                 }
             }
             ArgType::Shape(_) => {
-                // Clone argument but clear value_store to maintain Send+Sync
-                let mut runtime_arg = node.inputs[1].clone();
-                runtime_arg.value_store = None;
-                ReshapeInput::Runtime(runtime_arg)
+                // Runtime input - store reference instead of cloning the argument
+                ReshapeInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
             }
             _ => {
                 return Err(ProcessError::TypeMismatch {
@@ -415,7 +413,7 @@ mod tests {
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
-            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }
@@ -507,7 +505,7 @@ mod tests {
 
         let config = node.config::<ReshapeConfig>();
         match &config.shape {
-            ReshapeInput::Runtime(arg) => assert_eq!(arg.name, "shape"),
+            ReshapeInput::Runtime(runtime_ref) => assert_eq!(runtime_ref.name, "shape"),
             _ => panic!("Expected runtime shape"),
         }
     }
