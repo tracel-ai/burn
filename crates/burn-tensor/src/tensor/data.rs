@@ -915,10 +915,10 @@ pub struct TensorDataIndexView<'a, E: Element> {
     _phantom: core::marker::PhantomData<&'a E>,
 }
 
-impl<'a, E: Element, I: AsIndex, const R: usize> Index<[I; R]> for TensorDataIndexView<'a, E> {
+impl<'a, E: Element, I: AsIndex> Index<&[I]> for TensorDataIndexView<'a, E> {
     type Output = E;
 
-    fn index(&self, index: [I; R]) -> &Self::Output {
+    fn index(&self, index: &[I]) -> &Self::Output {
         let idx = ravel_dims(index, &self.data.shape);
         &self.data.as_slice::<E>().unwrap()[idx]
     }
@@ -930,19 +930,19 @@ pub struct TensorDataIndexViewMut<'a, E: Element> {
     _phantom: core::marker::PhantomData<&'a E>,
 }
 
-impl<'a, E: Element, I: AsIndex, const R: usize> Index<[I; R]> for TensorDataIndexViewMut<'a, E> {
+impl<'a, E: Element, I: AsIndex> Index<&[I]> for TensorDataIndexViewMut<'a, E> {
     type Output = E;
 
-    fn index(&self, index: [I; R]) -> &Self::Output {
+    fn index(&self, index: &[I]) -> &Self::Output {
         let idx = ravel_dims(index, &self.data.shape);
         &self.data.as_slice::<E>().unwrap()[idx]
     }
 }
 
-impl<'a, E: Element, I: AsIndex, const R: usize> IndexMut<[I; R]>
+impl<'a, E: Element, I: AsIndex> IndexMut<&[I]>
     for TensorDataIndexViewMut<'a, E>
 {
-    fn index_mut(&mut self, index: [I; R]) -> &mut Self::Output {
+    fn index_mut(&mut self, index: &[I]) -> &mut Self::Output {
         let idx = ravel_dims(index, &self.data.shape);
         &mut (self.data.as_mut_slice::<E>().unwrap()[idx])
     }
@@ -1173,7 +1173,7 @@ mod tests {
         );
 
         assert_eq!(
-            data.as_index_view::<f32>()[[1, 2, 3]],
+            data.as_index_view::<f32>()[&[1, 2, 3]],
             data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
         )
     }
@@ -1188,12 +1188,12 @@ mod tests {
         );
 
         assert_eq!(
-            data.as_index_view::<f32>()[[1, 2, 3]],
+            data.as_index_view::<f32>()[&[1, 2, 3]],
             data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
         );
 
-        data.as_mut_index_view::<f32>()[[1, 2, 3]] = 3.0;
-        assert_eq!(data.as_index_view::<f32>()[[1, 2, 3]], 3.0,);
+        data.as_mut_index_view::<f32>()[&[1, 2, 3]] = 3.0;
+        assert_eq!(data.as_index_view::<f32>()[&[1, 2, 3]], 3.0);
     }
 
     #[test]
