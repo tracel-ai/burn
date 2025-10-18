@@ -198,9 +198,9 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
-            // Lift constants - with central store, just need to call lift_constants
-            // The processor can access constant values via .value() if data_id is set
-            let _lifted = processor
+            // Lift constants - mark them for removal from the graph
+            // The lifted constant values remain accessible via .value() through data_id
+            let lifted = processor
                 .lift_constants(&mut node, opset_version)
                 .unwrap_or_else(|e| {
                     panic!(
@@ -208,6 +208,22 @@ impl OnnxGraphBuilder {
                         node.name, node.node_type, e
                     )
                 });
+
+            // Mark lifted constants for removal
+            if !lifted.is_empty() {
+                let mut graph_data = graph_data_rc.borrow_mut();
+                for output_name in &lifted {
+                    if let Some(&node_idx) = graph_data.constant_nodes.get(output_name) {
+                        graph_data.nodes_to_remove.insert(node_idx);
+                        log::debug!(
+                            "Marking constant node at index {} (output: {}) for removal (lifted by {})",
+                            node_idx,
+                            output_name,
+                            node.name
+                        );
+                    }
+                }
+            }
 
             // Extract config first
             let config = processor
@@ -237,7 +253,7 @@ impl OnnxGraphBuilder {
         }
 
         // Extract the processed graph data while preserving tensor_data for .value() access
-        let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
+        let (mut processed_nodes, inputs, mut outputs, nodes_to_remove) = {
             let mut graph_data = graph_data_rc.borrow_mut();
 
             // Clone tensor_data before consuming (we need to keep it in GraphData for .value())
@@ -255,8 +271,32 @@ impl OnnxGraphBuilder {
             result
         };
 
+        // Eliminate Identity nodes BEFORE filtering out constants
+        // This ensures Identity rewiring can copy data_id from constant outputs
+        // 1. Identity->Constant conversion already happened during node processing
+        // 2. Now remove pass-through Identity nodes and rewire connections
+        // 3. Preserve at least one Identity if graph would be empty
+        log::debug!("Starting Identity elimination");
+        {
+            let elimination_plan = super::identity_elimination::plan_identity_elimination(
+                &processed_nodes,
+                &inputs,
+                &outputs,
+            );
+            super::identity_elimination::apply_identity_elimination(
+                &mut processed_nodes,
+                &mut outputs,
+                elimination_plan,
+            );
+        }
+        log::debug!(
+            "After Identity elimination: {} nodes remain",
+            processed_nodes.len()
+        );
+
+        // Now filter out lifted constants
         // Note: With the central tensor store, constant values are always accessible
-        // via data_id, so no need to cache in consumed_values or filter Constant nodes.
+        // via data_id, so no need to cache in consumed_values.
         //
         // Constants that are still needed at runtime (e.g., shape constants accessed during
         // execution) are not marked for removal and will appear in the final graph.
@@ -276,31 +316,7 @@ impl OnnxGraphBuilder {
             i += 1;
             keep
         });
-
         log::debug!("After filtering: {} nodes remain", processed_nodes.len());
-
-        // Eliminate Identity nodes
-        // 1. Identity->Constant conversion already happened during node processing
-        // 2. Now remove pass-through Identity nodes and rewire connections
-        // 3. Preserve at least one Identity if graph would be empty
-        log::debug!("Starting Identity elimination");
-        let mut outputs = outputs; // Make mutable for elimination
-        {
-            let elimination_plan = super::identity_elimination::plan_identity_elimination(
-                &processed_nodes,
-                &inputs,
-                &outputs,
-            );
-            super::identity_elimination::apply_identity_elimination(
-                &mut processed_nodes,
-                &mut outputs,
-                elimination_plan,
-            );
-        }
-        log::debug!(
-            "After Identity elimination: {} nodes remain",
-            processed_nodes.len()
-        );
 
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
