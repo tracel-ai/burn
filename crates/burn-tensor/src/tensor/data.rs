@@ -62,7 +62,7 @@ impl TensorData {
     /// ```rust, ignore
     /// let value = data.index_view::<f32>()[[2, 3, 4]];
     /// ```
-    pub fn index_view<'a, E: Element>(&'a self) -> TensorDataIndexView<'a, E> {
+    pub fn as_index_view<'a, E: Element>(&'a self) -> TensorDataIndexView<'a, E> {
         TensorDataIndexView {
             data: self,
             _phantom: core::marker::PhantomData,
@@ -75,7 +75,7 @@ impl TensorData {
     /// ```rust, ignore
     /// data.mut_index_view::<f32>()[[2, 3, 4]] = 1.0;
     /// ```
-    pub fn mut_index_view<'a, E: Element>(&'a mut self) -> TensorDataIndexViewMut<'a, E> {
+    pub fn as_mut_index_view<'a, E: Element>(&'a mut self) -> TensorDataIndexViewMut<'a, E> {
         TensorDataIndexViewMut {
             data: self,
             _phantom: core::marker::PhantomData,
@@ -1164,7 +1164,7 @@ mod tests {
     }
 
     #[test]
-    fn index_view() {
+    fn test_as_index_view() {
         let shape = Shape::new([3, 5, 6]);
         let data = TensorData::random::<f32, _, _>(
             shape,
@@ -1173,13 +1173,13 @@ mod tests {
         );
 
         assert_eq!(
-            data.index_view::<f32>()[[1, 2, 3]],
+            data.as_index_view::<f32>()[[1, 2, 3]],
             data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
         )
     }
 
     #[test]
-    fn mut_index_view() {
+    fn test_as_mut_index_view() {
         let shape = Shape::new([3, 5, 6]);
         let mut data = TensorData::random::<f32, _, _>(
             shape,
@@ -1188,12 +1188,12 @@ mod tests {
         );
 
         assert_eq!(
-            data.index_view::<f32>()[[1, 2, 3]],
+            data.as_index_view::<f32>()[[1, 2, 3]],
             data.as_slice::<f32>().unwrap()[1 * 5 * 6 + 2 * 6 + 3]
         );
 
-        data.mut_index_view::<f32>()[[1, 2, 3]] = 3.0;
-        assert_eq!(data.index_view::<f32>()[[1, 2, 3]], 3.0,);
+        data.as_mut_index_view::<f32>()[[1, 2, 3]] = 3.0;
+        assert_eq!(data.as_index_view::<f32>()[[1, 2, 3]], 3.0,);
     }
 
     #[test]
