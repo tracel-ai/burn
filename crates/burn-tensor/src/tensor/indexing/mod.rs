@@ -216,26 +216,25 @@ where
 /// This returns the row-major order raveling.
 ///
 /// # Arguments
-/// - `coords`: must be the same size as `dims.len()'.
-/// - `dims`: must be the same size as `self.rank()`.
+/// - `coords`: must be the same size len as `dims`.
+/// - `dims`: must be the same len as `coords`.
 ///
 /// # Returns
 /// - the ravel offset index.
-pub fn ravel_dims<const R: usize, I: AsIndex>(coords: [I; R], dims: &[usize]) -> usize {
+pub fn ravel_dims<I: AsIndex>(coords: &[I], dims: &[usize]) -> usize {
     assert_eq!(
         dims.len(),
-        R,
-        "Shape rank mismatch: expected {}, got {R}",
+        coords.len(),
+        "Coordinate rank mismatch: expected {}, got {}",
         dims.len(),
+        coords.len(),
     );
 
     let mut ravel_idx = 0;
     let mut stride = 1;
 
-    for i in (0..R).rev() {
-        let dim = dims[i];
+    for (i, &dim) in dims.iter().enumerate().rev() {
         let coord = canonicalize_index(coords[i], dim, false);
-
         ravel_idx += coord * stride;
         stride *= dim;
     }
@@ -252,9 +251,9 @@ mod tests {
     fn test_ravel() {
         let shape = vec![2, 3, 4, 5];
 
-        assert_eq!(ravel_dims([0, 0, 0, 0], &shape), 0);
+        assert_eq!(ravel_dims(&[0, 0, 0, 0], &shape), 0);
         assert_eq!(
-            ravel_dims([1, 2, 3, 4], &shape),
+            ravel_dims(&[1, 2, 3, 4], &shape),
             1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
         );
     }
