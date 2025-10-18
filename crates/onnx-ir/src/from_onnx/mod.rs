@@ -6,6 +6,7 @@
 mod conversion;
 mod graph_builder;
 mod graph_data;
+mod identity_elimination;
 mod type_inference;
 
 // Public exports

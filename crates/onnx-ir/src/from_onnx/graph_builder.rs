@@ -349,6 +349,29 @@ impl OnnxGraphBuilder {
 
         log::debug!("After filtering: {} nodes remain", processed_nodes.len());
 
+        // Eliminate Identity nodes
+        // 1. Identity->Constant conversion already happened during node processing
+        // 2. Now remove pass-through Identity nodes and rewire connections
+        // 3. Preserve at least one Identity if graph would be empty
+        log::debug!("Starting Identity elimination");
+        let mut outputs = outputs; // Make mutable for elimination
+        {
+            let elimination_plan = super::identity_elimination::plan_identity_elimination(
+                &processed_nodes,
+                &inputs,
+                &outputs,
+            );
+            super::identity_elimination::apply_identity_elimination(
+                &mut processed_nodes,
+                &mut outputs,
+                elimination_plan,
+            );
+        }
+        log::debug!(
+            "After Identity elimination: {} nodes remain",
+            processed_nodes.len()
+        );
+
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
         // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
