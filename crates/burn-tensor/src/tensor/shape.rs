@@ -85,8 +85,8 @@ impl Shape {
     ///
     /// # Returns
     /// - the ravel offset index.
-    pub fn ravel<const R: usize, I: AsIndex>(&self, coords: [I; R]) -> usize {
-        ravel_dims(coords, &self.dims)
+    pub fn ravel<I: AsIndex>(&self, coords: &[I]) -> usize {
+        ravel_dims(&coords, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
@@ -648,9 +648,9 @@ mod tests {
     fn test_ravel() {
         let shape = Shape::new([2, 3, 4, 5]);
 
-        assert_eq!(shape.ravel([0, 0, 0, 0]), 0);
+        assert_eq!(shape.ravel(&[0, 0, 0, 0]), 0);
         assert_eq!(
-            shape.ravel([1, 2, 3, 4]),
+            shape.ravel(&[1, 2, 3, 4]),
             1 * (3 * 4 * 5) + 2 * (4 * 5) + 3 * 5 + 4
         );
     }
