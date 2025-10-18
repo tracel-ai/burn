@@ -3,7 +3,7 @@
 As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
 generic arguments: the backend B, the dimensionality D, and the data type.
 
-```rust , ignore
+```rust, ignore
 Tensor<B, D>           // Float tensor (default)
 Tensor<B, D, Float>    // Explicit float tensor
 Tensor<B, D, Int>      // Int tensor
@@ -188,7 +188,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
-| --------------------------------------------------------------- | ---------------------------------------------- |
+|-----------------------------------------------------------------| ---------------------------------------------- |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
 | `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
@@ -203,6 +203,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
 | `tensor.contains_nan()`                                         | N/A                                            |
 | `tensor.cumsum(dim)`                                            | `tensor.cumsum(dim)`                           |
+| `tensor.cumprod(dim)`                                           | `tensor.cumprod(dim)`                          |
+| `tensor.cummin(dim)`                                            | `tensor.cummin(dim)`                           |
+| `tensor.cummax(dim)`                                            | `tensor.cummax(dim)`                           |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.dot()`                                                  | `torch.dot()`                                  |
@@ -260,6 +263,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
 | `tensor.sum_dim(dim)`                                           | `tensor.sum(dim, keepdim=True)`                |
 | `tensor.sum_dims(dims)`                                         | `tensor.sum(dims, keepdim=True)`               |
+| `tensor.sum_dims_squeeze(dims)`                                 | `tensor.sum(dims, keepdim=False)`              |
 | `tensor.topk(k, dim)`                                           | `tensor.topk(k, dim).values`                   |
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
@@ -277,7 +281,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                         |
-| -------------------------------------------- | ------------------------------------------ |
+|----------------------------------------------|--------------------------------------------|
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
@@ -304,6 +308,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                             | `tensor.round()`                           |
 | `tensor.sin()`                               | `tensor.sin()`                             |
 | `tensor.sinh()`                              | `tensor.sinh()`                            |
+| `tensor.square()`                            | `tensor.square()`                          |
 | `tensor.sqrt()`                              | `tensor.sqrt()`                            |
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
@@ -413,7 +418,7 @@ of detail and formatting to suit your needs.
 
 To display a detailed view of a tensor, you can simply use Rust's `println!` or `format!` macros:
 
-```rust
+```rust, ignore
 let tensor = Tensor::<Backend, 2>::full([2, 3], 0.123456789, &Default::default());
 println!("{}", tensor);
 ```
@@ -461,7 +466,7 @@ Tensor {
 For more fine-grained control over tensor printing, Burn provides a `PrintOptions` struct and a
 `set_print_options` function:
 
-```rust
+```rust, ignore
 use burn::tensor::{set_print_options, PrintOptions};
 
 let print_options = PrintOptions {
@@ -490,7 +495,7 @@ Options:
 
   Here's an example of how to use `check_closeness`:
 
-  ```rust
+  ```rust, ignore
   use burn::tensor::{check_closeness, Tensor};
   type B = burn::backend::NdArray;
 
@@ -516,7 +521,6 @@ Options:
   operations that may introduce small numerical discrepancies.
 
   The function uses color-coded output to highlight the results:
-
   - Green [PASS]: All elements are within the specified tolerance.
   - Yellow [WARN]: Most elements (90% or more) are within tolerance.
   - Red [FAIL]: Significant differences are detected.

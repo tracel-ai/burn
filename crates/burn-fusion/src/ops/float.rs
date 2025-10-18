@@ -1,8 +1,6 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
-    client::FusionClient,
-    get_client,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops, get_client,
     ops::binary::check_binary_op_types,
     reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{OperationStreams, StreamId, execution::Operation},
@@ -1476,6 +1474,114 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct CumprodOps<B: FusionBackend> {
+            desc: DimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CumprodOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_cumprod(input, self.desc.axis);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            axis: dim,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::CumProd(desc.clone())),
+            CumprodOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct CumminOps<B: FusionBackend> {
+            desc: DimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CumminOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_cummin(input, self.desc.axis);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            axis: dim,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::CumMin(desc.clone())),
+            CumminOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct CummaxOps<B: FusionBackend> {
+            desc: DimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for CummaxOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_cummax(input, self.desc.axis);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = tensor.client.tensor_uninitialized(shape, dtype);
+
+        let desc = DimOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+            axis: dim,
+        };
+
+        out.client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::CumMax(desc.clone())),
+            CummaxOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn float_exp(lhs: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float_ops!(ExpOps, B::float_exp);
 
@@ -1543,7 +1649,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         scalar_float_ops!(PowfOps, B::float_powf_scalar);
 
         let mut streams = OperationStreams::default();
@@ -2289,6 +2395,29 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             streams,
             OperationIr::Float(dtype, FloatOperationIr::Ceil(desc.clone())),
             CeilOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(TruncOps, B::float_trunc);
+
+        let mut streams = OperationStreams::default();
+        streams.tensor(&tensor);
+        let dtype = tensor.dtype;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            streams,
+            OperationIr::Float(dtype, FloatOperationIr::Trunc(desc.clone())),
+            TruncOps::<B>::new(desc),
         );
 
         out

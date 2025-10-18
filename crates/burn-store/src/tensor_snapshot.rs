@@ -16,6 +16,18 @@ pub enum TensorSnapshotError {
     PanicError(String),
 }
 
+impl core::fmt::Display for TensorSnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "I/O error: {}", e),
+            Self::DataError(e) => write!(f, "Data error: {}", e),
+            Self::PanicError(e) => write!(f, "Panic error: {}", e),
+        }
+    }
+}
+
+impl core::error::Error for TensorSnapshotError {}
+
 /// A lightweight snapshot of a tensor that can lazily produce TensorData.
 ///
 /// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)
@@ -407,6 +419,31 @@ mod tests {
                 assert!(msg.contains("Panic occurred"));
             }
             _ => panic!("Expected PanicError with panic message"),
+        }
+    }
+
+    #[test]
+    fn error_propagation_in_closure() {
+        use alloc::rc::Rc;
+
+        // Create a snapshot with a closure that returns an error
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
+            DType::F32,
+            vec![2, 2],
+            vec!["error_test".into()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // Should return an error when trying to get data
+        let result = snapshot.to_data();
+        assert!(result.is_err());
+        match result {
+            Err(TensorSnapshotError::IoError(msg)) => {
+                assert!(msg.contains("Simulated IO error"));
+            }
+            _ => panic!("Expected IoError"),
         }
     }
 

@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use core::marker::PhantomData;
 
-use burn::module::{AutodiffModule, ModuleVisitor, ParamId};
+use burn::module::{AutodiffModule, ModuleVisitor, Param};
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 
 use super::GradientsParams;
@@ -56,19 +56,20 @@ struct ModuleGradsAccumulator<'a, M> {
 }
 
 impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'_, M> {
-    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
-            Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+        let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(param.id) {
+            Some(new) => match self.grads.remove::<B::InnerBackend, D>(param.id) {
                 Some(grad) => grad.add(new),
                 None => new,
             },
-            None => match self.grads.remove::<B::InnerBackend, D>(id) {
+            None => match self.grads.remove::<B::InnerBackend, D>(param.id) {
                 Some(grad) => grad,
                 None => return,
             },
         };
 
-        self.grads.register::<B::InnerBackend, D>(id, grad_updated);
+        self.grads
+            .register::<B::InnerBackend, D>(param.id, grad_updated);
     }
 }
 

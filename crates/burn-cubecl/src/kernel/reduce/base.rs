@@ -28,9 +28,7 @@ pub struct SumAutotuneKey {
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server, R::Channel>,
-) -> bool {
+fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(client: &ComputeClient<R::Server>) -> bool {
     Atomic::<E>::supported_uses(client).contains(TypeUsage::AtomicAdd)
 }
 

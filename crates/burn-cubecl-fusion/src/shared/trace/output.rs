@@ -91,7 +91,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     pub fn run<BT: CubeElement>(
         mut self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -384,7 +384,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle_input.handle.clone(),
-                global_shape: tensor_global.shape.clone(),
+                global_shape: tensor_global.shape.dims.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);
@@ -393,7 +393,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn normal_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -468,7 +468,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn reshaped_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -524,7 +524,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     debug_info: super::HandleOutputAliasDebugInfo {
                         relative_id: output.tensor_relative.id,
                         handle: handle.clone(),
-                        global_shape: tensor_global.shape.clone(),
+                        global_shape: tensor_global.shape.dims.clone(),
                     },
                 });
                 self.globals[output.pos_original] = Some(tensor_global);
@@ -547,7 +547,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn swapped_dims_output<BT: CubeElement>(
         &mut self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
@@ -593,7 +593,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle.clone(),
-                global_shape: tensor_global.shape.clone(),
+                global_shape: tensor_global.shape.dims.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);

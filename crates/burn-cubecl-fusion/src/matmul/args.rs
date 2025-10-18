@@ -1,20 +1,26 @@
 use cubecl::{
-    matmul::components::global::args::MatmulArgs,
+    matmul::components::{
+        MatmulIdent,
+        global::{
+            GlobalConfig,
+            args::MatmulArgs,
+            memory::{BatchedGlobalLayout, GlobalMemoryConfig},
+        },
+    },
     prelude::*,
-    std::{CubeOption, CubeOptionExpand},
+    std::{
+        CubeOption, FastDivmod,
+        tensor::{
+            View,
+            layout::{Coords1d, Coords3d},
+        },
+    },
 };
 
 use crate::shared::{
-    DYN_ELEM_ID,
-    io::{
-        global_buffer_len, global_len, global_line_size, global_rank, global_shape, global_stride,
-        num_elements, read_input, read_input_window, ref_buffer_len, ref_len, ref_line_size,
-        ref_shape, ref_stride,
-    },
-    ir::{
-        Arg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo, LocalArgs, LocalArgsExpand,
-    },
-    kernel::{fuse_on_write, init_locals},
+    ir::{Arg, FuseBlockConfig, GlobalArgs, LocalArgs},
+    kernel::init_locals,
+    view::{FusedOutput, GlobalInput},
 };
 
 #[derive(Clone)]
@@ -41,496 +47,206 @@ impl MatmulArgs for FusedMatmulArgs {
     type Input<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulInput;
     type State<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulState;
 
-    fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric, G: GlobalConfig>(
         inputs: &Self::Input<Lhs, Rhs, EO>,
         outputs: &mut Self::Output<EO>,
+        #[comptime] config: G,
     ) -> Self::State<Lhs, Rhs, EO> {
         let mut locals = init_locals(&inputs.global, outputs, &inputs.config);
-        FusedMatmulState::new(inputs, outputs, &mut locals, &inputs.config)
+        let rank = comptime![inputs.config.rank];
+        let mut batch_shape = Sequence::new();
+
+        #[unroll]
+        for i in 0..rank - 2 {
+            batch_shape.push(FastDivmod::new_Fallback(locals.ref_shape[i]));
+        }
+
+        FusedMatmulState::new(
+            inputs,
+            outputs,
+            &mut locals,
+            batch_shape,
+            &inputs.config,
+            config.global_memory_config(MatmulIdent::Lhs),
+            config.global_memory_config(MatmulIdent::Rhs),
+            config.global_memory_config(MatmulIdent::Out),
+        )
     }
 
-    fn has_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn view_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<()> {
-        match state.c.clone() {
-            CubeOption::Some(_) => CubeOption::new_Some(()),
+    ) -> View<Line<Lhs>, Coords3d> {
+        global_view(
+            &state.inputs,
+            &state.locals,
+            state.batch_shape.clone(),
+            comptime![state.a.clone()],
+            comptime![state.config.clone()],
+            comptime![state.lhs_memory_config],
+        )
+    }
+
+    fn view_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> View<Line<Rhs>, Coords3d> {
+        global_view(
+            &state.inputs,
+            &state.locals,
+            state.batch_shape.clone(),
+            comptime![state.b.clone()],
+            comptime![state.config.clone()],
+            comptime![state.rhs_memory_config],
+        )
+    }
+
+    fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> CubeOption<View<Line<EO>, Coords3d>> {
+        match comptime![state.c.clone()] {
+            CubeOption::Some(c) => {
+                let view = global_view(
+                    &state.inputs,
+                    &state.locals,
+                    state.batch_shape.clone(),
+                    c,
+                    comptime![state.config.clone()],
+                    comptime![state.out_memory_config],
+                );
+                CubeOption::new_Some(view)
+            }
             CubeOption::None => CubeOption::new_None(),
         }
     }
 
-    fn read_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        coordinate: u32,
-    ) -> Line<Lhs> {
-        let pos = comptime! {
-            match state.a {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        read_input(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.locals) },
-            pos,
-            coordinate,
-            LayoutInfo::IsRef,
-            &state.config,
-            None,
-        )
-    }
-
-    fn read_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        coordinate: u32,
-    ) -> Line<Rhs> {
-        let pos = comptime! {
-            match state.b {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        read_input(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.locals) },
-            pos,
-            coordinate,
-            LayoutInfo::IsRef,
-            &state.config,
-            None,
-        )
-    }
-
-    fn read_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        coordinate: u32,
-    ) -> Line<EO> {
-        let pos = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Acc isn't an input"),
-            }
-        };
-
-        read_input(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.locals) },
-            pos,
-            coordinate,
-            LayoutInfo::IsRef,
-            &state.config,
-            None,
-        )
-    }
-
-    fn read_window_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        start: u32,
-        end: u32,
-    ) -> Slice<Line<Lhs>> {
-        let (pos, ty) = comptime! {
-            match state.a {
-                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(ty);
-        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
-    }
-
-    #[allow(unreachable_code)]
-    fn read_window_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        start: u32,
-        end: u32,
-    ) -> Slice<Line<Rhs>> {
-        let (pos, elem) = comptime! {
-            match state.b {
-                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
-        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
-    }
-
-    #[allow(unreachable_code)]
-    fn read_window_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        start: u32,
-        end: u32,
-    ) -> Slice<Line<EO>> {
-        let (pos, elem) = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, precision,..) => (pos, precision.into_type()),
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(elem);
-        read_input_window(unsafe { &(*state.inputs) }, pos, start, end)
-    }
-
-    fn write_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn view_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &mut Self::State<Lhs, Rhs, EO>,
-        coordinate: u32,
-        value: Line<EO>,
-    ) {
-        let mut values = Registry::<Arg, Line<EO>>::new();
-        let mut args = comptime![Sequence::<Arg>::new()];
+    ) -> View<Line<EO>, Coords3d, ReadWrite> {
+        let rank = comptime![state.config.rank];
 
-        values.insert(comptime![state.out.clone()], value);
-        comptime![args.push(state.out.clone())];
+        let mut batch_strides = Sequence::new();
+        #[unroll]
+        for i in 0..rank - 2 {
+            batch_strides.push(state.locals.ref_strides[i]);
+        }
 
-        fuse_on_write(
-            unsafe { &(*state.inputs) },
-            unsafe { &mut (*state.outputs) },
-            unsafe { &mut (*state.locals) },
-            coordinate,
-            values,
-            args,
-            &state.config,
+        let shape_row = state.locals.ref_shape[rank - 2];
+        let shape_col = state.locals.ref_shape[rank - 1];
+
+        let stride_row = state.locals.ref_strides[rank - 2];
+        let stride_col = state.locals.ref_strides[rank - 1];
+
+        let layout = BatchedGlobalLayout::new(
+            batch_strides,
+            state.batch_shape.clone(),
+            shape_row,
+            shape_col,
+            stride_row,
+            stride_col,
+            state.out_memory_config,
         );
-    }
-
-    fn len_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.a {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_len(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn len_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.b {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_len(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn len_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_len(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn len_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        ref_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals) },
-            &state.config,
-        )
-    }
-
-    fn buffer_len_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> u32 {
-        match comptime![state.a.clone()] {
-            Arg::Input(pos, ..) => global_buffer_len(unsafe { &(*state.inputs) }, pos),
-            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
-            _ => panic!("Lhs isn't an input"),
-        }
-    }
-
-    fn buffer_len_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> u32 {
-        match comptime![state.b.clone()] {
-            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
-            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
-            _ => panic!("Lhs isn't an input"),
-        }
-    }
-
-    fn buffer_len_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> u32 {
-        match comptime![state.c.clone().unwrap()] {
-            Arg::Input(pos, ..) => global_len(unsafe { &(*state.inputs) }, pos),
-            Arg::InputReshaped { .. } => num_elements(unsafe { &(*state.locals) }, &state.config),
-            _ => panic!("Lhs isn't an input"),
-        }
-    }
-
-    fn buffer_len_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> u32 {
-        ref_buffer_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals) },
-            &state.config,
-        )
-    }
-
-    fn rank_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.a {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_rank(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn rank_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.b {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_rank(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn rank_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        let pos = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_rank(unsafe { &(*state.inputs) }, pos)
-    }
-
-    fn rank_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(state: &Self::State<Lhs, Rhs, EO>) -> u32 {
-        state.config.rank.runtime()
-    }
-
-    fn shape_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.a {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_shape(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn shape_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.b {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_shape(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn shape_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_shape(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn shape_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        ref_shape(unsafe { &(*state.locals) }, dim)
-    }
-
-    fn stride_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.a {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_stride(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn stride_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.b {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_stride(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn stride_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        let pos = comptime! {
-            match state.c.clone().unwrap() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Rhs isn't an input"),
-            }
-        };
-
-        global_stride(unsafe { &(*state.inputs) }, dim, pos)
-    }
-
-    fn stride_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-        dim: u32,
-    ) -> u32 {
-        ref_stride(unsafe { &(*state.locals) }, dim)
-    }
-
-    /// Reinterpret lhs as tensor map
-    fn as_tensor_map_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<TensorMap<Lhs>> {
-        CubeOption::new_None()
-    }
-    /// Reinterpret rhs as tensor map
-    fn as_tensor_map_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<TensorMap<Rhs>> {
-        CubeOption::new_None()
-    }
-    /// Reinterpret rhs as tensor map
-    fn as_tensor_map_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        _state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<TensorMap<EO>> {
-        CubeOption::new_None()
-    }
-    fn line_size_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> comptime_type!(u32) {
-        let pos = comptime! {
-            match state.a.clone() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_line_size(unsafe { &(*state.inputs) }, pos)
-    }
-    fn line_size_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> comptime_type!(u32) {
-        let pos = comptime! {
-            match state.b.clone() {
-                Arg::Input(pos, ..) => pos,
-                _ => panic!("Lhs isn't an input"),
-            }
-        };
-
-        global_line_size(unsafe { &(*state.inputs) }, pos)
-    }
-    fn line_size_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> comptime_type!(u32) {
-        if comptime![state.c.is_none()] {
-            1
-        } else {
-            let pos = comptime! {
-                match state.c.clone().unwrap() {
-                    Arg::Input(pos, ..) => pos,
-                    _ => panic!("Lhs isn't an input"),
-                }
-            };
-
-            global_line_size(unsafe { &(*state.inputs) }, pos)
-        }
-    }
-    fn line_size_out<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
-        state: &Self::State<Lhs, Rhs, EO>,
-    ) -> comptime_type!(u32) {
-        ref_line_size(unsafe { &(*state.locals) })
+        let mut buffer = FusedOutput::new(
+            &state.inputs,
+            &mut state.outputs,
+            &mut state.locals,
+            comptime![state.out.clone()],
+            comptime![state.config.clone()],
+        );
+        View::new_mut::<FusedOutput, Coords1d>(&mut buffer, layout)
     }
 }
 
+#[cube]
+fn global_view<E: CubePrimitive>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    batch_shape: Sequence<FastDivmod>,
+    #[comptime] arg: Arg,
+    #[comptime] config: FuseBlockConfig,
+    #[comptime] mem_config: GlobalMemoryConfig,
+) -> View<Line<E>, Coords3d> {
+    let rank = comptime![config.rank];
+    let lhs = match comptime![arg.clone()] {
+        Arg::Input(pos, ..) => inputs.tensors.index(pos),
+        _ => panic!("Input must be concrete"),
+    };
+
+    let mut batch_strides = Sequence::new();
+    #[unroll]
+    for i in 0..rank - 2 {
+        let shape = lhs.tensor.shape(i);
+        let stride = select(shape == 1, 0, lhs.tensor.stride(i));
+        batch_strides.push(stride);
+    }
+
+    let shape_row = lhs.tensor.shape(rank - 2);
+    let shape_col = lhs.tensor.shape(rank - 1);
+
+    let stride_row = lhs.tensor.stride(rank - 2);
+    let stride_col = lhs.tensor.stride(rank - 1);
+
+    let layout = BatchedGlobalLayout::new(
+        batch_strides,
+        batch_shape.clone(),
+        shape_row,
+        shape_col,
+        stride_row,
+        stride_col,
+        mem_config,
+    );
+    let buffer = GlobalInput::new(inputs, locals, arg, comptime![config.clone()], None);
+    View::new::<GlobalInput, Coords1d>(&buffer, layout)
+}
+
+#[derive(CubeType)]
 pub struct FusedMatmulState {
-    inputs: *const GlobalArgs,
-    outputs: *mut GlobalArgs,
-    locals: *mut LocalArgs,
+    inputs: GlobalArgs,
+    outputs: GlobalArgs,
+    locals: LocalArgs,
+    #[cube(comptime)]
     config: FuseBlockConfig,
+    #[cube(comptime)]
     a: Arg,
+    #[cube(comptime)]
     b: Arg,
+    #[cube(comptime)]
     c: CubeOption<Arg>,
+    #[cube(comptime)]
     out: Arg,
+    #[cube(comptime)]
+    lhs_memory_config: GlobalMemoryConfig,
+    #[cube(comptime)]
+    rhs_memory_config: GlobalMemoryConfig,
+    #[cube(comptime)]
+    out_memory_config: GlobalMemoryConfig,
+    batch_shape: Sequence<FastDivmod>,
 }
 
 #[cube]
 impl FusedMatmulState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         inputs: &FusedMatmulInput,
         outputs: &mut GlobalArgs,
         locals: &mut LocalArgs,
+        batch_shape: Sequence<FastDivmod>,
         #[comptime] config: &FuseBlockConfig,
+        #[comptime] lhs_memory_config: GlobalMemoryConfig,
+        #[comptime] rhs_memory_config: GlobalMemoryConfig,
+        #[comptime] out_memory_config: GlobalMemoryConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
-            inputs: &inputs.global,
-            outputs,
+            inputs: inputs.global.clone(),
+            outputs: outputs.clone(),
             config: comptime![config.clone()],
-            locals,
+            locals: locals.clone(),
             a: comptime![inputs.a.clone()],
             b: comptime![inputs.b.clone()],
             c: comptime![inputs.c.clone()],
             out: comptime![inputs.out.clone()],
+            batch_shape,
+            lhs_memory_config,
+            rhs_memory_config,
+            out_memory_config,
         }
     }
 }
-
-#[derive(Clone)]
-pub struct FusedMatmulStateExpand {
-    inputs: GlobalArgsExpand,
-    outputs: GlobalArgsExpand,
-    config: FuseBlockConfig,
-    locals: LocalArgsExpand,
-    a: Arg,
-    b: Arg,
-    c: CubeOptionExpand<Arg>,
-    out: Arg,
-}
-
-impl CubeType for FusedMatmulState {
-    type ExpandType = FusedMatmulStateExpand;
-}
-
-impl IntoMut for FusedMatmulStateExpand {
-    fn into_mut(self, _context: &mut Scope) -> Self {
-        self
-    }
-}
-
-impl CubeDebug for FusedMatmulStateExpand {}
