@@ -8,6 +8,7 @@ mod multi_threads;
 mod ops;
 mod primitive;
 mod quantization;
+mod shape;
 mod stats;
 
 pub use cubecl::prelude::{Float, Int, Numeric};
@@ -362,6 +363,9 @@ macro_rules! testgen_no_param {
 
         // test primitive
         burn_tensor::testgen_primitive!();
+
+        // test shape helpers
+        burn_tensor::testgen_shape!();
 
         // test multi threads
         #[cfg(feature = "std")]
