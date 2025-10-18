@@ -85,5 +85,6 @@ mod topk;
 mod transpose;
 mod tri;
 mod tri_mask;
+mod tri_mask_batch;
 mod trunc;
 mod unfold;
