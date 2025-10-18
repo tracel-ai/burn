@@ -225,6 +225,7 @@ mod tests {
                 rank: 4,
                 static_shape: None,
             }),
+            data_id: None,
             value_store: None,
         });
 

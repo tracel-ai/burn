@@ -136,7 +136,7 @@ impl NodeProcessor for TopKProcessor {
         };
 
         let k = match node.inputs.get(1) {
-            Some(k_tensor) => match k_tensor.into_value() {
+            Some(k_tensor) => match k_tensor.value() {
                 None => {
                     // Runtime input - no static value available
                     TopKInput::Runtime(RuntimeInputRef::new(k_tensor.name.clone(), 1))

@@ -2,6 +2,8 @@
 //!
 //! This module contains the main logic for converting ONNX protobuf models
 //! into the internal IR representation.
+//!
+//! MUST READ: Absolutely no node type specific logic
 
 use std::{cell::RefCell, collections::HashMap, fs::File, path::Path, rc::Rc};
 
@@ -47,13 +49,6 @@ impl OnnxGraphBuilder {
             .map(|opset| opset.version as usize)
             .unwrap_or(MIN_OPSET_VERSION as usize);
 
-        // Initialize Constant node counter to account for initializers
-        let num_initializers = model_proto.graph.initializer.len();
-        if num_initializers > 0 {
-            self.node_name_counter
-                .insert(NodeType::Constant, num_initializers);
-        }
-
         let graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
@@ -62,6 +57,31 @@ impl OnnxGraphBuilder {
 
         // Wrap GraphData in Rc<RefCell<>> to allow shared mutable access
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
+
+        // Attach value_store to all initializer constant nodes
+        // (These were created in GraphData::new() but couldn't have value_store set yet)
+        // Also initialize node_name_counter to account for these pre-existing constants
+        {
+            let mut graph_data = graph_data_rc.borrow_mut();
+            let mut constant_count = 0;
+            for node in &mut graph_data.processed_nodes {
+                if node.node_type == NodeType::Constant {
+                    for arg in &mut node.outputs {
+                        arg.value_store = Some(graph_data_rc.clone());
+                    }
+                    constant_count += 1;
+                }
+            }
+
+            // Initialize the constant counter so subsequent ONNX Constant nodes don't collide
+            if constant_count > 0 {
+                self.node_name_counter.insert(NodeType::Constant, constant_count);
+                log::debug!(
+                    "Initialized Constant node counter to {} (from initializers)",
+                    constant_count
+                );
+            }
+        }
 
         for t in &model_proto.graph.initializer {
             log::debug!(
@@ -91,6 +111,64 @@ impl OnnxGraphBuilder {
                 arg.value_store = Some(graph_data_rc.clone());
             }
 
+            // For Constant nodes: move tensor data from attributes to central store
+            if node.node_type == NodeType::Constant {
+                use crate::ir::{AttributeValue, TensorData};
+
+                // Find the value attribute (could be "value", "value_float", "value_floats", etc.)
+                let keys = [
+                    "value",
+                    "value_float",
+                    "value_floats",
+                    "value_int",
+                    "value_ints",
+                    "value_string",
+                    "value_strings",
+                ];
+
+                if let Some(attr_key) = keys.iter().find(|&key| node.attrs.contains_key(*key))
+                    && let Some(attr_value) = node.attrs.get(*attr_key)
+                {
+                    // Convert attribute to TensorData if possible
+                    let tensor_data_opt: Option<TensorData> = match attr_value {
+                        AttributeValue::Tensor(tensor) => Some(tensor.clone()),
+                        AttributeValue::Float32(val) => Some(TensorData {
+                            shape: vec![],
+                            data: crate::ir::Data::Float32(*val),
+                        }),
+                        AttributeValue::Float32s(vals) => Some(TensorData {
+                            shape: vec![vals.len()],
+                            data: crate::ir::Data::Float32s(vals.clone()),
+                        }),
+                        AttributeValue::Int64(val) => Some(TensorData {
+                            shape: vec![],
+                            data: crate::ir::Data::Int64(*val),
+                        }),
+                        AttributeValue::Int64s(vals) => Some(TensorData {
+                            shape: vec![vals.len()],
+                            data: crate::ir::Data::Int64s(vals.clone()),
+                        }),
+                        _ => None,
+                    };
+
+                    if let Some(tensor_data) = tensor_data_opt {
+                        // Allocate ID and store data in central store
+                        let data_id = {
+                            let mut graph_data = graph_data_rc.borrow_mut();
+                            graph_data.store_tensor_data(tensor_data)
+                        };
+
+                        // Set data_id on the output argument
+                        if !node.outputs.is_empty() {
+                            node.outputs[0].data_id = Some(data_id);
+                        }
+
+                        // Remove tensor data from attributes
+                        node.attrs.remove(*attr_key);
+                    }
+                }
+            }
+
             remap_node_type(&mut node);
             self.handle_node_renaming(&mut node);
 
@@ -112,47 +190,6 @@ impl OnnxGraphBuilder {
                 self.handle_node_renaming(&mut node);
             }
 
-            // Convert Identity nodes with constant inputs to Constant nodes
-            // This allows burn-import to access the constant values via into_value()
-            if node.node_type == NodeType::Identity && !node.inputs.is_empty() {
-                let input_name = &node.inputs[0].name;
-                let has_constant_input = {
-                    let graph_data = graph_data_rc.borrow();
-                    graph_data.is_constant(input_name)
-                };
-
-                if has_constant_input {
-                    // Convert Identity to Constant node
-                    let constant_value = {
-                        let graph_data = graph_data_rc.borrow();
-                        graph_data.get_value(input_name)
-                    };
-
-                    if let Some(tensor_data) = constant_value {
-                        log::debug!(
-                            "Converting Identity node {} to Constant (input: {})",
-                            node.name,
-                            input_name
-                        );
-
-                        node.node_type = NodeType::Constant;
-                        node.attrs.insert(
-                            "value".to_string(),
-                            crate::ir::AttributeValue::Tensor(tensor_data),
-                        );
-                        node.inputs.clear(); // Constant nodes have no inputs
-
-                        // Rename since we changed type
-                        self.handle_node_renaming(&mut node);
-
-                        // Re-attach value_stores after renaming
-                        for arg in &mut node.outputs {
-                            arg.value_store = Some(graph_data_rc.clone());
-                        }
-                    }
-                }
-            }
-
             // NOTE: potential start of custom functions
             // can filter, coalesce, or modify the nodes here
             // args : node, peek_iter, graph_data
@@ -161,31 +198,9 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
-            // Register ALL Constant nodes so their values can be accessed via has_value() and get_value()
-            // This includes: initializer constants (already registered), converted Identity nodes,
-            // and explicit ONNX Constant nodes
-            if node.node_type == NodeType::Constant && !node.outputs.is_empty() {
-                let future_output_name = format!("{}_out1", node.name);
-                let node_idx = {
-                    let graph_data = graph_data_rc.borrow();
-                    graph_data.get_current_index()
-                };
-
-                // Only register if not already registered (e.g., initializer constants)
-                {
-                    let mut graph_data = graph_data_rc.borrow_mut();
-                    if !graph_data.constant_nodes.contains_key(&future_output_name) {
-                        graph_data
-                            .constant_nodes
-                            .insert(future_output_name.clone(), node_idx);
-                    }
-                } // Explicitly drop mutable borrow here
-            }
-
-            // Lift constants (ensure constant inputs are accessible)
-            // lift_constants returns a list of input names that COULD be lifted
-            // We filter by has_value() to only lift actual constants
-            let potential_lifts = processor
+            // Lift constants - with central store, just need to call lift_constants
+            // The processor can access constant values via .value() if data_id is set
+            let _lifted = processor
                 .lift_constants(&mut node, opset_version)
                 .unwrap_or_else(|e| {
                     panic!(
@@ -193,63 +208,6 @@ impl OnnxGraphBuilder {
                         node.name, node.node_type, e
                     )
                 });
-
-            // Filter to only lift inputs that are constants (have values available)
-            // All constants are liftable - initializers, ONNX Constant nodes, etc.
-            // Check GraphData directly to avoid RefCell borrow conflicts
-            let lifted: Vec<String> = {
-                let graph_data = graph_data_rc.borrow();
-                potential_lifts
-                    .into_iter()
-                    .filter(|input_name| graph_data.has_value(input_name))
-                    .collect()
-            }; // Drop immutable borrow here
-
-            // Make lifted constants accessible by caching their values
-            // Identity nodes with constant values have already been converted to Constant nodes
-            for input_name in &lifted {
-                {
-                    let mut graph_data = graph_data_rc.borrow_mut();
-
-                    // Get the value from the constant and cache it
-                    if let Some(value) = graph_data.get_value(input_name) {
-                        // Cache the value to ensure it stays available for burn-import
-                        graph_data.consumed_values.insert(input_name.clone(), value);
-                        log::debug!("Lifted constant {} for node {}", input_name, node.name);
-
-                        // Only remove constants that are ALWAYS embedded statically in configs
-                        // Conv/Linear weights are fully embedded and never referenced in forward()
-                        // Other node types (Reshape, Slice, etc.) may use Runtime constants
-                        let should_remove = matches!(
-                            node.node_type,
-                            NodeType::Conv1d
-                                | NodeType::Conv2d
-                                | NodeType::Conv3d
-                                | NodeType::ConvTranspose1d
-                                | NodeType::ConvTranspose2d
-                                | NodeType::ConvTranspose3d
-                                | NodeType::Linear
-                        );
-
-                        if should_remove
-                            && let Some(&const_node_idx) = graph_data.constant_nodes.get(input_name)
-                        {
-                            graph_data.nodes_to_remove.insert(const_node_idx);
-                            log::debug!(
-                                "Marked constant node at index {} for removal (fully embedded in {} config)",
-                                const_node_idx,
-                                node.name
-                            );
-                        }
-                    } else {
-                        log::warn!(
-                            "Failed to lift constant {} for node {} - value not found",
-                            input_name,
-                            node.name
-                        );
-                    }
-                } // Explicitly drop mutable borrow before next iteration
-            }
 
             // Extract config first
             let config = processor
@@ -278,55 +236,27 @@ impl OnnxGraphBuilder {
             graph_data_rc.borrow_mut().processed_nodes = nodes;
         }
 
-        // Cache all Constant node values for burn-import to access
-        // This ensures burn-import can generate code for ALL constants, not just lifted ones
-        {
-            let mut graph_data = graph_data_rc.borrow_mut();
-
-            // Collect constant nodes that need caching (to avoid borrow issues)
-            let constant_outputs: Vec<String> = graph_data
-                .processed_nodes
-                .iter()
-                .filter(|node| node.node_type == NodeType::Constant && !node.outputs.is_empty())
-                .map(|node| node.outputs[0].name.clone())
-                .collect();
-
-            // Cache values for all constant nodes
-            for output_name in constant_outputs {
-                if !graph_data.consumed_values.contains_key(&output_name)
-                    && let Some(value) = graph_data.get_value(&output_name)
-                {
-                    graph_data
-                        .consumed_values
-                        .insert(output_name.clone(), value);
-                    log::debug!("Cached constant {} value for burn-import", output_name);
-                }
-            }
-        }
-
-        // Extract the processed graph data and preserve consumed_values for burn-import
+        // Extract the processed graph data while preserving tensor_data for .value() access
         let (mut processed_nodes, inputs, outputs, nodes_to_remove) = {
             let mut graph_data = graph_data_rc.borrow_mut();
 
-            // Extract consumed_values before consuming
-            let consumed_values = std::mem::take(&mut graph_data.consumed_values);
+            // Clone tensor_data before consuming (we need to keep it in GraphData for .value())
+            let tensor_data_clone = graph_data.tensor_data.clone();
+            let next_tensor_id = graph_data.next_tensor_id;
 
-            // Consume the old graph_data
-            let result =
-                std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume();
+            // Consume to get nodes/inputs/outputs
+            let result = std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume();
 
-            // Restore consumed_values so burn-import can access them via into_value()
-            graph_data.consumed_values = consumed_values;
+            // Restore tensor_data so .value() still works for burn-import
+            // This allows Arguments to access their data via data_id
+            graph_data.tensor_data = tensor_data_clone;
+            graph_data.next_tensor_id = next_tensor_id;
 
-            (result.0, result.1, result.2, result.3)
+            result
         };
 
-        // Filter out nodes marked for removal
-        //
-        // Lifted constants whose values are fully embedded in node configs (e.g., Conv1d weights
-        // serialized in Conv1dRecord, Linear weights, etc.) are marked for removal during the
-        // lifting process. Their values remain accessible via consumed_values for burn-import
-        // to generate serialized weights, but they don't need to exist as separate Constant nodes.
+        // Note: With the central tensor store, constant values are always accessible
+        // via data_id, so no need to cache in consumed_values or filter Constant nodes.
         //
         // Constants that are still needed at runtime (e.g., shape constants accessed during
         // execution) are not marked for removal and will appear in the final graph.
@@ -379,6 +309,7 @@ impl OnnxGraphBuilder {
             nodes: processed_nodes,
             inputs,
             outputs,
+            _graph_data: Some(graph_data_rc),
         }
     }
 

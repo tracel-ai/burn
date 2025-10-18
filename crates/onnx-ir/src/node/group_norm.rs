@@ -101,7 +101,7 @@ impl NodeProcessor for GroupNormProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .as_ref()
             .ok_or_else(|| {
                 ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())

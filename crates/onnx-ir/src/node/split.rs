@@ -151,7 +151,7 @@ impl NodeProcessor for SplitProcessor {
 
         // Check for custom split sizes provided as a second input
         if node.inputs.len() > 1 {
-            split_sizes = match node.inputs[1].into_value() {
+            split_sizes = match node.inputs[1].value() {
                 None => {
                     // Runtime input - no static value available
                     Some(SplitSizesInput::Runtime(RuntimeInputRef::new(

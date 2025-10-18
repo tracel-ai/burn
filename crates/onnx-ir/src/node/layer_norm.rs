@@ -77,7 +77,7 @@ impl NodeProcessor for LayerNormProcessor {
 
         // Validate axis attribute before extracting config
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .ok_or_else(|| {
                 ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
             })?
@@ -117,7 +117,7 @@ impl NodeProcessor for LayerNormProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .ok_or_else(|| {
                 ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
             })?

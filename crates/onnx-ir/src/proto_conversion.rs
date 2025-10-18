@@ -251,6 +251,8 @@ impl TryFrom<ValueInfoProto> for Argument {
         Ok(Argument {
             ty,
             name,
+            data_id: None,
+
             value_store: None,
         })
     }

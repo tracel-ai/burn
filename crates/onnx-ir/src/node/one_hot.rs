@@ -101,7 +101,7 @@ impl NodeProcessor for OneHotProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        let depth = match node.inputs[1].into_value() {
+        let depth = match node.inputs[1].value() {
             None => {
                 // Runtime input - no static value available
                 OneHotDepthInput::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
@@ -112,7 +112,7 @@ impl NodeProcessor for OneHotProcessor {
             }
         };
 
-        let values = match node.inputs[2].into_value() {
+        let values = match node.inputs[2].value() {
             None => {
                 // Runtime input - no static value available
                 OneHotValuesInput::Runtime(RuntimeInputRef::new(node.inputs[2].name.clone(), 2))

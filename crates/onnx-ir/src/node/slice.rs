@@ -247,7 +247,7 @@ impl NodeProcessor for SliceProcessor {
             // Check if this is a Shape type (preferred for Slice parameters)
             if matches!(input.ty, ArgType::Shape(_)) {
                 // Try to get static value if available
-                match input.into_value() {
+                match input.value() {
                     Some(TensorData {
                         data: Data::Int64s(values),
                         ..
@@ -270,7 +270,7 @@ impl NodeProcessor for SliceProcessor {
             }
 
             // Otherwise, handle as Tensor (backward compatibility)
-            match input.into_value() {
+            match input.value() {
                 None => {
                     // Runtime input - store reference instead of cloning the argument
                     Ok(Some(SliceInput::Runtime(RuntimeInputRef::new(

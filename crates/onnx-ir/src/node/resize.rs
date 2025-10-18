@@ -76,7 +76,7 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match input.into_value() {
+                    match input.value() {
                         Some(TensorData { data, .. }) => {
                             let mut scales = data.clone().into_f32s();
                             if scales.is_empty() {
@@ -123,7 +123,7 @@ fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
             match &input.ty {
                 ArgType::Tensor(_) => {
                     // Check if it's a constant tensor
-                    match input.into_value() {
+                    match input.value() {
                         Some(TensorData { data, .. }) => {
                             let mut sizes: Vec<usize> = data
                                 .clone()
@@ -267,7 +267,7 @@ impl NodeProcessor for ResizeProcessor {
             .inputs
             .get(1)
             .map(|input| {
-                if let Some(TensorData { data, .. }) = input.into_value() {
+                if let Some(TensorData { data, .. }) = input.value() {
                     data.clone().into_f32s()
                 } else {
                     vec![]

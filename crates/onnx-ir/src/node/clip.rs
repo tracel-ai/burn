@@ -83,7 +83,7 @@ impl NodeProcessor for ClipProcessor {
                 return None;
             }
 
-            match input.into_value() {
+            match input.value() {
                 None => {
                     // Runtime input - store reference instead of cloning the argument
                     Some(ClipInput::Runtime(RuntimeInputRef::new(

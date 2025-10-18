@@ -225,26 +225,21 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
 impl OnnxIntoNode for ConstantNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType};
+        use onnx_ir::ir::{ArgType, Data, ElementType};
 
         let output = node.outputs.first().unwrap();
 
-        // Get the value directly from node attributes
-        let value_keys = [
-            "value",
-            "value_float",
-            "value_floats",
-            "value_int",
-            "value_ints",
-            "value_string",
-            "value_strings",
-            "sparse_value",
-        ];
-
-        let attr_value = value_keys
-            .iter()
-            .find_map(|&key| node.attrs.get(key))
-            .expect("Constant should have a value attribute");
+        // Get the tensor data from the central store via the output argument
+        let tensor_data = if let Some(data) = output.value() {
+            data
+        } else {
+            panic!(
+                "Constant node '{}' output '{}' missing tensor data: data_id={:?}",
+                node.name,
+                output.name,
+                output.data_id
+            );
+        };
 
         // Helper to map elem type to ConstantValue (single scalar)
         fn scalar_from_data(elem: ElementType, data: Data) -> ConstantValue {
@@ -291,12 +286,6 @@ impl OnnxIntoNode for ConstantNode {
 
         let const_value = match &output.ty {
             ArgType::Shape(rank) => {
-                // Extract tensor data from attribute
-                let tensor_data = match attr_value {
-                    AttributeValue::Tensor(td) => td,
-                    _ => panic!("Expected Tensor attribute for Shape constant"),
-                };
-
                 let shape_values: Vec<usize> = tensor_data
                     .data
                     .clone()
@@ -310,26 +299,14 @@ impl OnnxIntoNode for ConstantNode {
 
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
-                    // Extract scalar data from attribute
-                    let data = match attr_value {
-                        AttributeValue::Tensor(td) => td.data.clone(),
-                        AttributeValue::Float32(f) => Data::Float32(*f),
-                        AttributeValue::Int64(i) => Data::Int64(*i),
-                        _ => panic!("Unsupported attribute type for scalar constant"),
-                    };
-                    scalar_from_data(tensor.elem_type.clone(), data)
+                    // Extract scalar data from tensor_data
+                    scalar_from_data(tensor.elem_type.clone(), tensor_data.data.clone())
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
 
-                    // Extract tensor data from attribute
-                    let tensor_data = match attr_value {
-                        AttributeValue::Tensor(td) => td,
-                        _ => panic!("Expected Tensor attribute for tensor constant"),
-                    };
-
-                    let tensor_data = match &tensor.elem_type {
+                    let serialized_data = match &tensor.elem_type {
                         ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
                             serialize_float_data(
                                 tensor_data.data.clone(),
@@ -349,18 +326,13 @@ impl OnnxIntoNode for ConstantNode {
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
 
-                    ConstantValue::Tensor(TensorType::new(name, rank, kind), tensor_data)
+                    ConstantValue::Tensor(TensorType::new(name, rank, kind), serialized_data)
                 }
             }
 
             ArgType::Scalar(elem_type) => {
-                // Extract scalar data from attribute
-                let data = match attr_value {
-                    AttributeValue::Tensor(td) => td.data.clone(),
-                    AttributeValue::Float32(f) => Data::Float32(*f),
-                    AttributeValue::Int64(i) => Data::Int64(*i),
-                    _ => panic!("Unsupported attribute type for scalar constant"),
-                };
+                // Extract scalar data from tensor_data
+                let data = tensor_data.data.clone();
 
                 match elem_type {
                     ElementType::Float64 => ConstantValue::Float64(data.into_f64()),

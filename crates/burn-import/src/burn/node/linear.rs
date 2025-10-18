@@ -131,11 +131,13 @@ impl OnnxIntoNode for LinearNode {
             }
 
             let input = node.inputs.get(input_index)?;
-            let value = input.into_value()?;
+            let value = input.value()?;
             let ty = input.ty.clone();
 
             match ty {
-                ArgType::Tensor(_) => {
+                ArgType::Tensor(_) | ArgType::Shape(_) | ArgType::Scalar(_) => {
+                    // For Tensor, Shape, and Scalar types, extract the underlying tensor data
+                    // All types have tensor data in the central store
                     let data = value.data.clone();
                     let shape = value.shape.clone();
 
@@ -145,12 +147,11 @@ impl OnnxIntoNode for LinearNode {
                         Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
                         Data::Int32s(val) => TensorData::new(val, shape).convert::<f32>(),
                         Data::Int64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                        _ => panic!("Unsupported tensor element type"),
+                        _ => panic!("Unsupported tensor element type: {:?}", data),
                     };
 
                     Some(tensor_data)
                 }
-                _ => panic!("Unsupported serialization type"),
             }
         }
 

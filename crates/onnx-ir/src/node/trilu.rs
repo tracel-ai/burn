@@ -86,7 +86,7 @@ impl NodeProcessor for TriluProcessor {
             && let Some(TensorData {
                 data: Data::Int64(diagonal_val),
                 ..
-            }) = &diagonal_arg.into_value()
+            }) = &diagonal_arg.value()
         {
             diagonal = *diagonal_val;
         }

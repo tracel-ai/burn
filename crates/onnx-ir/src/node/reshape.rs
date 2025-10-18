@@ -193,7 +193,7 @@ fn get_rank_from_output(node: &Node) -> Option<usize> {
 fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
-        && let Some(value) = node.inputs[1].into_value()
+        && let Some(value) = node.inputs[1].value()
         && let Data::Int64s(shape) = &value.data
     {
         return Some(shape.clone());
@@ -216,7 +216,7 @@ fn extract_shape_input(node: &Node) -> ReshapeInput {
 
 /// Extract shape from tensor input
 fn extract_tensor_shape(node: &Node) -> ReshapeInput {
-    match node.inputs[1].into_value() {
+    match node.inputs[1].value() {
         Some(TensorData { data, shape, .. }) => {
             assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
             ReshapeInput::Static(data.clone().into_i64s())
@@ -307,7 +307,7 @@ impl NodeProcessor for ReshapeProcessor {
                 // Extract shape from tensor input
                 // Note: We don't validate rank here because extract_config runs before type inference
                 // The rank might be 0 initially and will be updated during type inference
-                match node.inputs[1].into_value() {
+                match node.inputs[1].value() {
                     Some(TensorData { data, shape, .. }) => {
                         // Only validate when we have actual tensor data
                         assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");

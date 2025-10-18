@@ -50,6 +50,7 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
                 Argument {
@@ -59,12 +60,14 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
             ],
             outputs: vec![Argument {
                 name: "result".to_string(),
                 ty: ArgType::default(),
+                data_id: None,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -95,6 +98,7 @@ mod tests {
                         rank: 3,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
                 Argument {
@@ -104,6 +108,7 @@ mod tests {
                         rank: 3,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
                 Argument {
@@ -113,12 +118,14 @@ mod tests {
                         rank: 3,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
             ],
             outputs: vec![Argument {
                 name: "result".to_string(),
                 ty: ArgType::default(),
+                data_id: None,
                 value_store: None,
             }],
             attrs: Default::default(),

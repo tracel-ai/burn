@@ -121,7 +121,7 @@ impl NodeProcessor for Conv2dProcessor {
         let mut group: usize = 1;
 
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .ok_or_else(|| {
                 ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
             })?

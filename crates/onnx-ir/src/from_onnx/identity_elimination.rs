@@ -160,7 +160,16 @@ pub(super) fn apply_identity_elimination(
         rewire_map.len()
     );
 
-    // Step 1: Resolve transitive rewiring
+    // Step 1: Build a map from output names to Arguments
+    // This allows us to look up data_id and value_store when rewiring
+    let mut output_arg_map: HashMap<String, crate::ir::Argument> = HashMap::new();
+    for node in nodes.iter() {
+        for output in &node.outputs {
+            output_arg_map.insert(output.name.clone(), output.clone());
+        }
+    }
+
+    // Step 2: Resolve transitive rewiring
     // If A -> B and B -> C, we need to make sure we map A -> C directly
     let mut resolved_rewire_map = rewire_map.clone();
     for (output, input) in rewire_map.iter() {
@@ -182,34 +191,56 @@ pub(super) fn apply_identity_elimination(
         resolved_rewire_map.insert(output.clone(), current);
     }
 
-    // Step 2: Rewire all node inputs to bypass removed Identity nodes
+    // Step 3: Rewire all node inputs to bypass removed Identity nodes
+    // Copy data_id, value_store, and ty from source argument
     for node in nodes.iter_mut() {
         for input in &mut node.inputs {
-            if let Some(original_input) = resolved_rewire_map.get(&input.name) {
+            if let Some(original_input_name) = resolved_rewire_map.get(&input.name) {
                 log::debug!(
                     "Rewiring input {} -> {} in node {}",
                     input.name,
-                    original_input,
+                    original_input_name,
                     node.name
                 );
-                input.name = original_input.clone();
+
+                // Look up the source argument to copy its data_id and value_store
+                if let Some(source_arg) = output_arg_map.get(original_input_name) {
+                    input.name = original_input_name.clone();
+                    input.data_id = source_arg.data_id;
+                    input.value_store = source_arg.value_store.clone();
+                    input.ty = source_arg.ty.clone();
+                } else {
+                    // Fallback: just update the name if source not found
+                    input.name = original_input_name.clone();
+                }
             }
         }
     }
 
-    // Step 3: Update graph outputs to bypass removed Identity nodes
+    // Step 4: Update graph outputs to bypass removed Identity nodes
+    // Copy data_id, value_store, and ty from source argument
     for output in outputs.iter_mut() {
-        if let Some(original_output) = resolved_rewire_map.get(&output.name) {
+        if let Some(original_output_name) = resolved_rewire_map.get(&output.name) {
             log::debug!(
                 "Rewiring graph output {} -> {}",
                 output.name,
-                original_output
+                original_output_name
             );
-            output.name = original_output.clone();
+
+            // Look up the source argument to copy its data_id and value_store
+            if let Some(source_arg) = output_arg_map.get(original_output_name) {
+                output.name = original_output_name.clone();
+                output.data_id = source_arg.data_id;
+                output.value_store = source_arg.value_store.clone();
+                output.ty = source_arg.ty.clone();
+            } else {
+                // Fallback: just update the name if source not found
+                output.name = original_output_name.clone();
+            }
         }
     }
 
-    // Step 4: Remove the Identity nodes
+    // Step 5: Remove the Identity nodes
     let mut i = 0;
     nodes.retain(|_| {
         let keep = !nodes_to_remove.contains(&i);
@@ -236,6 +267,7 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
+                data_id: None,
                 value_store: None,
             }],
             outputs: vec![Argument {
@@ -245,6 +277,7 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
+                data_id: None,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -264,6 +297,7 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
                 Argument {
@@ -273,6 +307,7 @@ mod tests {
                         rank: 2,
                         static_shape: None,
                     }),
+                    data_id: None,
                     value_store: None,
                 },
             ],
@@ -283,6 +318,7 @@ mod tests {
                     rank: 2,
                     static_shape: None,
                 }),
+                data_id: None,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -336,6 +372,7 @@ mod tests {
                 rank: 2,
                 static_shape: None,
             }),
+            data_id: None,
             value_store: None,
         }];
 

@@ -133,7 +133,7 @@ impl NodeProcessor for Convtranspose3dProcessor {
         }
 
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .ok_or_else(|| {
                 ProcessError::Custom("ConvTranspose3d: weight tensor must be present".to_string())
             })?

@@ -34,6 +34,9 @@ pub trait NodeConfig {
 pub type Rank = usize;
 pub type Shape = Vec<usize>;
 
+/// Unique identifier for tensor data in the central store
+pub type TensorId = usize;
+
 /// A node input or output.
 #[derive(Clone)]
 pub struct Argument {
@@ -42,6 +45,11 @@ pub struct Argument {
 
     /// The type of the argument.
     pub ty: ArgType,
+
+    /// Unique ID referencing tensor data in central store
+    /// Some = this argument has constant/static data available
+    /// None = runtime data only
+    pub data_id: Option<TensorId>,
 
     /// Reference to the value store for lazy constant lookup and type expectations
     pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphData>>>,
@@ -52,6 +60,7 @@ impl fmt::Debug for Argument {
         f.debug_struct("Argument")
             .field("name", &self.name)
             .field("ty", &self.ty)
+            .field("data_id", &self.data_id)
             .field(
                 "value_store",
                 &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"),
@@ -64,6 +73,7 @@ impl Argument {
     /// Copy everything except the name from the other argument
     pub fn copy_value(&mut self, other_arg: &Argument) {
         self.ty = other_arg.ty.clone();
+        self.data_id = other_arg.data_id;
     }
 
     /// Create an Argument and TensorData from an initializer
@@ -79,6 +89,8 @@ impl Argument {
                     Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
+                        data_id: None,
+
                         value_store: None,
                     }
                 } else {
@@ -89,6 +101,8 @@ impl Argument {
                             rank: td.shape.len(),
                             static_shape: Some(td.shape.clone()),
                         }),
+                        data_id: None,
+
                         value_store: None,
                     }
                 };
@@ -143,6 +157,8 @@ impl Argument {
                     let arg = Self {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
+                        data_id: None,
+
                         value_store: None,
                     };
                     return (arg, td);
@@ -193,6 +209,8 @@ impl Argument {
                             rank: shape_usize.len(),
                             static_shape: Some(shape_usize.clone()),
                         }),
+                        data_id: None,
+
                         value_store: None,
                     };
                     let td = TensorData {
@@ -321,17 +339,18 @@ impl Argument {
         Self {
             name,
             ty: ArgType::default(),
+            data_id: None,
+
             value_store: None,
         }
     }
 
-    /// Get the constant value for this argument
-    /// The value is retrieved from the Constant node's attributes or consumed cache
-    /// The constant node is NOT removed - all Constant nodes are kept in the graph
-    pub fn into_value(&self) -> Option<TensorData> {
-        self.value_store
-            .as_ref()
-            .and_then(|store| store.borrow().get_value(&self.name))
+    /// Get the constant value for this argument by ID from central store
+    /// Returns None if this argument has no data_id or data not found
+    pub fn value(&self) -> Option<TensorData> {
+        let store = self.value_store.as_ref()?;
+        let data_id = self.data_id?;
+        store.borrow().get_tensor_data(data_id).cloned()
     }
 
     /// Indicate that this argument is expected to be a specific type
@@ -415,6 +434,10 @@ pub struct OnnxGraph {
 
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
+
+    /// Reference to GraphData to keep tensor data alive for .value() access
+    /// This ensures Arguments can access tensor data via their data_id
+    pub(crate) _graph_data: Option<std::rc::Rc<std::cell::RefCell<crate::from_onnx::GraphData>>>,
 }
 
 /// Nodes produced by the ONNX parser
@@ -1069,6 +1092,8 @@ impl From<AttributeValue> for Argument {
             AttributeValue::Float32(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Float32),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::Float32s(values) => Argument {
@@ -1078,11 +1103,15 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::Int64(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::Int64s(values) => Argument {
@@ -1092,11 +1121,15 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::String(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::String),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::Strings(values) => Argument {
@@ -1106,6 +1139,8 @@ impl From<AttributeValue> for Argument {
                     static_shape: Some(vec![values.len()]),
                 }),
                 name,
+                data_id: None,
+
                 value_store: None,
             },
             AttributeValue::Tensor(tensor) => {
@@ -1114,6 +1149,8 @@ impl From<AttributeValue> for Argument {
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
                         name,
+                        data_id: None,
+
                         value_store: None,
                     }
                 } else {
@@ -1125,6 +1162,8 @@ impl From<AttributeValue> for Argument {
                             static_shape: Some(tensor.shape.clone()),
                         }),
                         name,
+                        data_id: None,
+
                         value_store: None,
                     }
                 }

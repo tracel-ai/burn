@@ -99,7 +99,7 @@ impl NodeProcessor for RangeProcessor {
                 ProcessError::MissingInput(format!("Range: {} parameter is required", param_name))
             })?;
 
-            match input.into_value() {
+            match input.value() {
                 None => Ok(RangeInput::Runtime(RuntimeInputRef::new(
                     input.name.clone(),
                     index,

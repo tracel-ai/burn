@@ -147,7 +147,7 @@ impl NodeProcessor for SqueezeProcessor {
             }
 
             let input = &node.inputs[1];
-            match input.into_value() {
+            match input.value() {
                 None => {
                     // Runtime input - no static value available
                     Some(SqueezeInput::Runtime(RuntimeInputRef::new(

@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::ir::{ArgType, Argument, Node, NodeType, TensorData};
+use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
 use crate::protos::{TensorProto, ValueInfoProto};
 
 /// Represents where an input comes from - either a graph input or a node output
@@ -18,6 +18,7 @@ pub(crate) enum IOEntry {
 }
 
 /// Manages intermediate state during ONNX graph conversion
+#[derive(Debug)]
 pub struct GraphData {
     /// The nodes that have been processed, used to copy the outputs to a child node
     pub(super) processed_nodes: Vec<Node>,
@@ -40,6 +41,12 @@ pub struct GraphData {
     /// Cached values from consumed constants (constant node removed, but value still accessible)
     /// Also used for lifted constants that need to be accessible via into_value()
     pub(crate) consumed_values: HashMap<String, TensorData>,
+
+    /// Central tensor data store: ID -> TensorData
+    /// All constant/static tensor data is stored here with unique IDs
+    pub(super) tensor_data: HashMap<TensorId, TensorData>,
+    /// Next available tensor ID
+    pub(super) next_tensor_id: TensorId,
 }
 
 impl GraphData {
@@ -54,42 +61,47 @@ impl GraphData {
         let mut processed_nodes = Vec::new();
         let mut constant_nodes = HashMap::new();
 
+        // Initialize central tensor data store
+        let mut tensor_data = HashMap::new();
+        let mut next_tensor_id = 0;
+
         // Convert all initializers to Constant nodes immediately
         let mut constants_map: HashMap<String, Argument> = HashMap::new();
         let mut tensor_data_map: HashMap<String, TensorData> = HashMap::new();
         for initializer in initializers.iter() {
-            let (arg, tensor_data) = Argument::from_initializer(initializer);
+            let (arg, data) = Argument::from_initializer(initializer);
             constants_map.insert(initializer.name.clone(), arg);
-            tensor_data_map.insert(initializer.name.clone(), tensor_data);
+            tensor_data_map.insert(initializer.name.clone(), data);
         }
 
         // Create Constant nodes for all initializers
         for (idx, initializer) in initializers.iter().enumerate() {
             if let Some(arg) = constants_map.get(&initializer.name) {
+                // Allocate ID and store tensor data in central store
+                let data_id = next_tensor_id;
+                next_tensor_id += 1;
+
+                if let Some(data) = tensor_data_map.get(&initializer.name) {
+                    tensor_data.insert(data_id, data.clone());
+                }
+
                 // Use same naming scheme as other constants: "constant1", "constant2", etc.
                 let const_name = format!("constant{}", idx + 1);
                 let output_name = format!("{}_out1", const_name);
 
-                let mut constant_node = Node {
+                let constant_node = Node {
                     node_type: NodeType::Constant,
                     name: const_name.clone(),
                     inputs: vec![],
                     outputs: vec![Argument {
                         name: output_name.clone(),
                         ty: arg.ty.clone(),
+                        data_id: Some(data_id), // Set the ID for central store lookup
                         value_store: None,
                     }],
-                    attrs: HashMap::new(),
+                    attrs: HashMap::new(), // No tensor data in attributes
                     config: None,
                 };
-
-                // Store the value in the 'value' attribute
-                if let Some(tensor_data) = tensor_data_map.get(&initializer.name) {
-                    constant_node.attrs.insert(
-                        "value".to_string(),
-                        crate::ir::AttributeValue::Tensor(tensor_data.clone()),
-                    );
-                }
 
                 let node_idx = processed_nodes.len();
 
@@ -144,6 +156,8 @@ impl GraphData {
             constant_nodes,
             nodes_to_remove: HashSet::new(),
             consumed_values: HashMap::new(),
+            tensor_data,
+            next_tensor_id,
         }
     }
 
@@ -300,7 +314,7 @@ impl GraphData {
         data: crate::ir::Data,
         shape: Vec<usize>,
     ) {
-        use crate::ir::{AttributeValue, NodeType, TensorData};
+        use crate::ir::{NodeType, TensorData};
 
         // Determine element type from data
         let elem_type = match &data {
@@ -330,7 +344,12 @@ impl GraphData {
             shape: shape.clone(),
         };
 
-        let mut constant_node = Node {
+        // Allocate ID and store data in central store
+        let data_id = self.next_tensor_id;
+        self.next_tensor_id += 1;
+        self.tensor_data.insert(data_id, tensor_data);
+
+        let constant_node = Node {
             node_type: NodeType::Constant,
             name: const_node_name,
             inputs: vec![],
@@ -341,22 +360,37 @@ impl GraphData {
                     rank: shape.len(),
                     static_shape: Some(shape),
                 }),
+                data_id: Some(data_id), // Set the ID for central store lookup
                 value_store: None,
             }],
-            attrs: HashMap::new(),
+            attrs: HashMap::new(), // No tensor data in attributes
             config: None,
         };
-
-        // Store the value in the 'value' attribute
-        constant_node
-            .attrs
-            .insert("value".to_string(), AttributeValue::Tensor(tensor_data));
 
         // Register this constant
         let node_idx = self.processed_nodes.len();
         self.constant_nodes.insert(name.clone(), node_idx);
 
         self.processed_nodes.push(constant_node);
+    }
+
+    /// Allocate a new tensor ID and store data in central store
+    /// Returns the allocated ID
+    pub(crate) fn store_tensor_data(&mut self, data: TensorData) -> TensorId {
+        let id = self.next_tensor_id;
+        self.next_tensor_id += 1;
+        self.tensor_data.insert(id, data);
+        id
+    }
+
+    /// Get tensor data by ID from central store
+    pub(crate) fn get_tensor_data(&self, id: TensorId) -> Option<&TensorData> {
+        self.tensor_data.get(&id)
+    }
+
+    /// Get mutable tensor data by ID from central store
+    pub(crate) fn get_tensor_data_mut(&mut self, id: TensorId) -> Option<&mut TensorData> {
+        self.tensor_data.get_mut(&id)
     }
 
     /// Set the expected type for an argument
@@ -366,5 +400,15 @@ impl GraphData {
     pub(crate) fn set_expected_type(&mut self, _arg_name: String, _expected_ty: ArgType) {
         // Stub method - expected_types field was removed since it's never read
         // Kept for compatibility with Argument::should_be() calls
+    }
+
+    /// Get the data_id for a constant by name (for test utilities)
+    #[cfg(test)]
+    pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
+        self.constant_nodes
+            .get(name)
+            .and_then(|&idx| self.processed_nodes.get(idx))
+            .and_then(|node| node.outputs.first())
+            .and_then(|output| output.data_id)
     }
 }

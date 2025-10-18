@@ -100,7 +100,7 @@ impl NodeProcessor for GatherElementsProcessor {
         // Get indices input
         let indices_input = &node.inputs[1];
 
-        let indices = if let Some(value) = indices_input.into_value() {
+        let indices = if let Some(value) = indices_input.value() {
             // Static indices
             match &value.data {
                 Data::Int64s(vals) => GatherElementsInput::Static(vals.clone()),

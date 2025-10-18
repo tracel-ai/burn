@@ -130,6 +130,7 @@ mod tests {
                 rank: 3,
                 static_shape: None,
             }),
+            data_id: None,
             value_store: None,
         });
         let mut node = node;

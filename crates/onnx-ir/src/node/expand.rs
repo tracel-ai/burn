@@ -137,7 +137,7 @@ impl NodeProcessor for ExpandProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract config
-        let config = match node.inputs[1].into_value() {
+        let config = match node.inputs[1].value() {
             Some(TensorData {
                 data: Data::Int64s(shape),
                 ..

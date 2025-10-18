@@ -1,4 +1,4 @@
-use crate::ir::{ArgType, AttributeValue, ElementType, Node, TensorType};
+use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct ConstantProcessor;
@@ -15,73 +15,29 @@ impl NodeProcessor for ConstantProcessor {
 
         log::debug!("Constant rank inference for node {}", node.name);
 
-        let keys = [
-            "value",
-            "value_float",
-            "value_floats",
-            "value_int",
-            "value_ints",
-            "value_string",
-            "value_strings",
-            "sparse_value",
-        ];
+        // Get tensor data from central store via output's data_id
+        let output = &node.outputs[0];
+        let tensor_data = output
+            .value()
+            .ok_or_else(|| ProcessError::MissingAttribute("value (from central store)".to_string()))?;
 
-        let matched_value = keys.iter().find_map(|&key| node.attrs.get(key).cloned());
-        log::debug!("Constant found attribute: {}", matched_value.is_some());
+        log::debug!("Constant found data in central store: true");
 
-        // First, determine the base type from the constant value
-        let base_type = match matched_value {
-            Some(value) => match &value {
-                AttributeValue::Tensor(tensor) if tensor.shape.is_empty() => {
-                    log::debug!("Constant as scalar for {}", node.name);
-                    ArgType::Scalar(tensor.elem_type())
-                }
-                AttributeValue::Tensor(tensor) => {
-                    log::debug!(
-                        "Constant tensor with rank {} for {}",
-                        tensor.shape.len(),
-                        node.name
-                    );
-                    ArgType::Tensor(TensorType {
-                        elem_type: tensor.elem_type(),
-                        rank: tensor.shape.len(),
-                        static_shape: Some(tensor.shape.clone()),
-                    })
-                }
-                AttributeValue::Float32(_) => {
-                    log::debug!("Constant Float32 scalar for {}", node.name);
-                    ArgType::Scalar(ElementType::Float32)
-                }
-                AttributeValue::Float32s(values) => {
-                    log::debug!("Constant Float32s tensor with rank 1 for {}", node.name);
-                    ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Float32,
-                        rank: 1,
-                        static_shape: Some(vec![values.len()]),
-                    })
-                }
-                AttributeValue::Int64(_) => {
-                    log::debug!("Constant Int64 scalar for {}", node.name);
-                    ArgType::Scalar(ElementType::Int64)
-                }
-                AttributeValue::Int64s(values) => {
-                    log::debug!("Constant Int64s tensor with rank 1 for {}", node.name);
-                    ArgType::Tensor(TensorType {
-                        elem_type: ElementType::Int64,
-                        rank: 1,
-                        static_shape: Some(vec![values.len()]),
-                    })
-                }
-                ty => {
-                    return Err(ProcessError::Custom(format!(
-                        "Constant value of {:?} is not supported",
-                        ty
-                    )));
-                }
-            },
-            None => {
-                return Err(ProcessError::MissingAttribute("value".to_string()));
-            }
+        // First, determine the base type from the tensor data
+        let base_type = if tensor_data.shape.is_empty() {
+            log::debug!("Constant as scalar for {}", node.name);
+            ArgType::Scalar(tensor_data.elem_type())
+        } else {
+            log::debug!(
+                "Constant tensor with rank {} for {}",
+                tensor_data.shape.len(),
+                node.name
+            );
+            ArgType::Tensor(TensorType {
+                elem_type: tensor_data.elem_type(),
+                rank: tensor_data.shape.len(),
+                static_shape: Some(tensor_data.shape.clone()),
+            })
         };
 
         // Check output preferences to see if consumers want this converted
@@ -159,20 +115,52 @@ impl NodeProcessor for ConstantProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{NodeType, TensorData};
+    use crate::ir::{ElementType, NodeType, TensorData};
     use crate::node::test_utils::NodeBuilder;
 
+    fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
+        use crate::from_onnx::GraphData;
+        use crate::ir::TensorData;
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        // Create GraphData and register the constant
+        let mut graph_data = GraphData::new(&[], &[], &[]);
+        graph_data.register_test_constant("test_value".to_string(), data, shape);
+
+        // Create a basic constant node
+        let mut node = NodeBuilder::new(NodeType::Constant, "test_constant")
+            .output_tensor_f32("output", 0, None)
+            .build();
+
+        // Get the data_id from the registered constant
+        let data_id = graph_data.get_constant_data_id("test_value");
+
+        // Set data_id on the output
+        if let Some(id) = data_id {
+            node.outputs[0].data_id = Some(id);
+        }
+
+        // Attach GraphData to output for .value() to work
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+        node.outputs[0].value_store = Some(graph_data_rc);
+
+        node
+    }
+
     fn create_test_node() -> Node {
+        // Create a node without data for testing missing value case
         NodeBuilder::new(NodeType::Constant, "test_constant")
-            .output_tensor_f32("output", 0, None) // This will be overwritten
+            .output_tensor_f32("output", 0, None)
             .build()
     }
 
     #[test]
     fn test_constant_scalar_float() {
-        let mut node = create_test_node();
-        node.attrs
-            .insert("value_float".to_string(), AttributeValue::Float32(6.14));
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Float32(6.14),
+            vec![],
+        );
 
         let processor = ConstantProcessor;
         let prefs = OutputPreferences::new();
@@ -188,13 +176,9 @@ mod tests {
 
     #[test]
     fn test_constant_tensor() {
-        let mut node = create_test_node();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![2, 3],
-                data: crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            }),
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            vec![2, 3],
         );
 
         let processor = ConstantProcessor;
@@ -222,13 +206,9 @@ mod tests {
 
     #[test]
     fn test_constant_1d_tensor_to_shape_with_preferences() {
-        let mut node = create_test_node();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![3], // 1D tensor with 3 elements
-                data: crate::ir::Data::Int64s(vec![10, 20, 30]),
-            }),
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Int64s(vec![10, 20, 30]),
+            vec![3], // 1D tensor with 3 elements
         );
 
         // Create preferences requesting Shape type
@@ -253,13 +233,9 @@ mod tests {
 
     #[test]
     fn test_constant_1d_tensor_without_preferences() {
-        let mut node = create_test_node();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![3],
-                data: crate::ir::Data::Int64s(vec![10, 20, 30]),
-            }),
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Int64s(vec![10, 20, 30]),
+            vec![3],
         );
 
         // No preferences
@@ -280,13 +256,9 @@ mod tests {
 
     #[test]
     fn test_constant_rank0_tensor_to_scalar_with_preferences() {
-        let mut node = create_test_node();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![], // rank 0 tensor
-                data: crate::ir::Data::Float32(42.0),
-            }),
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Float32(42.0),
+            vec![], // rank 0 tensor
         );
 
         // Create preferences requesting Scalar type
@@ -311,13 +283,9 @@ mod tests {
 
     #[test]
     fn test_constant_2d_tensor_ignores_shape_preference() {
-        let mut node = create_test_node();
-        node.attrs.insert(
-            "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![2, 3], // 2D tensor - cannot convert to Shape
-                data: crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            }),
+        let mut node = create_test_node_with_data(
+            crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            vec![2, 3], // 2D tensor - cannot convert to Shape
         );
 
         // Create preferences requesting Shape type (which shouldn't apply to 2D tensor)

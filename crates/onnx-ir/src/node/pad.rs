@@ -156,7 +156,7 @@ impl NodeProcessor for PadProcessor {
             // Check for pads input
             if node.inputs.len() > 1 {
                 let input = &node.inputs[1];
-                match input.into_value() {
+                match input.value() {
                     None => {
                         // Runtime input - store reference instead of cloning the argument
                         return Ok(PadInput::Runtime(RuntimeInputRef::new(
@@ -243,7 +243,7 @@ impl NodeProcessor for PadProcessor {
 
             // Check for constant value input
             if let Some(input) = node.inputs.get(2) {
-                match input.into_value() {
+                match input.value() {
                     None => {
                         // Runtime input - store reference instead of cloning the argument
                         return Ok(ConstantValueInput::Runtime(RuntimeInputRef::new(
@@ -561,6 +561,7 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
+            data_id: None,
             value_store: None,
         });
         let node = node;

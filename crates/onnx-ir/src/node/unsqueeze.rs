@@ -110,7 +110,7 @@ impl NodeProcessor for UnsqueezeProcessor {
                     data: Data::Int64s(shape),
                     shape: data_shape,
                     ..
-                }) = input_value.into_value().as_ref()
+                }) = input_value.value().as_ref()
                 {
                     // Validate actual tensor data shape
                     if data_shape.len() != 1 {

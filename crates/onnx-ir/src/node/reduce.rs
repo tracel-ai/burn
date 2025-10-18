@@ -197,11 +197,7 @@ impl NodeProcessor for ReduceProcessor {
         }
 
         // Process axes from additional input (if available)
-        if let Some(value) = node
-            .inputs
-            .get(1)
-            .and_then(|argument| argument.into_value())
-        {
+        if let Some(value) = node.inputs.get(1).and_then(|argument| argument.value()) {
             axes = value.data.into_i64s();
         }
 

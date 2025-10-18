@@ -67,17 +67,14 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
         "Input must have a value"
     );
 
-    // Get the constant node that holds the weight
-    let weight_input_name = &node.inputs[1].name;
-    let const_node = graph_data
-        .get_constant_value(weight_input_name)
-        .expect("Weight must be a constant");
-
-    // Get the tensor data from the constant node's attribute
-    let tensor_data = match const_node.attrs.get("value") {
-        Some(AttributeValue::Tensor(td)) => td.clone(),
-        _ => panic!("Constant node must have a tensor value attribute"),
-    };
+    // Get the tensor data directly from graph_data (avoid double borrow via value())
+    let data_id = node.inputs[1]
+        .data_id
+        .expect("Weight input must have data_id");
+    let tensor_data = graph_data
+        .get_tensor_data(data_id)
+        .expect("Weight must have tensor data in central store")
+        .clone();
 
     let data = &tensor_data.data;
     let shape = &tensor_data.shape;
@@ -111,12 +108,11 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
         _ => panic!("Only float types are supported for Linear node"),
     };
 
-    // Update the constant node's attribute with the transposed weights
-    // We need mutable access to the constant node
-    if let Some(constant_node) = graph_data.get_constant_value_mut(weight_input_name) {
-        constant_node
-            .attrs
-            .insert("value".to_string(), AttributeValue::Tensor(new_tensor_data));
+    // Update the central store with the transposed weights
+    if let Some(data_id) = node.inputs[1].data_id {
+        if let Some(stored_data) = graph_data.get_tensor_data_mut(data_id) {
+            *stored_data = new_tensor_data;
+        }
     }
 }
 

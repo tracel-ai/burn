@@ -72,7 +72,7 @@ impl NodeProcessor for TileProcessor {
         // Extract repeats config
         fn get_repeats(node: &Node) -> TileInput {
             if let Some(input) = node.inputs.get(1) {
-                match input.into_value() {
+                match input.value() {
                     None => {
                         // Runtime input - store reference instead of cloning the argument
                         TileInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1))

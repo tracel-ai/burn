@@ -100,7 +100,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 log::debug!("ConstantOfShape input is Tensor for {}", node.name);
 
                 // First check if we have a lifted constant value (most reliable)
-                if let Some(tensor_data) = node.inputs[0].into_value() {
+                if let Some(tensor_data) = node.inputs[0].value() {
                     // We have the actual constant values that were lifted
                     log::debug!(
                         "ConstantOfShape extracting rank from lifted constant value for {}",
@@ -198,7 +198,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Check if we have static values or need runtime resolution
-        let config = match node.inputs[0].into_value() {
+        let config = match node.inputs[0].value() {
             Some(TensorData {
                 data: Data::Int64s(shape),
                 ..

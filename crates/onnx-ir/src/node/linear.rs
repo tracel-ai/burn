@@ -97,7 +97,7 @@ impl NodeProcessor for LinearProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         let weight_shape = node.inputs[1]
-            .into_value()
+            .value()
             .ok_or_else(|| {
                 ProcessError::Custom("Linear: weight tensor must be present".to_string())
             })?
@@ -107,7 +107,7 @@ impl NodeProcessor for LinearProcessor {
         let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
         // check if the bias is present
-        let bias = node.inputs.len() == 3 && node.inputs[2].into_value().is_some();
+        let bias = node.inputs.len() == 3 && node.inputs[2].value().is_some();
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
         Ok(Some(Box::new(config)))

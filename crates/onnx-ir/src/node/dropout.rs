@@ -88,7 +88,7 @@ impl NodeProcessor for DropoutProcessor {
                     "Dropout: missing ratio input".to_string(),
                 ));
             }
-            Some(input) => match input.into_value() {
+            Some(input) => match input.value() {
                 None => {
                     // Runtime input - no static value available
                     DropoutInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1))

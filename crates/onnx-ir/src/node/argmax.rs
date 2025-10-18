@@ -209,6 +209,7 @@ mod tests {
                 rank: 1,
                 static_shape: None,
             }),
+            data_id: None,
             value_store: None,
         });
 
