@@ -86,7 +86,7 @@ impl Shape {
     /// # Returns
     /// - the ravel offset index.
     pub fn ravel<I: AsIndex>(&self, coords: &[I]) -> usize {
-        ravel_dims(&coords, &self.dims)
+        ravel_dims(coords, &self.dims)
     }
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
