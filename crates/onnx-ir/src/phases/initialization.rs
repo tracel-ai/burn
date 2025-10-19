@@ -6,10 +6,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{graph_state::GraphState, ir::NodeType, protos::ModelProto};
 
-/// Initialize graph state from ONNX model
-///
-/// Creates GraphState, processes initializers into Constant nodes,
-/// and sets up value_store references.
+/// Initialize GraphState, process initializers, attach value_store refs
 pub(crate) fn initialize(model: &ModelProto) -> Rc<RefCell<GraphState>> {
     let state = GraphState::new(
         &model.graph.input,

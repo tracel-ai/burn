@@ -22,11 +22,7 @@ struct ProcessedConstants {
     constant_nodes: HashMap<String, usize>,
 }
 
-/// Create a Constant node with a Static input
-///
-/// The constant's value is stored in the tensor store and referenced via data_id.
-/// The input has an empty name and ValueSource::Static.
-/// The output has a named output and ValueSource::Constant.
+/// Create a Constant node with Static input and Constant output
 fn create_constant_node(
     node_name: String,
     output_name: String,
@@ -55,10 +51,7 @@ fn create_constant_node(
     }
 }
 
-/// Process ONNX initializers into Constant nodes
-///
-/// Converts all initializers (weights, biases, etc.) into Constant nodes,
-/// stores their tensor data in the tensor store, and returns tracking maps.
+/// Convert ONNX initializers to Constant nodes, store in tensor store
 fn process_initializers(
     initializers: &[TensorProto],
     tensor_store: &mut TensorStore,
@@ -232,12 +225,7 @@ impl GraphState {
         });
     }
 
-    /// Add a node to the graph
-    ///
-    /// This function does three things:
-    ///     1. marks the inputs as passed
-    ///     2. maps the old output names to the node output
-    ///     3. renames the node output
+    /// Add a node (marks inputs as passed, maps outputs, renames outputs)
     pub(super) fn add_node(&mut self, mut node: Node) {
         log::debug!("Adding node {:?}", &node.name);
         self.mark_input_passed(&node);
@@ -261,7 +249,7 @@ impl GraphState {
         self.processed_nodes.push(node);
     }
 
-    /// Consumes the graph data and returns the processed nodes, filtered inputs, and outputs
+    /// Consume and return (nodes, filtered inputs, outputs)
     pub(super) fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         let mut filtered_inputs = Vec::new();
         for (i, input) in self.inputs.into_iter().enumerate() {
@@ -332,9 +320,7 @@ impl GraphState {
         self.tensor_store.get_mut(id)
     }
 
-    /// Get the data_id for a constant by output name
-    ///
-    /// This is used by Argument::to_static() to look up the data_id of a constant node
+    /// Get data_id for a constant by output name
     pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
         self.constant_nodes
             .get(output_name)

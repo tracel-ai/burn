@@ -15,21 +15,9 @@ use super::phases::{
     finalization, initialization, node_conversion, post_processing, type_inference,
 };
 
-/// Main entry point: Parse an ONNX file and convert to IR
+/// Parse an ONNX file and convert to IR
 ///
-/// # Arguments
-///
-/// * `onnx_path` - Path to the ONNX model file
-///
-/// # Returns
-///
-/// * `OnnxGraph` - The internal graph representation
-///
-/// # Panics
-///
-/// * If the file cannot be opened or parsed
-/// * If the model uses an unsupported opset version
-/// * If nodes are not topologically sorted
+/// Panics if file cannot be opened, opset < 16, or nodes not topologically sorted.
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
@@ -64,15 +52,8 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     graph
 }
 
-/// Build an IR graph from an ONNX model
-///
-/// This is the main conversion pipeline with clearly separated phases:
-///
-/// 1. **Initialization** - Create state, process initializers
-/// 2. **Node Conversion** - Convert ONNX nodes, extract constants, coalesce
-/// 3. **Type Inference** - Infer types iteratively with preferences
-/// 4. **Post-processing** - Identity elimination, constant lifting
-/// 5. **Finalization** - Remove unused constants, build final graph
+/// Build IR graph from ONNX model through 5 phases:
+/// 1. Initialization 2. Node Conversion 3. Type Inference 4. Post-processing 5. Finalization
 pub fn build_graph(model: &ModelProto) -> OnnxGraph {
     log::debug!(" PHASE 1: Initialization ");
     let state_rc = initialization::initialize(model);

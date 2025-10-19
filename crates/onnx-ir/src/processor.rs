@@ -104,40 +104,11 @@ pub enum ProcessError {
     Custom(String),
 }
 
-/// Node-specific processing logic trait.
-///
-/// Each node type implements this trait to declare how to process nodes
-/// during type inference and configuration extraction.
+/// Node-specific processing logic for type inference and configuration extraction
 pub trait NodeProcessor: Send + Sync {
-    /// Declare what types this node prefers to receive on its inputs.
+    /// Declare preferred types for inputs (propagated to producers as `output_preferences`)
     ///
-    /// This method allows a node to request specific types from its input producers.
-    /// The system propagates these preferences back to producer nodes as `output_preferences`,
-    /// which producers can optionally honor when setting their output types.
-    ///
-    /// # How it works:
-    /// 1. Consumer node declares `input_preferences()` - what types it prefers for each input
-    /// 2. System collects these and maps them to `OutputPreferences` for producer nodes
-    /// 3. Producer nodes receive these in `infer_types(node, opset, output_preferences)`
-    /// 4. Producers can optionally honor these preferences (e.g., Constant can convert to Shape/Scalar)
-    ///
-    /// # Example:
-    /// ```rust,ignore
-    /// // ArithmeticBinaryProcessor (Add, Sub, etc.) prefers Shape inputs when one operand is Shape
-    /// fn input_preferences(&self, node: &Node, _opset: usize) -> Result<Option<InputPreferences>, ProcessError> {
-    ///     if node.inputs[0].ty.is_shape() {
-    ///         // Request the second input to also be Shape for better type consistency
-    ///         Ok(Some(InputPreferences::new().add(&node.inputs[1].name, ArgPreference::Shape)))
-    ///     } else {
-    ///         Ok(None)
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// # Important:
-    /// - Preferences are requests, not requirements - producers may ignore them
-    /// - Not all producers honor preferences (e.g., Shape node always outputs Shape)
-    /// - Preferences help optimize type representations (e.g., Constant as Shape vs Tensor)
+    /// Preferences are requests, not requirements. Producers may honor them (e.g., Constant→Shape).
     fn input_preferences(
         &self,
         _node: &Node,
@@ -146,16 +117,7 @@ pub trait NodeProcessor: Send + Sync {
         Ok(None)
     }
 
-    /// Lift constant inputs by converting them to static values
-    ///
-    /// This method should call `to_static()` on any input arguments that should be
-    /// embedded as static values in the node configuration. After conversion:
-    /// - The argument's name is cleared ("")
-    /// - The argument's data_id is set to the constant's data
-    /// - The argument's value_source is changed from Constant to Static
-    ///
-    /// The constant node itself will be removed later during graph cleanup based on
-    /// reference counting (constants with no Constant/Dynamic references are removed).
+    /// Convert constant inputs to static values (embedded in config, unreferenced constants removed later)
     fn lift_constants(&self, _node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         Ok(())
     }

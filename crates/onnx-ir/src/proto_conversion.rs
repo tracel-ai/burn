@@ -45,7 +45,7 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
     }
 }
 
-/// Get the value of a constant node from its attributes
+/// Extract constant value from node attributes
 pub fn convert_constant_value(node: &Node) -> Argument {
     // A value can be stored in any of these attributes
     let keys = [

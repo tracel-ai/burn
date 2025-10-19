@@ -1,7 +1,6 @@
 //! Phase 3: Type Inference
 //!
-//! Implements iterative type inference with preference propagation.
-//! This alternates between type inference and preference collection until convergence.
+//! Iterative type inference with preference propagation until convergence.
 
 use std::{
     cell::RefCell,
@@ -15,9 +14,7 @@ use crate::{
     processor::{ArgPreference, get_processor_registry},
 };
 
-/// Phase 3: Infer types for all nodes
-///
-/// Extracts nodes temporarily to avoid RefCell borrow conflicts during type inference.
+/// Infer types for all nodes (extracts nodes to avoid borrow conflicts)
 pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usize) {
     // Extract nodes temporarily to avoid holding mutable borrow during type inference
     // (type inference may call .value() which needs immutable borrows)
@@ -31,19 +28,11 @@ pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usi
     );
 }
 
-/// Run iterative type inference with preference propagation
+/// Iterative type inference with preference propagation
 ///
-/// This alternates between type inference and preference collection until convergence.
-/// The algorithm works in multiple iterations:
+/// Algorithm: Build preferences → Sync types → Infer → Collect new preferences → Check convergence
 ///
-/// 1. Build OutputPreferences map from collected preferences
-/// 2. Sync input types from producer outputs (after first iteration)
-/// 3. Run infer_types on all nodes with current preferences
-/// 4. Collect NEW input_preferences based on inferred types
-/// 5. Check convergence (stop if no changes)
-///
-/// This allows preferences to be collected based on inferred types,
-/// enabling scenarios like Concat requesting Shape types after seeing Shape inputs.
+/// This allows runtime preference collection (e.g., Concat requests Shape after seeing Shape inputs).
 pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opset: usize) {
     let registry = get_processor_registry();
 
@@ -80,26 +69,9 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
             }
         }
 
-        // Step 2: Sync input types from producer outputs BEFORE inference
-        // This ensures nodes see correct input types after the first iteration.
-        //
-        // Why we skip iteration 1:
-        // On iteration 1, all outputs have default types (Tensor rank=0 from proto).
-        // Pre-syncing these defaults can cause problems for nodes like Concat/Reshape
-        // that need to see actual inferred types. So we let iteration 1 run infer_types
-        // first, then start pre-syncing from iteration 2 onwards.
-        //
-        // Why pre-sync is critical (starting iteration 2):
-        // Without pre-sync, on iteration 2+:
-        //   - Shape outputs Shape(3)
-        //   - Cast still sees stale Tensor(rank=0) input
-        //   - Cast incorrectly outputs Scalar
-        //   - Add requests Scalar preference
-        //
-        // With pre-sync, on iteration 2+:
-        //   - Shape has output Shape(3) in iteration 1
-        //   - Pre-sync propagates Shape(3) to Cast's input
-        //   - Cast sees Shape(3), outputs correctly
+        // Step 2: Sync input types from producer outputs (skipped on iteration 1)
+        // Iteration 1: Let nodes infer from proto defaults first
+        // Iteration 2+: Pre-sync ensures nodes see inferred types, not stale defaults
         if iteration > 1 {
             let output_types: HashMap<String, ArgType> = nodes
                 .iter()

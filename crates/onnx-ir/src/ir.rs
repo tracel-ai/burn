@@ -139,8 +139,8 @@ pub struct TensorType {
     /// The number of dimensions in the tensor
     pub rank: Rank,
 
-    /// The static shape information of the tensor determined during shape inference
-    pub static_shape: Option<Vec<usize>>, // TODO fill in with inferred shape information
+    /// Static shape if known (populated during shape inference)
+    pub static_shape: Option<Vec<usize>>,
 }
 
 impl Default for ElementType {
@@ -156,20 +156,22 @@ impl Default for ArgType {
 }
 
 impl ArgType {
-    /// Check if this argument is a scalar
+    /// Check if this is a scalar type
     pub fn is_scalar(&self) -> bool {
         matches!(self, Self::Scalar(_))
     }
-    /// Check if this argument is a tensor
+
+    /// Check if this is a tensor type
     pub fn is_tensor(&self) -> bool {
         matches!(self, Self::Tensor(_))
     }
-    /// Check if this argument is a shape
+
+    /// Check if this is a shape type
     pub fn is_shape(&self) -> bool {
         matches!(self, Self::Shape(_))
     }
 
-    /// returns the rank (dimension) of the Arg
+    /// Get the rank (number of dimensions)
     pub fn rank(&self) -> usize {
         match self {
             ArgType::Scalar(_) => 0,
@@ -178,7 +180,7 @@ impl ArgType {
         }
     }
 
-    /// returns the element type of the Arg
+    /// Get the element type
     pub fn elem_type(&self) -> &ElementType {
         match self {
             ArgType::Scalar(s) => s,
@@ -187,7 +189,7 @@ impl ArgType {
         }
     }
 
-    /// returns the static shape if available
+    /// Get the static shape if available
     pub fn static_shape(&self) -> Option<&Vec<usize>> {
         match self {
             ArgType::Tensor(t) => t.static_shape.as_ref(),
@@ -214,8 +216,7 @@ impl Argument {
         }
     }
 
-    /// Get the constant value for this argument by ID from central store
-    /// Returns None if this argument has no data_id or data not found
+    /// Get the constant value from the central tensor store
     pub fn value(&self) -> Option<TensorData> {
         let store = self.value_store.as_ref()?;
 
@@ -234,7 +235,7 @@ impl Argument {
         None
     }
 
-    /// Check if this argument is a static constant (embedded value)
+    /// Check if this is a static constant (embedded value)
     pub fn is_static(&self) -> bool {
         self.value_source == ValueSource::Static
     }
@@ -388,8 +389,8 @@ pub struct Node {
     /// The outputs of the node.
     pub outputs: Vec<Argument>,
 
-    /// The attributes of the node.
-    pub attrs: Attributes, // TODO make crate level
+    /// ONNX attributes (opset-specific parameters)
+    pub attrs: Attributes,
 
     /// Node-specific configuration (populated during processing)
     pub(crate) config: Option<Box<dyn NodeConfig>>,
@@ -460,8 +461,9 @@ impl fmt::Debug for Node {
     }
 }
 
-/// The list of supported node types (ONNX operators and some extra ones to map easily to Burn's ops)
-/// Refer: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
+/// Supported ONNX operators (plus Burn-specific extensions for dimensional mapping)
+///
+/// See: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,

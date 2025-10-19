@@ -1,21 +1,9 @@
 //! Phase 2: Node Conversion
 //!
-//! Converts ONNX nodes to IR nodes, extracts constants from attributes,
-//! performs coalescing, and lifts constants.
+//! Converts ONNX nodes to IR, performs node fusion and remapping:
 //!
-//! ## Node Coalescing
-//!
-//! This phase coalesces multiple ONNX nodes into single IR nodes:
-//! - Gemm → Linear (when alpha=1, beta=1, transB=1)
-//! - MatMul + Add → Linear (with bias)
-//!
-//! ## Node Type Remapping
-//!
-//! This phase remaps generic node types to dimensional-specific versions:
-//! - Conv → Conv1d/Conv2d/Conv3d (based on kernel_shape)
-//! - ConvTranspose → ConvTranspose1d/ConvTranspose2d/ConvTranspose3d
-//! - MaxPool → MaxPool1d/MaxPool2d
-//! - AveragePool → AveragePool1d/AveragePool2d
+//! **Coalescing**: Gemm → Linear, MatMul+Add → Linear
+//! **Remapping**: Conv → Conv1d/2d/3d, MaxPool → MaxPool1d/2d, etc.
 
 use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::Iter};
 
@@ -286,7 +274,7 @@ fn remap_node_type(node: &mut Node) {
 // Node Coalescing
 // ============================================================================
 
-/// The function transforms the graph into a new one where the nodes are coalesced into a single node.
+/// Coalesce adjacent nodes into a single node (Gemm→Linear, MatMul+Add→Linear)
 fn coalesce(
     node: &mut Node,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
@@ -302,9 +290,7 @@ fn coalesce(
     }
 }
 
-/// This function converts a Gemm node into a Linear node
-///
-/// PyTorch and other frameworks use Gemm node to represent Linear layer.
+/// Convert Gemm to Linear (when alpha=1, beta=1, transB=1)
 fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
@@ -333,7 +319,7 @@ fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
     }
 }
 
-// Transpose linear weights (required for Gemm -> Linear conversion)
+/// Transpose linear weights (required for Gemm → Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
     assert!(
         node.inputs.len() > 1,
@@ -418,12 +404,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
     transposed
 }
 
-/// This function converts a MatMul node into a Linear node if possible.
-///
-/// PyTorch and other frameworks use MatMul node to represent Linear layer.
-///
-/// This function also converts the following Add node into a Linear node if possible.
-/// Add node is used to represent bias in PyTorch.
+/// Convert MatMul to Linear, fusing the following Add node as bias if present
 fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
@@ -461,7 +442,7 @@ fn convert_matmul_to_linear(
     }
 }
 
-/// Helper function to check if the peeked node is an Add node with bias
+/// Check if the peeked node is an Add with bias for the current MatMul
 fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &GraphState) -> bool {
     // Check structural requirements first
     if peek_node.node_type != NodeType::Add || peek_node.inputs.len() != 2 {
@@ -475,7 +456,7 @@ fn is_add_node_with_bias(peek_node: &Node, current_node: &Node, graph_data: &Gra
             && graph_data.has_value(&peek_node.inputs[0].name))
 }
 
-/// Helper function to convert and remove the Add node
+/// Merge the Add node's bias into the MatMul node
 fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
     // The bias is whichever input is NOT the matmul output
     let bias_input = if bias_node.inputs[0].name == current_node.outputs[0].name {

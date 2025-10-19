@@ -1,6 +1,6 @@
 //! Phase 5: Finalization
 //!
-//! Removes unreferenced constant nodes and builds the final OnnxGraph.
+//! Removes unused constants and builds the final OnnxGraph.
 
 use std::{
     cell::RefCell,

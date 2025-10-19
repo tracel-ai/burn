@@ -1,15 +1,6 @@
 //! Phase 4: Post-processing
 //!
-//! Handles identity elimination and re-runs constant lifting on rewired nodes.
-//!
-//! ## Identity Elimination
-//!
-//! This phase handles the removal of Identity nodes from the graph.
-//! Identity nodes are eliminated in the following ways:
-//!
-//! 1. Convert to Constant if input is a constant (handled during node processing)
-//! 2. Remove pass-through Identity nodes by updating consumers to use the Identity's input directly
-//! 3. Preserve at least one Identity if graph would be empty or input directly maps to output
+//! Eliminates Identity nodes by rewiring consumers, preserves at least one if graph would be empty.
 
 use std::{
     cell::RefCell,
@@ -31,10 +22,7 @@ struct IdentityEliminationPlan {
     nodes_to_remove: HashSet<usize>,
 }
 
-/// Analyze the graph and create a plan for eliminating Identity nodes
-///
-/// This function identifies which Identity nodes can be safely removed
-/// and creates a rewiring map for updating node connections.
+/// Analyze which Identity nodes can be removed and create rewiring map
 fn plan_identity_elimination(
     nodes: &[Node],
     graph_inputs: &[Argument],
