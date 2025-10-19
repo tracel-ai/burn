@@ -14,15 +14,6 @@ use crate::protos::{TensorProto, ValueInfoProto};
 use super::constant_builder;
 use super::tensor_store::TensorStore;
 
-/// Represents where an input comes from - either a graph input or a node output
-#[derive(Debug, Clone)]
-pub(crate) enum IOEntry {
-    /// Input from a graph input at the given index
-    In(usize),
-    /// Input from a node output (node_index, output_index)
-    Node(usize, usize),
-}
-
 /// Manages intermediate state during ONNX graph conversion
 #[derive(Debug)]
 pub struct GraphData {
@@ -32,8 +23,10 @@ pub struct GraphData {
     inputs: Vec<Argument>,
     /// The outputs of the graph
     outputs: Vec<Argument>,
-    /// Maps ONNX input names to their source (graph input or node output)
-    input_name_map: HashMap<String, IOEntry>,
+    /// Maps ONNX names to graph input indices
+    graph_input_map: HashMap<String, usize>,
+    /// Maps ONNX names to node outputs (node_index, output_index)
+    node_output_map: HashMap<String, (usize, usize)>,
     /// Maps IR input names (input1, input2) back to ONNX names
     input_key_map: HashMap<String, String>,
     /// Tracks which graph inputs have been used by nodes
@@ -52,7 +45,8 @@ impl GraphData {
         initializers: &[TensorProto],
     ) -> Self {
         let mut tensor_store = TensorStore::new();
-        let mut input_name_map = HashMap::new();
+        let mut graph_input_map = HashMap::new();
+        let mut node_output_map = HashMap::new();
         let mut input_key_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
@@ -63,7 +57,7 @@ impl GraphData {
 
         // Map initializer names to their constant node outputs
         for (i, initializer) in initializers.iter().enumerate() {
-            input_name_map.insert(initializer.name.clone(), IOEntry::Node(i, 0));
+            node_output_map.insert(initializer.name.clone(), (i, 0));
         }
 
         let outputs = outputs
@@ -77,9 +71,9 @@ impl GraphData {
             .map(|(i, x)| {
                 let in_name = format!("input{}", i + 1);
 
-                // Only add to input_name_map if not already mapped to a constant
-                if !input_name_map.contains_key(&x.name) {
-                    input_name_map.insert(x.name.clone(), IOEntry::In(i));
+                // Only add to graph_input_map if not already an initializer
+                if !node_output_map.contains_key(&x.name) {
+                    graph_input_map.insert(x.name.clone(), i);
                 }
                 input_key_map.insert(in_name.clone(), x.name.clone());
 
@@ -93,7 +87,8 @@ impl GraphData {
             inputs,
             outputs,
             processed_nodes,
-            input_name_map,
+            graph_input_map,
+            node_output_map,
             input_key_map,
             passed_inputs: HashSet::new(),
             constant_nodes,
@@ -103,24 +98,23 @@ impl GraphData {
 
     /// Get the value of an input from the original input name. Used during proto conversion
     pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
-        match self.input_name_map.get(proto_str) {
-            Some(IOEntry::In(i)) => self.inputs[*i].clone(),
-            Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
-            None => {
-                log::warn!("Input {proto_str} not found, should only happen when peeking");
-                Argument::new(proto_str.to_string())
-            }
+        if let Some(&i) = self.graph_input_map.get(proto_str) {
+            self.inputs[i].clone()
+        } else if let Some(&(node_idx, output_idx)) = self.node_output_map.get(proto_str) {
+            self.processed_nodes[node_idx].outputs[output_idx].clone()
+        } else {
+            log::warn!("Input {proto_str} not found, should only happen when peeking");
+            Argument::new(proto_str.to_string())
         }
     }
 
-    /// Mark the graph_inputs to a node as passed, unless they are also initializers
+    /// Mark the graph_inputs to a node as passed
     fn mark_input_passed(&mut self, node: &Node) {
         node.inputs.iter().for_each(|node_input| {
-            if let Some(old_input_name) = self.input_key_map.get(&node_input.name)
-                && let Some(IOEntry::In(i)) = self.input_name_map.get(old_input_name)
+            if let Some(onnx_name) = self.input_key_map.get(&node_input.name)
+                && let Some(&i) = self.graph_input_map.get(onnx_name)
             {
-                // Only In entries are graph inputs; Node entries are initializers/node outputs
-                self.passed_inputs.insert(*i);
+                self.passed_inputs.insert(i);
             }
         });
     }
@@ -134,12 +128,11 @@ impl GraphData {
     pub(super) fn add_node(&mut self, mut node: Node) {
         log::debug!("Adding node {:?}", &node.name);
         self.mark_input_passed(&node);
+        let node_idx = self.processed_nodes.len();
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
-            self.input_name_map.insert(
-                output.name.clone(),
-                IOEntry::Node(self.processed_nodes.len(), out_count - 1),
-            );
+            self.node_output_map
+                .insert(output.name.clone(), (node_idx, out_count - 1));
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
         }
@@ -167,13 +160,15 @@ impl GraphData {
         let outputs = self
             .outputs
             .into_iter()
-            .filter_map(|x| match self.input_name_map.get(&x.name) {
-                Some(IOEntry::Node(i, j)) => Some(self.processed_nodes[*i].outputs[*j].clone()),
-                Some(IOEntry::In(i)) => {
+            .filter_map(|x| {
+                if let Some(&(node_idx, output_idx)) = self.node_output_map.get(&x.name) {
+                    Some(self.processed_nodes[node_idx].outputs[output_idx].clone())
+                } else if let Some(&i) = self.graph_input_map.get(&x.name) {
                     // Output maps directly to an input (e.g., when Identity nodes are removed)
-                    Some(self.inputs[*i].clone())
+                    Some(self.inputs[i].clone())
+                } else {
+                    None
                 }
-                _ => None,
             })
             .collect();
         (self.processed_nodes, self.inputs, outputs)
