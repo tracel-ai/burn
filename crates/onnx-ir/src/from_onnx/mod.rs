@@ -8,7 +8,6 @@ mod conversion;
 mod graph_builder;
 mod graph_data;
 mod identity_elimination;
-mod io_mapping;
 mod tensor_store;
 mod type_inference;
 

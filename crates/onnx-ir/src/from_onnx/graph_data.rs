@@ -3,16 +3,25 @@
 //! This module orchestrates the ONNX to IR conversion process by managing:
 //! - Node storage and ordering
 //! - Graph inputs and outputs
-//! - Delegation to specialized modules (TensorStore, IOMapper, ConstantBuilder)
+//! - Name mapping between ONNX and IR
+//! - Delegation to specialized modules (TensorStore, ConstantBuilder)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
 use crate::protos::{TensorProto, ValueInfoProto};
 
 use super::constant_builder;
-use super::io_mapping::{IOEntry, IOMapper};
 use super::tensor_store::TensorStore;
+
+/// Represents where an input comes from - either a graph input or a node output
+#[derive(Debug, Clone)]
+pub(crate) enum IOEntry {
+    /// Input from a graph input at the given index
+    In(usize),
+    /// Input from a node output (node_index, output_index)
+    Node(usize, usize),
+}
 
 /// Manages intermediate state during ONNX graph conversion
 #[derive(Debug)]
@@ -23,8 +32,12 @@ pub struct GraphData {
     inputs: Vec<Argument>,
     /// The outputs of the graph
     outputs: Vec<Argument>,
-    /// Input/output name mapping
-    io_mapper: IOMapper,
+    /// Maps ONNX input names to their source (graph input or node output)
+    input_name_map: HashMap<String, IOEntry>,
+    /// Maps IR input names (input1, input2) back to ONNX names
+    input_key_map: HashMap<String, String>,
+    /// Tracks which graph inputs have been used by nodes
+    passed_inputs: HashSet<usize>,
     /// Maps constant output names to node indices
     pub(super) constant_nodes: HashMap<String, usize>,
     /// Central tensor data store
@@ -39,7 +52,8 @@ impl GraphData {
         initializers: &[TensorProto],
     ) -> Self {
         let mut tensor_store = TensorStore::new();
-        let mut io_mapper = IOMapper::new();
+        let mut input_name_map = HashMap::new();
+        let mut input_key_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
         let processed_constants =
@@ -49,7 +63,7 @@ impl GraphData {
 
         // Map initializer names to their constant node outputs
         for (i, initializer) in initializers.iter().enumerate() {
-            io_mapper.register_initializer(initializer.name.clone(), i);
+            input_name_map.insert(initializer.name.clone(), IOEntry::Node(i, 0));
         }
 
         let outputs = outputs
@@ -63,8 +77,11 @@ impl GraphData {
             .map(|(i, x)| {
                 let in_name = format!("input{}", i + 1);
 
-                // Register graph input with IOMapper
-                io_mapper.register_input(x.name.clone(), in_name.clone(), i);
+                // Only add to input_name_map if not already mapped to a constant
+                if !input_name_map.contains_key(&x.name) {
+                    input_name_map.insert(x.name.clone(), IOEntry::In(i));
+                }
+                input_key_map.insert(in_name.clone(), x.name.clone());
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 arg.name = in_name;
@@ -76,7 +93,9 @@ impl GraphData {
             inputs,
             outputs,
             processed_nodes,
-            io_mapper,
+            input_name_map,
+            input_key_map,
+            passed_inputs: HashSet::new(),
             constant_nodes,
             tensor_store,
         }
@@ -84,7 +103,7 @@ impl GraphData {
 
     /// Get the value of an input from the original input name. Used during proto conversion
     pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
-        match self.io_mapper.lookup(proto_str) {
+        match self.input_name_map.get(proto_str) {
             Some(IOEntry::In(i)) => self.inputs[*i].clone(),
             Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
             None => {
@@ -97,7 +116,12 @@ impl GraphData {
     /// Mark the graph_inputs to a node as passed, unless they are also initializers
     fn mark_input_passed(&mut self, node: &Node) {
         node.inputs.iter().for_each(|node_input| {
-            self.io_mapper.mark_input_used(&node_input.name);
+            if let Some(old_input_name) = self.input_key_map.get(&node_input.name)
+                && let Some(IOEntry::In(i)) = self.input_name_map.get(old_input_name)
+            {
+                // Only In entries are graph inputs; Node entries are initializers/node outputs
+                self.passed_inputs.insert(*i);
+            }
         });
     }
 
@@ -112,10 +136,9 @@ impl GraphData {
         self.mark_input_passed(&node);
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
-            self.io_mapper.register_node_output(
+            self.input_name_map.insert(
                 output.name.clone(),
-                self.processed_nodes.len(),
-                out_count - 1,
+                IOEntry::Node(self.processed_nodes.len(), out_count - 1),
             );
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
@@ -134,10 +157,9 @@ impl GraphData {
 
     /// Consumes the graph data and returns the processed nodes, filtered inputs, and outputs
     pub(super) fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-        let passed_inputs = self.io_mapper.passed_inputs();
         let mut filtered_inputs = Vec::new();
         for (i, input) in self.inputs.into_iter().enumerate() {
-            if passed_inputs.contains(&i) {
+            if self.passed_inputs.contains(&i) {
                 filtered_inputs.push(input);
             }
         }
@@ -145,7 +167,7 @@ impl GraphData {
         let outputs = self
             .outputs
             .into_iter()
-            .filter_map(|x| match self.io_mapper.lookup(&x.name) {
+            .filter_map(|x| match self.input_name_map.get(&x.name) {
                 Some(IOEntry::Node(i, j)) => Some(self.processed_nodes[*i].outputs[*j].clone()),
                 Some(IOEntry::In(i)) => {
                     // Output maps directly to an input (e.g., when Identity nodes are removed)
