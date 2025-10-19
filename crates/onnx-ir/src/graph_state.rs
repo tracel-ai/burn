@@ -14,93 +14,6 @@ use crate::protos::{TensorProto, ValueInfoProto};
 
 use super::tensor_store::TensorStore;
 
-/// Create a Constant node with Static input and Constant output
-fn create_constant_node(
-    node_name: String,
-    output_name: String,
-    ty: ArgType,
-    data_id: TensorId,
-) -> Node {
-    Node {
-        node_type: NodeType::Constant,
-        name: node_name,
-        inputs: vec![Argument {
-            name: String::new(),
-            ty: ty.clone(),
-            data_id: Some(data_id),
-            value_source: crate::ir::ValueSource::Static,
-            value_store: None,
-        }],
-        outputs: vec![Argument {
-            name: output_name,
-            ty,
-            data_id: None,
-            value_source: crate::ir::ValueSource::Constant,
-            value_store: None,
-        }],
-        attrs: HashMap::new(),
-        config: None,
-    }
-}
-
-/// Convert ONNX initializers to Constant nodes, store in tensor store
-fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorStore) -> Vec<Node> {
-    initializers
-        .iter()
-        .enumerate()
-        .map(|(idx, initializer)| {
-            let (_arg, data) = argument_from_initializer(initializer);
-
-            // Allocate ID and store tensor data
-            let data_id = tensor_store.store(data);
-
-            let const_name = format!("constant{}", idx + 1);
-            let output_name = format!("{}_out1", const_name);
-
-            create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
-        })
-        .collect()
-}
-
-#[cfg(test)]
-/// Create a test constant node with tensor data
-fn create_test_constant(
-    name: String,
-    data: crate::ir::Data,
-    shape: Vec<usize>,
-    tensor_store: &mut TensorStore,
-) -> (Node, usize) {
-    use crate::ir::TensorData;
-
-    let elem_type = match &data {
-        crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
-        crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => crate::ElementType::Float16,
-        crate::ir::Data::Float32(_) | crate::ir::Data::Float32s(_) => crate::ElementType::Float32,
-        crate::ir::Data::Float64(_) | crate::ir::Data::Float64s(_) => crate::ElementType::Float64,
-        crate::ir::Data::Uint16(_) | crate::ir::Data::Uint16s(_) => crate::ElementType::Uint16,
-        crate::ir::Data::Uint8(_) | crate::ir::Data::Uint8s(_) => crate::ElementType::Uint8,
-        crate::ir::Data::Int8(_) | crate::ir::Data::Int8s(_) => crate::ElementType::Int8,
-        crate::ir::Data::Int32(_) | crate::ir::Data::Int32s(_) => crate::ElementType::Int32,
-        crate::ir::Data::Int64(_) | crate::ir::Data::Int64s(_) => crate::ElementType::Int64,
-        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
-    };
-
-    let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
-        elem_type,
-        rank: shape.len(),
-        static_shape: Some(shape.clone()),
-    });
-
-    let data_id = tensor_store.store(TensorData { data, shape });
-
-    // Use name directly as output name for test lookups (no _const_out suffix)
-    let const_node_name = format!("{}_const", name);
-    let constant_node = create_constant_node(const_node_name, name, ty, data_id);
-
-    // Return node and a placeholder index (caller will assign proper index)
-    (constant_node, 0)
-}
-
 /// Mutable state container for ONNX graph conversion
 #[derive(Debug)]
 pub struct GraphState {
@@ -275,4 +188,91 @@ impl GraphState {
     pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
         self.get_constant_data_id_by_output(name)
     }
+}
+
+/// Create a Constant node with Static input and Constant output
+fn create_constant_node(
+    node_name: String,
+    output_name: String,
+    ty: ArgType,
+    data_id: TensorId,
+) -> Node {
+    Node {
+        node_type: NodeType::Constant,
+        name: node_name,
+        inputs: vec![Argument {
+            name: String::new(),
+            ty: ty.clone(),
+            data_id: Some(data_id),
+            value_source: crate::ir::ValueSource::Static,
+            value_store: None,
+        }],
+        outputs: vec![Argument {
+            name: output_name,
+            ty,
+            data_id: None,
+            value_source: crate::ir::ValueSource::Constant,
+            value_store: None,
+        }],
+        attrs: HashMap::new(),
+        config: None,
+    }
+}
+
+/// Convert ONNX initializers to Constant nodes, store in tensor store
+fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorStore) -> Vec<Node> {
+    initializers
+        .iter()
+        .enumerate()
+        .map(|(idx, initializer)| {
+            let (_arg, data) = argument_from_initializer(initializer);
+
+            // Allocate ID and store tensor data
+            let data_id = tensor_store.store(data);
+
+            let const_name = format!("constant{}", idx + 1);
+            let output_name = format!("{}_out1", const_name);
+
+            create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+/// Create a test constant node with tensor data
+fn create_test_constant(
+    name: String,
+    data: crate::ir::Data,
+    shape: Vec<usize>,
+    tensor_store: &mut TensorStore,
+) -> (Node, usize) {
+    use crate::ir::TensorData;
+
+    let elem_type = match &data {
+        crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
+        crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => crate::ElementType::Float16,
+        crate::ir::Data::Float32(_) | crate::ir::Data::Float32s(_) => crate::ElementType::Float32,
+        crate::ir::Data::Float64(_) | crate::ir::Data::Float64s(_) => crate::ElementType::Float64,
+        crate::ir::Data::Uint16(_) | crate::ir::Data::Uint16s(_) => crate::ElementType::Uint16,
+        crate::ir::Data::Uint8(_) | crate::ir::Data::Uint8s(_) => crate::ElementType::Uint8,
+        crate::ir::Data::Int8(_) | crate::ir::Data::Int8s(_) => crate::ElementType::Int8,
+        crate::ir::Data::Int32(_) | crate::ir::Data::Int32s(_) => crate::ElementType::Int32,
+        crate::ir::Data::Int64(_) | crate::ir::Data::Int64s(_) => crate::ElementType::Int64,
+        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
+    };
+
+    let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
+        elem_type,
+        rank: shape.len(),
+        static_shape: Some(shape.clone()),
+    });
+
+    let data_id = tensor_store.store(TensorData { data, shape });
+
+    // Use name directly as output name for test lookups (no _const_out suffix)
+    let const_node_name = format!("{}_const", name);
+    let constant_node = create_constant_node(const_node_name, name, ty, data_id);
+
+    // Return node and a placeholder index (caller will assign proper index)
+    (constant_node, 0)
 }
