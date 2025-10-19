@@ -460,42 +460,6 @@ impl fmt::Debug for Node {
     }
 }
 
-// Required by topological sort
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.node_type == other.node_type
-    }
-}
-
-// Required by topological sort
-impl Eq for Node {}
-
-// Required by topological sort
-impl core::hash::Hash for Node {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.node_type.hash(state);
-        self.inputs.hash(state);
-        self.outputs.hash(state);
-    }
-}
-
-// Required by topological sort
-impl core::hash::Hash for Argument {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-
-impl Eq for Argument {}
-
-// Required by HashSet
-impl PartialEq for Argument {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
 /// The list of supported node types (ONNX operators and some extra ones to map easily to Burn's ops)
 /// Refer: <https://github.com/onnx/onnx/blob/main/docs/Operators.md>
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
