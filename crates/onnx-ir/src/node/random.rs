@@ -12,8 +12,8 @@ impl NodeProcessor for RandomProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 1)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Random rank inference for node {}", node.name);
 

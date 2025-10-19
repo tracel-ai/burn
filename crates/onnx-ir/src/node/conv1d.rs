@@ -82,9 +82,9 @@ impl NodeProcessor for Conv1dProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 1)?;
-        crate::util::validate_min_inputs(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 1)?;
+        crate::processor::validate_min_inputs(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Conv1d rank inference for node {}", node.name);
 

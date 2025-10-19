@@ -1,8 +1,10 @@
 //! Processor for Sum operation
 
 use crate::ir::Node;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::util::same_as_input_broadcast;
+use crate::processor::{
+    NodeProcessor, OutputPreferences, ProcessError, same_as_input_broadcast, validate_min_inputs,
+    validate_opset, validate_output_count,
+};
 
 /// Node processor for Sum operation
 /// Note: Sum is variadic (can take multiple inputs), not strictly binary
@@ -16,13 +18,13 @@ impl NodeProcessor for SumProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 8)?;
+        validate_opset(opset, 8)?;
 
         // Validate we have at least one input
-        crate::util::validate_min_inputs(node, 1)?;
+        validate_min_inputs(node, 1)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        validate_output_count(node, 1)?;
 
         same_as_input_broadcast(node);
 

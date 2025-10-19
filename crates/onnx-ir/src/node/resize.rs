@@ -193,13 +193,13 @@ impl NodeProcessor for ResizeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Resize implementation supports opset 11+ (for coordinate transformation modes)
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Validate input count
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Note: we are ignoring some attributes because results are approximately the same
         // and we are not supporting all the attributes of the Resize operator.
@@ -290,7 +290,7 @@ impl NodeProcessor for ResizeProcessor {
         }
 
         // Infer output type
-        crate::util::same_as_input(node);
+        crate::processor::same_as_input(node);
 
         Ok(())
     }

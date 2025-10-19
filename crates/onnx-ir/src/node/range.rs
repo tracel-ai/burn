@@ -59,10 +59,10 @@ impl NodeProcessor for RangeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Opset validation
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Validate input count
-        crate::util::validate_input_count(node, 3)?;
+        crate::processor::validate_input_count(node, 3)?;
 
         log::debug!("Range rank inference for node {}", node.name);
         log::debug!(

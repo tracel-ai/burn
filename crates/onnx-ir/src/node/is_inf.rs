@@ -36,9 +36,9 @@ impl NodeProcessor for IsInfProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 10)?;
-        crate::util::validate_input_count(node, 1)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 10)?;
+        crate::processor::validate_input_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Validate unexpected attributes before config extraction
         for (key, _value) in node.attrs.iter() {

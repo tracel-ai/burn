@@ -46,12 +46,12 @@ impl NodeProcessor for BitShiftProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 11)?;
-        crate::util::validate_min_inputs(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 11)?;
+        crate::processor::validate_min_inputs(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Output type is same as input with broadcasting
-        crate::util::same_as_input_broadcast(node);
+        crate::processor::same_as_input_broadcast(node);
 
         Ok(())
     }

@@ -62,9 +62,9 @@ impl NodeProcessor for ComparisonProcessor {
             _ => 1, // Other comparison operations default to opset 1 // FIXME
         };
 
-        crate::util::validate_opset(opset, min_opset)?;
-        crate::util::validate_input_count(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, min_opset)?;
+        crate::processor::validate_input_count(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Elementwise comparison for node {}", node.name);
 

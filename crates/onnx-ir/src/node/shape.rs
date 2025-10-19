@@ -1,5 +1,8 @@
 use crate::ir::{ArgType, Node, NodeConfig};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::processor::{
+    NodeProcessor, OutputPreferences, ProcessError, validate_input_count, validate_opset,
+    validate_output_count,
+};
 use std::any::Any;
 
 /// Configuration for the Shape operation.
@@ -29,13 +32,13 @@ impl NodeProcessor for ShapeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 1)?;
+        validate_opset(opset, 1)?;
 
         // Validate input count
-        crate::util::validate_input_count(node, 1)?;
+        validate_input_count(node, 1)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        validate_output_count(node, 1)?;
 
         // Determine output dimension based on input type
         let dim = match &node.inputs[0].ty {

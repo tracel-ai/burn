@@ -54,9 +54,9 @@ impl NodeProcessor for InstanceNormProcessor {
     ) -> Result<(), ProcessError> {
         const MIN: usize = 6;
 
-        crate::util::validate_opset(opset, MIN)?;
-        crate::util::validate_min_inputs(node, 3)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, MIN)?;
+        crate::processor::validate_min_inputs(node, 3)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config
         for (key, _value) in node.attrs.iter() {
@@ -72,7 +72,7 @@ impl NodeProcessor for InstanceNormProcessor {
         }
 
         // Output type is same as input
-        crate::util::same_as_input(node);
+        crate::processor::same_as_input(node);
 
         Ok(())
     }

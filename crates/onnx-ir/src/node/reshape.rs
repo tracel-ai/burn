@@ -266,9 +266,9 @@ impl NodeProcessor for ReshapeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset, input count, and output count
-        crate::util::validate_opset(opset, 5)?;
-        crate::util::validate_input_count(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 5)?;
+        crate::processor::validate_input_count(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Extract and validate shape input
         let shape = extract_shape_input(node);

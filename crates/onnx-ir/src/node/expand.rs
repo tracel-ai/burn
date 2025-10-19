@@ -44,15 +44,15 @@ impl NodeProcessor for ExpandProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 8)?;
+        crate::processor::validate_opset(opset, 8)?;
 
         log::debug!("Expand node {} has {} inputs", node.name, node.inputs.len());
 
         // Validate input count
-        crate::util::validate_input_count(node, 2)?;
+        crate::processor::validate_input_count(node, 2)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Validate shape input type
         match &node.inputs[1].ty {

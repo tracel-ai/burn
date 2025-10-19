@@ -49,10 +49,10 @@ impl NodeProcessor for TopKProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TopK implementation supports opset 10+ (k as input)
-        crate::util::validate_opset(opset, 10)?;
+        crate::processor::validate_opset(opset, 10)?;
 
         // Validate input count (1 or 2 inputs)
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
         if node.inputs.len() > 2 {
             return Err(ProcessError::InvalidInputCount {
                 expected: 2,
@@ -61,7 +61,7 @@ impl NodeProcessor for TopKProcessor {
         }
 
         // Validate output count
-        crate::util::validate_output_count(node, 2)?;
+        crate::processor::validate_output_count(node, 2)?;
 
         // Validate largest and sorted attributes before config extraction
         if let Some(largest) = node.attrs.get("largest")

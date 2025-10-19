@@ -70,12 +70,12 @@ impl NodeProcessor for MaxPool1dProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // MaxPool implementation supports opset 11+ (for enhanced calculations)
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Validate input/output count
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Validate attributes before extracting config
         for (key, value) in node.attrs.iter() {
@@ -108,7 +108,7 @@ impl NodeProcessor for MaxPool1dProcessor {
         }
 
         // Output type is same as input
-        crate::util::same_as_input(node);
+        crate::processor::same_as_input(node);
 
         Ok(())
     }

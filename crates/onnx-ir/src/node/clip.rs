@@ -1,6 +1,5 @@
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::util::same_as_input;
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for clip parameters.
@@ -53,13 +52,13 @@ impl NodeProcessor for ClipProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 6)?;
+        crate::processor::validate_opset(opset, 6)?;
 
         // Validate input count (at least 1 input, up to 3 for opset 11+)
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Infer output type
         same_as_input(node);

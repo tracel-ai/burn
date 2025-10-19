@@ -62,13 +62,13 @@ impl NodeProcessor for BatchNormProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 9)?;
+        crate::processor::validate_opset(opset, 9)?;
 
         // Validate input count (X, scale, B, mean, var)
-        crate::util::validate_min_inputs(node, 5)?;
+        crate::processor::validate_min_inputs(node, 5)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("BatchNorm rank inference for node {}", node.name);
 

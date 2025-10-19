@@ -4,8 +4,10 @@
 //! Special handling for Shape and Scalar types to preserve semantics through arithmetic.
 
 use crate::ir::Node;
-use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
-use crate::util::same_as_input_broadcast;
+use crate::processor::{
+    InputPreferences, NodeProcessor, OutputPreferences, ProcessError, same_as_input_broadcast,
+    validate_input_count, validate_opset, validate_output_count,
+};
 
 /// Node processor for basic arithmetic binary operations
 ///
@@ -72,13 +74,13 @@ impl NodeProcessor for ArithmeticBinaryProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset version
-        crate::util::validate_opset(opset, 7)?;
+        validate_opset(opset, 7)?;
 
         // Validate input count
-        crate::util::validate_input_count(node, 2)?;
+        validate_input_count(node, 2)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        validate_output_count(node, 1)?;
 
         // Apply standard broadcasting rules to infer output type
         same_as_input_broadcast(node);

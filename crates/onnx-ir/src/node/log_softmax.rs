@@ -29,12 +29,12 @@ impl NodeProcessor for LogSoftmaxProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 13)?;
-        crate::util::validate_input_count(node, 1)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 13)?;
+        crate::processor::validate_input_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Infer output type
-        crate::util::same_as_input(node);
+        crate::processor::same_as_input(node);
 
         Ok(())
     }

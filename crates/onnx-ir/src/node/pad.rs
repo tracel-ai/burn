@@ -64,7 +64,7 @@ impl NodeProcessor for PadProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Output has same type as input
         if let Some(input) = node.inputs.first() {
@@ -81,7 +81,7 @@ impl NodeProcessor for PadProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Helper function to get pads
         fn get_pads(node: &Node) -> Result<PadInput, ProcessError> {
-            crate::util::validate_min_inputs(node, 1)?;
+            crate::processor::validate_min_inputs(node, 1)?;
             if node.inputs.len() >= 4 {
                 return Err(ProcessError::Custom(
                     "Pad: axes input is not supported".to_string(),

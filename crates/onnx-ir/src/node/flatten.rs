@@ -29,13 +29,13 @@ impl NodeProcessor for FlattenProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 9)?;
+        crate::processor::validate_opset(opset, 9)?;
 
         // Validate input count
-        crate::util::validate_input_count(node, 1)?;
+        crate::processor::validate_input_count(node, 1)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Extract the shape of the input tensor
         let tensor = match &node.inputs.first().unwrap().ty {

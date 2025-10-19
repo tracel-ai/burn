@@ -155,13 +155,13 @@ impl NodeProcessor for SliceProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 10)?;
+        crate::processor::validate_opset(opset, 10)?;
 
         // Validate input count (at least data, starts, ends)
-        crate::util::validate_min_inputs(node, 3)?;
+        crate::processor::validate_min_inputs(node, 3)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Slice rank inference for node {}", node.name);
 

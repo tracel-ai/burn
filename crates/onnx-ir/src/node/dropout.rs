@@ -1,7 +1,5 @@
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::util::same_as_input;
-
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
+use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for dropout ratio.
@@ -53,8 +51,8 @@ impl NodeProcessor for DropoutProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 7)?;
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_opset(opset, 7)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
         // Dropout can have 1 or 2 outputs (second output is optional mask)
         if node.outputs.is_empty() || node.outputs.len() > 2 {

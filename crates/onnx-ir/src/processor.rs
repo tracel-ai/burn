@@ -153,9 +153,185 @@ impl NodeProcessor for DefaultProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Default: preserve input type
-        crate::util::same_as_input(node);
+        same_as_input(node);
         Ok(())
     }
+}
+
+// ============================================================================
+// Processor Utilities
+// ============================================================================
+
+/// Validate opset version
+pub fn validate_opset(opset: usize, min_version: usize) -> Result<(), ProcessError> {
+    if opset < min_version {
+        Err(ProcessError::UnsupportedOpset {
+            required: min_version,
+            actual: opset,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate exact input count
+pub fn validate_input_count(node: &Node, expected: usize) -> Result<(), ProcessError> {
+    if node.inputs.len() != expected {
+        Err(ProcessError::InvalidInputCount {
+            expected,
+            actual: node.inputs.len(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate minimum input count
+pub fn validate_min_inputs(node: &Node, min: usize) -> Result<(), ProcessError> {
+    if node.inputs.len() < min {
+        Err(ProcessError::InvalidInputCount {
+            expected: min,
+            actual: node.inputs.len(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Validate exact output count
+pub fn validate_output_count(node: &Node, expected: usize) -> Result<(), ProcessError> {
+    if node.outputs.len() != expected {
+        Err(ProcessError::InvalidOutputCount {
+            expected,
+            actual: node.outputs.len(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Copy input type to output (for operations that preserve type)
+pub fn same_as_input(node: &mut Node) {
+    node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+/// Compute broadcast output rank from multiple inputs
+pub fn compute_broadcast_rank(inputs: &[crate::ir::Argument]) -> usize {
+    use crate::ir::ArgType;
+    use core::cmp::max;
+
+    inputs.iter().fold(0, |acc, input| match &input.ty {
+        ArgType::Tensor(tensor) => max(acc, tensor.rank),
+        ArgType::Scalar(_) => acc,
+        ArgType::Shape(_) => max(acc, 1),
+    })
+}
+
+/// Compute broadcast static shape from multiple inputs (NumPy-style broadcasting)
+pub fn compute_broadcast_static_shape(inputs: &[crate::ir::Argument]) -> Option<Vec<usize>> {
+    let static_shapes: Vec<_> = inputs
+        .iter()
+        .filter_map(|input| input.ty.static_shape().cloned())
+        .collect();
+
+    if static_shapes.is_empty() {
+        return None;
+    }
+
+    if static_shapes.len() == 1 {
+        return Some(static_shapes[0].clone());
+    }
+
+    if static_shapes.windows(2).all(|w| w[0] == w[1]) {
+        return Some(static_shapes[0].clone());
+    }
+
+    let max_rank = static_shapes.iter().map(|s| s.len()).max()?;
+    let mut result = vec![1; max_rank];
+
+    for shape in &static_shapes {
+        let offset = max_rank - shape.len();
+        for (i, &dim) in shape.iter().enumerate() {
+            let result_idx = offset + i;
+            let current_dim = result[result_idx];
+
+            if current_dim == 1 {
+                result[result_idx] = dim;
+            } else if dim != 1 && dim != current_dim {
+                log::debug!(
+                    "Incompatible dimensions for broadcasting: {} vs {} at position {}",
+                    current_dim,
+                    dim,
+                    result_idx
+                );
+                return None;
+            }
+        }
+    }
+
+    Some(result)
+}
+
+/// Update output type for broadcasting operations to max input rank
+pub fn same_as_input_broadcast(node: &mut Node) {
+    use crate::ir::ArgType;
+
+    let has_tensor_input = node
+        .inputs
+        .iter()
+        .any(|input| matches!(&input.ty, ArgType::Tensor(_)));
+
+    let has_shape_input = node
+        .inputs
+        .iter()
+        .any(|input| matches!(&input.ty, ArgType::Shape(_)));
+
+    if has_shape_input && !has_tensor_input {
+        let shape_rank = node
+            .inputs
+            .iter()
+            .find_map(|input| match &input.ty {
+                ArgType::Shape(rank) => Some(*rank),
+                _ => None,
+            })
+            .expect("Shape input must exist");
+
+        node.outputs[0].ty = ArgType::Shape(shape_rank);
+        return;
+    }
+
+    let max_rank = compute_broadcast_rank(&node.inputs);
+
+    if max_rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(node.inputs[0].ty.elem_type().clone());
+    } else {
+        let elem_type = node
+            .inputs
+            .iter()
+            .find_map(|input| match &input.ty {
+                ArgType::Tensor(tensor) => Some(tensor.elem_type.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| node.inputs[0].ty.elem_type().clone());
+
+        let static_shape = compute_broadcast_static_shape(&node.inputs);
+
+        node.outputs[0].ty = ArgType::Tensor(crate::ir::TensorType {
+            elem_type,
+            rank: max_rank,
+            static_shape,
+        });
+    }
+}
+
+/// Temporary pass-through for unimplemented processors
+pub fn temporary_pass_through_stub(node: &mut Node) {
+    log::warn!(
+        "Must implement rank inference for node type {:?} (name: {})",
+        node.node_type,
+        node.name
+    );
+    node.outputs[0].ty = node.inputs[0].ty.clone();
 }
 
 #[cfg(test)]

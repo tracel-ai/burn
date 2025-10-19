@@ -1,8 +1,9 @@
 //! Processors for element-wise operations
 
 use crate::ir::Node;
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::util::{same_as_input, same_as_input_broadcast};
+use crate::processor::{
+    NodeProcessor, OutputPreferences, ProcessError, same_as_input, same_as_input_broadcast,
+};
 
 /// Node processor for element-wise binary operations with broadcasting
 ///
@@ -38,8 +39,8 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_input_count(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_input_count(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         same_as_input_broadcast(node);
         Ok(())
@@ -85,9 +86,9 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             _ => 1, //FIXME probably not
         };
 
-        crate::util::validate_opset(opset, min_opset)?;
-        crate::util::validate_input_count(node, 1)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, min_opset)?;
+        crate::processor::validate_input_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         same_as_input(node);
         Ok(())

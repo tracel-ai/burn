@@ -51,10 +51,10 @@ impl NodeProcessor for SplitProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Split implementation supports opset 11+
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Validate we have at least one input
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs.first().unwrap().ty {

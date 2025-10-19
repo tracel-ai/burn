@@ -78,11 +78,11 @@ impl NodeProcessor for Conv2dProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 1)?;
+        crate::processor::validate_opset(opset, 1)?;
 
         // Validate input and output counts
-        crate::util::validate_min_inputs(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_min_inputs(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Conv2d rank inference for node {}", node.name);
 

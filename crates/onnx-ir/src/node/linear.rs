@@ -61,8 +61,8 @@ impl NodeProcessor for LinearProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_min_inputs(node, 2)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_min_inputs(node, 2)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Linear rank inference for node {}", node.name);
 

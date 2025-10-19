@@ -1,7 +1,7 @@
-use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{
-    ir::{ArgType, ElementType, Node, TensorType},
-    util::{compute_broadcast_rank, compute_broadcast_static_shape},
+use crate::ir::{ArgType, ElementType, Node, TensorType};
+use crate::processor::{
+    NodeProcessor, OutputPreferences, ProcessError, compute_broadcast_rank,
+    compute_broadcast_static_shape,
 };
 
 /// Get element type from ArgType, handling Shape types specially
@@ -46,9 +46,9 @@ impl NodeProcessor for WhereProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 9)?;
-        crate::util::validate_input_count(node, 3)?;
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_opset(opset, 9)?;
+        crate::processor::validate_input_count(node, 3)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         log::debug!("Where rank inference for node {}", node.name);
 

@@ -47,10 +47,10 @@ impl NodeProcessor for TriluProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Trilu implementation supports opset 14+
-        crate::util::validate_opset(opset, 14)?;
+        crate::processor::validate_opset(opset, 14)?;
 
         // Validate input count (1 or 2 inputs)
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
         if node.inputs.len() > 2 {
             return Err(ProcessError::InvalidInputCount {
                 expected: 2,
@@ -59,10 +59,10 @@ impl NodeProcessor for TriluProcessor {
         }
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Infer output type
-        crate::util::same_as_input(node);
+        crate::processor::same_as_input(node);
 
         Ok(())
     }

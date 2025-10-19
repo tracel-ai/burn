@@ -85,8 +85,8 @@ impl NodeProcessor for OneHotProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        crate::util::validate_opset(opset, 9)?;
-        crate::util::validate_min_inputs(node, 3)?;
+        crate::processor::validate_opset(opset, 9)?;
+        crate::processor::validate_min_inputs(node, 3)?;
 
         // Update output shape
         one_hot_output_shape(node)?;

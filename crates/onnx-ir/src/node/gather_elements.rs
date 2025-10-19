@@ -38,13 +38,13 @@ impl NodeProcessor for GatherElementsProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // GatherElements was introduced in opset 11
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // GatherElements requires 2 inputs: data and indices
-        crate::util::validate_input_count(node, 2)?;
+        crate::processor::validate_input_count(node, 2)?;
 
         // GatherElements has 1 output
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Output has the same shape as indices input, same type as data input
         if let crate::ir::ArgType::Tensor(data_tensor) = &node.inputs[0].ty

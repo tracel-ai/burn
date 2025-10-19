@@ -49,15 +49,15 @@ impl NodeProcessor for GatherProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Validate opset
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         log::debug!("Gather rank inference for node {}", node.name);
 
         // Validate input count
-        crate::util::validate_input_count(node, 2)?;
+        crate::processor::validate_input_count(node, 2)?;
 
         // Validate output count
-        crate::util::validate_output_count(node, 1)?;
+        crate::processor::validate_output_count(node, 1)?;
 
         // Extract the input rank for axis normalization
         let input_dim = match &node.inputs[0].ty {

@@ -43,10 +43,10 @@ impl NodeProcessor for ReduceProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // Opset validation
-        crate::util::validate_opset(opset, 11)?;
+        crate::processor::validate_opset(opset, 11)?;
 
         // Validate input count
-        crate::util::validate_min_inputs(node, 1)?;
+        crate::processor::validate_min_inputs(node, 1)?;
 
         // Validate input type and extract tensor info
         let (tensor_rank, tensor_elem_type, tensor_static_shape) = match &node.inputs[0].ty {
