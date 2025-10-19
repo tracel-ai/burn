@@ -9,6 +9,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
+use crate::proto_conversion::argument_from_initializer;
 use crate::protos::{TensorProto, ValueInfoProto};
 
 use super::tensor_store::TensorStore;
@@ -66,7 +67,7 @@ fn process_initializers(
     let mut constant_nodes = HashMap::new();
 
     for initializer in initializers.iter() {
-        let (_arg, data) = Argument::from_initializer(initializer);
+        let (_arg, data) = argument_from_initializer(initializer);
 
         // Allocate ID and store tensor data
         let data_id = tensor_store.store(data);
