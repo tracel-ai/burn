@@ -14,14 +14,6 @@ use crate::protos::{TensorProto, ValueInfoProto};
 
 use super::tensor_store::TensorStore;
 
-/// Result of processing initializers
-struct ProcessedConstants {
-    /// Created Constant nodes
-    nodes: Vec<Node>,
-    /// Map of constant output names to node indices
-    constant_nodes: HashMap<String, usize>,
-}
-
 /// Create a Constant node with Static input and Constant output
 fn create_constant_node(
     node_name: String,
@@ -52,34 +44,22 @@ fn create_constant_node(
 }
 
 /// Convert ONNX initializers to Constant nodes, store in tensor store
-fn process_initializers(
-    initializers: &[TensorProto],
-    tensor_store: &mut TensorStore,
-) -> ProcessedConstants {
-    let mut nodes = Vec::new();
-    let mut constant_nodes = HashMap::new();
+fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorStore) -> Vec<Node> {
+    initializers
+        .iter()
+        .enumerate()
+        .map(|(idx, initializer)| {
+            let (_arg, data) = argument_from_initializer(initializer);
 
-    for initializer in initializers.iter() {
-        let (_arg, data) = argument_from_initializer(initializer);
+            // Allocate ID and store tensor data
+            let data_id = tensor_store.store(data);
 
-        // Allocate ID and store tensor data
-        let data_id = tensor_store.store(data);
+            let const_name = format!("constant{}", idx + 1);
+            let output_name = format!("{}_out1", const_name);
 
-        let idx = nodes.len();
-        let const_name = format!("constant{}", idx + 1);
-        let output_name = format!("{}_out1", const_name);
-
-        let constant_node =
-            create_constant_node(const_name, output_name.clone(), _arg.ty.clone(), data_id);
-
-        constant_nodes.insert(output_name, idx);
-        nodes.push(constant_node);
-    }
-
-    ProcessedConstants {
-        nodes,
-        constant_nodes,
-    }
+            create_constant_node(const_name, output_name, _arg.ty.clone(), data_id)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -113,9 +93,9 @@ fn create_test_constant(
 
     let data_id = tensor_store.store(TensorData { data, shape });
 
-    let output_name = format!("{}_const_out", name);
+    // Use name directly as output name for test lookups (no _const_out suffix)
     let const_node_name = format!("{}_const", name);
-    let constant_node = create_constant_node(const_node_name, output_name, ty, data_id);
+    let constant_node = create_constant_node(const_node_name, name, ty, data_id);
 
     // Return node and a placeholder index (caller will assign proper index)
     (constant_node, 0)
@@ -134,8 +114,6 @@ pub struct GraphState {
     graph_input_map: HashMap<String, usize>,
     /// Maps ONNX names to node outputs (node_index, output_index)
     node_output_map: HashMap<String, (usize, usize)>,
-    /// Maps constant output names to node indices
-    pub(super) constant_nodes: HashMap<String, usize>,
     /// Central tensor data store
     pub(super) tensor_store: TensorStore,
 }
@@ -152,9 +130,7 @@ impl GraphState {
         let mut node_output_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
-        let processed_constants = process_initializers(initializers, &mut tensor_store);
-        let processed_nodes = processed_constants.nodes;
-        let constant_nodes = processed_constants.constant_nodes;
+        let processed_nodes = process_initializers(initializers, &mut tensor_store);
 
         // Map initializer names to their constant node outputs
         for (i, initializer) in initializers.iter().enumerate() {
@@ -189,7 +165,6 @@ impl GraphState {
             processed_nodes,
             graph_input_map,
             node_output_map,
-            constant_nodes,
             tensor_store,
         }
     }
@@ -218,14 +193,6 @@ impl GraphState {
             out_count += 1;
         }
 
-        // Register Constant nodes so they can be found during lifting
-        if node.node_type == NodeType::Constant {
-            for output in &node.outputs {
-                self.constant_nodes
-                    .insert(output.name.clone(), self.processed_nodes.len());
-            }
-        }
-
         self.processed_nodes.push(node);
     }
 
@@ -250,7 +217,9 @@ impl GraphState {
 
     /// Check if a value is available in constant nodes
     pub(crate) fn has_value(&self, name: &str) -> bool {
-        self.constant_nodes.contains_key(name)
+        self.processed_nodes.iter().any(|node| {
+            node.node_type == NodeType::Constant && node.outputs.iter().any(|o| o.name == name)
+        })
     }
 
     /// Get the type of a graph output by name
@@ -269,11 +238,7 @@ impl GraphState {
         data: crate::ir::Data,
         shape: Vec<usize>,
     ) {
-        let (constant_node, _) =
-            create_test_constant(name.clone(), data, shape, &mut self.tensor_store);
-
-        let node_idx = self.processed_nodes.len();
-        self.constant_nodes.insert(name, node_idx);
+        let (constant_node, _) = create_test_constant(name, data, shape, &mut self.tensor_store);
         self.processed_nodes.push(constant_node);
     }
 
@@ -295,9 +260,12 @@ impl GraphState {
 
     /// Get data_id for a constant by output name
     pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
-        self.constant_nodes
-            .get(output_name)
-            .and_then(|&idx| self.processed_nodes.get(idx))
+        self.processed_nodes
+            .iter()
+            .find(|node| {
+                node.node_type == NodeType::Constant
+                    && node.outputs.iter().any(|o| o.name == output_name)
+            })
             .and_then(|node| node.inputs.first())
             .and_then(|input| input.data_id)
     }

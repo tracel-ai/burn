@@ -245,17 +245,6 @@ pub(crate) fn post_process(
     {
         let mut state = state_rc.borrow_mut();
         state.processed_nodes = nodes.clone();
-
-        // Rebuild constant_nodes map
-        let mut new_constant_nodes = std::collections::HashMap::new();
-        for (idx, n) in nodes.iter().enumerate() {
-            if n.node_type == NodeType::Constant {
-                for output in &n.outputs {
-                    new_constant_nodes.insert(output.name.clone(), idx);
-                }
-            }
-        }
-        state.constant_nodes = new_constant_nodes;
         drop(state);
 
         // Re-attach value_store and lift constants
