@@ -331,15 +331,6 @@ impl GraphState {
         self.tensor_store.get_mut(id)
     }
 
-    /// Set the expected type for an argument
-    ///
-    /// This is called by Argument::should_be() to record type expectations.
-    /// Note: Currently unused - this is a stub for future type inference enhancements.
-    pub(crate) fn set_expected_type(&mut self, _arg_name: String, _expected_ty: ArgType) {
-        // Stub method - expected_types field was removed since it's never read
-        // Kept for compatibility with Argument::should_be() calls
-    }
-
     /// Get the data_id for a constant by output name
     ///
     /// This is used by Argument::to_static() to look up the data_id of a constant node

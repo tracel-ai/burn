@@ -389,18 +389,6 @@ impl Argument {
         None
     }
 
-    /// Indicate that this argument is expected to be a specific type
-    /// This allows processors to declare type expectations for their inputs,
-    /// which can be used for type inference of upstream nodes
-    pub fn should_be(&self, expected_ty: ArgType) {
-        // TODO mark that output as that type and after marking, mark the input as that type
-        if let Some(store) = &self.value_store {
-            store
-                .borrow_mut()
-                .set_expected_type(self.name.clone(), expected_ty);
-        }
-    }
-
     /// Check if this argument is a static constant (embedded value)
     pub fn is_static(&self) -> bool {
         self.value_source == ValueSource::Static
@@ -1270,14 +1258,5 @@ impl From<AttributeValue> for Argument {
             }
             _ => panic!("Unsupported attribute type"),
         }
-    }
-}
-
-impl Argument {
-    pub fn into_tensor(self) -> Option<TensorData> {
-        // In the new architecture, values are stored in Constant nodes, not in Arguments
-        // This method can no longer return the tensor data directly
-        // Callers should use has_value() and into_value() with graph_data instead
-        None
     }
 }
