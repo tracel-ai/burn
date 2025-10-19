@@ -5,8 +5,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::ir::Argument;
-
 /// Represents where an input comes from - either a graph input or a node output
 #[derive(Debug, Clone)]
 pub(crate) enum IOEntry {
@@ -69,15 +67,11 @@ impl IOMapper {
     }
 
     /// Mark a graph input as used
-    pub(super) fn mark_input_used(
-        &mut self,
-        new_name: &str,
-        initializers: &HashMap<String, Argument>,
-    ) {
+    pub(super) fn mark_input_used(&mut self, new_name: &str) {
         if let Some(old_input_name) = self.input_key_map.get(new_name)
-            && !initializers.contains_key(old_input_name)
             && let Some(IOEntry::In(i)) = self.input_name_map.get(old_input_name)
         {
+            // Only In entries are graph inputs; Node entries are initializers/node outputs
             self.passed_inputs.insert(*i);
         }
     }

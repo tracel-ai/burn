@@ -23,8 +23,6 @@ pub struct GraphData {
     inputs: Vec<Argument>,
     /// The outputs of the graph
     outputs: Vec<Argument>,
-    /// The initializers of the graph
-    pub(crate) initializers: HashMap<String, Argument>,
     /// Input/output name mapping
     io_mapper: IOMapper,
     /// Maps constant output names to node indices
@@ -47,7 +45,6 @@ impl GraphData {
         let processed_constants =
             constant_builder::process_initializers(initializers, &mut tensor_store);
         let processed_nodes = processed_constants.nodes;
-        let constants_map = processed_constants.initializers;
         let constant_nodes = processed_constants.constant_nodes;
 
         // Map initializer names to their constant node outputs
@@ -70,13 +67,6 @@ impl GraphData {
                 io_mapper.register_input(x.name.clone(), in_name.clone(), i);
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
-                if constants_map.contains_key(&x.name) {
-                    log::warn!(
-                        "Input {} is also an initializer. Initializer as default values are currently not supported",
-                        x.name
-                    );
-                }
-
                 arg.name = in_name;
                 arg
             })
@@ -85,7 +75,6 @@ impl GraphData {
         Self {
             inputs,
             outputs,
-            initializers: constants_map,
             processed_nodes,
             io_mapper,
             constant_nodes,
@@ -96,27 +85,19 @@ impl GraphData {
     /// Get the value of an input from the original input name. Used during proto conversion
     pub(crate) fn init_in(&self, proto_str: &str) -> Argument {
         match self.io_mapper.lookup(proto_str) {
-            None => {
-                //NOTE: if initializers are guaranteed to be unique, (I think they are
-                //need to confirm) then we could pop the initializer from the map
-                if let Some(init_arg) = self.initializers.get(proto_str) {
-                    init_arg.clone()
-                } else {
-                    log::warn!("Input {proto_str} not found, should only happen when peeking");
-                    Argument::new(proto_str.to_string())
-                }
-            }
             Some(IOEntry::In(i)) => self.inputs[*i].clone(),
             Some(IOEntry::Node(i, j)) => self.processed_nodes[*i].outputs[*j].clone(),
+            None => {
+                log::warn!("Input {proto_str} not found, should only happen when peeking");
+                Argument::new(proto_str.to_string())
+            }
         }
     }
 
     /// Mark the graph_inputs to a node as passed, unless they are also initializers
     fn mark_input_passed(&mut self, node: &Node) {
-        // we have to double map the inputs because the input might be replaced by an initializer
         node.inputs.iter().for_each(|node_input| {
-            self.io_mapper
-                .mark_input_used(&node_input.name, &self.initializers);
+            self.io_mapper.mark_input_used(&node_input.name);
         });
     }
 

@@ -14,8 +14,6 @@ use super::tensor_store::TensorStore;
 pub(super) struct ProcessedConstants {
     /// Created Constant nodes
     pub nodes: Vec<Node>,
-    /// Map of initializer names to their arguments
-    pub initializers: HashMap<String, Argument>,
     /// Map of constant output names to node indices
     pub constant_nodes: HashMap<String, usize>,
 }
@@ -62,11 +60,10 @@ pub(super) fn process_initializers(
     tensor_store: &mut TensorStore,
 ) -> ProcessedConstants {
     let mut nodes = Vec::new();
-    let mut initializers_map = HashMap::new();
     let mut constant_nodes = HashMap::new();
 
     for initializer in initializers.iter() {
-        let (arg, data) = Argument::from_initializer(initializer);
+        let (_arg, data) = Argument::from_initializer(initializer);
 
         // Allocate ID and store tensor data
         let data_id = tensor_store.store(data);
@@ -76,16 +73,14 @@ pub(super) fn process_initializers(
         let output_name = format!("{}_out1", const_name);
 
         let constant_node =
-            create_constant_node(const_name, output_name.clone(), arg.ty.clone(), data_id);
+            create_constant_node(const_name, output_name.clone(), _arg.ty.clone(), data_id);
 
         constant_nodes.insert(output_name, idx);
-        initializers_map.insert(initializer.name.clone(), arg);
         nodes.push(constant_node);
     }
 
     ProcessedConstants {
         nodes,
-        initializers: initializers_map,
         constant_nodes,
     }
 }
