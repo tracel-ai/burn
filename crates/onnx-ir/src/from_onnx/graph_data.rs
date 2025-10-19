@@ -269,55 +269,9 @@ impl GraphData {
     ///
     /// Since Nodes are added at the end of conversion, the current index is the length of the processed nodes.
     /// Useful when lifting values or marking nodes for removal.
-    pub fn get_current_index(&self) -> usize {
-        self.processed_nodes.len()
-    }
-
-    /// Check if an argument name corresponds to a constant node
-    pub(crate) fn is_constant(&self, arg_name: &str) -> bool {
-        self.constant_nodes.contains_key(arg_name)
-    }
-
-    /// Get the value from a constant node by output name
-    pub(crate) fn get_constant_value(&self, output_name: &str) -> Option<&Node> {
-        self.constant_nodes
-            .get(output_name)
-            .and_then(|&idx| self.processed_nodes.get(idx))
-    }
-
-    /// Get mutable access to a constant node by output name
-    pub(crate) fn get_constant_value_mut(&mut self, output_name: &str) -> Option<&mut Node> {
-        if let Some(&idx) = self.constant_nodes.get(output_name) {
-            self.processed_nodes.get_mut(idx)
-        } else {
-            None
-        }
-    }
-
     /// Check if a value is available (either in active constants or consumed cache)
     pub(crate) fn has_value(&self, name: &str) -> bool {
         self.constant_nodes.contains_key(name) || self.consumed_values.contains_key(name)
-    }
-
-    /// Get the tensor data value for a constant by name
-    ///
-    /// Returns cloned data from either active constant node or consumed cache
-    pub(crate) fn get_value(&self, name: &str) -> Option<TensorData> {
-        // Check consumed cache first (faster)
-        if let Some(cached) = self.consumed_values.get(name) {
-            return Some(cached.clone());
-        }
-
-        // Otherwise extract from constant node
-        self.get_constant_value(name).and_then(|node| {
-            node.attrs.get("value").and_then(|attr| {
-                if let crate::ir::AttributeValue::Tensor(tensor) = attr {
-                    Some(tensor.clone())
-                } else {
-                    None
-                }
-            })
-        })
     }
 
     /// Get the type of a graph output by name

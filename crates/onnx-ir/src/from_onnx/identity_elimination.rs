@@ -209,7 +209,7 @@ pub(super) fn apply_identity_elimination(
                     input.data_id = source_arg.data_id;
                     input.value_store = source_arg.value_store.clone();
                     input.ty = source_arg.ty.clone();
-                    input.value_source = source_arg.value_source.clone();
+                    input.value_source = source_arg.value_source;
                 } else {
                     // Fallback: just update the name if source not found
                     input.name = original_input_name.clone();
@@ -234,7 +234,7 @@ pub(super) fn apply_identity_elimination(
                 output.data_id = source_arg.data_id;
                 output.value_store = source_arg.value_store.clone();
                 output.ty = source_arg.ty.clone();
-                output.value_source = source_arg.value_source.clone();
+                output.value_source = source_arg.value_source;
             } else {
                 // Fallback: just update the name if source not found
                 output.name = original_output_name.clone();
