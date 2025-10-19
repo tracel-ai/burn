@@ -373,8 +373,20 @@ impl Argument {
     /// Returns None if this argument has no data_id or data not found
     pub fn value(&self) -> Option<TensorData> {
         let store = self.value_store.as_ref()?;
-        let data_id = self.data_id?;
-        store.borrow().get_tensor_data(data_id).cloned()
+
+        // If this argument has a direct data_id (Static or Dynamic with data), use it
+        if let Some(data_id) = self.data_id {
+            return store.borrow().get_tensor_data(data_id).cloned();
+        }
+
+        // If this is a Constant argument (points to constant node by output name),
+        // look up the constant node and get the data from its input
+        if self.is_constant() {
+            let data_id = store.borrow().get_constant_data_id_by_output(&self.name)?;
+            return store.borrow().get_tensor_data(data_id).cloned();
+        }
+
+        None
     }
 
     /// Indicate that this argument is expected to be a specific type

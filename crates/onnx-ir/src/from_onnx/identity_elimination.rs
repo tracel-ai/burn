@@ -203,12 +203,13 @@ pub(super) fn apply_identity_elimination(
                     node.name
                 );
 
-                // Look up the source argument to copy its data_id and value_store
+                // Look up the source argument to copy its data_id, value_store, and value_source
                 if let Some(source_arg) = output_arg_map.get(original_input_name) {
                     input.name = original_input_name.clone();
                     input.data_id = source_arg.data_id;
                     input.value_store = source_arg.value_store.clone();
                     input.ty = source_arg.ty.clone();
+                    input.value_source = source_arg.value_source.clone();
                 } else {
                     // Fallback: just update the name if source not found
                     input.name = original_input_name.clone();
@@ -227,12 +228,13 @@ pub(super) fn apply_identity_elimination(
                 original_output_name
             );
 
-            // Look up the source argument to copy its data_id and value_store
+            // Look up the source argument to copy its data_id, value_store, and value_source
             if let Some(source_arg) = output_arg_map.get(original_output_name) {
                 output.name = original_output_name.clone();
                 output.data_id = source_arg.data_id;
                 output.value_store = source_arg.value_store.clone();
                 output.ty = source_arg.ty.clone();
+                output.value_source = source_arg.value_source.clone();
             } else {
                 // Fallback: just update the name if source not found
                 output.name = original_output_name.clone();

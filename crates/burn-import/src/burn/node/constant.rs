@@ -227,15 +227,16 @@ impl OnnxIntoNode for ConstantNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         use onnx_ir::ir::{ArgType, Data, ElementType};
 
+        let input = node.inputs.first().unwrap();
         let output = node.outputs.first().unwrap();
 
-        // Get the tensor data from the central store via the output argument
-        let tensor_data = if let Some(data) = output.value() {
+        // Get the tensor data from the central store via the input argument
+        let tensor_data = if let Some(data) = input.value() {
             data
         } else {
             panic!(
-                "Constant node '{}' output '{}' missing tensor data: data_id={:?}",
-                node.name, output.name, output.data_id
+                "Constant node '{}' input missing tensor data: data_id={:?}",
+                node.name, input.data_id
             );
         };
 

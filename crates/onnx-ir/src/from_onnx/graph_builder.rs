@@ -72,6 +72,9 @@ impl OnnxGraphBuilder {
             let mut constant_count = 0;
             for node in &mut graph_data.processed_nodes {
                 if node.node_type == NodeType::Constant {
+                    for arg in &mut node.inputs {
+                        arg.value_store = Some(graph_data_rc.clone());
+                    }
                     for arg in &mut node.outputs {
                         arg.value_store = Some(graph_data_rc.clone());
                     }
@@ -165,23 +168,32 @@ impl OnnxGraphBuilder {
                             graph_data.store_tensor_data(tensor_data.clone())
                         };
 
-                        // Set data_id, value_source, and type on the output argument
+                        // Create type based on tensor data
+                        let ty = if tensor_data.shape.is_empty() {
+                            crate::ir::ArgType::Scalar(tensor_data.elem_type())
+                        } else {
+                            crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                                elem_type: tensor_data.elem_type(),
+                                rank: tensor_data.shape.len(),
+                                static_shape: Some(tensor_data.shape.clone()),
+                            })
+                        };
+
+                        // Create input with Static value
+                        node.inputs.push(crate::ir::Argument {
+                            name: String::new(), // Empty name for internal static input
+                            ty: ty.clone(),
+                            data_id: Some(data_id),
+                            value_source: crate::ir::ValueSource::Static,
+                            value_store: Some(graph_data_rc.clone()),
+                        });
+
+                        // Set type and value_source on output
                         // We set the type now (before other nodes reference it) because type inference
                         // happens after all nodes are created, but inputs are cloned when nodes are created
                         if !node.outputs.is_empty() {
-                            node.outputs[0].data_id = Some(data_id);
                             node.outputs[0].value_source = crate::ir::ValueSource::Constant;
-
-                            // Set the correct type based on tensor data
-                            node.outputs[0].ty = if tensor_data.shape.is_empty() {
-                                crate::ir::ArgType::Scalar(tensor_data.elem_type())
-                            } else {
-                                crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                                    elem_type: tensor_data.elem_type(),
-                                    rank: tensor_data.shape.len(),
-                                    static_shape: Some(tensor_data.shape.clone()),
-                                })
-                            };
+                            node.outputs[0].ty = ty;
                         }
 
                         // Remove tensor data from attributes
@@ -299,6 +311,50 @@ impl OnnxGraphBuilder {
             "After Identity elimination: {} nodes remain",
             processed_nodes.len()
         );
+
+        // Re-run constant lifting after Identity elimination
+        // Identity nodes may have been rewired to constant outputs, which now need to be lifted
+        log::debug!("Re-running constant lifting after Identity elimination");
+        {
+            // Rebuild graph_data state with post-Identity-elimination nodes
+            let mut graph_data = graph_data_rc.borrow_mut();
+            graph_data.processed_nodes = processed_nodes.clone();
+
+            // Rebuild constant_nodes map with current indices
+            let mut new_constant_nodes = std::collections::HashMap::new();
+            for (idx, n) in processed_nodes.iter().enumerate() {
+                if n.node_type == NodeType::Constant {
+                    for output in &n.outputs {
+                        new_constant_nodes.insert(output.name.clone(), idx);
+                    }
+                }
+            }
+            graph_data.constant_nodes = new_constant_nodes;
+            drop(graph_data);
+
+            // Re-attach value_store to all node inputs
+            for node in &mut processed_nodes {
+                for arg in &mut node.inputs {
+                    arg.value_store = Some(graph_data_rc.clone());
+                }
+            }
+
+            // Now try to lift constants for each node
+            let registry = get_processor_registry();
+            for node in &mut processed_nodes {
+                let processor = registry.get(&node.node_type);
+                processor
+                    .lift_constants(node, opset_version)
+                    .unwrap_or_else(|e| {
+                        // It's OK if this fails - some inputs may already be Static from first pass
+                        log::debug!(
+                            "Could not lift constants for node {} after Identity elimination (this is normal): {:?}",
+                            node.name,
+                            e
+                        );
+                    });
+            }
+        }
 
         // Remove unreferenced constant nodes
         // After constant lifting via to_static(), constants may have no remaining runtime references.

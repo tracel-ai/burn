@@ -67,10 +67,19 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
         "Input must have a value"
     );
 
-    // Get the tensor data directly from graph_data (avoid double borrow via value())
-    let data_id = node.inputs[1]
-        .data_id
-        .expect("Weight input must have data_id");
+    // Get the data_id - either directly from Static input, or lookup from Constant input
+    let data_id = if let Some(id) = node.inputs[1].data_id {
+        // Static input with embedded data_id
+        id
+    } else if node.inputs[1].is_constant() {
+        // Constant input - lookup the constant node to get data_id
+        graph_data
+            .get_constant_data_id_by_output(&node.inputs[1].name)
+            .expect("Constant input must have data_id in constant node")
+    } else {
+        panic!("Weight input must be either Static or Constant");
+    };
+
     let tensor_data = graph_data
         .get_tensor_data(data_id)
         .expect("Weight must have tensor data in central store")
@@ -109,11 +118,12 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
     };
 
     // Update the central store with the transposed weights
-    if let Some(data_id) = node.inputs[1].data_id
-        && let Some(stored_data) = graph_data.get_tensor_data_mut(data_id)
-    {
+    if let Some(stored_data) = graph_data.get_tensor_data_mut(data_id) {
         *stored_data = new_tensor_data;
     }
+
+    // Embed the data_id in the input for downstream use (lift_constants may not have run yet)
+    node.inputs[1].data_id = Some(data_id);
 }
 
 fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {

@@ -15,9 +15,16 @@ impl NodeProcessor for ConstantProcessor {
 
         log::debug!("Constant rank inference for node {}", node.name);
 
-        // Get tensor data from central store via output's data_id
-        let output = &node.outputs[0];
-        let tensor_data = output.value().ok_or_else(|| {
+        // Validate that the Constant node has an input
+        if node.inputs.is_empty() {
+            return Err(ProcessError::MissingAttribute(
+                "Constant node must have an input with value data".to_string(),
+            ));
+        }
+
+        // Get tensor data from central store via input's data_id
+        let input = &node.inputs[0];
+        let tensor_data = input.value().ok_or_else(|| {
             ProcessError::MissingAttribute("value (from central store)".to_string())
         })?;
 
@@ -120,29 +127,61 @@ mod tests {
 
     fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
         use crate::from_onnx::GraphData;
+        use crate::ir::Argument;
         use std::cell::RefCell;
         use std::rc::Rc;
 
         // Create GraphData and register the constant
         let mut graph_data = GraphData::new(&[], &[], &[]);
-        graph_data.register_test_constant("test_value".to_string(), data, shape);
+        graph_data.register_test_constant("test_value".to_string(), data.clone(), shape.clone());
 
-        // Create a basic constant node
+        // Get the data_id and element type from the registered constant
+        let data_id = graph_data.get_constant_data_id("test_value");
+
+        // Determine element type from data
+        let elem_type = match &data {
+            crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => ElementType::Bool,
+            crate::ir::Data::Float16(_)
+            | crate::ir::Data::Float16s(_)
+            | crate::ir::Data::Float32(_)
+            | crate::ir::Data::Float32s(_)
+            | crate::ir::Data::Float64(_)
+            | crate::ir::Data::Float64s(_) => ElementType::Float32,
+            _ => ElementType::Int64,
+        };
+
+        // Create type based on shape
+        let ty = if shape.is_empty() {
+            crate::ir::ArgType::Scalar(elem_type)
+        } else {
+            crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                elem_type,
+                rank: shape.len(),
+                static_shape: Some(shape),
+            })
+        };
+
+        // Attach GraphData
+        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+
+        // Create constant node with input containing the data_id
         let mut node = NodeBuilder::new(NodeType::Constant, "test_constant")
             .output_tensor_f32("output", 0, None)
             .build();
 
-        // Get the data_id from the registered constant
-        let data_id = graph_data.get_constant_data_id("test_value");
+        // Create input with Static value
+        node.inputs.push(Argument {
+            name: String::new(),
+            ty: ty.clone(),
+            data_id,
+            value_source: crate::ir::ValueSource::Static,
+            value_store: Some(graph_data_rc.clone()),
+        });
 
-        // Set data_id on the output
-        if let Some(id) = data_id {
-            node.outputs[0].data_id = Some(id);
-        }
-
-        // Attach GraphData to output for .value() to work
-        let graph_data_rc = Rc::new(RefCell::new(graph_data));
+        // Attach value_store to output
         node.outputs[0].value_store = Some(graph_data_rc);
+        node.outputs[0].value_source = crate::ir::ValueSource::Constant;
+        node.outputs[0].ty = ty;
 
         node
     }

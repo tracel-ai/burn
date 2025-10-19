@@ -92,11 +92,17 @@ impl GraphData {
                 let constant_node = Node {
                     node_type: NodeType::Constant,
                     name: const_name.clone(),
-                    inputs: vec![],
+                    inputs: vec![Argument {
+                        name: String::new(), // Empty name for internal static input
+                        ty: arg.ty.clone(),
+                        data_id: Some(data_id), // Set the ID for central store lookup
+                        value_source: crate::ir::ValueSource::Static, // Static value embedded via data_id
+                        value_store: None,
+                    }],
                     outputs: vec![Argument {
                         name: output_name.clone(),
                         ty: arg.ty.clone(),
-                        data_id: Some(data_id), // Set the ID for central store lookup
+                        data_id: None, // Output doesn't store data_id
                         value_source: crate::ir::ValueSource::Constant, // Points to this constant node
                         value_store: None,
                     }],
@@ -367,18 +373,26 @@ impl GraphData {
         self.next_tensor_id += 1;
         self.tensor_data.insert(data_id, tensor_data);
 
+        let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
+            elem_type,
+            rank: shape.len(),
+            static_shape: Some(shape),
+        });
+
         let constant_node = Node {
             node_type: NodeType::Constant,
             name: const_node_name,
-            inputs: vec![],
+            inputs: vec![Argument {
+                name: String::new(), // Empty name for internal static input
+                ty: ty.clone(),
+                data_id: Some(data_id), // Set the ID for central store lookup
+                value_source: crate::ir::ValueSource::Static, // Static value embedded via data_id
+                value_store: None,
+            }],
             outputs: vec![Argument {
                 name: output_name.clone(),
-                ty: crate::ir::ArgType::Tensor(crate::ir::TensorType {
-                    elem_type,
-                    rank: shape.len(),
-                    static_shape: Some(shape),
-                }),
-                data_id: Some(data_id), // Set the ID for central store lookup
+                ty,
+                data_id: None, // Output doesn't store data_id
                 value_source: crate::ir::ValueSource::Constant, // Points to this constant node
                 value_store: None,
             }],
@@ -428,8 +442,8 @@ impl GraphData {
         self.constant_nodes
             .get(output_name)
             .and_then(|&idx| self.processed_nodes.get(idx))
-            .and_then(|node| node.outputs.first())
-            .and_then(|output| output.data_id)
+            .and_then(|node| node.inputs.first())
+            .and_then(|input| input.data_id)
     }
 
     /// Get the data_id for a constant by name (for test utilities)
@@ -438,7 +452,7 @@ impl GraphData {
         self.constant_nodes
             .get(name)
             .and_then(|&idx| self.processed_nodes.get(idx))
-            .and_then(|node| node.outputs.first())
-            .and_then(|output| output.data_id)
+            .and_then(|node| node.inputs.first())
+            .and_then(|input| input.data_id)
     }
 }
