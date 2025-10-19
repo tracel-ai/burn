@@ -3,10 +3,13 @@
 //! This module handles the conversion of ONNX protobuf models into the internal
 //! intermediate representation (IR) used by the burn framework.
 
+mod constant_builder;
 mod conversion;
 mod graph_builder;
 mod graph_data;
 mod identity_elimination;
+mod io_mapping;
+mod tensor_store;
 mod type_inference;
 
 // Public exports

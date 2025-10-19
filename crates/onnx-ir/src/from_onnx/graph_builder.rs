@@ -274,8 +274,8 @@ impl OnnxGraphBuilder {
             let mut graph_data = graph_data_rc.borrow_mut();
 
             // Clone tensor_data before consuming (we need to keep it in GraphData for .value())
-            let tensor_data_clone = graph_data.tensor_data.clone();
-            let next_tensor_id = graph_data.next_tensor_id;
+            let tensor_data_clone = graph_data.tensor_store.clone_data();
+            let next_tensor_id = graph_data.tensor_store.next_id();
 
             // Consume to get nodes/inputs/outputs
             let result =
@@ -283,8 +283,9 @@ impl OnnxGraphBuilder {
 
             // Restore tensor_data so .value() still works for burn-import
             // This allows Arguments to access their data via data_id
-            graph_data.tensor_data = tensor_data_clone;
-            graph_data.next_tensor_id = next_tensor_id;
+            graph_data
+                .tensor_store
+                .restore_data(tensor_data_clone, next_tensor_id);
 
             result
         };
