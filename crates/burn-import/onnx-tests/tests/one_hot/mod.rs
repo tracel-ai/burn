@@ -15,10 +15,8 @@ mod tests {
         let device = Default::default();
         let model = one_hot::Model::<TestBackend>::new(&device);
         let input: Tensor<TestBackend, 1, Int> = Tensor::from_ints([1, 0, 2], &device);
-        let expected: Tensor<TestBackend, 2, Int> = Tensor::from_data(
-            TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
-            &device,
-        );
+        let expected: Tensor<TestBackend, 2, Int> =
+            Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
         let output: Tensor<TestBackend, 2, Int> = model.forward(input);
         output
             .to_data()

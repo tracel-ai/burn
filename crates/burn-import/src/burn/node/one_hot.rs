@@ -2,7 +2,7 @@ use super::{Node, NodeCodegen, OnnxIntoNode};
 use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 
 #[derive(Debug, Clone, new)]
 pub struct OneHotNode {
@@ -16,9 +16,7 @@ pub struct OneHotNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
     fn output_types(&self) -> Vec<Type> {
-        let mut new_output = self.output.clone();
-        new_output.kind = self.values_type.kind;
-        vec![Type::Tensor(new_output)]
+        vec![Type::Tensor(self.output.clone())]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -34,7 +32,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let off_value = &self.values[0];
         let axis = &self.axis;
         let input_type = &self.input.kind;
-        let output_type = &self.values_type.kind; // output is tied to values type
+        let output_type = &self.output.kind; // use actual output type from ONNX model
         match (input_type, output_type) {
             (TensorKind::Int, TensorKind::Int) | (TensorKind::Float, TensorKind::Float) => {
                 quote! {
@@ -69,7 +67,6 @@ impl OnnxIntoNode for OneHotNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let values_type = TensorType::from(node.inputs.get(2).unwrap());
         let config = node.config::<onnx_ir::node::one_hot::OneHotConfig>();
 
         // Extract num_classes from config.depth
@@ -87,6 +84,12 @@ impl OnnxIntoNode for OneHotNode {
                 panic!("OneHot with runtime values is not supported in burn-import")
             }
         };
+
+        // Derive values_type from output to preserve the correct output element type
+        // Even though onnx-ir stores values as [f32; 2], the output type is determined
+        // by the ONNX model's output element type (e.g., Int64 -> Int)
+        let mut values_type = output.clone();
+        values_type.name = format_ident!("{}_values", output.name);
 
         let axis = config.axis;
         Self::new(input, output, num_classes, values, values_type, axis)
