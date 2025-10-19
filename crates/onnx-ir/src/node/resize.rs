@@ -68,14 +68,14 @@ pub enum ResizeSizes {
 fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> {
     match node.inputs.get(2) {
         Some(input) => {
-            // Skip empty inputs (those with empty names are placeholders)
-            if input.name.is_empty() {
+            // Skip optional inputs (those that were never provided)
+            if input.is_optional() {
                 return None;
             }
 
             match &input.ty {
                 ArgType::Tensor(_) => {
-                    // Check if it's a constant tensor
+                    // Check if it's a static value (lifted constant) or constant
                     match input.value() {
                         Some(TensorData { data, .. }) => {
                             let mut scales = data.clone().into_f32s();
@@ -115,14 +115,14 @@ fn extract_scales_input(node: &Node, input_rank: usize) -> Option<ResizeScales> 
 fn extract_sizes_input(node: &Node, input_rank: usize) -> Option<ResizeSizes> {
     match node.inputs.get(3) {
         Some(input) => {
-            // Skip empty inputs (those with empty names are placeholders)
-            if input.name.is_empty() {
+            // Skip optional inputs (those that were never provided)
+            if input.is_optional() {
                 return None;
             }
 
             match &input.ty {
                 ArgType::Tensor(_) => {
-                    // Check if it's a constant tensor
+                    // Check if it's a static value (lifted constant) or constant
                     match input.value() {
                         Some(TensorData { data, .. }) => {
                             let mut sizes: Vec<usize> = data
@@ -168,18 +168,18 @@ pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-        // Lift roi input (input[1]) if present
-        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
+        // Lift roi input (input[1]) if present and constant
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
 
-        // Lift scales input (input[2]) if present
-        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
+        // Lift scales input (input[2]) if present and constant
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
             node.inputs[2].to_static()?;
         }
 
-        // Lift sizes input (input[3]) if present
-        if node.inputs.len() > 3 && !node.inputs[3].name.is_empty() {
+        // Lift sizes input (input[3]) if present and constant
+        if node.inputs.len() > 3 && node.inputs[3].is_constant() {
             node.inputs[3].to_static()?;
         }
 

@@ -76,8 +76,8 @@ impl NodeProcessor for ClipProcessor {
             let input = node.inputs.get(index)?;
 
             // In ONNX, optional inputs are represented by empty strings
-            // If the input name is empty, treat it as not provided (None)
-            if input.name.is_empty() {
+            // Skip optional inputs (those that were never provided)
+            if input.is_optional() {
                 return None;
             }
 

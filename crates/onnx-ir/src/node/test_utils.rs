@@ -33,11 +33,18 @@ impl NodeBuilder {
     /// `input_scalar_f32`, etc. for better readability and type safety.
     #[doc(hidden)]
     pub fn add_input(mut self, name: &str, ty: ArgType) -> Self {
+        // In ONNX protobuf, optional inputs are represented by empty names
+        let value_source = if name.is_empty() {
+            crate::ir::ValueSource::Optional
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
+
         self.inputs.push(Argument {
             name: name.to_string(),
             ty,
             data_id: None,
-            value_source: crate::ir::ValueSource::Dynamic,
+            value_source,
             value_store: None,
         });
         self

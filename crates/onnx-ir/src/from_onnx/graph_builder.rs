@@ -162,12 +162,26 @@ impl OnnxGraphBuilder {
                         // Allocate ID and store data in central store
                         let data_id = {
                             let mut graph_data = graph_data_rc.borrow_mut();
-                            graph_data.store_tensor_data(tensor_data)
+                            graph_data.store_tensor_data(tensor_data.clone())
                         };
 
-                        // Set data_id on the output argument
+                        // Set data_id, value_source, and type on the output argument
+                        // We set the type now (before other nodes reference it) because type inference
+                        // happens after all nodes are created, but inputs are cloned when nodes are created
                         if !node.outputs.is_empty() {
                             node.outputs[0].data_id = Some(data_id);
+                            node.outputs[0].value_source = crate::ir::ValueSource::Constant;
+
+                            // Set the correct type based on tensor data
+                            node.outputs[0].ty = if tensor_data.shape.is_empty() {
+                                crate::ir::ArgType::Scalar(tensor_data.elem_type())
+                            } else {
+                                crate::ir::ArgType::Tensor(crate::ir::TensorType {
+                                    elem_type: tensor_data.elem_type(),
+                                    rank: tensor_data.shape.len(),
+                                    static_shape: Some(tensor_data.shape.clone()),
+                                })
+                            };
                         }
 
                         // Remove tensor data from attributes
