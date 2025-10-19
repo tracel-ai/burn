@@ -10,12 +10,10 @@ use std::{
 };
 
 use crate::{
-    from_onnx::graph_state::GraphState,
+    graph_state::GraphState,
     ir::{ArgType, Node},
-    processor::ArgPreference,
+    processor::{ArgPreference, get_processor_registry},
 };
-
-use crate::from_onnx::get_processor_registry;
 
 /// Phase 3: Infer types for all nodes
 ///

@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    from_onnx::graph_state::GraphState,
+    graph_state::GraphState,
     ir::{Argument, Node, NodeType, OnnxGraph},
 };
 

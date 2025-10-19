@@ -7,11 +7,12 @@ use std::{fs::File, path::Path};
 
 use protobuf::Message;
 
-use crate::{ir::OnnxGraph, protos::ModelProto, util::verify_opsets};
+use crate::{
+    ir::OnnxGraph, proto_conversion::MIN_OPSET_VERSION, protos::ModelProto, util::verify_opsets,
+};
 
-use super::{
-    conversion::MIN_OPSET_VERSION,
-    phases::{finalization, initialization, node_conversion, post_processing, type_inference},
+use super::phases::{
+    finalization, initialization, node_conversion, post_processing, type_inference,
 };
 
 /// Main entry point: Parse an ONNX file and convert to IR

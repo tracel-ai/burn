@@ -126,7 +126,7 @@ mod tests {
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
-        use crate::from_onnx::GraphState;
+        use crate::graph_state::GraphState;
         use crate::ir::Argument;
         use std::cell::RefCell;
         use std::rc::Rc;

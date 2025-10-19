@@ -745,6 +745,16 @@ impl NodeProcessor for DefaultProcessor {
     }
 }
 
+// Processor registry singleton
+use std::sync::OnceLock;
+
+static PROCESSOR_REGISTRY: OnceLock<ProcessorRegistry> = OnceLock::new();
+
+/// Get the processor registry singleton
+pub(crate) fn get_processor_registry() -> &'static ProcessorRegistry {
+    PROCESSOR_REGISTRY.get_or_init(ProcessorRegistry::with_standard_processors)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

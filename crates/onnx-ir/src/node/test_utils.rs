@@ -553,7 +553,7 @@ impl NodeBuilder {
         use std::rc::Rc;
 
         // Create a new GraphState for this test
-        let mut graph_data = crate::from_onnx::GraphState::new(&[], &[], &[]);
+        let mut graph_data = crate::graph_state::GraphState::new(&[], &[], &[]);
 
         // Register constants in GraphState before building the node
         for (input_name, (data, shape)) in &self.constant_data {

@@ -4,9 +4,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{ir::NodeType, protos::ModelProto};
-
-use super::super::graph_state::GraphState;
+use crate::{graph_state::GraphState, ir::NodeType, protos::ModelProto};
 
 /// Initialize graph state from ONNX model
 ///

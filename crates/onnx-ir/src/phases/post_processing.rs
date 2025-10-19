@@ -18,8 +18,9 @@ use std::{
 };
 
 use crate::{
-    from_onnx::{get_processor_registry, graph_state::GraphState},
+    graph_state::GraphState,
     ir::{Argument, Node, NodeType},
+    processor::get_processor_registry,
 };
 
 /// Result of Identity elimination analysis

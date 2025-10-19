@@ -1,16 +1,18 @@
 #[macro_use]
 extern crate derive_new;
 
-mod from_onnx;
+mod graph_state;
 pub mod ir;
 pub mod node;
+mod phases;
+mod pipeline;
 pub mod processor;
 mod proto_conversion;
 mod protos;
+mod tensor_store;
 pub mod util;
 
-pub use from_onnx::convert_constant_value;
-pub use from_onnx::element_type_from_proto;
-pub use from_onnx::parse_onnx;
 pub use ir::*;
+pub use pipeline::parse_onnx;
+pub use proto_conversion::{convert_constant_value, element_type_from_proto};
 pub use util::{validate_input_count, validate_min_inputs, validate_opset, validate_output_count};

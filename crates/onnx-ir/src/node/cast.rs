@@ -1,6 +1,6 @@
-use crate::from_onnx::element_type_from_proto;
 use crate::ir::{ArgType, AttributeValue, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
+use crate::proto_conversion::element_type_from_proto;
 use std::any::Any;
 
 /// Configuration for Cast operations

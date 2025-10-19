@@ -20,8 +20,9 @@
 use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::Iter};
 
 use crate::{
-    from_onnx::{get_processor_registry, graph_state::GraphState},
+    graph_state::GraphState,
     ir::{ArgType, AttributeValue, Data, Node, NodeType, TensorData},
+    processor::get_processor_registry,
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto},
 };
