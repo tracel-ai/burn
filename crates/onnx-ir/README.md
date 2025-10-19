@@ -9,15 +9,34 @@ tensor operations.
 
 The ONNX-IR crate is designed with the following components:
 
+### Core Modules
+
 - **IR Core** (`ir.rs`): Defines the core data structures such as `Node`, `NodeType`, `Argument`,
-  etc.
+  `TensorType`, `ValueSource`, etc.
+- **Pipeline** (`pipeline.rs`): Main entry point and orchestrator that coordinates the 5-phase
+  conversion process
 - **Protocol Conversion** (`proto_conversion.rs`): Converts ONNX protobuf structures to IR
-- **ONNX Parsing** (`from_onnx.rs`): Handles the parsing of ONNX models into the IR
-- **Rank Inference** (`rank_inference.rs`): Computes output tensor ranks for each operation
-- **Node Implementations** (`node/`): Contains operation-specific configurations and rank inference
-  functions
-- **Node Remapping** (`node_remap.rs`): Maps generic ONNX operations to dimension-specific
-  alternatives
+  equivalents
+- **Graph State** (`graph_state.rs`): Manages mutable state during conversion including node
+  storage, name mappings, and tensor data
+- **Tensor Store** (`tensor_store.rs`): Centralized storage for tensor data with ID-based access
+- **Processor** (`processor.rs`): Defines the `NodeProcessor` trait with type inference and constant
+  lifting capabilities
+- **Registry** (`registry.rs`): Centralized registry mapping node types to their processors - **add
+  new node types here**
+- **Node Implementations** (`node/`): Contains 100+ operation-specific processor implementations
+
+### Conversion Phases
+
+The conversion pipeline (`phases/`) consists of five sequential phases:
+
+1. **Initialization** (`initialization.rs`): Creates graph state and processes initializers into
+   Constant nodes
+2. **Node Conversion** (`node_conversion.rs`): Converts ONNX nodes to IR, performs node remapping,
+   and coalesces chains
+3. **Type Inference** (`type_inference.rs`): Iteratively infers types with preference propagation
+4. **Post-processing** (`post_processing.rs`): Eliminates Identity nodes and lifts constants
+5. **Finalization** (`finalization.rs`): Removes unused constants and builds the final graph
 
 ## Usage
 
@@ -73,6 +92,19 @@ inferred_model = shape_inference.infer_shapes(upgraded_model)
 # Save the converted model
 onnx.save(inferred_model, 'upgraded_model.onnx')
 ```
+
+## Adding New Node Types
+
+To add support for a new ONNX operator:
+
+1. **Create a processor**: Implement `NodeProcessor` trait in a new file under `node/` (e.g.,
+   `node/my_op.rs`)
+2. **Register the processor**: Add it to `registry.rs` in the `with_standard_processors()` method
+3. **Implement type inference**: Define how output types are inferred from inputs
+4. **Add constant lifting**: Optionally lift constant inputs to static configuration
+5. **Extract config**: Optionally extract codegen configuration from ONNX attributes
+
+See existing processors in `node/` for examples.
 
 ## Resources
 
