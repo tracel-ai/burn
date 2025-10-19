@@ -8,7 +8,7 @@ use std::any::Any;
 pub enum ClipInput {
     /// Static value known at compile time.
     Static(f64),
-    /// Runtime argument determined during execution - references node.inputs[input_index].
+    /// Runtime argument determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 

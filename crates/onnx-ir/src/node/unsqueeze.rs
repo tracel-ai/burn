@@ -17,7 +17,7 @@ use std::any::Any;
 pub enum UnsqueezeConfig {
     /// Static axes known at compile time.
     Static(Vec<i64>),
-    /// Runtime axes determined during execution - references node.inputs[input_index].
+    /// Runtime axes determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 

@@ -26,7 +26,7 @@ impl NodeConfig for SliceConfig {
 pub enum SliceInput {
     /// Static value known at compile time.
     Static(Vec<i64>),
-    /// Runtime argument determined during execution - references node.inputs[input_index].
+    /// Runtime argument determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 

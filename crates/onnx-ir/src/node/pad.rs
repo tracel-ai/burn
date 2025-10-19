@@ -8,7 +8,7 @@ use std::any::Any;
 pub enum PadInput {
     /// Static pads known at compile time.
     Static(Vec<usize>),
-    /// Runtime pads determined during execution - references node.inputs[input_index].
+    /// Runtime pads determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 
@@ -17,7 +17,7 @@ pub enum PadInput {
 pub enum ConstantValueInput {
     /// Static constant value known at compile time.
     Static(f32),
-    /// Runtime constant value determined during execution - references node.inputs[input_index].
+    /// Runtime constant value determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 

@@ -25,7 +25,7 @@ impl NodeConfig for ReshapeConfig {
 pub enum ReshapeInput {
     /// Static shape known at compile time.
     Static(Vec<i64>),
-    /// Runtime shape determined during execution - references node.inputs[input_index].
+    /// Runtime shape determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 

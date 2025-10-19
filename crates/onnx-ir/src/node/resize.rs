@@ -51,7 +51,7 @@ impl NodeConfig for ResizeConfig {
 pub enum ResizeScales {
     /// Static scales known at compile time.
     Static(Vec<f32>),
-    /// Runtime scales determined during execution - references node.inputs[input_index].
+    /// Runtime scales determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 
@@ -60,7 +60,7 @@ pub enum ResizeScales {
 pub enum ResizeSizes {
     /// Static sizes known at compile time.
     Static(Vec<usize>),
-    /// Runtime sizes determined during execution - references node.inputs[input_index].
+    /// Runtime sizes determined during execution - references node.inputs\[input_index\].
     Runtime(RuntimeInputRef),
 }
 
