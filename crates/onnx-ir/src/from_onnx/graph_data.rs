@@ -50,6 +50,35 @@ pub struct GraphData {
 }
 
 impl GraphData {
+    /// Create a Constant node with Static input
+    fn create_constant_node(
+        node_name: String,
+        output_name: String,
+        ty: ArgType,
+        data_id: TensorId,
+    ) -> Node {
+        Node {
+            node_type: NodeType::Constant,
+            name: node_name,
+            inputs: vec![Argument {
+                name: String::new(),
+                ty: ty.clone(),
+                data_id: Some(data_id),
+                value_source: crate::ir::ValueSource::Static,
+                value_store: None,
+            }],
+            outputs: vec![Argument {
+                name: output_name,
+                ty,
+                data_id: None,
+                value_source: crate::ir::ValueSource::Constant,
+                value_store: None,
+            }],
+            attrs: HashMap::new(),
+            config: None,
+        }
+    }
+
     /// Create new GraphData from ONNX proto structures
     pub(crate) fn new(
         inputs: &[ValueInfoProto],
@@ -60,66 +89,34 @@ impl GraphData {
         let mut input_key_map = HashMap::new();
         let mut processed_nodes = Vec::new();
         let mut constant_nodes = HashMap::new();
-
-        // Initialize central tensor data store
         let mut tensor_data = HashMap::new();
         let mut next_tensor_id = 0;
 
-        // Convert all initializers to Constant nodes immediately
+        // Convert all initializers to Constant nodes
         let mut constants_map: HashMap<String, Argument> = HashMap::new();
-        let mut tensor_data_map: HashMap<String, TensorData> = HashMap::new();
         for initializer in initializers.iter() {
             let (arg, data) = Argument::from_initializer(initializer);
+
+            // Allocate ID and store tensor data
+            let data_id = next_tensor_id;
+            next_tensor_id += 1;
+            tensor_data.insert(data_id, data);
+
+            let idx = processed_nodes.len();
+            let const_name = format!("constant{}", idx + 1);
+            let output_name = format!("{}_out1", const_name);
+
+            let constant_node = Self::create_constant_node(
+                const_name,
+                output_name.clone(),
+                arg.ty.clone(),
+                data_id,
+            );
+
+            constant_nodes.insert(output_name.clone(), idx);
+            input_name_map.insert(initializer.name.clone(), IOEntry::Node(idx, 0));
             constants_map.insert(initializer.name.clone(), arg);
-            tensor_data_map.insert(initializer.name.clone(), data);
-        }
-
-        // Create Constant nodes for all initializers
-        for (idx, initializer) in initializers.iter().enumerate() {
-            if let Some(arg) = constants_map.get(&initializer.name) {
-                // Allocate ID and store tensor data in central store
-                let data_id = next_tensor_id;
-                next_tensor_id += 1;
-
-                if let Some(data) = tensor_data_map.get(&initializer.name) {
-                    tensor_data.insert(data_id, data.clone());
-                }
-
-                // Use same naming scheme as other constants: "constant1", "constant2", etc.
-                let const_name = format!("constant{}", idx + 1);
-                let output_name = format!("{}_out1", const_name);
-
-                let constant_node = Node {
-                    node_type: NodeType::Constant,
-                    name: const_name.clone(),
-                    inputs: vec![Argument {
-                        name: String::new(), // Empty name for internal static input
-                        ty: arg.ty.clone(),
-                        data_id: Some(data_id), // Set the ID for central store lookup
-                        value_source: crate::ir::ValueSource::Static, // Static value embedded via data_id
-                        value_store: None,
-                    }],
-                    outputs: vec![Argument {
-                        name: output_name.clone(),
-                        ty: arg.ty.clone(),
-                        data_id: None, // Output doesn't store data_id
-                        value_source: crate::ir::ValueSource::Constant, // Points to this constant node
-                        value_store: None,
-                    }],
-                    attrs: HashMap::new(), // No tensor data in attributes
-                    config: None,
-                };
-
-                let node_idx = processed_nodes.len();
-
-                // Register this constant
-                constant_nodes.insert(output_name.clone(), node_idx);
-
-                // Map the original initializer name to this constant node
-                input_name_map.insert(initializer.name.clone(), IOEntry::Node(node_idx, 0));
-
-                processed_nodes.push(constant_node);
-            }
+            processed_nodes.push(constant_node);
         }
 
         let outputs = outputs
@@ -265,10 +262,6 @@ impl GraphData {
         )
     }
 
-    /// Get the current index of the processed nodes
-    ///
-    /// Since Nodes are added at the end of conversion, the current index is the length of the processed nodes.
-    /// Useful when lifting values or marking nodes for removal.
     /// Check if a value is available (either in active constants or consumed cache)
     pub(crate) fn has_value(&self, name: &str) -> bool {
         self.constant_nodes.contains_key(name) || self.consumed_values.contains_key(name)
@@ -283,8 +276,6 @@ impl GraphData {
     }
 
     /// Register a test constant in GraphData
-    ///
-    /// This is used by test utilities to add constant values that can be retrieved via `into_value()`.
     #[cfg(test)]
     pub(crate) fn register_test_constant(
         &mut self,
@@ -292,9 +283,8 @@ impl GraphData {
         data: crate::ir::Data,
         shape: Vec<usize>,
     ) {
-        use crate::ir::{NodeType, TensorData};
+        use crate::ir::TensorData;
 
-        // Determine element type from data
         let elem_type = match &data {
             crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
             crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => {
@@ -314,50 +304,20 @@ impl GraphData {
             crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
         };
 
-        let output_name = format!("{}_const_out", name);
-        let const_node_name = format!("{}_const", name);
-
-        let tensor_data = TensorData {
-            data,
-            shape: shape.clone(),
-        };
-
-        // Allocate ID and store data in central store
-        let data_id = self.next_tensor_id;
-        self.next_tensor_id += 1;
-        self.tensor_data.insert(data_id, tensor_data);
-
         let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
             elem_type,
             rank: shape.len(),
-            static_shape: Some(shape),
+            static_shape: Some(shape.clone()),
         });
 
-        let constant_node = Node {
-            node_type: NodeType::Constant,
-            name: const_node_name,
-            inputs: vec![Argument {
-                name: String::new(), // Empty name for internal static input
-                ty: ty.clone(),
-                data_id: Some(data_id), // Set the ID for central store lookup
-                value_source: crate::ir::ValueSource::Static, // Static value embedded via data_id
-                value_store: None,
-            }],
-            outputs: vec![Argument {
-                name: output_name.clone(),
-                ty,
-                data_id: None, // Output doesn't store data_id
-                value_source: crate::ir::ValueSource::Constant, // Points to this constant node
-                value_store: None,
-            }],
-            attrs: HashMap::new(), // No tensor data in attributes
-            config: None,
-        };
+        let data_id = self.store_tensor_data(TensorData { data, shape });
 
-        // Register this constant
+        let output_name = format!("{}_const_out", name);
+        let const_node_name = format!("{}_const", name);
+        let constant_node = Self::create_constant_node(const_node_name, output_name, ty, data_id);
+
         let node_idx = self.processed_nodes.len();
-        self.constant_nodes.insert(name.clone(), node_idx);
-
+        self.constant_nodes.insert(name, node_idx);
         self.processed_nodes.push(constant_node);
     }
 
@@ -400,13 +360,9 @@ impl GraphData {
             .and_then(|input| input.data_id)
     }
 
-    /// Get the data_id for a constant by name (for test utilities)
+    /// Alias for get_constant_data_id_by_output (for test utilities)
     #[cfg(test)]
     pub(crate) fn get_constant_data_id(&self, name: &str) -> Option<TensorId> {
-        self.constant_nodes
-            .get(name)
-            .and_then(|&idx| self.processed_nodes.get(idx))
-            .and_then(|node| node.inputs.first())
-            .and_then(|input| input.data_id)
+        self.get_constant_data_id_by_output(name)
     }
 }
