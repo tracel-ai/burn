@@ -36,11 +36,6 @@ pub struct GraphData {
     passed_inputs: HashSet<usize>,
     /// Maps constant output names to node indices
     pub(super) constant_nodes: HashMap<String, usize>,
-    /// Nodes marked for removal
-    pub(super) nodes_to_remove: HashSet<usize>,
-    /// Cached values from consumed constants (constant node removed, but value still accessible)
-    /// Also used for lifted constants that need to be accessible via into_value()
-    pub(crate) consumed_values: HashMap<String, TensorData>,
 
     /// Central tensor data store: ID -> TensorData
     /// All constant/static tensor data is stored here with unique IDs
@@ -158,8 +153,6 @@ impl GraphData {
             input_key_map,
             passed_inputs: HashSet::new(),
             constant_nodes,
-            nodes_to_remove: HashSet::new(),
-            consumed_values: HashMap::new(),
             tensor_data,
             next_tensor_id,
         }
@@ -232,8 +225,8 @@ impl GraphData {
         self.processed_nodes.push(node);
     }
 
-    /// Consumes the graph data and returns the processed nodes, filtered inputs, outputs, and nodes to remove
-    pub(super) fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>, HashSet<usize>) {
+    /// Consumes the graph data and returns the processed nodes, filtered inputs, and outputs
+    pub(super) fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         let passed_inputs = self.passed_inputs;
         let mut filtered_inputs = Vec::new();
         for (i, input) in self.inputs.into_iter().enumerate() {
@@ -254,17 +247,12 @@ impl GraphData {
                 _ => None,
             })
             .collect();
-        (
-            self.processed_nodes,
-            self.inputs,
-            outputs,
-            self.nodes_to_remove,
-        )
+        (self.processed_nodes, self.inputs, outputs)
     }
 
-    /// Check if a value is available (either in active constants or consumed cache)
+    /// Check if a value is available in constant nodes
     pub(crate) fn has_value(&self, name: &str) -> bool {
-        self.constant_nodes.contains_key(name) || self.consumed_values.contains_key(name)
+        self.constant_nodes.contains_key(name)
     }
 
     /// Get the type of a graph output by name

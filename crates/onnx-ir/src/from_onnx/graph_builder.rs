@@ -270,7 +270,7 @@ impl OnnxGraphBuilder {
         }
 
         // Extract the processed graph data while preserving tensor_data for .value() access
-        let (mut processed_nodes, inputs, mut outputs, nodes_to_remove) = {
+        let (mut processed_nodes, inputs, mut outputs) = {
             let mut graph_data = graph_data_rc.borrow_mut();
 
             // Clone tensor_data before consuming (we need to keep it in GraphData for .value())
@@ -415,19 +415,16 @@ impl OnnxGraphBuilder {
             }
         }
 
-        // Filter out unreferenced constants and any other nodes marked for removal
-        let mut all_nodes_to_remove = nodes_to_remove;
-        all_nodes_to_remove.extend(constants_to_remove);
-
+        // Filter out unreferenced constant nodes
         log::debug!(
             "Filtering nodes: total={}, nodes_to_remove={:?}",
             processed_nodes.len(),
-            all_nodes_to_remove
+            constants_to_remove
         );
 
         let mut i = 0;
         processed_nodes.retain(|node| {
-            let keep = !all_nodes_to_remove.contains(&i);
+            let keep = !constants_to_remove.contains(&i);
 
             if !keep {
                 log::debug!("Filtering out node at index {}: {}", i, node.name);
