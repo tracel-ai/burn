@@ -6,7 +6,7 @@
 //! - Name mapping between ONNX and IR names
 //! - Tensor data storage
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
 use crate::proto_conversion::argument_from_initializer;
@@ -134,10 +134,6 @@ pub struct GraphState {
     graph_input_map: HashMap<String, usize>,
     /// Maps ONNX names to node outputs (node_index, output_index)
     node_output_map: HashMap<String, (usize, usize)>,
-    /// Maps IR input names (input1, input2) back to ONNX names
-    input_key_map: HashMap<String, String>,
-    /// Tracks which graph inputs have been used by nodes
-    passed_inputs: HashSet<usize>,
     /// Maps constant output names to node indices
     pub(super) constant_nodes: HashMap<String, usize>,
     /// Central tensor data store
@@ -154,7 +150,6 @@ impl GraphState {
         let mut tensor_store = TensorStore::new();
         let mut graph_input_map = HashMap::new();
         let mut node_output_map = HashMap::new();
-        let mut input_key_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
         let processed_constants = process_initializers(initializers, &mut tensor_store);
@@ -181,7 +176,6 @@ impl GraphState {
                 if !node_output_map.contains_key(&x.name) {
                     graph_input_map.insert(x.name.clone(), i);
                 }
-                input_key_map.insert(in_name.clone(), x.name.clone());
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 arg.name = in_name;
@@ -195,8 +189,6 @@ impl GraphState {
             processed_nodes,
             graph_input_map,
             node_output_map,
-            input_key_map,
-            passed_inputs: HashSet::new(),
             constant_nodes,
             tensor_store,
         }
@@ -214,21 +206,9 @@ impl GraphState {
         }
     }
 
-    /// Mark the graph_inputs to a node as passed
-    fn mark_input_passed(&mut self, node: &Node) {
-        node.inputs.iter().for_each(|node_input| {
-            if let Some(onnx_name) = self.input_key_map.get(&node_input.name)
-                && let Some(&i) = self.graph_input_map.get(onnx_name)
-            {
-                self.passed_inputs.insert(i);
-            }
-        });
-    }
-
-    /// Add a node (marks inputs as passed, maps outputs, renames outputs)
+    /// Add a node (maps outputs, renames outputs)
     pub(super) fn add_node(&mut self, mut node: Node) {
         log::debug!("Adding node {:?}", &node.name);
-        self.mark_input_passed(&node);
         let node_idx = self.processed_nodes.len();
         let mut out_count = 1;
         for output in node.outputs.iter_mut() {
@@ -249,15 +229,8 @@ impl GraphState {
         self.processed_nodes.push(node);
     }
 
-    /// Consume and return (nodes, filtered inputs, outputs)
-    pub(super) fn consume(mut self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
-        let mut filtered_inputs = Vec::new();
-        for (i, input) in self.inputs.into_iter().enumerate() {
-            if self.passed_inputs.contains(&i) {
-                filtered_inputs.push(input);
-            }
-        }
-        self.inputs = filtered_inputs;
+    /// Consume and return (nodes, inputs, outputs)
+    pub(super) fn consume(self) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
         let outputs = self
             .outputs
             .into_iter()
@@ -265,7 +238,7 @@ impl GraphState {
                 if let Some(&(node_idx, output_idx)) = self.node_output_map.get(&x.name) {
                     Some(self.processed_nodes[node_idx].outputs[output_idx].clone())
                 } else if let Some(&i) = self.graph_input_map.get(&x.name) {
-                    // Output maps directly to an input (e.g., when Identity nodes are removed)
+                    // Output references a graph input directly (passthrough)
                     Some(self.inputs[i].clone())
                 } else {
                     None
