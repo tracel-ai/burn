@@ -9,6 +9,7 @@ mod pipeline;
 pub mod processor;
 mod proto_conversion;
 mod protos;
+mod registry;
 mod tensor_store;
 pub mod util;
 
