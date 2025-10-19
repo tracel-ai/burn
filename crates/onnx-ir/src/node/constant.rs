@@ -126,13 +126,13 @@ mod tests {
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
-        use crate::from_onnx::GraphData;
+        use crate::from_onnx::GraphState;
         use crate::ir::Argument;
         use std::cell::RefCell;
         use std::rc::Rc;
 
-        // Create GraphData and register the constant
-        let mut graph_data = GraphData::new(&[], &[], &[]);
+        // Create GraphState and register the constant
+        let mut graph_data = GraphState::new(&[], &[], &[]);
         graph_data.register_test_constant("test_value".to_string(), data.clone(), shape.clone());
 
         // Get the data_id and element type from the registered constant
@@ -161,7 +161,7 @@ mod tests {
             })
         };
 
-        // Attach GraphData
+        // Attach GraphState
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
 
         // Create constant node with input containing the data_id

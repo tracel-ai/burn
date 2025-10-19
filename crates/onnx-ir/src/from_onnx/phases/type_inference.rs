@@ -1,14 +1,37 @@
-//! Iterative type inference with preference propagation
+//! Phase 3: Type Inference
 //!
-//! This module implements a sophisticated type inference algorithm that alternates
-//! between type inference and preference collection until convergence.
+//! Implements iterative type inference with preference propagation.
+//! This alternates between type inference and preference collection until convergence.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
-use crate::ir::{ArgType, Node};
-use crate::processor::ArgPreference;
+use crate::{
+    from_onnx::graph_state::GraphState,
+    ir::{ArgType, Node},
+    processor::ArgPreference,
+};
 
-use super::get_processor_registry;
+use crate::from_onnx::get_processor_registry;
+
+/// Phase 3: Infer types for all nodes
+///
+/// Extracts nodes temporarily to avoid RefCell borrow conflicts during type inference.
+pub(crate) fn infer_types(state_rc: &Rc<RefCell<GraphState>>, opset_version: usize) {
+    // Extract nodes temporarily to avoid holding mutable borrow during type inference
+    // (type inference may call .value() which needs immutable borrows)
+    let mut nodes = std::mem::take(&mut state_rc.borrow_mut().processed_nodes);
+    iterative_type_inference_with_preferences(&mut nodes, opset_version);
+    state_rc.borrow_mut().processed_nodes = nodes;
+
+    log::debug!(
+        "Type inference completed for {} nodes",
+        state_rc.borrow().processed_nodes.len()
+    );
+}
 
 /// Run iterative type inference with preference propagation
 ///

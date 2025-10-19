@@ -191,9 +191,9 @@ impl NodeBuilder {
 
     /// Add a tensor input with data value
     ///
-    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
     /// This method creates the argument without the value field. If you need the value
-    /// in GraphData for testing, you'll need to add it separately.
+    /// in GraphState for testing, you'll need to add it separately.
     pub fn input_tensor_with_data(
         mut self,
         name: &str,
@@ -214,7 +214,7 @@ impl NodeBuilder {
             value_store: None,
         };
         self.inputs.push(arg);
-        // Store the constant data for later registration in GraphData
+        // Store the constant data for later registration in GraphState
         self.constant_data.insert(name.to_string(), (data, shape));
         self
     }
@@ -243,7 +243,7 @@ impl NodeBuilder {
 
     /// Add a float32 scalar tensor input (rank 0)
     ///
-    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
     /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
         let value_source = if value.is_some() {
@@ -273,7 +273,7 @@ impl NodeBuilder {
 
     /// Add an int64 scalar tensor input (rank 0)
     ///
-    /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
+    /// Note: In the new design, constant values are stored in GraphState, not in Arguments.
     /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_i64(mut self, name: &str, value: Option<i64>) -> Self {
         let value_source = if value.is_some() {
@@ -543,19 +543,19 @@ impl NodeBuilder {
         }
     }
 
-    /// Build the node and register any constant inputs in GraphData.
-    /// This is useful for tests that need constant values accessible via GraphData.
+    /// Build the node and register any constant inputs in GraphState.
+    /// This is useful for tests that need constant values accessible via GraphState.
     ///
-    /// Note: After calling this method, the GraphData will be wrapped in Rc<RefCell<>>
+    /// Note: After calling this method, the GraphState will be wrapped in Rc<RefCell<>>
     /// and attached to the node's arguments.
     pub fn build_with_graph_data(self, _opset: usize) -> Node {
         use std::cell::RefCell;
         use std::rc::Rc;
 
-        // Create a new GraphData for this test
-        let mut graph_data = crate::from_onnx::GraphData::new(&[], &[], &[]);
+        // Create a new GraphState for this test
+        let mut graph_data = crate::from_onnx::GraphState::new(&[], &[], &[]);
 
-        // Register constants in GraphData before building the node
+        // Register constants in GraphState before building the node
         for (input_name, (data, shape)) in &self.constant_data {
             graph_data.register_test_constant(input_name.clone(), data.clone(), shape.clone());
         }
@@ -570,7 +570,7 @@ impl NodeBuilder {
             }
         }
 
-        // Wrap GraphData in Rc<RefCell<>> and attach to all arguments
+        // Wrap GraphState in Rc<RefCell<>> and attach to all arguments
         let graph_data_rc = Rc::new(RefCell::new(graph_data));
 
         for arg in &mut node.inputs {

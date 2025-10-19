@@ -1,22 +1,135 @@
-//! Graph data management for ONNX conversion
+//! Graph state management for ONNX conversion
 //!
-//! This module orchestrates the ONNX to IR conversion process by managing:
+//! This module manages the mutable state during ONNX to IR conversion:
 //! - Node storage and ordering
 //! - Graph inputs and outputs
-//! - Name mapping between ONNX and IR
-//! - Delegation to specialized modules (TensorStore, ConstantBuilder)
+//! - Name mapping between ONNX and IR names
+//! - Tensor data storage
 
 use std::collections::{HashMap, HashSet};
 
 use crate::ir::{ArgType, Argument, Node, NodeType, TensorData, TensorId};
 use crate::protos::{TensorProto, ValueInfoProto};
 
-use super::constant_builder;
 use super::tensor_store::TensorStore;
 
-/// Manages intermediate state during ONNX graph conversion
+/// Result of processing initializers
+struct ProcessedConstants {
+    /// Created Constant nodes
+    nodes: Vec<Node>,
+    /// Map of constant output names to node indices
+    constant_nodes: HashMap<String, usize>,
+}
+
+/// Create a Constant node with a Static input
+///
+/// The constant's value is stored in the tensor store and referenced via data_id.
+/// The input has an empty name and ValueSource::Static.
+/// The output has a named output and ValueSource::Constant.
+fn create_constant_node(
+    node_name: String,
+    output_name: String,
+    ty: ArgType,
+    data_id: TensorId,
+) -> Node {
+    Node {
+        node_type: NodeType::Constant,
+        name: node_name,
+        inputs: vec![Argument {
+            name: String::new(),
+            ty: ty.clone(),
+            data_id: Some(data_id),
+            value_source: crate::ir::ValueSource::Static,
+            value_store: None,
+        }],
+        outputs: vec![Argument {
+            name: output_name,
+            ty,
+            data_id: None,
+            value_source: crate::ir::ValueSource::Constant,
+            value_store: None,
+        }],
+        attrs: HashMap::new(),
+        config: None,
+    }
+}
+
+/// Process ONNX initializers into Constant nodes
+///
+/// Converts all initializers (weights, biases, etc.) into Constant nodes,
+/// stores their tensor data in the tensor store, and returns tracking maps.
+fn process_initializers(
+    initializers: &[TensorProto],
+    tensor_store: &mut TensorStore,
+) -> ProcessedConstants {
+    let mut nodes = Vec::new();
+    let mut constant_nodes = HashMap::new();
+
+    for initializer in initializers.iter() {
+        let (_arg, data) = Argument::from_initializer(initializer);
+
+        // Allocate ID and store tensor data
+        let data_id = tensor_store.store(data);
+
+        let idx = nodes.len();
+        let const_name = format!("constant{}", idx + 1);
+        let output_name = format!("{}_out1", const_name);
+
+        let constant_node =
+            create_constant_node(const_name, output_name.clone(), _arg.ty.clone(), data_id);
+
+        constant_nodes.insert(output_name, idx);
+        nodes.push(constant_node);
+    }
+
+    ProcessedConstants {
+        nodes,
+        constant_nodes,
+    }
+}
+
+#[cfg(test)]
+/// Create a test constant node with tensor data
+fn create_test_constant(
+    name: String,
+    data: crate::ir::Data,
+    shape: Vec<usize>,
+    tensor_store: &mut TensorStore,
+) -> (Node, usize) {
+    use crate::ir::TensorData;
+
+    let elem_type = match &data {
+        crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
+        crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => crate::ElementType::Float16,
+        crate::ir::Data::Float32(_) | crate::ir::Data::Float32s(_) => crate::ElementType::Float32,
+        crate::ir::Data::Float64(_) | crate::ir::Data::Float64s(_) => crate::ElementType::Float64,
+        crate::ir::Data::Uint16(_) | crate::ir::Data::Uint16s(_) => crate::ElementType::Uint16,
+        crate::ir::Data::Uint8(_) | crate::ir::Data::Uint8s(_) => crate::ElementType::Uint8,
+        crate::ir::Data::Int8(_) | crate::ir::Data::Int8s(_) => crate::ElementType::Int8,
+        crate::ir::Data::Int32(_) | crate::ir::Data::Int32s(_) => crate::ElementType::Int32,
+        crate::ir::Data::Int64(_) | crate::ir::Data::Int64s(_) => crate::ElementType::Int64,
+        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
+    };
+
+    let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
+        elem_type,
+        rank: shape.len(),
+        static_shape: Some(shape.clone()),
+    });
+
+    let data_id = tensor_store.store(TensorData { data, shape });
+
+    let output_name = format!("{}_const_out", name);
+    let const_node_name = format!("{}_const", name);
+    let constant_node = create_constant_node(const_node_name, output_name, ty, data_id);
+
+    // Return node and a placeholder index (caller will assign proper index)
+    (constant_node, 0)
+}
+
+/// Mutable state container for ONNX graph conversion
 #[derive(Debug)]
-pub struct GraphData {
+pub struct GraphState {
     /// The nodes that have been processed, used to copy the outputs to a child node
     pub(super) processed_nodes: Vec<Node>,
     /// The inputs of the graph
@@ -37,8 +150,8 @@ pub struct GraphData {
     pub(super) tensor_store: TensorStore,
 }
 
-impl GraphData {
-    /// Create new GraphData from ONNX proto structures
+impl GraphState {
+    /// Create new GraphState from ONNX proto structures
     pub(crate) fn new(
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
@@ -50,8 +163,7 @@ impl GraphData {
         let mut input_key_map = HashMap::new();
 
         // Convert all initializers to Constant nodes
-        let processed_constants =
-            constant_builder::process_initializers(initializers, &mut tensor_store);
+        let processed_constants = process_initializers(initializers, &mut tensor_store);
         let processed_nodes = processed_constants.nodes;
         let constant_nodes = processed_constants.constant_nodes;
 
@@ -187,7 +299,7 @@ impl GraphData {
             .map(|out| &out.ty)
     }
 
-    /// Register a test constant in GraphData
+    /// Register a test constant in GraphState
     #[cfg(test)]
     pub(crate) fn register_test_constant(
         &mut self,
@@ -195,12 +307,8 @@ impl GraphData {
         data: crate::ir::Data,
         shape: Vec<usize>,
     ) {
-        let (constant_node, _) = constant_builder::create_test_constant(
-            name.clone(),
-            data,
-            shape,
-            &mut self.tensor_store,
-        );
+        let (constant_node, _) =
+            create_test_constant(name.clone(), data, shape, &mut self.tensor_store);
 
         let node_idx = self.processed_nodes.len();
         self.constant_nodes.insert(name, node_idx);

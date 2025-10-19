@@ -68,7 +68,7 @@ pub struct Argument {
     pub value_source: ValueSource,
 
     /// Reference to the value store for lazy constant lookup and type expectations
-    pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphData>>>,
+    pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphState>>>,
 }
 
 impl fmt::Debug for Argument {
@@ -80,7 +80,7 @@ impl fmt::Debug for Argument {
             .field("value_source", &self.value_source)
             .field(
                 "value_store",
-                &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"),
+                &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphState>>"),
             )
             .finish()
     }
@@ -535,9 +535,9 @@ pub struct OnnxGraph {
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
 
-    /// Reference to GraphData to keep tensor data alive for .value() access
+    /// Reference to GraphState to keep tensor data alive for .value() access
     /// This ensures Arguments can access tensor data via their data_id
-    pub(crate) _graph_data: Option<std::rc::Rc<std::cell::RefCell<crate::from_onnx::GraphData>>>,
+    pub(crate) _graph_data: Option<std::rc::Rc<std::cell::RefCell<crate::from_onnx::GraphState>>>,
 }
 
 /// Nodes produced by the ONNX parser

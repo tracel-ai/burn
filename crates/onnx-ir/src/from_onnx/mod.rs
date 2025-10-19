@@ -2,21 +2,36 @@
 //!
 //! This module handles the conversion of ONNX protobuf models into the internal
 //! intermediate representation (IR) used by the burn framework.
+//!
+//! ## Pipeline Overview
+//!
+//! The conversion happens in clear phases (see `pipeline.rs`):
+//! 1. Initialization - Create state, process initializers
+//! 2. Node Conversion - Convert ONNX nodes to IR
+//! 3. Type Inference - Infer types iteratively
+//! 4. Post-processing - Identity elimination
+//! 5. Finalization - Cleanup and build graph
+//!
+//! ## Module Organization
+//!
+//! - `pipeline.rs` - Main orchestrator showing the entire flow
+//! - `phases/` - All conversion phases and their helpers
+//! - `graph_state.rs` - Mutable state container
+//! - `conversion.rs` - Shared conversion utilities (public API)
+//! - `tensor_store.rs` - Tensor data storage infrastructure
 
-mod constant_builder;
 mod conversion;
-mod graph_builder;
-mod graph_data;
-mod identity_elimination;
+mod graph_state;
+mod phases;
+mod pipeline;
 mod tensor_store;
-mod type_inference;
 
 // Public exports
 pub use conversion::{convert_constant_value, element_type_from_proto};
-pub use graph_builder::parse_onnx;
+pub use pipeline::parse_onnx;
 
 // Internal exports - used by other modules in onnx-ir
-pub(crate) use graph_data::GraphData;
+pub(crate) use graph_state::GraphState;
 
 // Processor registry singleton
 use crate::processor::ProcessorRegistry;

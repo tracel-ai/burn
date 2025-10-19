@@ -1,7 +1,7 @@
 //! Conversion utilities for ONNX types and values
 
 use crate::ir::{Argument, ElementType, Node};
-use crate::protos::{NodeProto, tensor_proto::DataType as DT};
+use crate::protos::tensor_proto::DataType as DT;
 use protobuf::Enum;
 
 /// Minimum required ONNX opset version
@@ -44,39 +44,4 @@ pub fn convert_constant_value(node: &Node) -> Argument {
         .expect("Constant should have a value");
 
     Argument::from(value)
-}
-
-/// Trait for checking if a list of nodes is topologically sorted
-pub(crate) trait TopologicalSortable {
-    fn is_top_sorted(&self) -> bool;
-}
-
-impl TopologicalSortable for Vec<NodeProto> {
-    fn is_top_sorted(&self) -> bool {
-        // Iterate over each node in the vector
-        for (node_position, node) in self.iter().enumerate() {
-            // Iterate over each output of the node
-            for output in &node.output {
-                // If the output is empty, we don't want to check the rest of the graph, inputs and outputs that are optional
-                // can end up as empty strings, so we can't use that as a reason to count the graph as not sorted
-                if output.is_empty() {
-                    continue;
-                }
-                // Iterate over each other node in the vector
-                for (other_node_position, other_node) in self.iter().enumerate() {
-                    // If the other node has an input that matches the current output
-                    if other_node.input.contains(output) {
-                        // If the position of the current node is greater than the position of the other node
-                        if node_position > other_node_position {
-                            // The vector is not topologically sorted
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-
-        // The vector is topologically sorted
-        true
-    }
 }

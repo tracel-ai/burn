@@ -1,31 +1,43 @@
-//! Identity node elimination
+//! Phase 4: Post-processing
 //!
-//! This module handles the removal of Identity nodes from the graph.
+//! Handles identity elimination and re-runs constant lifting on rewired nodes.
+//!
+//! ## Identity Elimination
+//!
+//! This phase handles the removal of Identity nodes from the graph.
 //! Identity nodes are eliminated in the following ways:
 //!
 //! 1. Convert to Constant if input is a constant (handled during node processing)
 //! 2. Remove pass-through Identity nodes by updating consumers to use the Identity's input directly
 //! 3. Preserve at least one Identity if graph would be empty or input directly maps to output
 
-use crate::ir::{Node, NodeType};
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
+
+use crate::{
+    from_onnx::{get_processor_registry, graph_state::GraphState},
+    ir::{Argument, Node, NodeType},
+};
 
 /// Result of Identity elimination analysis
-pub(super) struct IdentityEliminationPlan {
+struct IdentityEliminationPlan {
     /// Mapping from Identity output names to their input names (for rewiring)
-    pub rewire_map: HashMap<String, String>,
+    rewire_map: HashMap<String, String>,
     /// Indices of Identity nodes to remove
-    pub nodes_to_remove: HashSet<usize>,
+    nodes_to_remove: HashSet<usize>,
 }
 
 /// Analyze the graph and create a plan for eliminating Identity nodes
 ///
 /// This function identifies which Identity nodes can be safely removed
 /// and creates a rewiring map for updating node connections.
-pub(super) fn plan_identity_elimination(
+fn plan_identity_elimination(
     nodes: &[Node],
-    graph_inputs: &[crate::ir::Argument],
-    graph_outputs: &[crate::ir::Argument],
+    graph_inputs: &[Argument],
+    graph_outputs: &[Argument],
 ) -> IdentityEliminationPlan {
     let mut rewire_map = HashMap::new();
     let mut nodes_to_remove = HashSet::new();
@@ -139,9 +151,9 @@ pub(super) fn plan_identity_elimination(
 /// 1. Rewires all node inputs to bypass removed Identity nodes
 /// 2. Updates graph outputs to bypass removed Identity nodes
 /// 3. Filters out removed nodes
-pub(super) fn apply_identity_elimination(
+fn apply_identity_elimination(
     nodes: &mut Vec<Node>,
-    outputs: &mut [crate::ir::Argument],
+    outputs: &mut [Argument],
     plan: IdentityEliminationPlan,
 ) {
     let IdentityEliminationPlan {
@@ -162,7 +174,7 @@ pub(super) fn apply_identity_elimination(
 
     // Step 1: Build a map from output names to Arguments
     // This allows us to look up data_id and value_store when rewiring
-    let mut output_arg_map: HashMap<String, crate::ir::Argument> = HashMap::new();
+    let mut output_arg_map: HashMap<String, Argument> = HashMap::new();
     for node in nodes.iter() {
         for output in &node.outputs {
             output_arg_map.insert(output.name.clone(), output.clone());
@@ -251,6 +263,68 @@ pub(super) fn apply_identity_elimination(
     });
 
     log::debug!("After Identity elimination: {} nodes remain", nodes.len());
+}
+
+/// Post-process the graph: eliminate identities and re-lift constants
+///
+/// Returns (nodes, inputs, outputs) tuple ready for finalization
+pub(crate) fn post_process(
+    state_rc: &Rc<RefCell<GraphState>>,
+) -> (Vec<Node>, Vec<Argument>, Vec<Argument>) {
+    // Extract graph data while preserving tensor_store
+    let (mut nodes, inputs, mut outputs) = {
+        let mut state = state_rc.borrow_mut();
+        let tensor_data_clone = state.tensor_store.clone_data();
+        let next_tensor_id = state.tensor_store.next_id();
+
+        let result = std::mem::replace(&mut *state, GraphState::new(&[], &[], &[])).consume();
+
+        // Restore tensor_store for .value() access
+        state
+            .tensor_store
+            .restore_data(tensor_data_clone, next_tensor_id);
+        result
+    };
+
+    // Identity elimination
+    log::debug!("Starting Identity elimination");
+    {
+        let elimination_plan = plan_identity_elimination(&nodes, &inputs, &outputs);
+        apply_identity_elimination(&mut nodes, &mut outputs, elimination_plan);
+    }
+    log::debug!("After Identity elimination: {} nodes remain", nodes.len());
+
+    // Re-run constant lifting after identity elimination
+    log::debug!("Re-running constant lifting after Identity elimination");
+    {
+        let mut state = state_rc.borrow_mut();
+        state.processed_nodes = nodes.clone();
+
+        // Rebuild constant_nodes map
+        let mut new_constant_nodes = std::collections::HashMap::new();
+        for (idx, n) in nodes.iter().enumerate() {
+            if n.node_type == NodeType::Constant {
+                for output in &n.outputs {
+                    new_constant_nodes.insert(output.name.clone(), idx);
+                }
+            }
+        }
+        state.constant_nodes = new_constant_nodes;
+        drop(state);
+
+        // Re-attach value_store and lift constants
+        for node in &mut nodes {
+            for arg in &mut node.inputs {
+                arg.value_store = Some(state_rc.clone());
+            }
+
+            let registry = get_processor_registry();
+            let processor = registry.get(&node.node_type);
+            let _ = processor.lift_constants(node, 17); // Ignore errors - already lifted
+        }
+    }
+
+    (nodes, inputs, outputs)
 }
 
 #[cfg(test)]

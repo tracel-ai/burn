@@ -1,6 +1,6 @@
 use std::str::{FromStr, from_utf8};
 
-use super::from_onnx::GraphData;
+use super::from_onnx::GraphState;
 use super::from_onnx::element_type_from_proto;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, TensorData,
@@ -158,7 +158,7 @@ pub fn convert_vec_attrs_proto(attrs: Vec<AttributeProto>) -> Attributes {
     result
 }
 
-pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
+pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphState) -> Node {
     let name = node.name.clone();
 
     log::debug!("Converting ONNX node with type {:?}", node.op_type.as_str());
