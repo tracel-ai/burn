@@ -9,7 +9,7 @@ use cubecl::{
             args::MatmulArgs,
             memory::{
                 BatchedGlobalLayout, BatchedGlobalLayoutExpand, BatchedGlobalScaleLayout,
-                BatchedGlobalScaleLayoutExpand, BlockScaledLayout, GlobalMemoryConfig,
+                BatchedGlobalScaleLayoutExpand, BlockScaledLayout, GlobalLayoutConfig,
             },
         },
     },
@@ -30,6 +30,7 @@ use cubecl_quant::scheme::{QuantLevel, QuantScheme};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{
+    io::ref_line_size,
     ir::{Arg, FuseBlockConfig, FusePrecision, GlobalArgs, LocalArgs},
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
@@ -79,9 +80,15 @@ impl MatmulArgs for FusedMatmulArgs {
             &mut locals,
             batch_shape,
             &inputs.config,
-            config.global_memory_config(MatmulIdent::Lhs),
-            config.global_memory_config(MatmulIdent::Rhs),
-            config.global_memory_config(MatmulIdent::Out),
+            comptime![GlobalLayoutConfig::from(
+                config.global_memory_config(MatmulIdent::Lhs)
+            )],
+            comptime![GlobalLayoutConfig::from(
+                config.global_memory_config(MatmulIdent::Rhs)
+            )],
+            comptime![GlobalLayoutConfig::from(
+                config.global_memory_config(MatmulIdent::Out)
+            )],
         )
     }
 
@@ -94,7 +101,7 @@ impl MatmulArgs for FusedMatmulArgs {
             state.batch_shape.clone(),
             comptime![state.a.clone()],
             comptime![state.config.clone()],
-            comptime![state.lhs_memory_config],
+            comptime![state.lhs_layout_config],
         )
     }
 
@@ -107,7 +114,7 @@ impl MatmulArgs for FusedMatmulArgs {
             state.batch_shape.clone(),
             comptime![state.b.clone()],
             comptime![state.config.clone()],
-            comptime![state.rhs_memory_config],
+            comptime![state.rhs_layout_config],
         )
     }
 
@@ -122,7 +129,7 @@ impl MatmulArgs for FusedMatmulArgs {
                     state.batch_shape.clone(),
                     c,
                     comptime![state.config.clone()],
-                    comptime![state.out_memory_config],
+                    comptime![state.out_layout_config],
                 );
                 CubeOption::new_Some(view)
             }
@@ -154,8 +161,9 @@ impl MatmulArgs for FusedMatmulArgs {
             shape_col,
             stride_row,
             stride_col,
-            state.out_memory_config,
+            ref_line_size(&state.locals),
             1u32,
+            state.out_layout_config,
         );
         let mut buffer = FusedOutput::new(
             &state.inputs,
@@ -175,7 +183,7 @@ fn global_view<E: Numeric>(
     batch_shape: Sequence<FastDivmod>,
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
-    #[comptime] mem_config: GlobalMemoryConfig,
+    #[comptime] layout_config: GlobalLayoutConfig,
 ) -> View<Line<E>, Coords3d> {
     let rank = comptime![config.rank];
     let data = comptime![arg.data().clone()];
@@ -192,7 +200,7 @@ fn global_view<E: Numeric>(
         let scheme = comptime![arg.scheme().unwrap()];
         let num_quants = comptime![scheme.num_quants() as u32];
         comptime![packing = num_quants];
-        match comptime![mem_config.matrix_layout] {
+        match comptime![layout_config.matrix_layout] {
             MatrixLayout::RowMajor => shape_col *= num_quants,
             MatrixLayout::ColMajor => shape_row *= num_quants,
         };
@@ -206,7 +214,8 @@ fn global_view<E: Numeric>(
         shape,
         comptime![arg.data().clone()],
         comptime![config.clone()],
-        mem_config,
+        data_tensor.tensor.line_size(),
+        layout_config,
         packing,
     );
     let data_buf = GlobalInput::new(inputs, locals, data, comptime![config.clone()], None);
@@ -218,17 +227,15 @@ fn global_view<E: Numeric>(
                 QuantLevel::Tensor => BatchedGlobalScaleLayout::new_PerTensor(shape),
                 QuantLevel::Block(block_size) => {
                     let block_size = comptime![block_size.as_dim::<2>()];
-                    let mem_config = comptime![GlobalMemoryConfig {
-                        global_line_size: 1,
-                        ..mem_config
-                    }];
+
                     let scales_layout = global_layout(
                         inputs,
                         batch_shape,
                         shape,
                         comptime![scales.clone()],
                         comptime![config.clone()],
-                        mem_config,
+                        1u32,
+                        layout_config,
                         1u32,
                     );
                     BatchedGlobalScaleLayout::new_BlockScaled(BlockScaledLayout::new(
@@ -251,7 +258,8 @@ fn global_layout(
     shape: Coords2d,
     #[comptime] arg: Arg,
     #[comptime] config: FuseBlockConfig,
-    #[comptime] mem_config: GlobalMemoryConfig,
+    #[comptime] line_size: u32,
+    #[comptime] layout_config: GlobalLayoutConfig,
     #[comptime] packing: u32,
 ) -> BatchedGlobalLayout {
     let rank = comptime![config.rank];
@@ -280,8 +288,9 @@ fn global_layout(
         shape_col,
         stride_row,
         stride_col,
-        mem_config,
+        line_size,
         packing,
+        layout_config,
     )
 }
 
@@ -364,11 +373,11 @@ pub struct FusedMatmulState {
     #[cube(comptime)]
     out: Arg,
     #[cube(comptime)]
-    lhs_memory_config: GlobalMemoryConfig,
+    lhs_layout_config: GlobalLayoutConfig,
     #[cube(comptime)]
-    rhs_memory_config: GlobalMemoryConfig,
+    rhs_layout_config: GlobalLayoutConfig,
     #[cube(comptime)]
-    out_memory_config: GlobalMemoryConfig,
+    out_layout_config: GlobalLayoutConfig,
     batch_shape: Sequence<FastDivmod>,
 }
 
@@ -381,9 +390,9 @@ impl FusedMatmulState {
         locals: &mut LocalArgs,
         batch_shape: Sequence<FastDivmod>,
         #[comptime] config: &FuseBlockConfig,
-        #[comptime] lhs_memory_config: GlobalMemoryConfig,
-        #[comptime] rhs_memory_config: GlobalMemoryConfig,
-        #[comptime] out_memory_config: GlobalMemoryConfig,
+        #[comptime] lhs_layout_config: GlobalLayoutConfig,
+        #[comptime] rhs_layout_config: GlobalLayoutConfig,
+        #[comptime] out_layout_config: GlobalLayoutConfig,
     ) -> FusedMatmulState {
         FusedMatmulState {
             inputs: inputs.global.clone(),
@@ -395,9 +404,9 @@ impl FusedMatmulState {
             c: comptime![inputs.c.clone()],
             out: comptime![inputs.out.clone()],
             batch_shape,
-            lhs_memory_config,
-            rhs_memory_config,
-            out_memory_config,
+            lhs_layout_config,
+            rhs_layout_config,
+            out_layout_config,
         }
     }
 }

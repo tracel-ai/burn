@@ -406,7 +406,7 @@ impl FusedMatmul {
         let k = lhs_shape[rank - 1] as u32;
         let n = rhs_shape[rank - 1] as u32;
 
-        let line_sizes = MatmulLineSizes {
+        let mut line_sizes = MatmulLineSizes {
             lhs: inputs.line_size(self.lhs.data()),
             rhs: inputs.line_size(self.rhs.data()),
             out: match &config.ref_layout {
@@ -421,6 +421,13 @@ impl FusedMatmul {
 
         if line_sizes.out == 1 && (line_sizes.lhs > 1 || line_sizes.rhs > 1) {
             return Err(FusedMatmulError::InvalidInput);
+        }
+
+        if let MatmulArg::Quantized { scheme, .. } = self.lhs {
+            line_sizes.lhs *= scheme.num_quants() as u8;
+        }
+        if let MatmulArg::Quantized { scheme, .. } = self.rhs {
+            line_sizes.rhs *= scheme.num_quants() as u8;
         }
 
         let problem = MatmulProblem {
