@@ -314,6 +314,14 @@ impl GraphData {
         })
     }
 
+    /// Get the type of a graph output by name
+    pub(crate) fn get_output_type(&self, name: &str) -> Option<&crate::ir::ArgType> {
+        self.outputs
+            .iter()
+            .find(|out| out.name == name)
+            .map(|out| &out.ty)
+    }
+
     /// Register a test constant in GraphData
     ///
     /// This is used by test utilities to add constant values that can be retrieved via `into_value()`.

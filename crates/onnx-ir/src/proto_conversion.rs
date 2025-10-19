@@ -168,7 +168,14 @@ pub fn convert_node_proto(node: &NodeProto, graph_data: &GraphData) -> Node {
     let outputs = node
         .output
         .iter()
-        .map(|x| Argument::new(x.to_string()))
+        .map(|output_name| {
+            let mut arg = Argument::new(output_name.to_string());
+            // If this output is a graph output, use its type from the graph
+            if let Some(graph_output_type) = graph_data.get_output_type(output_name) {
+                arg.ty = graph_output_type.clone();
+            }
+            arg
+        })
         .collect();
 
     let attrs = convert_vec_attrs_proto(node.attribute.clone());

@@ -235,9 +235,7 @@ impl OnnxIntoNode for ConstantNode {
         } else {
             panic!(
                 "Constant node '{}' output '{}' missing tensor data: data_id={:?}",
-                node.name,
-                output.name,
-                output.data_id
+                node.name, output.name, output.data_id
             );
         };
 
