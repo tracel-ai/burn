@@ -44,20 +44,19 @@ pub struct PadProcessor;
 impl NodeProcessor for PadProcessor {
     // TODO mark axes inputs as Shape if inputs are constant
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift pads input (input[1]) if present
         if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
 
         // Lift constant_value input (input[2]) if present
         if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+            node.inputs[2].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(
@@ -562,6 +561,7 @@ mod tests {
                 static_shape: None,
             }),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
         let node = node;

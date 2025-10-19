@@ -124,30 +124,29 @@ impl NodeProcessor for SliceProcessor {
         Ok(Some(prefs))
     }
 
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift starts input (input[1]) if present
         if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
 
         // Lift ends input (input[2]) if present
         if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+            node.inputs[2].to_static()?;
         }
 
         // Lift axes input (input[3]) if present
         if node.inputs.len() > 3 {
-            lifted.push(node.inputs[3].name.clone());
+            node.inputs[3].to_static()?;
         }
 
         // Lift steps input (input[4]) if present
         if node.inputs.len() > 4 {
-            lifted.push(node.inputs[4].name.clone());
+            node.inputs[4].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(

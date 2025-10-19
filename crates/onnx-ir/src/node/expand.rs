@@ -27,6 +27,17 @@ impl NodeConfig for ExpandShape {
 pub struct ExpandProcessor;
 
 impl NodeProcessor for ExpandProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+
+        // Only lift shape input (input[1]) if it has a static value
+        // Runtime shapes should remain in the graph
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
+
+        Ok(())
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

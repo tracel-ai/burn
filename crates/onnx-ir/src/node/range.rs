@@ -34,25 +34,23 @@ pub enum RangeInput {
 pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
-        // Lift start input (input[0])
-        if !node.inputs.is_empty() {
-            lifted.push(node.inputs[0].name.clone());
+        // Only lift inputs that have static values
+        // Runtime inputs (no value) should remain in the graph
+        if !node.inputs.is_empty() && node.inputs[0].is_constant() {
+            node.inputs[0].to_static()?;
         }
 
-        // Lift limit input (input[1])
-        if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
         }
 
-        // Lift delta input (input[2])
-        if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
+            node.inputs[2].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(

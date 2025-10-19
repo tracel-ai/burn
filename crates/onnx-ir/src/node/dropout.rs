@@ -32,6 +32,22 @@ impl NodeConfig for DropoutConfig {
 pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+
+        // For opset 12+, ratio is an input (input[1])
+        // Only lift it if it's a static constant (has a value)
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
+        }
+
+        // Also lift training_mode (input[2]) if it's a static constant
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
+            node.inputs[2].to_static()?;
+        }
+
+        Ok(())
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

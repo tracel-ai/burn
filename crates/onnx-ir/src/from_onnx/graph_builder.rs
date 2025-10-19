@@ -198,9 +198,9 @@ impl OnnxGraphBuilder {
             let registry = get_processor_registry();
             let processor = registry.get(&node.node_type);
 
-            // Lift constants - mark them for removal from the graph
-            // The lifted constant values remain accessible via .value() through data_id
-            let lifted = processor
+            // Lift constants by converting Constant arguments to Static
+            // This embeds constant data directly in the argument via to_static()
+            processor
                 .lift_constants(&mut node, opset_version)
                 .unwrap_or_else(|e| {
                     panic!(
@@ -208,22 +208,6 @@ impl OnnxGraphBuilder {
                         node.name, node.node_type, e
                     )
                 });
-
-            // Mark lifted constants for removal
-            if !lifted.is_empty() {
-                let mut graph_data = graph_data_rc.borrow_mut();
-                for output_name in &lifted {
-                    if let Some(&node_idx) = graph_data.constant_nodes.get(output_name) {
-                        graph_data.nodes_to_remove.insert(node_idx);
-                        log::debug!(
-                            "Marking constant node at index {} (output: {}) for removal (lifted by {})",
-                            node_idx,
-                            output_name,
-                            node.name
-                        );
-                    }
-                }
-            }
 
             // Extract config first
             let config = processor

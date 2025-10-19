@@ -143,9 +143,18 @@ pub trait NodeProcessor: Send + Sync {
         Ok(None)
     }
 
-    /// Lift constant inputs, return names of lifted inputs
-    fn lift_constants(&self, _node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        Ok(Vec::new())
+    /// Lift constant inputs by converting them to static values
+    ///
+    /// This method should call `to_static()` on any input arguments that should be
+    /// embedded as static values in the node configuration. After conversion:
+    /// - The argument's name is cleared ("")
+    /// - The argument's data_id is set to the constant's data
+    /// - The argument's value_source is changed from Constant to Static
+    ///
+    /// The constant node itself will be removed later during graph cleanup based on
+    /// reference counting (constants with no Constant/Dynamic references are removed).
+    fn lift_constants(&self, _node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+        Ok(())
     }
 
     /// Infer output types given preferences from consumers
@@ -773,12 +782,14 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             outputs: vec![Argument {
                 name: "output".to_string(),
                 ty: ArgType::default(),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -818,12 +829,14 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             outputs: vec![Argument {
                 name: "output".to_string(),
                 ty: ArgType::default(),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),

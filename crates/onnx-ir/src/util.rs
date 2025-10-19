@@ -459,6 +459,7 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             });
         }
@@ -471,6 +472,7 @@ mod tests {
                 static_shape: None,
             }),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         }];
 
@@ -520,6 +522,7 @@ mod tests {
             name: "scalar_input".to_string(),
             ty: ArgType::Scalar(ElementType::Float32),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
 
@@ -556,6 +559,7 @@ mod tests {
             name: "shape_input".to_string(),
             ty: ArgType::Shape(3),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
 
@@ -583,6 +587,7 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
             Argument {
@@ -593,6 +598,7 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
         ];
@@ -612,6 +618,7 @@ mod tests {
                     static_shape: Some(vec![1, 3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
             Argument {
@@ -622,6 +629,7 @@ mod tests {
                     static_shape: Some(vec![2, 1, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
         ];
@@ -641,6 +649,7 @@ mod tests {
                     static_shape: Some(vec![3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
             Argument {
@@ -651,6 +660,7 @@ mod tests {
                     static_shape: Some(vec![2, 1, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
         ];
@@ -670,6 +680,7 @@ mod tests {
                     static_shape: Some(vec![]), // Scalar
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
             Argument {
@@ -680,6 +691,7 @@ mod tests {
                     static_shape: Some(vec![2, 3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
         ];
@@ -699,6 +711,7 @@ mod tests {
                     static_shape: Some(vec![3, 4]),
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
             Argument {
@@ -709,6 +722,7 @@ mod tests {
                     static_shape: Some(vec![2, 5]), // Incompatible: 4 != 5
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             },
         ];
@@ -727,12 +741,14 @@ mod tests {
                     name: "shape_input".to_string(),
                     ty: ArgType::Shape(4),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
                 Argument {
                     name: "scalar_input".to_string(),
                     ty: ArgType::Scalar(ElementType::Int64),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
             ],
@@ -744,6 +760,7 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: HashMap::new(),

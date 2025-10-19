@@ -63,6 +63,19 @@ impl NodeConfig for ConvTranspose2dConfig {
 pub struct Convtranspose2dProcessor;
 
 impl NodeProcessor for Convtranspose2dProcessor {
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+
+        // Lift weight (input[1]) and optional bias (input[2])
+        if node.inputs.len() > 1 {
+            node.inputs[1].to_static()?;
+        }
+        if node.inputs.len() > 2 {
+            node.inputs[2].to_static()?;
+        }
+
+        Ok(())
+    }
+
     fn infer_types(
         &self,
         node: &mut Node,

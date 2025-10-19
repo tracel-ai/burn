@@ -268,6 +268,7 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             outputs: vec![Argument {
@@ -278,6 +279,7 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -298,6 +300,7 @@ mod tests {
                         static_shape: None,
                     }),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
                 Argument {
@@ -308,6 +311,7 @@ mod tests {
                         static_shape: None,
                     }),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
             ],
@@ -319,6 +323,7 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -373,6 +378,7 @@ mod tests {
                 static_shape: None,
             }),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         }];
 

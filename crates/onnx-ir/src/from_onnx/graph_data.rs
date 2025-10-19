@@ -97,6 +97,7 @@ impl GraphData {
                         name: output_name.clone(),
                         ty: arg.ty.clone(),
                         data_id: Some(data_id), // Set the ID for central store lookup
+                        value_source: crate::ir::ValueSource::Static, // Constant node outputs are static
                         value_store: None,
                     }],
                     attrs: HashMap::new(), // No tensor data in attributes
@@ -216,6 +217,15 @@ impl GraphData {
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
         }
+
+        // Register Constant nodes so they can be found during lifting
+        if node.node_type == NodeType::Constant {
+            for output in &node.outputs {
+                self.constant_nodes
+                    .insert(output.name.clone(), self.processed_nodes.len());
+            }
+        }
+
         self.processed_nodes.push(node);
     }
 
@@ -361,6 +371,7 @@ impl GraphData {
                     static_shape: Some(shape),
                 }),
                 data_id: Some(data_id), // Set the ID for central store lookup
+                value_source: crate::ir::ValueSource::Static, // Constant node outputs are static
                 value_store: None,
             }],
             attrs: HashMap::new(), // No tensor data in attributes
@@ -400,6 +411,17 @@ impl GraphData {
     pub(crate) fn set_expected_type(&mut self, _arg_name: String, _expected_ty: ArgType) {
         // Stub method - expected_types field was removed since it's never read
         // Kept for compatibility with Argument::should_be() calls
+    }
+
+    /// Get the data_id for a constant by output name
+    ///
+    /// This is used by Argument::to_static() to look up the data_id of a constant node
+    pub(crate) fn get_constant_data_id_by_output(&self, output_name: &str) -> Option<TensorId> {
+        self.constant_nodes
+            .get(output_name)
+            .and_then(|&idx| self.processed_nodes.get(idx))
+            .and_then(|node| node.outputs.first())
+            .and_then(|output| output.data_id)
     }
 
     /// Get the data_id for a constant by name (for test utilities)

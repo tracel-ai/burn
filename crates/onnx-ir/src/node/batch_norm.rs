@@ -37,24 +37,23 @@ impl NodeConfig for BatchNormConfig {
 pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
         if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
         if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+            node.inputs[2].to_static()?;
         }
         if node.inputs.len() > 3 {
-            lifted.push(node.inputs[3].name.clone());
+            node.inputs[3].to_static()?;
         }
         if node.inputs.len() > 4 {
-            lifted.push(node.inputs[4].name.clone());
+            node.inputs[4].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(

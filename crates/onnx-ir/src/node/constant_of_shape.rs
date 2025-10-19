@@ -27,14 +27,15 @@ impl NodeConfig for ConstantOfShapeShape {
 pub struct ConstantOfShapeProcessor;
 
 impl NodeProcessor for ConstantOfShapeProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        // The shape input can be lifted if it's a constant
-        // This allows ConstantOfShape to use static shape values when available
-        if !node.inputs.is_empty() {
-            Ok(vec![node.inputs[0].name.clone()])
-        } else {
-            Ok(Vec::new())
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
+
+        // Only lift shape input (input[0]) if it has a static value
+        // Runtime shapes should remain in the graph
+        if !node.inputs.is_empty() && node.inputs[0].is_constant() {
+            node.inputs[0].to_static()?;
         }
+
+        Ok(())
     }
 
     fn infer_types(

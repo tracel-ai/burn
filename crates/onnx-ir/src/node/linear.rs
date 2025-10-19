@@ -43,18 +43,17 @@ impl NodeConfig for LinearConfig {
 pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift weight (input 1) and bias (input 2) if present
         if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
         if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+            node.inputs[2].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(
@@ -107,7 +106,7 @@ impl NodeProcessor for LinearProcessor {
         let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
         // check if the bias is present
-        let bias = node.inputs.len() == 3 && node.inputs[2].value().is_some();
+        let bias = node.inputs.len() == 3 && node.inputs[2].is_constant();
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
         Ok(Some(Box::new(config)))

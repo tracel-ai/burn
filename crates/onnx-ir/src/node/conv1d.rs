@@ -64,18 +64,17 @@ impl NodeConfig for Conv1dConfig {
 pub struct Conv1dProcessor;
 
 impl NodeProcessor for Conv1dProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift weight (input[1]) and optional bias (input[2])
         if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
         if node.inputs.len() > 2 {
-            lifted.push(node.inputs[2].name.clone());
+            node.inputs[2].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(

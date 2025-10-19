@@ -232,17 +232,15 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
 pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
-        // Lift shape input (input[1]) if present
-        // Note: This might be a runtime argument, but we lift it anyway
-        // The extract_config method will handle whether it's static or runtime
-        if node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+        // Only lift shape input (input[1]) if it has a static value
+        // If it's a runtime argument (no value), it should remain in the graph
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn input_preferences(

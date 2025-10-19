@@ -252,7 +252,7 @@ impl TryFrom<ValueInfoProto> for Argument {
             ty,
             name,
             data_id: None,
-
+            value_source: crate::ir::ValueSource::Dynamic, // Graph inputs/outputs are runtime values
             value_store: None,
         })
     }

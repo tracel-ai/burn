@@ -23,15 +23,14 @@ use crate::util::{same_as_input, same_as_input_broadcast};
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // For PRelu, lift the slope input (input[1])
         if node.node_type == crate::ir::NodeType::PRelu && node.inputs.len() > 1 {
-            lifted.push(node.inputs[1].name.clone());
+            node.inputs[1].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(
@@ -118,6 +117,7 @@ mod tests {
                         static_shape: None,
                     }),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
                 Argument {
@@ -128,6 +128,7 @@ mod tests {
                         static_shape: None,
                     }),
                     data_id: None,
+                    value_source: crate::ir::ValueSource::Dynamic,
                     value_store: None,
                 },
             ],
@@ -135,6 +136,7 @@ mod tests {
                 name: "c".to_string(),
                 ty: ArgType::default(),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -165,12 +167,14 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             outputs: vec![Argument {
                 name: "b".to_string(),
                 ty: ArgType::default(),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),
@@ -205,12 +209,14 @@ mod tests {
                     static_shape: None,
                 }),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             outputs: vec![Argument {
                 name: "b".to_string(),
                 ty: ArgType::default(),
                 data_id: None,
+                value_source: crate::ir::ValueSource::Dynamic,
                 value_store: None,
             }],
             attrs: Default::default(),

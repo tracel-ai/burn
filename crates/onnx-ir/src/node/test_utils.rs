@@ -37,6 +37,7 @@ impl NodeBuilder {
             name: name.to_string(),
             ty,
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
         self
@@ -202,6 +203,7 @@ impl NodeBuilder {
                 static_shape: None,
             }),
             data_id: None,
+            value_source: crate::ir::ValueSource::Constant,
             value_store: None,
         };
         self.inputs.push(arg);
@@ -237,6 +239,11 @@ impl NodeBuilder {
     /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
     /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_f32(mut self, name: &str, value: Option<f32>) -> Self {
+        let value_source = if value.is_some() {
+            crate::ir::ValueSource::Constant
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -245,6 +252,7 @@ impl NodeBuilder {
                 static_shape: None,
             }),
             data_id: None,
+            value_source,
             value_store: None,
         };
         self.inputs.push(arg);
@@ -261,6 +269,11 @@ impl NodeBuilder {
     /// Note: In the new design, constant values are stored in GraphData, not in Arguments.
     /// This method creates the argument without the value field.
     pub fn input_scalar_tensor_i64(mut self, name: &str, value: Option<i64>) -> Self {
+        let value_source = if value.is_some() {
+            crate::ir::ValueSource::Constant
+        } else {
+            crate::ir::ValueSource::Dynamic
+        };
         let arg = Argument {
             name: name.to_string(),
             ty: ArgType::Tensor(TensorType {
@@ -269,6 +282,7 @@ impl NodeBuilder {
                 static_shape: None,
             }),
             data_id: None,
+            value_source,
             value_store: None,
         };
         self.inputs.push(arg);
@@ -304,6 +318,7 @@ impl NodeBuilder {
             name: name.to_string(),
             ty,
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
         self
@@ -503,6 +518,7 @@ impl NodeBuilder {
             name: name.to_string(),
             ty: ArgType::default(),
             data_id: None,
+            value_source: crate::ir::ValueSource::Dynamic,
             value_store: None,
         });
         self

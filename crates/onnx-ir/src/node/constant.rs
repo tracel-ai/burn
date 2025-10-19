@@ -115,12 +115,11 @@ impl NodeProcessor for ConstantProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ElementType, NodeType, TensorData};
+    use crate::ir::{ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
         use crate::from_onnx::GraphData;
-        use crate::ir::TensorData;
         use std::cell::RefCell;
         use std::rc::Rc;
 

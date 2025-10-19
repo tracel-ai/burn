@@ -32,20 +32,19 @@ impl NodeConfig for ClipConfig {
 pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<Vec<String>, ProcessError> {
-        let mut lifted = Vec::new();
+    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
 
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values
-        if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
-            lifted.push(node.inputs[1].name.clone());
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
+            node.inputs[1].to_static()?;
         }
-        if node.inputs.len() > 2 && !node.inputs[2].name.is_empty() {
-            lifted.push(node.inputs[2].name.clone());
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
+            node.inputs[2].to_static()?;
         }
 
-        Ok(lifted)
+        Ok(())
     }
 
     fn infer_types(
@@ -366,33 +365,46 @@ mod tests {
         let mut node = create_test_node_with_attributes(Some(-1.0), Some(1.0));
         let processor = ClipProcessor;
 
-        // This should return an empty list since attributes are not lifted
-        let lifted = processor.lift_constants(&mut node, 16).unwrap();
-        assert!(lifted.is_empty());
+        // This should succeed without error since attributes are not inputs
+        processor.lift_constants(&mut node, 16).unwrap();
+        // Verify that no inputs were modified (node should have 1 input - the data tensor)
+        assert_eq!(node.inputs.len(), 1);
     }
 
     #[test]
     fn test_clip_lift_constants_with_runtime_inputs() {
-        // Test that lift_constants returns input names (filtering happens in from_onnx.rs)
+        // Test that lift_constants doesn't modify runtime inputs (no constant values)
         let mut node = create_test_node_with_runtime_inputs().build();
         let processor = ClipProcessor;
 
-        // lift_constants returns potential inputs to lift (has_value filtering happens later)
-        let lifted = processor.lift_constants(&mut node, 16).unwrap();
-        assert_eq!(lifted.len(), 2); // min and max inputs
-        assert_eq!(lifted[0], "min");
-        assert_eq!(lifted[1], "max");
+        // Verify inputs are not constant before lifting
+        assert!(!node.inputs[1].is_constant()); // min is Dynamic, not Constant
+        assert!(!node.inputs[2].is_constant()); // max is Dynamic, not Constant
+
+        // lift_constants should succeed without modifying non-constant inputs
+        processor.lift_constants(&mut node, 16).unwrap();
+
+        // Inputs should remain unchanged (still Dynamic)
+        assert!(!node.inputs[1].is_static());
+        assert!(!node.inputs[2].is_static());
     }
 
     #[test]
     fn test_clip_lift_constants_with_static_inputs() {
-        // Test that lift_constants only lifts inputs with constant values
+        // Test that lift_constants converts constant inputs to static
         let mut node =
             create_test_node_with_inputs(Some(-1.0), Some(1.0)).build_with_graph_data(16);
         let processor = ClipProcessor;
 
-        // Constant inputs should be lifted
-        let lifted = processor.lift_constants(&mut node, 16).unwrap();
-        assert_eq!(lifted.len(), 2);
+        // Verify inputs are constant before lifting
+        assert!(node.inputs[1].is_constant()); // min has constant value
+        assert!(node.inputs[2].is_constant()); // max has constant value
+
+        // Lift constants - this should convert them to Static
+        processor.lift_constants(&mut node, 16).unwrap();
+
+        // Verify inputs were converted to Static
+        assert!(node.inputs[1].is_static());
+        assert!(node.inputs[2].is_static());
     }
 }

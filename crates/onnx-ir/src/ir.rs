@@ -37,6 +37,19 @@ pub type Shape = Vec<usize>;
 /// Unique identifier for tensor data in the central store
 pub type TensorId = usize;
 
+/// Describes where an argument's value comes from
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueSource {
+    /// Static constant value embedded in the argument (name="" + data_id=Some)
+    Static,
+    /// Points to a constant node output (name="constant1_out1" + data_id=None)
+    Constant,
+    /// Points to a runtime node output (name="conv1_out1" + data_id=None)
+    Dynamic,
+    /// Optional/not provided (name="" + data_id=None)
+    Optional,
+}
+
 /// A node input or output.
 #[derive(Clone)]
 pub struct Argument {
@@ -51,6 +64,9 @@ pub struct Argument {
     /// None = runtime data only
     pub data_id: Option<TensorId>,
 
+    /// Describes where this argument's value comes from
+    pub value_source: ValueSource,
+
     /// Reference to the value store for lazy constant lookup and type expectations
     pub(crate) value_store: Option<Rc<RefCell<crate::from_onnx::GraphData>>>,
 }
@@ -61,6 +77,7 @@ impl fmt::Debug for Argument {
             .field("name", &self.name)
             .field("ty", &self.ty)
             .field("data_id", &self.data_id)
+            .field("value_source", &self.value_source)
             .field(
                 "value_store",
                 &self.value_store.as_ref().map(|_| "Rc<RefCell<GraphData>>"),
@@ -90,7 +107,7 @@ impl Argument {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
                         data_id: None,
-
+                        value_source: ValueSource::Constant, // Initializers are constants
                         value_store: None,
                     }
                 } else {
@@ -102,7 +119,7 @@ impl Argument {
                             static_shape: Some(td.shape.clone()),
                         }),
                         data_id: None,
-
+                        value_source: ValueSource::Constant, // Initializers are constants
                         value_store: None,
                     }
                 };
@@ -158,7 +175,7 @@ impl Argument {
                         name,
                         ty: ArgType::Scalar(td.elem_type()),
                         data_id: None,
-
+                        value_source: ValueSource::Constant, // Initializers are constants
                         value_store: None,
                     };
                     return (arg, td);
@@ -210,7 +227,7 @@ impl Argument {
                             static_shape: Some(shape_usize.clone()),
                         }),
                         data_id: None,
-
+                        value_source: ValueSource::Constant, // Initializers are constants
                         value_store: None,
                     };
                     let td = TensorData {
@@ -336,11 +353,18 @@ impl ArgType {
 
 impl Argument {
     pub fn new(name: String) -> Self {
+        // Default to Dynamic (points to a node output by name)
+        let value_source = if name.is_empty() {
+            ValueSource::Optional
+        } else {
+            ValueSource::Dynamic
+        };
+
         Self {
             name,
             ty: ArgType::default(),
             data_id: None,
-
+            value_source,
             value_store: None,
         }
     }
@@ -363,6 +387,69 @@ impl Argument {
                 .borrow_mut()
                 .set_expected_type(self.name.clone(), expected_ty);
         }
+    }
+
+    /// Check if this argument is a static constant (embedded value)
+    pub fn is_static(&self) -> bool {
+        self.value_source == ValueSource::Static
+    }
+
+    /// Check if this argument points to a constant node output
+    pub fn is_constant(&self) -> bool {
+        self.value_source == ValueSource::Constant
+    }
+
+    /// Check if this argument points to a runtime node output
+    pub fn is_dynamic(&self) -> bool {
+        self.value_source == ValueSource::Dynamic
+    }
+
+    /// Check if this argument is optional/not provided
+    pub fn is_optional(&self) -> bool {
+        self.value_source == ValueSource::Optional
+    }
+
+    /// Convert a Constant argument to Static by embedding the constant's data
+    ///
+    /// This looks up the constant node by name, retrieves its data_id,
+    /// and embeds it in this argument, clearing the name.
+    ///
+    /// Returns an error if this is not a Constant argument.
+    pub fn to_static(&mut self) -> Result<(), crate::processor::ProcessError> {
+        use crate::processor::ProcessError;
+
+        if !self.is_constant() {
+            return Err(ProcessError::Custom(format!(
+                "Cannot convert {:?} argument to Static (only Constant can be converted)",
+                self.value_source
+            )));
+        }
+
+        // Look up the constant node by name
+        let store = self.value_store.as_ref().ok_or_else(|| {
+            ProcessError::Custom("No value store available to look up constant".to_string())
+        })?;
+
+        let data_id = {
+            let graph_data = store.borrow();
+
+            // Get the data_id from the constant node using the output name
+            graph_data
+                .get_constant_data_id_by_output(&self.name)
+                .ok_or_else(|| {
+                    ProcessError::Custom(format!(
+                        "Constant node not found or has no data_id for output name: {}",
+                        self.name
+                    ))
+                })?
+        };
+
+        // Embed the data_id and clear the name
+        self.data_id = Some(data_id);
+        self.name.clear();
+        self.value_source = ValueSource::Static;
+
+        Ok(())
     }
 }
 
@@ -1093,7 +1180,7 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Scalar(ElementType::Float32),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Float32s(values) => Argument {
@@ -1104,14 +1191,14 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Int64(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::Int64),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Int64s(values) => Argument {
@@ -1122,14 +1209,14 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::String(_value) => Argument {
                 ty: ArgType::Scalar(ElementType::String),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Strings(values) => Argument {
@@ -1140,7 +1227,7 @@ impl From<AttributeValue> for Argument {
                 }),
                 name,
                 data_id: None,
-
+                value_source: ValueSource::Optional,
                 value_store: None,
             },
             AttributeValue::Tensor(tensor) => {
@@ -1150,7 +1237,7 @@ impl From<AttributeValue> for Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
                         name,
                         data_id: None,
-
+                        value_source: ValueSource::Optional,
                         value_store: None,
                     }
                 } else {
@@ -1163,7 +1250,7 @@ impl From<AttributeValue> for Argument {
                         }),
                         name,
                         data_id: None,
-
+                        value_source: ValueSource::Optional,
                         value_store: None,
                     }
                 }
