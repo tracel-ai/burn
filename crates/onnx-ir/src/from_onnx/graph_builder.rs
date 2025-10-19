@@ -325,7 +325,9 @@ impl OnnxGraphBuilder {
         // Count references from node inputs
         for node in &processed_nodes {
             for input in &node.inputs {
-                // Only count Constant or Dynamic references (not Static - those are embedded)
+                // Only count Constant and Dynamic references (not Static)
+                // Static inputs have empty names and embedded values via data_id,
+                // so they don't reference the constant node
                 if (input.is_constant() || input.is_dynamic())
                     && constant_output_to_idx.contains_key(&input.name)
                 {

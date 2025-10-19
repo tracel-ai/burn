@@ -104,8 +104,8 @@ impl NodeProcessor for LinearProcessor {
 
         let (in_size, out_size) = (weight_shape[0], weight_shape[1]);
 
-        // check if the bias is present
-        let bias = node.inputs.len() == 3 && node.inputs[2].is_constant();
+        // check if the bias is present (could be Constant, Static, or Dynamic)
+        let bias = node.inputs.len() == 3 && !node.inputs[2].is_optional();
 
         let config = LinearConfig::new(in_size, out_size).with_bias(bias);
         Ok(Some(Box::new(config)))

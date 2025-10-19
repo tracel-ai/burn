@@ -444,9 +444,10 @@ impl Argument {
                 })?
         };
 
-        // Embed the data_id and mark as Static
-        // Keep the name for reference (burn-import needs it for code generation)
+        // Embed the data_id, clear the name, and mark as Static
+        // The name is cleared because Static values are accessed via data_id, not by name
         self.data_id = Some(data_id);
+        self.name.clear();
         self.value_source = ValueSource::Static;
 
         Ok(())
