@@ -32,7 +32,6 @@ pub struct TriluProcessor;
 
 impl NodeProcessor for TriluProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift diagonal input (input[1]) if present
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;

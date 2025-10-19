@@ -34,9 +34,8 @@ pub struct TopKProcessor;
 
 impl NodeProcessor for TopKProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift K input (input[1]) if present
-        if node.inputs.len() > 1 {
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
 

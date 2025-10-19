@@ -44,12 +44,11 @@ pub struct LinearProcessor;
 
 impl NodeProcessor for LinearProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift weight (input 1) and bias (input 2) if present
-        if node.inputs.len() > 1 {
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
-        if node.inputs.len() > 2 {
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
             node.inputs[2].to_static()?;
         }
 

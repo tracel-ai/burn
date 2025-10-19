@@ -33,7 +33,6 @@ pub struct ClipProcessor;
 
 impl NodeProcessor for ClipProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift min (input[1]) and max (input[2]) if present and they have constant values
         // For Opset 6-10: min/max are attributes, not inputs (no lifting needed)
         // For Opset 11+: min/max are optional inputs that might be constants or runtime values

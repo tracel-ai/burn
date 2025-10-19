@@ -125,24 +125,23 @@ impl NodeProcessor for SliceProcessor {
     }
 
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift starts input (input[1]) if present
-        if node.inputs.len() > 1 {
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
 
         // Lift ends input (input[2]) if present
-        if node.inputs.len() > 2 {
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
             node.inputs[2].to_static()?;
         }
 
         // Lift axes input (input[3]) if present
-        if node.inputs.len() > 3 {
+        if node.inputs.len() > 3 && node.inputs[3].is_constant() {
             node.inputs[3].to_static()?;
         }
 
         // Lift steps input (input[4]) if present
-        if node.inputs.len() > 4 {
+        if node.inputs.len() > 4 && node.inputs[4].is_constant() {
             node.inputs[4].to_static()?;
         }
 

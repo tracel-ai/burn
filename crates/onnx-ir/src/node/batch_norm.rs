@@ -38,18 +38,17 @@ pub struct BatchNormProcessor;
 
 impl NodeProcessor for BatchNormProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift scale (input[1]), bias (input[2]), mean (input[3]), and variance (input[4])
-        if node.inputs.len() > 1 {
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
-        if node.inputs.len() > 2 {
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
             node.inputs[2].to_static()?;
         }
-        if node.inputs.len() > 3 {
+        if node.inputs.len() > 3 && node.inputs[3].is_constant() {
             node.inputs[3].to_static()?;
         }
-        if node.inputs.len() > 4 {
+        if node.inputs.len() > 4 && node.inputs[4].is_constant() {
             node.inputs[4].to_static()?;
         }
 

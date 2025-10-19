@@ -33,7 +33,6 @@ pub struct DropoutProcessor;
 
 impl NodeProcessor for DropoutProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // For opset 12+, ratio is an input (input[1])
         // Only lift it if it's a static constant (has a value)
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {

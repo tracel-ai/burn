@@ -45,14 +45,13 @@ impl NodeProcessor for PadProcessor {
     // TODO mark axes inputs as Shape if inputs are constant
 
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift pads input (input[1]) if present
-        if node.inputs.len() > 1 {
+        if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }
 
         // Lift constant_value input (input[2]) if present
-        if node.inputs.len() > 2 {
+        if node.inputs.len() > 2 && node.inputs[2].is_constant() {
             node.inputs[2].to_static()?;
         }
 

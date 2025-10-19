@@ -24,7 +24,6 @@ pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // For PRelu, lift the slope input (input[1])
         if node.node_type == crate::ir::NodeType::PRelu && node.inputs.len() > 1 {
             node.inputs[1].to_static()?;

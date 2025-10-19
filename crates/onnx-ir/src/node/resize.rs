@@ -168,7 +168,6 @@ pub struct ResizeProcessor;
 
 impl NodeProcessor for ResizeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift roi input (input[1]) if present
         if node.inputs.len() > 1 && !node.inputs[1].name.is_empty() {
             node.inputs[1].to_static()?;

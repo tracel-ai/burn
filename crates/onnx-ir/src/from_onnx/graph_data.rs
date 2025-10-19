@@ -97,7 +97,7 @@ impl GraphData {
                         name: output_name.clone(),
                         ty: arg.ty.clone(),
                         data_id: Some(data_id), // Set the ID for central store lookup
-                        value_source: crate::ir::ValueSource::Static, // Constant node outputs are static
+                        value_source: crate::ir::ValueSource::Constant, // Points to this constant node
                         value_store: None,
                     }],
                     attrs: HashMap::new(), // No tensor data in attributes
@@ -371,7 +371,7 @@ impl GraphData {
                     static_shape: Some(shape),
                 }),
                 data_id: Some(data_id), // Set the ID for central store lookup
-                value_source: crate::ir::ValueSource::Static, // Constant node outputs are static
+                value_source: crate::ir::ValueSource::Constant, // Points to this constant node
                 value_store: None,
             }],
             attrs: HashMap::new(), // No tensor data in attributes

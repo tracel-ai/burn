@@ -109,10 +109,10 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphData) {
     };
 
     // Update the central store with the transposed weights
-    if let Some(data_id) = node.inputs[1].data_id {
-        if let Some(stored_data) = graph_data.get_tensor_data_mut(data_id) {
-            *stored_data = new_tensor_data;
-        }
+    if let Some(data_id) = node.inputs[1].data_id
+        && let Some(stored_data) = graph_data.get_tensor_data_mut(data_id)
+    {
+        *stored_data = new_tensor_data;
     }
 }
 

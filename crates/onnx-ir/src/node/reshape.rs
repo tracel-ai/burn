@@ -233,7 +233,6 @@ pub struct ReshapeProcessor;
 
 impl NodeProcessor for ReshapeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Only lift shape input (input[1]) if it has a static value
         // If it's a runtime argument (no value), it should remain in the graph
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {

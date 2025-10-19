@@ -31,7 +31,6 @@ pub struct SqueezeProcessor;
 
 impl NodeProcessor for SqueezeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Lift axes input (input[1]) if present
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;

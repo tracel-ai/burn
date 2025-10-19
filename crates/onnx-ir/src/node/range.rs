@@ -35,7 +35,6 @@ pub struct RangeProcessor;
 
 impl NodeProcessor for RangeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-
         // Only lift inputs that have static values
         // Runtime inputs (no value) should remain in the graph
         if !node.inputs.is_empty() && node.inputs[0].is_constant() {

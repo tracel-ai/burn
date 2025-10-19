@@ -5,7 +5,13 @@
 //!
 //! MUST READ: Absolutely no node type specific logic
 
-use std::{cell::RefCell, collections::HashMap, fs::File, path::Path, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    fs::File,
+    path::Path,
+    rc::Rc,
+};
 
 use protobuf::{Enum, Message};
 
@@ -75,7 +81,8 @@ impl OnnxGraphBuilder {
 
             // Initialize the constant counter so subsequent ONNX Constant nodes don't collide
             if constant_count > 0 {
-                self.node_name_counter.insert(NodeType::Constant, constant_count);
+                self.node_name_counter
+                    .insert(NodeType::Constant, constant_count);
                 log::debug!(
                     "Initialized Constant node counter to {} (from initializers)",
                     constant_count
@@ -245,7 +252,8 @@ impl OnnxGraphBuilder {
             let next_tensor_id = graph_data.next_tensor_id;
 
             // Consume to get nodes/inputs/outputs
-            let result = std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume();
+            let result =
+                std::mem::replace(&mut *graph_data, GraphData::new(&[], &[], &[])).consume();
 
             // Restore tensor_data so .value() still works for burn-import
             // This allows Arguments to access their data via data_id
@@ -278,21 +286,76 @@ impl OnnxGraphBuilder {
             processed_nodes.len()
         );
 
-        // Now filter out lifted constants
-        // Note: With the central tensor store, constant values are always accessible
-        // via data_id, so no need to cache in consumed_values.
-        //
-        // Constants that are still needed at runtime (e.g., shape constants accessed during
-        // execution) are not marked for removal and will appear in the final graph.
+        // Remove unreferenced constant nodes
+        // After constant lifting via to_static(), constants may have no remaining runtime references.
+        // We count references based on ValueSource:
+        // - Static: value embedded, doesn't reference the constant node (lifted)
+        // - Constant: points to constant node output (not lifted, keep the constant)
+        // - Dynamic: points to runtime node output (not a constant reference)
+        // Remove constant nodes that have zero Constant/Dynamic references.
+        log::debug!("Counting references to constant nodes");
+
+        // Build a map of constant output names to node indices
+        let mut constant_output_to_idx: HashMap<String, usize> = HashMap::new();
+        for (idx, node) in processed_nodes.iter().enumerate() {
+            if node.node_type == NodeType::Constant {
+                for output in &node.outputs {
+                    constant_output_to_idx.insert(output.name.clone(), idx);
+                }
+            }
+        }
+
+        // Count references: output_name -> reference_count
+        let mut constant_references: HashMap<String, usize> = HashMap::new();
+
+        // Count references from node inputs
+        for node in &processed_nodes {
+            for input in &node.inputs {
+                // Only count Constant or Dynamic references (not Static - those are embedded)
+                if (input.is_constant() || input.is_dynamic())
+                    && constant_output_to_idx.contains_key(&input.name)
+                {
+                    *constant_references.entry(input.name.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Count references from graph outputs
+        for output in &outputs {
+            if (output.is_constant() || output.is_dynamic())
+                && constant_output_to_idx.contains_key(&output.name)
+            {
+                *constant_references.entry(output.name.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // Mark constant nodes with zero references for removal
+        let mut constants_to_remove = HashSet::new();
+        for (output_name, &node_idx) in &constant_output_to_idx {
+            let ref_count = constant_references.get(output_name).unwrap_or(&0);
+            if *ref_count == 0 {
+                constants_to_remove.insert(node_idx);
+                log::debug!(
+                    "Marking constant node at index {} (output: {}) for removal (no references)",
+                    node_idx,
+                    output_name
+                );
+            }
+        }
+
+        // Filter out unreferenced constants and any other nodes marked for removal
+        let mut all_nodes_to_remove = nodes_to_remove;
+        all_nodes_to_remove.extend(constants_to_remove);
+
         log::debug!(
             "Filtering nodes: total={}, nodes_to_remove={:?}",
             processed_nodes.len(),
-            nodes_to_remove
+            all_nodes_to_remove
         );
 
         let mut i = 0;
         processed_nodes.retain(|node| {
-            let keep = !nodes_to_remove.contains(&i);
+            let keep = !all_nodes_to_remove.contains(&i);
 
             if !keep {
                 log::debug!("Filtering out node at index {}: {}", i, node.name);

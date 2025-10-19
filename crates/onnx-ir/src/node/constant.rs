@@ -17,9 +17,9 @@ impl NodeProcessor for ConstantProcessor {
 
         // Get tensor data from central store via output's data_id
         let output = &node.outputs[0];
-        let tensor_data = output
-            .value()
-            .ok_or_else(|| ProcessError::MissingAttribute("value (from central store)".to_string()))?;
+        let tensor_data = output.value().ok_or_else(|| {
+            ProcessError::MissingAttribute("value (from central store)".to_string())
+        })?;
 
         log::debug!("Constant found data in central store: true");
 
@@ -156,10 +156,7 @@ mod tests {
 
     #[test]
     fn test_constant_scalar_float() {
-        let mut node = create_test_node_with_data(
-            crate::ir::Data::Float32(6.14),
-            vec![],
-        );
+        let mut node = create_test_node_with_data(crate::ir::Data::Float32(6.14), vec![]);
 
         let processor = ConstantProcessor;
         let prefs = OutputPreferences::new();
@@ -232,10 +229,8 @@ mod tests {
 
     #[test]
     fn test_constant_1d_tensor_without_preferences() {
-        let mut node = create_test_node_with_data(
-            crate::ir::Data::Int64s(vec![10, 20, 30]),
-            vec![3],
-        );
+        let mut node =
+            create_test_node_with_data(crate::ir::Data::Int64s(vec![10, 20, 30]), vec![3]);
 
         // No preferences
         let prefs = OutputPreferences::new();
