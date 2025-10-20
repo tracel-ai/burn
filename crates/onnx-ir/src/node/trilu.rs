@@ -35,7 +35,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::{Node, NodeConfig};
+use crate::{Node, NodeConfig, TensorDataExt};
 use std::any::Any;
 
 /// Configuration for the Trilu operation.
@@ -132,7 +132,7 @@ impl NodeProcessor for TriluProcessor {
                 log::debug!(
                     "Trilu node {}: Got tensor_data with shape={:?}",
                     node.name,
-                    tensor_data.shape()
+                    tensor_data.shape
                 );
                 // Extract scalar value, converting from any numeric type to i64
                 diagonal = match tensor_data.scalar_i64() {

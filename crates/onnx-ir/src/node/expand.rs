@@ -21,7 +21,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     DType,
-    ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType},
+    ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType},
 };
 use std::any::Any;
 

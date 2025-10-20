@@ -137,8 +137,8 @@ impl OnnxIntoNode for LinearNode {
             match ty {
                 ArgType::Tensor(_) | ArgType::Shape(_) | ArgType::Scalar(_) => {
                     // For Tensor, Shape, and Scalar types, extract the underlying tensor data
-                    // onnx-ir now uses burn_tensor::TensorData internally, so we can directly use it
-                    Some(value.inner.clone().convert::<f32>())
+                    // onnx-ir now uses burn_tensor::TensorData directly
+                    Some(value.clone().convert::<f32>())
                 }
             }
         }

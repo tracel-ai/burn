@@ -242,7 +242,7 @@ fn create_test_constant(
     tensor_store: &mut TensorStore,
 ) -> (Node, usize) {
     let elem_type = tensor_data.elem_type();
-    let shape = tensor_data.shape().to_vec();
+    let shape = tensor_data.shape.to_vec();
 
     let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
         dtype: elem_type,

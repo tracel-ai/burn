@@ -26,7 +26,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for pad values.

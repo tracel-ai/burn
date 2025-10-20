@@ -19,7 +19,7 @@
 //! - **Opset 9**: Initial version with indices, depth, and values inputs.
 //! - **Opset 11**: Added support for negative axis values and clarified axis semantics.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

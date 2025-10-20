@@ -245,31 +245,31 @@ impl OnnxIntoNode for ConstantNode {
         fn scalar_from_tensor_data(elem: DType, tensor_data: &onnx_ir::TensorData) -> ConstantValue {
             match elem {
                 DType::F64 => {
-                    let val = tensor_data.inner.as_slice::<f64>().unwrap()[0];
+                    let val = tensor_data.as_slice::<f64>().unwrap()[0];
                     ConstantValue::Float64(val)
                 }
                 DType::F32 => {
-                    let val = tensor_data.inner.as_slice::<f32>().unwrap()[0];
+                    let val = tensor_data.as_slice::<f32>().unwrap()[0];
                     ConstantValue::Float32(val)
                 }
                 DType::I64 => {
-                    let val = tensor_data.inner.as_slice::<i64>().unwrap()[0];
+                    let val = tensor_data.as_slice::<i64>().unwrap()[0];
                     ConstantValue::Int64(val)
                 }
                 DType::I32 => {
-                    let val = tensor_data.inner.as_slice::<i32>().unwrap()[0];
+                    let val = tensor_data.as_slice::<i32>().unwrap()[0];
                     ConstantValue::Int32(val)
                 }
                 DType::Bool => {
-                    let val = tensor_data.inner.as_slice::<bool>().unwrap()[0];
+                    let val = tensor_data.as_slice::<bool>().unwrap()[0];
                     ConstantValue::Bool(val)
                 }
                 DType::U8 => {
-                    let val = tensor_data.inner.as_slice::<u8>().unwrap()[0] as i32;
+                    let val = tensor_data.as_slice::<u8>().unwrap()[0] as i32;
                     ConstantValue::Int32(val)
                 }
                 DType::I8 => {
-                    let val = tensor_data.inner.as_slice::<i8>().unwrap()[0] as i32;
+                    let val = tensor_data.as_slice::<i8>().unwrap()[0] as i32;
                     ConstantValue::Int32(val)
                 }
                 _ => panic!("Unsupported scalar type: {elem:?}"),
@@ -279,7 +279,6 @@ impl OnnxIntoNode for ConstantNode {
         let const_value = match &output.ty {
             ArgType::Shape(rank) => {
                 let shape_values: Vec<usize> = tensor_data
-                    .inner
                     .to_vec::<i64>()
                     .unwrap()
                     .into_iter()
@@ -292,25 +291,25 @@ impl OnnxIntoNode for ConstantNode {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
                     // Extract scalar data from tensor_data
-                    scalar_from_tensor_data(tensor.dtype.clone(), &tensor_data)
+                    scalar_from_tensor_data(tensor.dtype, &tensor_data)
                 } else {
-                    let kind: TensorKind = tensor.dtype.clone().into();
+                    let kind: TensorKind = tensor.dtype.into();
                     let rank = tensor.rank;
                     let name = node.name.clone();
 
                     let serialized_data = match &tensor.dtype {
                         DType::F32 | DType::F64 | DType::F16 => {
-                            tensor_data.inner.clone().convert::<f32>()
+                            tensor_data.clone().convert::<f32>()
                         }
                         DType::I32
                         | DType::I64
                         | DType::U16
                         | DType::U8
                         | DType::I8 => {
-                            tensor_data.inner.clone().convert::<i32>()
+                            tensor_data.clone().convert::<i32>()
                         }
                         DType::Bool => {
-                            tensor_data.inner.clone()
+                            tensor_data.clone()
                         }
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };

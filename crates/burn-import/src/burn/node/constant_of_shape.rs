@@ -216,21 +216,21 @@ impl OnnxIntoNode for ConstantOfShapeNode {
             .get("value")
             .map(|val| {
                 let tensor_data = val.clone().into_tensor();
-                match tensor_data.dtype() {
+                match tensor_data.dtype {
                     onnx_ir::ir::DType::F32 => {
-                        ConstantValue::from_vec(tensor_data.inner.to_vec::<f32>().unwrap())
+                        ConstantValue::from_vec(tensor_data.to_vec::<f32>().unwrap())
                     }
                     onnx_ir::ir::DType::F64 => {
-                        ConstantValue::from_vec(tensor_data.inner.to_vec::<f64>().unwrap())
+                        ConstantValue::from_vec(tensor_data.to_vec::<f64>().unwrap())
                     }
                     onnx_ir::ir::DType::I32 => {
-                        ConstantValue::from_vec(tensor_data.inner.to_vec::<i32>().unwrap())
+                        ConstantValue::from_vec(tensor_data.to_vec::<i32>().unwrap())
                     }
                     onnx_ir::ir::DType::I64 => {
-                        ConstantValue::from_vec(tensor_data.inner.to_vec::<i64>().unwrap())
+                        ConstantValue::from_vec(tensor_data.to_vec::<i64>().unwrap())
                     }
                     onnx_ir::ir::DType::Bool => {
-                        ConstantValue::from_vec(tensor_data.inner.to_vec::<bool>().unwrap())
+                        ConstantValue::from_vec(tensor_data.to_vec::<bool>().unwrap())
                     }
                     ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
                 }

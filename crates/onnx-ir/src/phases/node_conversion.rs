@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, AttributeValue, Node, NodeType, TensorData},
+    ir::{ArgType, AttributeValue, Node, NodeType, TensorData, TensorDataExt},
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto},
@@ -132,13 +132,13 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
             };
 
             // Create type from tensor data
-            let ty = if tensor_data.shape().is_empty() {
+            let ty = if tensor_data.shape.is_empty() {
                 crate::ir::ArgType::Scalar(tensor_data.elem_type())
             } else {
                 crate::ir::ArgType::Tensor(crate::ir::TensorType {
                     dtype: tensor_data.elem_type(),
-                    rank: tensor_data.shape().len(),
-                    static_shape: Some(tensor_data.shape().to_vec()),
+                    rank: tensor_data.shape.len(),
+                    static_shape: Some(tensor_data.shape.to_vec()),
                 })
             };
 
@@ -337,7 +337,7 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
         .expect("Weight must have tensor data in central store")
         .clone();
 
-    let shape = tensor_data.shape();
+    let shape = tensor_data.shape.clone();
 
     assert_eq!(shape.len(), 2, "Weight must be a 2D tensor");
 

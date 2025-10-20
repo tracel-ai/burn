@@ -2,7 +2,8 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Node, NodeType, TensorData, TensorType,
+    ArgType, Argument, AttributeValue, Attributes, Node, NodeType, TensorData, TensorDataExt,
+    TensorType,
 };
 use super::protos::{
     AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
@@ -53,7 +54,7 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     // 1) Canonical path first.
     match TensorData::try_from(initializer.clone()) {
         Ok(td) => {
-            let arg = if td.shape().is_empty() {
+            let arg = if td.shape.is_empty() {
                 // rank-0 (scalar)
                 Argument {
                     name,
@@ -67,8 +68,8 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                     name,
                     ty: ArgType::Tensor(TensorType {
                         dtype: td.elem_type(),
-                        rank: td.shape().len(),
-                        static_shape: Some(td.shape().to_vec()),
+                        rank: td.shape.len(),
+                        static_shape: Some(td.shape.to_vec()),
                     }),
                     data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
@@ -205,13 +206,11 @@ impl TryFrom<TensorProto> for TensorData {
                 | DType::U16
                 | DType::U8 => {
                     // Use from_bytes_vec to avoid intermediate typed Vec allocation
-                    Ok(TensorData {
-                        inner: burn_tensor::TensorData::from_bytes_vec(
-                            tensor.raw_data,
-                            shape,
-                            elem,
-                        ),
-                    })
+                    Ok(burn_tensor::TensorData::from_bytes_vec(
+                        tensor.raw_data,
+                        shape,
+                        elem,
+                    ))
                 }
                 // These types need element-wise conversion
                 DType::I8 => {

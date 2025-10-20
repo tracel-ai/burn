@@ -36,7 +36,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
-use crate::ir::{ArgType, Argument, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Argument, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -246,7 +246,7 @@ fn extract_tensor_shape(node: &Node) -> ReshapeInput {
     match node.inputs[1].value() {
         Some(tensor_data) => {
             assert_eq!(
-                tensor_data.shape().len(),
+                tensor_data.shape.len(),
                 1,
                 "Reshape: shape tensor must be 1D"
             );
@@ -339,7 +339,7 @@ impl NodeProcessor for ReshapeProcessor {
                     Some(tensor_data) => {
                         // Only validate when we have actual tensor data
                         assert_eq!(
-                            tensor_data.shape().len(),
+                            tensor_data.shape.len(),
                             1,
                             "Reshape: shape tensor must be 1D"
                         );

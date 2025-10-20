@@ -30,7 +30,7 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

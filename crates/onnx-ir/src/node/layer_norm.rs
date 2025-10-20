@@ -112,7 +112,7 @@ impl NodeProcessor for LayerNormProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
             })?
-            .shape()
+            .shape
             .to_vec();
 
         let mut axis = -1;
@@ -152,7 +152,7 @@ impl NodeProcessor for LayerNormProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("LayerNorm: weight tensor must be present".to_string())
             })?
-            .shape()
+            .shape
             .to_vec();
 
         let num_features = weight_shape[0];

@@ -36,7 +36,7 @@
 //! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
 //! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
-use crate::ir::{ArgType, Node, TensorType};
+use crate::ir::{ArgType, Node, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 pub struct ConstantProcessor;
@@ -74,13 +74,13 @@ impl NodeProcessor for ConstantProcessor {
         })?;
 
         // First, determine the base type from the tensor data
-        let base_type = if tensor_data.shape().is_empty() {
+        let base_type = if tensor_data.shape.is_empty() {
             ArgType::Scalar(tensor_data.elem_type())
         } else {
             ArgType::Tensor(TensorType {
                 dtype: tensor_data.elem_type(),
-                rank: tensor_data.shape().len(),
-                static_shape: Some(tensor_data.shape().to_vec()),
+                rank: tensor_data.shape.len(),
+                static_shape: Some(tensor_data.shape.to_vec()),
             })
         };
 
@@ -143,7 +143,7 @@ mod tests {
         use std::rc::Rc;
 
         let elem_type = tensor_data.elem_type();
-        let shape = tensor_data.shape().to_vec();
+        let shape = tensor_data.shape.to_vec();
 
         // Create GraphState and register the constant
         let mut graph_data = GraphState::new(&[], &[], &[]);

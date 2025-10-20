@@ -28,7 +28,7 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 

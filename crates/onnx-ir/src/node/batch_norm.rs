@@ -136,7 +136,7 @@ impl NodeProcessor for BatchNormProcessor {
             ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
         })?;
 
-        let weight_shape = weight_tensor.shape();
+        let weight_shape = weight_tensor.shape;
         let num_features = weight_shape[0];
 
         let mut epsilon = 0f32;

@@ -38,7 +38,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

@@ -20,7 +20,7 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
-use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, DType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

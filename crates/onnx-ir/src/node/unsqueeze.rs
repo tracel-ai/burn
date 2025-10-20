@@ -31,7 +31,7 @@
 //! This module includes an important optimization for Int scalar to Shape conversion, which is the
 //! reverse of the squeeze operation and critical for efficient dynamic shape handling in ONNX models.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -132,7 +132,7 @@ impl NodeProcessor for UnsqueezeProcessor {
 
                 if let Some(tensor_data) = input_value.value().as_ref() {
                     // Validate actual tensor data shape
-                    if tensor_data.shape().len() != 1 {
+                    if tensor_data.shape.len() != 1 {
                         return Err(ProcessError::Custom(
                             "Unsqueeze: axes tensor must be 1D".to_string(),
                         ));

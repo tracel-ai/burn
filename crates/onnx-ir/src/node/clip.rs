@@ -35,7 +35,7 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
-use crate::ir::{Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 

@@ -34,7 +34,7 @@
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 

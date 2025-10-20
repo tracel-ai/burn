@@ -147,7 +147,7 @@ impl NodeProcessor for Conv2dProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
             })?
-            .shape()
+            .shape
             .to_vec();
 
         let bias = node.inputs.len() == 3;

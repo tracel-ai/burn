@@ -119,8 +119,7 @@ impl NodeProcessor for ConcatProcessor {
                     ArgType::Tensor(t) if t.rank == 1 => {
                         // For constant tensors, use their actual dimension count
                         // For dynamic tensors, assume 1 element (will be corrected after conversion)
-                        let contribution =
-                            input.value().as_ref().map(|v| v.shape()[0]).unwrap_or(1);
+                        let contribution = input.value().as_ref().map(|v| v.shape[0]).unwrap_or(1);
                         provisional_rank += contribution;
                     }
                     _ => {

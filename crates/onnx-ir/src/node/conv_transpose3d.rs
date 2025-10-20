@@ -176,7 +176,7 @@ impl NodeProcessor for Convtranspose3dProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("ConvTranspose3d: weight tensor must be present".to_string())
             })?
-            .shape()
+            .shape
             .to_vec();
 
         // check if the bias is present

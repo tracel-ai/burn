@@ -148,8 +148,8 @@ pub fn extract_node_data<E: burn::tensor::Element>(
     let input = node.inputs.get(input_index)?;
     let value = input.value()?;
 
-    // onnx-ir now uses burn_tensor::TensorData internally, so we can directly use it
-    let data = value.inner.clone().convert::<E>();
+    // onnx-ir now uses burn_tensor::TensorData directly
+    let data = value.clone().convert::<E>();
 
     Some(data)
 }

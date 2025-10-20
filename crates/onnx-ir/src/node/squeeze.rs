@@ -28,7 +28,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorDataExt, TensorType};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for squeeze axes.
