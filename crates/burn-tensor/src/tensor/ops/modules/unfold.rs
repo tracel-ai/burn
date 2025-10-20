@@ -112,8 +112,8 @@ pub fn calculate_unfold_shape<S: Into<Shape>>(
     dim: usize,
     size: usize,
     step: usize,
-) -> Vec<usize> {
-    let mut shape = shape.into().to_vec();
+) -> Shape {
+    let mut shape = shape.into();
     let d_shape = shape[dim];
     let windows = calculate_unfold_windows(d_shape, size, step);
     shape[dim] = windows;
@@ -143,6 +143,9 @@ mod tests {
 
     #[test]
     fn test_calculate_unfold_shape() {
-        assert_eq!(calculate_unfold_shape([2, 6, 6], 1, 3, 2), vec![2, 2, 6, 3]);
+        assert_eq!(
+            calculate_unfold_shape([2, 6, 6], 1, 3, 2),
+            Shape::new([2, 2, 6, 3])
+        );
     }
 }

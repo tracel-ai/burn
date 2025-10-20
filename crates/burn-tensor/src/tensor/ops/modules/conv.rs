@@ -1,11 +1,116 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{ConvOptions, ConvTransposeOptions};
-use crate::{Shape, Slice, TensorMetadata, backend::Backend, ops::FloatTensor};
+use crate::{Shape, ShapeError, Slice, TensorMetadata, backend::Backend, ops::FloatTensor};
 
 use alloc::{vec, vec::Vec};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
+
+/// Calculate the expected output shape `[batch_size, channels_out, spatial_dims, ..]` for a pooling operation.
+pub fn calculate_pool_output_shape<const N: usize>(
+    in_shape: &Shape,
+    kernel_size: &[usize; N],
+    stride: &[usize; N],
+    padding: &[usize; N],
+    dilation: &[usize; N],
+) -> Result<Shape, ShapeError> {
+    if in_shape.rank() != N + 2 {
+        return Err(ShapeError::RankMismatch {
+            left: in_shape.rank(),
+            right: N + 2,
+        });
+    }
+
+    let mut out_shape = in_shape.clone();
+    // Spatial dims
+    for (i, size_i) in out_shape[2..].iter_mut().enumerate() {
+        *size_i =
+            calculate_pool_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_i);
+    }
+
+    Ok(out_shape)
+}
+
+/// Calculate the expected output shape `[batch_size, channels_out, spatial_dims, ..]` for a convolution.
+pub fn calculate_conv_output_shape<const N: usize>(
+    in_shape: &Shape,
+    weight_shape: &Shape,
+    stride: &[usize; N],
+    padding: &[usize; N],
+    dilation: &[usize; N],
+) -> Result<Shape, ShapeError> {
+    if weight_shape.rank() != N + 2 {
+        return Err(ShapeError::RankMismatch {
+            left: weight_shape.rank(),
+            right: N + 2,
+        });
+    }
+
+    if in_shape.rank() != N + 2 {
+        return Err(ShapeError::RankMismatch {
+            left: in_shape.rank(),
+            right: N + 2,
+        });
+    }
+
+    let kernel_size = &weight_shape[2..];
+
+    let mut out_shape = in_shape.clone();
+    // Spatial dims
+    for (i, size_i) in out_shape[2..].iter_mut().enumerate() {
+        *size_i =
+            calculate_conv_output_size(kernel_size[i], stride[i], padding[i], dilation[i], *size_i);
+    }
+    // Output channels
+    out_shape[1] = weight_shape[0];
+
+    Ok(out_shape)
+}
+
+/// Calculate the expected output shape `[batch_size, channels_out, spatial_dims, ..]` for a transposed convolution.
+pub fn calculate_conv_transpose_output_shape<const N: usize>(
+    in_shape: &Shape,
+    weight_shape: &Shape,
+    stride: &[usize; N],
+    padding: &[usize; N],
+    padding_out: &[usize; N],
+    dilation: &[usize; N],
+    groups: usize,
+) -> Result<Shape, ShapeError> {
+    if weight_shape.rank() != N + 2 {
+        return Err(ShapeError::RankMismatch {
+            left: weight_shape.rank(),
+            right: N + 2,
+        });
+    }
+
+    if in_shape.rank() != N + 2 {
+        return Err(ShapeError::RankMismatch {
+            left: in_shape.rank(),
+            right: N + 2,
+        });
+    }
+
+    let kernel_size = &weight_shape[2..];
+
+    let mut out_shape = in_shape.clone();
+    // Spatial dims
+    for (i, size_i) in out_shape[2..].iter_mut().enumerate() {
+        *size_i = calculate_conv_transpose_output_size(
+            kernel_size[i],
+            stride[i],
+            padding[i],
+            padding_out[i],
+            dilation[i],
+            *size_i,
+        );
+    }
+    // Output channels
+    out_shape[1] = weight_shape[1] * groups;
+
+    Ok(out_shape)
+}
 
 /// Calculate the expected padding size required when applying a convolution.
 pub fn calculate_conv_padding(
@@ -1267,5 +1372,25 @@ mod tests {
             calculate_conv_output_size(kernel_size, stride, padding, dilation, size_in);
 
         assert_eq!(size_out, size_out_expected, "Expected size");
+    }
+
+    #[test]
+    fn test_expect_conv2d_output_shape() {
+        // in channels: 3
+        // out channels: 8
+        // size in: [27, 3]
+        // kernel size: [5, 3]
+        let stride = [2, 1];
+        let padding = [3, 1];
+        let dilation = [2, 1];
+        let shape = calculate_conv_output_shape(
+            &Shape::new([12, 3, 27, 3]),
+            &Shape::new([8, 3, 5, 3]),
+            &stride,
+            &padding,
+            &dilation,
+        )
+        .unwrap();
+        assert_eq!(shape, Shape::new([12, 8, 13, 3]))
     }
 }

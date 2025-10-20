@@ -283,6 +283,12 @@ mod tests {
         let batch = batch1 * batch2;
         let seq_length = 3;
         let d_model = 32;
+
+        // Guard int arange limits
+        if (IntType::MAX as i64) < seq_length * d_model * batch {
+            return;
+        }
+
         let weight: TestTensor<4> = TestTensorInt::arange(0..d_model * batch, &device)
             .reshape([batch1, batch2, 1, d_model])
             .float();

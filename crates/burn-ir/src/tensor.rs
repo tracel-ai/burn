@@ -53,3 +53,15 @@ impl TensorId {
         Self { value }
     }
 }
+
+impl TensorIr {
+    /// Create a new tensor that is not already initialized.
+    pub fn uninit(id: TensorId, shape: Shape, dtype: DType) -> Self {
+        Self {
+            id,
+            status: TensorStatus::NotInit,
+            shape,
+            dtype,
+        }
+    }
+}

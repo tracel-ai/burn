@@ -3,8 +3,8 @@ use crate::{
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_common::device::{Device, DeviceContext, DeviceState};
-use burn_ir::{OperationIr, TensorIr};
-use burn_tensor::{DType, Shape, TensorData};
+use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_tensor::TensorData;
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
@@ -57,12 +57,34 @@ where
     }
 
     /// Register a new [tensor operation intermediate representation](OperationIr).
-    pub fn register<O>(&self, streams: OperationStreams, repr: OperationIr, operation: O)
+    pub fn register<O>(
+        &self,
+        streams: OperationStreams,
+        repr: OperationIr,
+        operation: O,
+    ) -> Vec<FusionTensor<R>>
     where
         O: Operation<R> + 'static,
     {
-        let mut server = self.server.lock();
-        server.register(streams, repr, Arc::new(operation));
+        // Create output tensors returned by this operation
+        let outputs = repr
+            .outputs()
+            .map(|output| {
+                FusionTensor::new(
+                    output.id,
+                    output.shape.clone(),
+                    output.dtype,
+                    self.clone(),
+                    StreamId::current(),
+                )
+            })
+            .collect();
+
+        self.server
+            .lock()
+            .register(streams, repr, Arc::new(operation));
+
+        outputs
     }
 
     /// Register all lazy computation.
@@ -71,11 +93,9 @@ where
         self.server.lock().drain_stream(id);
     }
 
-    /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
-    pub fn tensor_uninitialized(&self, shape: Shape, dtype: DType) -> FusionTensor<R> {
-        let id = self.server.lock().create_empty_handle();
-
-        FusionTensor::new(id, shape, dtype, self.clone(), StreamId::current())
+    /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
+    pub fn create_empty_handle(&self) -> TensorId {
+        self.server.lock().create_empty_handle()
     }
 
     /// Get the current device used by all operations handled by this client.
@@ -83,20 +103,14 @@ where
         &self.device
     }
 
-    /// Create a tensor with the given handle and shape.
-    pub fn register_tensor(
-        &self,
-        handle: FusionHandle<R>,
-        shape: Shape,
-        stream: StreamId,
-        dtype: DType,
-    ) -> FusionTensor<R> {
+    /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).
+    pub fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
         server.handles.register_handle(id, handle);
         core::mem::drop(server);
 
-        FusionTensor::new(id, shape, dtype, self.clone(), stream)
+        id
     }
 
     /// Read the values contained by a float tensor.
@@ -279,5 +293,35 @@ where
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_bool::<B>(&tensor.into_ir())
+    }
+}
+
+/// Extension trait to extract outputs when registering an operation.
+pub trait OperationOutput<R: FusionRuntime> {
+    /// Extract a single output tensor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than one output.
+    fn output(self) -> FusionTensor<R>;
+
+    /// Extract a pair of output tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the operation produced more or fewer than two outputs.
+    fn outputs(self) -> (FusionTensor<R>, FusionTensor<R>);
+}
+
+impl<R: FusionRuntime> OperationOutput<R> for Vec<FusionTensor<R>> {
+    fn output(mut self) -> FusionTensor<R> {
+        debug_assert_eq!(self.len(), 1, "expected single output, got {}", self.len());
+        self.pop().unwrap()
+    }
+
+    fn outputs(mut self) -> (FusionTensor<R>, FusionTensor<R>) {
+        debug_assert_eq!(self.len(), 2, "expected two outputs, got {}", self.len());
+        let (b, a) = (self.pop().unwrap(), self.pop().unwrap());
+        (a, b)
     }
 }

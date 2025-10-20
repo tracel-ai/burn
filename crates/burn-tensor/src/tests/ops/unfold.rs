@@ -41,6 +41,10 @@ mod tests {
 
     #[test]
     fn test_unfold_int() {
+        // Distribution::Default samples from [0, 255)
+        if (IntType::MAX as u32) < 255 - 1 {
+            return;
+        }
         let device = Default::default();
 
         let input =

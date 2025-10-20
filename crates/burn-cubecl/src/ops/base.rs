@@ -251,7 +251,7 @@ pub fn unfold<R: CubeRuntime>(
     strides.push(d_stride);
 
     CubeTensor {
-        shape: shape.into(),
+        shape,
         strides,
         ..tensor
     }
