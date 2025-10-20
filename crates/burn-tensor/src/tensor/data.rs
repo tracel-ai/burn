@@ -939,9 +939,7 @@ impl<'a, E: Element, I: AsIndex> Index<&[I]> for TensorDataIndexViewMut<'a, E> {
     }
 }
 
-impl<'a, E: Element, I: AsIndex> IndexMut<&[I]>
-    for TensorDataIndexViewMut<'a, E>
-{
+impl<'a, E: Element, I: AsIndex> IndexMut<&[I]> for TensorDataIndexViewMut<'a, E> {
     fn index_mut(&mut self, index: &[I]) -> &mut Self::Output {
         let idx = ravel_dims(index, &self.data.shape);
         &mut (self.data.as_mut_slice::<E>().unwrap()[idx])
