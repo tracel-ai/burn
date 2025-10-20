@@ -208,14 +208,16 @@ impl NumericEntry {
 }
 
 impl NumericEntry {
-    pub(crate) fn serialize(&self) -> String {
+    /// Returns a String representing the NumericEntry
+    pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
             Self::Aggregated { sum, count, .. } => format!("{sum},{count}"),
         }
     }
 
-    pub(crate) fn deserialize(entry: &str) -> Result<Self, String> {
+    /// De-serializes a string representing a NumericEntry and returns a Result containing the corresponding NumericEntry.
+    pub fn deserialize(entry: &str) -> Result<Self, String> {
         // Check for comma separated values
         let values = entry.split(',').collect::<Vec<_>>();
         let num_values = values.len();
