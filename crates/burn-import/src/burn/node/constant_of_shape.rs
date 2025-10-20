@@ -190,7 +190,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
 impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::Data;
+        
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
         // Get the shape configuration from onnx-ir
@@ -214,14 +214,26 @@ impl OnnxIntoNode for ConstantOfShapeNode {
         let value = node
             .attrs
             .get("value")
-            .map(|val| val.clone().into_tensor().data)
-            .map(|val_data| match val_data {
-                Data::Float32s(vals) => ConstantValue::from_vec(vals),
-                Data::Float64s(vals) => ConstantValue::from_vec(vals),
-                Data::Int32s(vals) => ConstantValue::from_vec(vals),
-                Data::Int64s(vals) => ConstantValue::from_vec(vals),
-                Data::Bools(vals) => ConstantValue::from_vec(vals),
-                ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
+            .map(|val| {
+                let tensor_data = val.clone().into_tensor();
+                match tensor_data.elem_type() {
+                    onnx_ir::ir::ElementType::Float32 => {
+                        ConstantValue::from_vec(tensor_data.inner.to_vec::<f32>().unwrap())
+                    }
+                    onnx_ir::ir::ElementType::Float64 => {
+                        ConstantValue::from_vec(tensor_data.inner.to_vec::<f64>().unwrap())
+                    }
+                    onnx_ir::ir::ElementType::Int32 => {
+                        ConstantValue::from_vec(tensor_data.inner.to_vec::<i32>().unwrap())
+                    }
+                    onnx_ir::ir::ElementType::Int64 => {
+                        ConstantValue::from_vec(tensor_data.inner.to_vec::<i64>().unwrap())
+                    }
+                    onnx_ir::ir::ElementType::Bool => {
+                        ConstantValue::from_vec(tensor_data.inner.to_vec::<bool>().unwrap())
+                    }
+                    ty => panic!("Unsupported value type {ty:?} for ConstantOfShape!"),
+                }
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 

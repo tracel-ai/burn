@@ -129,8 +129,8 @@ impl NodeProcessor for Conv3dProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("Conv3d: weight tensor must be present".to_string())
             })?
-            .shape
-            .clone();
+            .shape()
+            .to_vec();
 
         // check if the bias is present
         let bias = node.inputs.len() == 3;
@@ -223,8 +223,8 @@ mod tests {
         auto_pad: Option<&str>,
     ) -> NodeBuilder {
         // Create weight tensor data (not important for the test)
-        let weight_data = vec![0.0; 32];
         let weight_shape = vec![4, 2, 2, 2, 2]; // [output_channels, input_channels/groups, k_d, k_h, k_w]
+        let weight_data = vec![0.0; 64]; // 4*2*2*2*2 = 64
 
         let has_kernel_shape = !kernel_shape.is_empty();
 

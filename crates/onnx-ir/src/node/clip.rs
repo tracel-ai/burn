@@ -35,7 +35,7 @@
 //! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
 //! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
-use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 
@@ -126,22 +126,11 @@ impl NodeProcessor for ClipProcessor {
                     )))
                 }
                 Some(tensor_data) => {
-                    // Static input - extract the scalar value
-                    let scalar = tensor_data.data.into_scalar();
-                    let value = match scalar {
-                        Data::Float16(v) => f32::from(v) as f64,
-                        Data::Float32(v) => v as f64,
-                        Data::Float64(v) => v,
-                        Data::Int32(v) => v as f64,
-                        Data::Int64(v) => v as f64,
-                        _ => {
-                            // TODO: According to spec (opset 12+), Clip supports additional integer types:
-                            // int8, int16, uint8, uint16, uint32, uint64
-                            // and bfloat16 (opset 13+)
-                            return None; // Unsupported type
-                        }
-                    };
-                    Some(ClipInput::Static(value))
+                    // Static input - extract the scalar value, converting to f64
+                    match tensor_data.scalar_f64() {
+                        Ok(value) => Some(ClipInput::Static(value)),
+                        Err(_) => None, // Unsupported type
+                    }
                 }
             }
         }

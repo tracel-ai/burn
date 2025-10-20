@@ -147,8 +147,8 @@ impl NodeProcessor for Conv2dProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("Conv2d: weight tensor must be present".to_string())
             })?
-            .shape
-            .clone();
+            .shape()
+            .to_vec();
 
         let bias = node.inputs.len() == 3;
 
@@ -226,9 +226,9 @@ mod tests {
         auto_pad: Option<&str>,
     ) -> NodeBuilder {
         // Weight tensor data - not important for the test
-        let weight_data = vec![0.0; 16];
         // [output_channels, input_channels/groups, k_h, k_w]
         let weight_shape = vec![4, 2, 2, 2];
+        let weight_data = vec![0.0; 32]; // 4*2*2*2 = 32
 
         let has_kernel_shape = !kernel_shape.is_empty();
 

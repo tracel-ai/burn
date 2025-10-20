@@ -36,9 +36,7 @@
 //!
 //! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
-use crate::ir::{
-    ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
-};
+use crate::ir::{ArgType, Argument, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -225,9 +223,8 @@ fn get_static_shape(node: &Node) -> Option<Vec<i64>> {
     // Check shape input
     if node.inputs.len() == 2
         && let Some(value) = node.inputs[1].value()
-        && let Data::Int64s(shape) = &value.data
     {
-        return Some(shape.clone());
+        return value.to_i64_vec().ok();
     }
 
     None
@@ -248,9 +245,13 @@ fn extract_shape_input(node: &Node) -> ReshapeInput {
 /// Extract shape from tensor input
 fn extract_tensor_shape(node: &Node) -> ReshapeInput {
     match node.inputs[1].value() {
-        Some(TensorData { data, shape, .. }) => {
-            assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
-            ReshapeInput::Static(data.clone().into_i64s())
+        Some(tensor_data) => {
+            assert_eq!(
+                tensor_data.shape().len(),
+                1,
+                "Reshape: shape tensor must be 1D"
+            );
+            ReshapeInput::Static(tensor_data.to_vec::<i64>().unwrap())
         }
         None => {
             // Runtime input - store reference instead of cloning the argument
@@ -336,10 +337,14 @@ impl NodeProcessor for ReshapeProcessor {
                 // Note: We don't validate rank here because extract_config runs before type inference
                 // The rank might be 0 initially and will be updated during type inference
                 match node.inputs[1].value() {
-                    Some(TensorData { data, shape, .. }) => {
+                    Some(tensor_data) => {
                         // Only validate when we have actual tensor data
-                        assert_eq!(shape.len(), 1, "Reshape: shape tensor must be 1D");
-                        ReshapeInput::Static(data.clone().into_i64s())
+                        assert_eq!(
+                            tensor_data.shape().len(),
+                            1,
+                            "Reshape: shape tensor must be 1D"
+                        );
+                        ReshapeInput::Static(tensor_data.to_vec::<i64>().unwrap())
                     }
                     None => {
                         // Runtime input - store reference instead of cloning the argument

@@ -185,8 +185,8 @@ impl NodeProcessor for Convtranspose2dProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("ConvTranspose2d: weight tensor must be present".to_string())
             })?
-            .shape
-            .clone();
+            .shape()
+            .to_vec();
 
         // check if the bias is present
         let bias = node.inputs.len() == 3;
@@ -246,18 +246,15 @@ mod tests {
         auto_pad: Option<&str>,
     ) -> NodeBuilder {
         // Create weight tensor data
-        let weight_data = vec![0.0; 16]; // Not important for the test
+        let weight_shape = vec![2, 4, 2, 2]; // [out_channels, in_channels, k_h, k_w]
+        let weight_data = vec![0.0; 32]; // 2*4*2*2 = 32
 
         let has_kernel_shape = !kernel_shape.is_empty();
 
         // Start building the node with input and weight
         let mut builder = NodeBuilder::new(NodeType::ConvTranspose2d, "test_convtranspose2d")
             .input_tensor_f32("data", 4, None)
-            .input_tensor_f32_data(
-                "weight",
-                weight_data,
-                vec![2, 4, 2, 2], // [out_channels, in_channels, k_h, k_w]
-            )
+            .input_tensor_f32_data("weight", weight_data, weight_shape)
             .output_tensor_f32("output", 4, None);
 
         // Add bias if needed

@@ -26,7 +26,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, AttributeValue, Data, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{ArgType, AttributeValue, Node, NodeConfig, RuntimeInputRef};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for pad values.
@@ -194,9 +194,8 @@ impl NodeProcessor for PadProcessor {
                         )));
                     }
                     Some(tensor_data) => {
-                        let pads = tensor_data
-                            .data
-                            .into_i64s()
+                        let pad_values: Vec<i64> = tensor_data.to_vec().unwrap();
+                        let pads = pad_values
                             .iter()
                             .map(|&x| {
                                 if x < 0 {
@@ -282,21 +281,16 @@ impl NodeProcessor for PadProcessor {
                     }
                     Some(tensor_data) => {
                         // TODO: Support int, boolean
-                        let constant_value = match &tensor_data.data {
-                            Data::Float16s(values) => values.first().map(|&f| f32::from(f)),
-                            Data::Float32s(values) => values.first().copied(),
-                            Data::Float64s(values) => values.first().map(|&f| f as f32),
-                            Data::Float16(value) => Some(f32::from(*value)),
-                            Data::Float32(value) => Some(*value),
-                            Data::Float64(value) => Some(*value as f32),
-                            _ => {
+                        // Static input - extract the scalar value, converting to f32
+                        match tensor_data.scalar_f32() {
+                            Ok(value) => return Ok(ConstantValueInput::Static(value)),
+                            Err(_) => {
                                 return Err(ProcessError::TypeMismatch {
                                     expected: "float value".to_string(),
                                     actual: "only float values are currently supported for constant value".to_string(),
                                 });
                             }
-                        };
-                        return Ok(ConstantValueInput::Static(constant_value.unwrap_or(0.0)));
+                        }
                     }
                 }
             }

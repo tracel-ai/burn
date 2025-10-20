@@ -38,9 +38,7 @@
 //!
 //! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
-use crate::ir::{
-    ArgType, Data, ElementType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,
-};
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -138,18 +136,13 @@ impl NodeProcessor for RangeProcessor {
                     input.name.clone(),
                     index,
                 ))),
-                Some(TensorData {
-                    data: Data::Int64s(values),
-                    ..
-                }) if values.len() == 1 => Ok(RangeInput::Static(values[0])),
-                Some(TensorData {
-                    data: Data::Int32s(values),
-                    ..
-                }) if values.len() == 1 => Ok(RangeInput::Static(values[0] as i64)),
-                Some(_) => Err(ProcessError::TypeMismatch {
-                    expected: "scalar int value".to_string(),
-                    actual: format!("{} must be a scalar int value", param_name),
-                }),
+                Some(tensor_data) => match tensor_data.scalar_i64() {
+                    Ok(value) => Ok(RangeInput::Static(value)),
+                    Err(_) => Err(ProcessError::TypeMismatch {
+                        expected: "scalar int value".to_string(),
+                        actual: format!("{} must be a scalar int value", param_name),
+                    }),
+                },
             }
         }
 

@@ -34,7 +34,7 @@
 //! - **Opset 11**: Added optional `steps` input for strided slicing.
 //! - **Opset 13**: Added bfloat16 and additional type support.
 
-use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -242,16 +242,15 @@ impl NodeProcessor for SliceProcessor {
             if matches!(input.ty, ArgType::Shape(_)) {
                 // Try to get static value if available
                 match input.value() {
-                    Some(TensorData {
-                        data: Data::Int64s(values),
-                        ..
-                    }) => return Ok(Some(SliceInput::Static(values.clone()))),
-                    Some(v) => {
-                        return Err(ProcessError::Custom(format!(
-                            "Slice Shape input at index {} must be int64 but got {:?}",
-                            index, v
-                        )));
-                    }
+                    Some(tensor_data) => match tensor_data.to_i64_vec() {
+                        Ok(vec) => return Ok(Some(SliceInput::Static(vec))),
+                        Err(_) => {
+                            return Err(ProcessError::Custom(format!(
+                                "Slice Shape input at index {} must be int32 or int64",
+                                index
+                            )));
+                        }
+                    },
                     None => {
                         // Shape type without value means it's a runtime Shape (e.g., from Shape node)
                         // Runtime input - store reference instead of cloning the argument
@@ -272,14 +271,13 @@ impl NodeProcessor for SliceProcessor {
                         index,
                     ))))
                 }
-                Some(TensorData {
-                    data: Data::Int64s(values),
-                    ..
-                }) => Ok(Some(SliceInput::Static(values.clone()))),
-                Some(v) => Err(ProcessError::Custom(format!(
-                    "Slice input at index {} must be int64 but got {:?}",
-                    index, v
-                ))),
+                Some(tensor_data) => match tensor_data.to_i64_vec() {
+                    Ok(vec) => Ok(Some(SliceInput::Static(vec))),
+                    Err(_) => Err(ProcessError::Custom(format!(
+                        "Slice input at index {} must be int32 or int64",
+                        index
+                    ))),
+                },
             }
         }
 

@@ -20,11 +20,8 @@
 //! - **Opset 9**: Initial version with shape input and optional value attribute.
 //! - **Opset 20**: Added support for bfloat16, int4, uint4, and float8 value types.
 
+use crate::ir::{ArgType, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
-use crate::{
-    TensorData,
-    ir::{ArgType, Data, ElementType, Node, NodeConfig, RuntimeInputRef, TensorType},
-};
 use std::any::Any;
 
 /// Shape information for the ConstantOfShape operation.
@@ -111,12 +108,12 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 if let Some(tensor_data) = node.inputs[0].value() {
                     // The tensor data contains the shape values
                     // For a shape tensor, the length of the data is the output rank
-                    match &tensor_data.data {
-                        crate::ir::Data::Int64s(vals) => vals.len(),
-                        _ => {
+                    match tensor_data.to_i64_vec() {
+                        Ok(shape_vec) => shape_vec.len(),
+                        Err(_) => {
                             return Err(ProcessError::Custom(format!(
-                                "ConstantOfShape node {} requires Int64 shape input, found {:?}",
-                                node.name, tensor_data.data
+                                "ConstantOfShape node {} requires Int32 or Int64 shape input",
+                                node.name
                             )));
                         }
                     }
@@ -176,19 +173,18 @@ impl NodeProcessor for ConstantOfShapeProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Check if we have static values or need runtime resolution
         let config = match node.inputs[0].value() {
-            Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) => ConstantOfShapeShape::Static(shape.clone()),
+            Some(tensor_data) => match tensor_data.to_i64_vec() {
+                Ok(shape) => ConstantOfShapeShape::Static(shape),
+                Err(_) => {
+                    return Err(ProcessError::Custom(format!(
+                        "ConstantOfShape node {} requires Int32 or Int64 shape data",
+                        node.name
+                    )));
+                }
+            },
             None => {
                 // Runtime input - store reference instead of cloning the argument
                 ConstantOfShapeShape::Runtime(RuntimeInputRef::new(node.inputs[0].name.clone(), 0))
-            }
-            _ => {
-                return Err(ProcessError::Custom(format!(
-                    "ConstantOfShape node {} requires Int64 shape data",
-                    node.name
-                )));
             }
         };
         Ok(Some(Box::new(config)))
@@ -198,7 +194,7 @@ impl NodeProcessor for ConstantOfShapeProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{AttributeValue, Data, NodeType, TensorData};
+    use crate::ir::{AttributeValue, NodeType, TensorData};
     use crate::node::test_utils::NodeBuilder;
 
     fn create_test_node(input_ty: ArgType) -> NodeBuilder {
@@ -249,10 +245,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(2)).build();
         node.attrs.insert(
             "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![],
-                data: Data::Int64s(vec![7]), // Int64 value
-            }),
+            AttributeValue::Tensor(TensorData::new(vec![7i64], vec![])),
         );
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();
@@ -283,13 +276,7 @@ mod tests {
         let mut node = NodeBuilder::new(NodeType::ConstantOfShape, "constantofshape1")
             .input_tensor_i64_data("constant180_out1", vec![2, 3, 4], vec![3])
             .output_default("/model/encoder/patch_encoder/ConstantOfShape_output_0")
-            .attr_tensor(
-                "value",
-                TensorData {
-                    data: Data::Int64s(vec![1]),
-                    shape: vec![1],
-                },
-            )
+            .attr_tensor("value", TensorData::new(vec![1i64], vec![1]))
             .build_with_graph_data(16);
 
         let processor = ConstantOfShapeProcessor;
@@ -349,10 +336,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(0)).build();
         node.attrs.insert(
             "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![],
-                data: Data::Int64s(vec![42]), // Custom Int64 value
-            }),
+            AttributeValue::Tensor(TensorData::new(vec![42i64], vec![])),
         );
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();
@@ -372,10 +356,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(1)).build();
         node.attrs.insert(
             "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![],
-                data: Data::Int64s(vec![5]), // Int64 value
-            }),
+            AttributeValue::Tensor(TensorData::new(vec![5i64], vec![])),
         );
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();
@@ -395,10 +376,7 @@ mod tests {
         let mut node = create_test_node(ArgType::Shape(1)).build();
         node.attrs.insert(
             "value".to_string(),
-            AttributeValue::Tensor(TensorData {
-                shape: vec![],
-                data: Data::Float32s(vec![1.5]), // Float32 value
-            }),
+            AttributeValue::Tensor(TensorData::new(vec![1.5f32], vec![])),
         );
         let processor = ConstantOfShapeProcessor;
         let prefs = OutputPreferences::new();

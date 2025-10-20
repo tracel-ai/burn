@@ -132,13 +132,11 @@ impl NodeProcessor for BatchNormProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
-        let weight_shape = node.inputs[1]
-            .value()
-            .ok_or_else(|| {
-                ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
-            })?
-            .shape;
+        let weight_tensor = node.inputs[1].value().ok_or_else(|| {
+            ProcessError::Custom("BatchNorm: weight tensor must be present".to_string())
+        })?;
 
+        let weight_shape = weight_tensor.shape();
         let num_features = weight_shape[0];
 
         let mut epsilon = 0f32;

@@ -21,7 +21,7 @@
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{
     ElementType,
-    ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType},
+    ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType},
 };
 use std::any::Any;
 
@@ -166,18 +166,17 @@ impl NodeProcessor for ExpandProcessor {
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract config
         let config = match node.inputs[1].value() {
-            Some(TensorData {
-                data: Data::Int64s(shape),
-                ..
-            }) => ExpandShape::Static(shape.clone()),
+            Some(tensor_data) => match tensor_data.to_i64_vec() {
+                Ok(shape) => ExpandShape::Static(shape),
+                Err(_) => {
+                    return Err(ProcessError::Custom(
+                        "Expand: shape data type must be int32 or int64".to_string(),
+                    ));
+                }
+            },
             None => {
                 // Runtime shape - store reference instead of cloning the argument
                 ExpandShape::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
-            }
-            Some(_) => {
-                return Err(ProcessError::Custom(
-                    "Expand: shape data type must be int64".to_string(),
-                ));
             }
         };
         Ok(Some(Box::new(config)))

@@ -30,7 +30,7 @@
 //! - **Opset 11**: Initial version with per-element indexing along a specified axis.
 //! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
-use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use std::any::Any;
 
@@ -134,18 +134,13 @@ impl NodeProcessor for GatherElementsProcessor {
         let indices_input = &node.inputs[1];
 
         let indices = if let Some(value) = indices_input.value() {
-            // Static indices
-            match &value.data {
-                Data::Int64s(vals) => GatherElementsInput::Static(vals.clone()),
-                Data::Int32s(vals) => {
-                    let int64_vals = vals.iter().map(|&v| v as i64).collect::<Vec<_>>();
-                    GatherElementsInput::Static(int64_vals)
-                }
-                other => {
-                    return Err(ProcessError::Custom(format!(
-                        "GatherElements indices must be int32 or int64, got {:?}",
-                        other
-                    )));
+            // Static indices - convert to i64 vec
+            match value.to_i64_vec() {
+                Ok(indices) => GatherElementsInput::Static(indices),
+                Err(_) => {
+                    return Err(ProcessError::Custom(
+                        "GatherElements indices must be int32 or int64".to_string(),
+                    ));
                 }
             }
         } else {

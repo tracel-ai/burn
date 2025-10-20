@@ -2,7 +2,7 @@ use std::str::{FromStr, from_utf8};
 
 use super::graph_state::GraphState;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, TensorData,
+    ArgType, Argument, AttributeValue, Attributes, ElementType, Node, NodeType, TensorData,
     TensorType,
 };
 use super::protos::{
@@ -59,7 +59,7 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
     // 1) Canonical path first.
     match TensorData::try_from(initializer.clone()) {
         Ok(td) => {
-            let arg = if td.shape.is_empty() {
+            let arg = if td.shape().is_empty() {
                 // rank-0 (scalar)
                 Argument {
                     name,
@@ -73,8 +73,8 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                     name,
                     ty: ArgType::Tensor(TensorType {
                         elem_type: td.elem_type(),
-                        rank: td.shape.len(),
-                        static_shape: Some(td.shape.clone()),
+                        rank: td.shape().len(),
+                        static_shape: Some(td.shape().to_vec()),
                     }),
                     data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
@@ -161,36 +161,34 @@ pub fn argument_from_initializer(initializer: &TensorProto) -> (Argument, Tensor
                     ),
                 };
 
-                // Build empty Data variant corresponding to elem type.
-                let data = match elem {
-                    ElementType::Float32 => Data::Float32s(Vec::new()),
-                    ElementType::Float64 => Data::Float64s(Vec::new()),
-                    ElementType::Float16 => Data::Float16s(Vec::new()),
-                    ElementType::Int32 => Data::Int32s(Vec::new()),
-                    ElementType::Int64 => Data::Int64s(Vec::new()),
-                    ElementType::Uint16 => Data::Uint16s(Vec::new()),
-                    ElementType::Uint8 => Data::Uint8s(Vec::new()),
-                    ElementType::Int8 => Data::Int8s(Vec::new()),
-                    ElementType::Bool => Data::Bools(Vec::new()),
-                    ElementType::String => Data::Strings(Vec::new()),
-                };
-
+                // Build empty tensor using burn-tensor
                 let shape_usize: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
+
+                let td = match elem {
+                    ElementType::Float32 => TensorData::new(Vec::<f32>::new(), shape_usize.clone()),
+                    ElementType::Float64 => TensorData::new(Vec::<f64>::new(), shape_usize.clone()),
+                    ElementType::Float16 => {
+                        TensorData::new(Vec::<half::f16>::new(), shape_usize.clone())
+                    }
+                    ElementType::Int32 => TensorData::new(Vec::<i32>::new(), shape_usize.clone()),
+                    ElementType::Int64 => TensorData::new(Vec::<i64>::new(), shape_usize.clone()),
+                    ElementType::Uint16 => TensorData::new(Vec::<u16>::new(), shape_usize.clone()),
+                    ElementType::Uint8 => TensorData::new(Vec::<u8>::new(), shape_usize.clone()),
+                    ElementType::Int8 => TensorData::new(Vec::<i8>::new(), shape_usize.clone()),
+                    ElementType::Bool => TensorData::new(Vec::<bool>::new(), shape_usize.clone()),
+                    ElementType::String => panic!("String tensors not supported in burn-tensor"),
+                };
 
                 let arg = Argument {
                     name,
                     ty: ArgType::Tensor(TensorType {
                         elem_type: elem,
                         rank: shape_usize.len(),
-                        static_shape: Some(shape_usize.clone()),
+                        static_shape: Some(shape_usize),
                     }),
                     data_id: None,
                     value_source: ValueSource::Constant, // Initializers are constants
                     value_store: None,
-                };
-                let td = TensorData {
-                    data,
-                    shape: shape_usize,
                 };
                 return (arg, td);
             }
@@ -213,64 +211,89 @@ impl TryFrom<TensorProto> for TensorData {
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
-        let data = if !tensor.raw_data.is_empty() {
+        // Use burn-tensor's TensorData::new() for all numeric types
+        if !tensor.raw_data.is_empty() {
             match elem {
-                ElementType::Float32 => Data::Float32s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Float64 => Data::Float64s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Float16 => Data::Float16s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Int32 => Data::Int32s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Int64 => Data::Int64s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Uint16 => Data::Uint16s(cast_vec_with_fallback(tensor.raw_data)),
-                ElementType::Uint8 => Data::Uint8s(tensor.raw_data), // keep bytes
+                ElementType::Float32 => {
+                    let data: Vec<f32> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Float64 => {
+                    let data: Vec<f64> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Float16 => {
+                    let data: Vec<half::f16> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Int32 => {
+                    let data: Vec<i32> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Int64 => {
+                    let data: Vec<i64> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Uint16 => {
+                    let data: Vec<u16> = cast_vec_with_fallback(tensor.raw_data);
+                    Ok(TensorData::new(data, shape))
+                }
+                ElementType::Uint8 => Ok(TensorData::new(tensor.raw_data, shape)),
                 ElementType::Int8 => {
-                    Data::Int8s(tensor.raw_data.into_iter().map(|b| b as i8).collect())
+                    let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
+                    Ok(TensorData::new(data, shape))
                 }
                 ElementType::Bool => {
-                    Data::Bools(tensor.raw_data.into_iter().map(|b| b != 0).collect())
+                    let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
+                    Ok(TensorData::new(data, shape))
                 }
-                ElementType::String => panic!("String initializers unsupported"),
+                ElementType::String => Err(ParseError::VariantNotFound(
+                    "String tensors not supported in burn-tensor".into(),
+                )),
             }
         } else {
             match elem {
                 ElementType::Float32 if !tensor.float_data.is_empty() => {
-                    Data::Float32s(tensor.float_data)
+                    Ok(TensorData::new(tensor.float_data, shape))
                 }
                 ElementType::Float64 if !tensor.double_data.is_empty() => {
-                    Data::Float64s(tensor.double_data)
+                    Ok(TensorData::new(tensor.double_data, shape))
                 }
                 ElementType::Int32 if !tensor.int32_data.is_empty() => {
-                    Data::Int32s(tensor.int32_data)
+                    Ok(TensorData::new(tensor.int32_data, shape))
                 }
                 ElementType::Int64 if !tensor.int64_data.is_empty() => {
-                    Data::Int64s(tensor.int64_data)
+                    Ok(TensorData::new(tensor.int64_data, shape))
                 }
                 ElementType::Bool if !tensor.int32_data.is_empty() => {
-                    Data::Bools(tensor.int32_data.into_iter().map(|x| x != 0).collect())
+                    let data: Vec<bool> = tensor.int32_data.into_iter().map(|x| x != 0).collect();
+                    Ok(TensorData::new(data, shape))
                 }
                 ElementType::Uint8 => {
                     // accept weird exporters that stuff zp as int32_data
                     if !tensor.int32_data.is_empty() {
-                        Data::Uint8s(tensor.int32_data.into_iter().map(|x| x as u8).collect())
+                        let data: Vec<u8> =
+                            tensor.int32_data.into_iter().map(|x| x as u8).collect();
+                        Ok(TensorData::new(data, shape))
                     } else {
-                        return Err(ParseError::VariantNotFound("no data for UINT8".into()));
+                        Err(ParseError::VariantNotFound("no data for UINT8".into()))
                     }
                 }
                 ElementType::Int8 => {
                     if !tensor.int32_data.is_empty() {
-                        Data::Int8s(tensor.int32_data.into_iter().map(|x| x as i8).collect())
+                        let data: Vec<i8> =
+                            tensor.int32_data.into_iter().map(|x| x as i8).collect();
+                        Ok(TensorData::new(data, shape))
                     } else {
-                        return Err(ParseError::VariantNotFound("no data for INT8".into()));
+                        Err(ParseError::VariantNotFound("no data for INT8".into()))
                     }
                 }
-                _ => {
-                    return Err(ParseError::VariantNotFound(format!(
-                        "empty/unsupported payload for {:?}",
-                        elem
-                    )));
-                }
+                _ => Err(ParseError::VariantNotFound(format!(
+                    "empty/unsupported payload for {:?}",
+                    elem
+                ))),
             }
-        };
-        Ok(TensorData { shape, data })
+        }
     }
 }
 impl TryFrom<TensorShapeProto> for Vec<usize> {

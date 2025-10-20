@@ -249,18 +249,32 @@ fn create_test_constant(
 ) -> (Node, usize) {
     use crate::ir::TensorData;
 
-    let elem_type = match &data {
-        crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => crate::ElementType::Bool,
-        crate::ir::Data::Float16(_) | crate::ir::Data::Float16s(_) => crate::ElementType::Float16,
-        crate::ir::Data::Float32(_) | crate::ir::Data::Float32s(_) => crate::ElementType::Float32,
-        crate::ir::Data::Float64(_) | crate::ir::Data::Float64s(_) => crate::ElementType::Float64,
-        crate::ir::Data::Uint16(_) | crate::ir::Data::Uint16s(_) => crate::ElementType::Uint16,
-        crate::ir::Data::Uint8(_) | crate::ir::Data::Uint8s(_) => crate::ElementType::Uint8,
-        crate::ir::Data::Int8(_) | crate::ir::Data::Int8s(_) => crate::ElementType::Int8,
-        crate::ir::Data::Int32(_) | crate::ir::Data::Int32s(_) => crate::ElementType::Int32,
-        crate::ir::Data::Int64(_) | crate::ir::Data::Int64s(_) => crate::ElementType::Int64,
-        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => crate::ElementType::String,
+    // Convert Data enum to TensorData using burn-tensor
+    let tensor_data = match data {
+        crate::ir::Data::Bool(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Bools(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Float16(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Float16s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Float32(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Float32s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Float64(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Float64s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Uint16(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Uint16s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Uint8(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Uint8s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Int8(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Int8s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Int32(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Int32s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::Int64(v) => TensorData::new(vec![v], shape.clone()),
+        crate::ir::Data::Int64s(v) => TensorData::new(v, shape.clone()),
+        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => {
+            panic!("String tensors not supported in burn-tensor")
+        }
     };
+
+    let elem_type = tensor_data.elem_type();
 
     let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
         elem_type,
@@ -268,7 +282,7 @@ fn create_test_constant(
         static_shape: Some(shape.clone()),
     });
 
-    let data_id = tensor_store.store(TensorData { data, shape });
+    let data_id = tensor_store.store(tensor_data);
 
     // Use name directly as output name for test lookups (no _const_out suffix)
     let const_node_name = format!("{}_const", name);

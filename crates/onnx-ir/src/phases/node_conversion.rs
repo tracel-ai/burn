@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, iter::Peekable, rc::Rc, slice::It
 
 use crate::{
     graph_state::GraphState,
-    ir::{ArgType, AttributeValue, Data, Node, NodeType, TensorData},
+    ir::{ArgType, AttributeValue, Node, NodeType, TensorData},
     processor::get_processor_registry,
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto},
@@ -117,22 +117,10 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
     {
         let tensor_data_opt: Option<TensorData> = match attr_value {
             AttributeValue::Tensor(tensor) => Some(tensor.clone()),
-            AttributeValue::Float32(val) => Some(TensorData {
-                shape: vec![],
-                data: crate::ir::Data::Float32(*val),
-            }),
-            AttributeValue::Float32s(vals) => Some(TensorData {
-                shape: vec![vals.len()],
-                data: crate::ir::Data::Float32s(vals.clone()),
-            }),
-            AttributeValue::Int64(val) => Some(TensorData {
-                shape: vec![],
-                data: crate::ir::Data::Int64(*val),
-            }),
-            AttributeValue::Int64s(vals) => Some(TensorData {
-                shape: vec![vals.len()],
-                data: crate::ir::Data::Int64s(vals.clone()),
-            }),
+            AttributeValue::Float32(val) => Some(TensorData::new(vec![*val], vec![])),
+            AttributeValue::Float32s(vals) => Some(TensorData::new(vals.clone(), vec![vals.len()])),
+            AttributeValue::Int64(val) => Some(TensorData::new(vec![*val], vec![])),
+            AttributeValue::Int64s(vals) => Some(TensorData::new(vals.clone(), vec![vals.len()])),
             _ => None,
         };
 
@@ -144,13 +132,13 @@ fn extract_constant_from_attributes(node: &mut Node, state_rc: &Rc<RefCell<Graph
             };
 
             // Create type from tensor data
-            let ty = if tensor_data.shape.is_empty() {
+            let ty = if tensor_data.shape().is_empty() {
                 crate::ir::ArgType::Scalar(tensor_data.elem_type())
             } else {
                 crate::ir::ArgType::Tensor(crate::ir::TensorType {
                     elem_type: tensor_data.elem_type(),
-                    rank: tensor_data.shape.len(),
-                    static_shape: Some(tensor_data.shape.clone()),
+                    rank: tensor_data.shape().len(),
+                    static_shape: Some(tensor_data.shape().to_vec()),
                 })
             };
 
@@ -349,34 +337,27 @@ fn transpose_linear_node_weights(node: &mut Node, graph_data: &mut GraphState) {
         .expect("Weight must have tensor data in central store")
         .clone();
 
-    let data = &tensor_data.data;
-    let shape = &tensor_data.shape;
+    let shape = tensor_data.shape();
 
     assert_eq!(shape.len(), 2, "Weight must be a 2D tensor");
 
     let new_shape = vec![shape[1], shape[0]];
 
-    let new_tensor_data = match data {
-        Data::Float32s(data) => {
-            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
-            TensorData {
-                data: Data::Float32s(data_t),
-                shape: new_shape,
-            }
+    let new_tensor_data = match tensor_data.elem_type() {
+        crate::ir::ElementType::Float32 => {
+            let data: Vec<f32> = tensor_data.to_vec().unwrap();
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            TensorData::new(data_t, new_shape)
         }
-        Data::Float64s(data) => {
-            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
-            TensorData {
-                data: Data::Float64s(data_t),
-                shape: new_shape,
-            }
+        crate::ir::ElementType::Float64 => {
+            let data: Vec<f64> = tensor_data.to_vec().unwrap();
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            TensorData::new(data_t, new_shape)
         }
-        Data::Float16s(data) => {
-            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
-            TensorData {
-                data: Data::Float16s(data_t),
-                shape: new_shape,
-            }
+        crate::ir::ElementType::Float16 => {
+            let data: Vec<half::f16> = tensor_data.to_vec().unwrap();
+            let data_t = transpose_flattened(data, shape[0], shape[1]);
+            TensorData::new(data_t, new_shape)
         }
         _ => panic!("Only float types are supported for Linear node"),
     };

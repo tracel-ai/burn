@@ -176,9 +176,10 @@ impl NodeProcessor for SplitProcessor {
                     )))
                 }
                 Some(tensor_data) => {
-                    let sizes = tensor_data.data.clone().into_usizes();
-                    if !sizes.is_empty() {
-                        Some(SplitSizesInput::Static(sizes))
+                    let sizes: Vec<i64> = tensor_data.to_vec().unwrap();
+                    let usizes: Vec<usize> = sizes.into_iter().map(|x| x as usize).collect();
+                    if !usizes.is_empty() {
+                        Some(SplitSizesInput::Static(usizes))
                     } else {
                         None
                     }

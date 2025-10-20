@@ -165,7 +165,7 @@ impl NodeProcessor for TopKProcessor {
                     TopKInput::Runtime(RuntimeInputRef::new(k_tensor.name.clone(), 1))
                 }
                 Some(tensor_data) => {
-                    let k_value = tensor_data.data.into_i64s()[0];
+                    let k_value = tensor_data.as_slice::<i64>().unwrap()[0];
                     TopKInput::Static(k_value as usize)
                 }
             },

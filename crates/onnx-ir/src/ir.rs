@@ -3,6 +3,9 @@ use half::f16;
 use std::{any::Any, cell::RefCell, collections::HashMap, fmt::Formatter, rc::Rc};
 use strum::{Display, EnumString};
 
+// burn-tensor integration
+use burn_tensor::Element;
+
 /// Reference to a runtime input by name and index.
 /// Used in configs to point to node inputs instead of storing stale copies.
 #[derive(Debug, Clone, PartialEq)]
@@ -303,31 +306,146 @@ impl Argument {
 /// Representation of a tensor with data and shape information.
 ///
 /// A tensor is a multi-dimensional array of data with a specific shape.
-/// This struct stores both the raw data values and the dimensional information
-/// that defines the tensor's structure.
-#[derive(Debug, Clone)]
+/// This struct wraps burn-tensor's TensorData for better serialization and type safety.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
-    /// The data values of the tensor.
-    pub data: Data,
-
-    /// The dimensional shape of the tensor.
-    pub shape: Shape,
+    /// Underlying burn-tensor data
+    #[serde(flatten)]
+    pub inner: burn_tensor::TensorData,
 }
 
 impl TensorData {
-    /// The element type of the tensor inferred from the data.
+    /// Create new TensorData from vector
+    pub fn new<E: Element>(data: Vec<E>, shape: Vec<usize>) -> Self {
+        Self {
+            inner: burn_tensor::TensorData::new(data, shape),
+        }
+    }
+
+    /// Get the shape
+    pub fn shape(&self) -> &[usize] {
+        &self.inner.shape
+    }
+
+    /// The element type of the tensor (ONNX ElementType, not burn DType)
+    /// TODO consider deleting it
     pub fn elem_type(&self) -> ElementType {
-        match &self.data {
-            Data::Bool(_) | Data::Bools(_) => ElementType::Bool,
-            Data::Float16(_) | Data::Float16s(_) => ElementType::Float16,
-            Data::Float32(_) | Data::Float32s(_) => ElementType::Float32,
-            Data::Float64(_) | Data::Float64s(_) => ElementType::Float64,
-            Data::Uint16(_) | Data::Uint16s(_) => ElementType::Uint16,
-            Data::Uint8(_) | Data::Uint8s(_) => ElementType::Uint8,
-            Data::Int8(_) | Data::Int8s(_) => ElementType::Int8,
-            Data::Int32(_) | Data::Int32s(_) => ElementType::Int32,
-            Data::Int64(_) | Data::Int64s(_) => ElementType::Int64,
-            Data::String(_) | Data::Strings(_) => ElementType::String,
+        match self.inner.dtype {
+            burn_tensor::DType::Bool => ElementType::Bool,
+            burn_tensor::DType::F16 => ElementType::Float16,
+            burn_tensor::DType::F32 => ElementType::Float32,
+            burn_tensor::DType::F64 => ElementType::Float64,
+            burn_tensor::DType::U8 => ElementType::Uint8,
+            burn_tensor::DType::U16 => ElementType::Uint16,
+            burn_tensor::DType::I8 => ElementType::Int8,
+            burn_tensor::DType::I32 => ElementType::Int32,
+            burn_tensor::DType::I64 => ElementType::Int64,
+            // burn-tensor has these but ONNX ElementType doesn't
+            burn_tensor::DType::U32 => panic!("U32 not supported in ONNX ElementType"),
+            burn_tensor::DType::I16 => panic!("I16 not supported in ONNX ElementType"),
+            _ => panic!("Unsupported dtype for ONNX: {:?}", self.inner.dtype),
+        }
+    }
+
+    /// Get data as Vec (copying)
+    pub fn to_vec<E: Element>(&self) -> Result<Vec<E>, burn_tensor::DataError> {
+        self.inner.to_vec()
+    }
+
+    /// Convert to Vec (consuming, no copy)
+    pub fn into_vec<E: Element>(self) -> Result<Vec<E>, burn_tensor::DataError> {
+        self.inner.into_vec()
+    }
+
+    /// Get data as slice (zero-copy)
+    pub fn as_slice<E: Element>(&self) -> Result<&[E], burn_tensor::DataError> {
+        self.inner.as_slice()
+    }
+
+    /// Get data as mutable slice
+    pub fn as_mut_slice<E: Element>(&mut self) -> Result<&mut [E], burn_tensor::DataError> {
+        self.inner.as_mut_slice()
+    }
+
+    /// Extract the first element as f64, converting from any numeric type
+    ///
+    /// Useful for extracting scalar parameters from constant nodes.
+    pub fn scalar_f64(&self) -> Result<f64, burn_tensor::DataError> {
+        match self.elem_type() {
+            ElementType::Float16 => {
+                let val = self.inner.as_slice::<half::f16>()?[0];
+                Ok(f32::from(val) as f64)
+            }
+            ElementType::Float32 => Ok(self.inner.as_slice::<f32>()?[0] as f64),
+            ElementType::Float64 => Ok(self.inner.as_slice::<f64>()?[0]),
+            ElementType::Int32 => Ok(self.inner.as_slice::<i32>()?[0] as f64),
+            ElementType::Int64 => Ok(self.inner.as_slice::<i64>()?[0] as f64),
+            ElementType::Int8 => Ok(self.inner.as_slice::<i8>()?[0] as f64),
+            ElementType::Uint8 => Ok(self.inner.as_slice::<u8>()?[0] as f64),
+            ElementType::Uint16 => Ok(self.inner.as_slice::<u16>()?[0] as f64),
+            other => Err(burn_tensor::DataError::TypeMismatch(format!(
+                "Cannot convert {:?} to f64",
+                other
+            ))),
+        }
+    }
+
+    /// Extract the first element as f32, converting from any numeric type
+    pub fn scalar_f32(&self) -> Result<f32, burn_tensor::DataError> {
+        self.scalar_f64().map(|v| v as f32)
+    }
+
+    /// Extract the first element as i64, converting from any numeric type
+    pub fn scalar_i64(&self) -> Result<i64, burn_tensor::DataError> {
+        match self.elem_type() {
+            ElementType::Int64 => Ok(self.inner.as_slice::<i64>()?[0]),
+            ElementType::Int32 => Ok(self.inner.as_slice::<i32>()?[0] as i64),
+            ElementType::Int8 => Ok(self.inner.as_slice::<i8>()?[0] as i64),
+            ElementType::Uint8 => Ok(self.inner.as_slice::<u8>()?[0] as i64),
+            ElementType::Uint16 => Ok(self.inner.as_slice::<u16>()?[0] as i64),
+            ElementType::Float32 => Ok(self.inner.as_slice::<f32>()?[0] as i64),
+            ElementType::Float64 => Ok(self.inner.as_slice::<f64>()?[0] as i64),
+            other => Err(burn_tensor::DataError::TypeMismatch(format!(
+                "Cannot convert {:?} to i64",
+                other
+            ))),
+        }
+    }
+
+    /// Convert to Vec<i64>, handling Int32 and Int64 types
+    ///
+    /// Useful for extracting indices, shapes, or other integer arrays that need to be i64.
+    pub fn to_i64_vec(&self) -> Result<Vec<i64>, burn_tensor::DataError> {
+        match self.elem_type() {
+            ElementType::Int64 => self.inner.to_vec::<i64>(),
+            ElementType::Int32 => {
+                let vec_i32 = self.inner.to_vec::<i32>()?;
+                Ok(vec_i32.into_iter().map(|v| v as i64).collect())
+            }
+            other => Err(burn_tensor::DataError::TypeMismatch(format!(
+                "Cannot convert {:?} to Vec<i64>",
+                other
+            ))),
+        }
+    }
+
+    /// Convert to Vec<usize>, handling Int32 and Int64 types
+    ///
+    /// Useful for extracting shape or dimension values.
+    pub fn to_usize_vec(&self) -> Result<Vec<usize>, burn_tensor::DataError> {
+        match self.elem_type() {
+            ElementType::Int64 => {
+                let vec_i64 = self.inner.to_vec::<i64>()?;
+                Ok(vec_i64.into_iter().map(|v| v as usize).collect())
+            }
+            ElementType::Int32 => {
+                let vec_i32 = self.inner.to_vec::<i32>()?;
+                Ok(vec_i32.into_iter().map(|v| v as usize).collect())
+            }
+            other => Err(burn_tensor::DataError::TypeMismatch(format!(
+                "Cannot convert {:?} to Vec<usize>",
+                other
+            ))),
         }
     }
 }
@@ -1041,7 +1159,7 @@ impl From<AttributeValue> for Argument {
                 value_store: None,
             },
             AttributeValue::Tensor(tensor) => {
-                if tensor.shape.is_empty() {
+                if tensor.shape().is_empty() {
                     // Handle scalar tensors by converting them to scalar arguments
                     Argument {
                         ty: ArgType::Scalar(tensor.elem_type()),
@@ -1054,9 +1172,9 @@ impl From<AttributeValue> for Argument {
                     // Convert tensor to argument
                     Argument {
                         ty: ArgType::Tensor(TensorType {
-                            rank: tensor.shape.len(),
+                            rank: tensor.shape().len(),
                             elem_type: tensor.elem_type(),
-                            static_shape: Some(tensor.shape.clone()),
+                            static_shape: Some(tensor.shape().to_vec()),
                         }),
                         name,
                         data_id: None,

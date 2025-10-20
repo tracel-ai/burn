@@ -225,7 +225,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
 impl OnnxIntoNode for ConstantNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        use onnx_ir::ir::{ArgType, Data, ElementType};
+        use onnx_ir::ir::{ArgType, ElementType};
 
         let input = node.inputs.first().unwrap();
         let output = node.outputs.first().unwrap();
@@ -241,54 +241,47 @@ impl OnnxIntoNode for ConstantNode {
         };
 
         // Helper to map elem type to ConstantValue (single scalar)
-        fn scalar_from_data(elem: ElementType, data: Data) -> ConstantValue {
+        // Helper to extract scalar from TensorData
+        fn scalar_from_tensor_data(elem: ElementType, tensor_data: &onnx_ir::TensorData) -> ConstantValue {
             match elem {
-                ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
-                ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
-                ElementType::Int64 => ConstantValue::Int64(data.into_i64()),
-                ElementType::Int32 => ConstantValue::Int32(data.into_i32()),
-                ElementType::Bool => ConstantValue::Bool(data.into_bool()),
-                ElementType::Uint8 => ConstantValue::Int32(data.into_i32()),
-                ElementType::Int8 => ConstantValue::Int32(data.into_i32()),
+                ElementType::Float64 => {
+                    let val = tensor_data.inner.as_slice::<f64>().unwrap()[0];
+                    ConstantValue::Float64(val)
+                }
+                ElementType::Float32 => {
+                    let val = tensor_data.inner.as_slice::<f32>().unwrap()[0];
+                    ConstantValue::Float32(val)
+                }
+                ElementType::Int64 => {
+                    let val = tensor_data.inner.as_slice::<i64>().unwrap()[0];
+                    ConstantValue::Int64(val)
+                }
+                ElementType::Int32 => {
+                    let val = tensor_data.inner.as_slice::<i32>().unwrap()[0];
+                    ConstantValue::Int32(val)
+                }
+                ElementType::Bool => {
+                    let val = tensor_data.inner.as_slice::<bool>().unwrap()[0];
+                    ConstantValue::Bool(val)
+                }
+                ElementType::Uint8 => {
+                    let val = tensor_data.inner.as_slice::<u8>().unwrap()[0] as i32;
+                    ConstantValue::Int32(val)
+                }
+                ElementType::Int8 => {
+                    let val = tensor_data.inner.as_slice::<i8>().unwrap()[0] as i32;
+                    ConstantValue::Int32(val)
+                }
                 _ => panic!("Unsupported scalar type: {elem:?}"),
-            }
-        }
-
-        // Helper to serialize float data - converts to f32
-        fn serialize_float_data(data: Data, shape: Vec<usize>) -> TensorData {
-            match data {
-                Data::Float16s(val) => TensorData::new(val, shape).convert::<f32>(),
-                Data::Float32s(val) => TensorData::new(val, shape).convert::<f32>(),
-                Data::Float64s(val) => TensorData::new(val, shape).convert::<f32>(),
-                _ => panic!("Expected float data for serialize_float_data"),
-            }
-        }
-
-        // Helper to serialize int data - converts to i32
-        fn serialize_int_data(data: Data, shape: Vec<usize>) -> TensorData {
-            match data {
-                Data::Int32s(val) => TensorData::new(val, shape).convert::<i32>(),
-                Data::Int64s(val) => TensorData::new(val, shape).convert::<i32>(),
-                Data::Uint16s(val) => TensorData::new(val, shape).convert::<i32>(),
-                Data::Uint8s(val) => TensorData::new(val, shape).convert::<i32>(),
-                Data::Int8s(val) => TensorData::new(val, shape).convert::<i32>(),
-                _ => panic!("Expected int data for serialize_int_data, got: {:?}", data),
-            }
-        }
-
-        fn serialize_bool_data(data: Data, shape: Vec<usize>) -> TensorData {
-            match data {
-                Data::Bools(val) => TensorData::new(val, shape),
-                _ => panic!("Expected boolean data for serialize_bool_data"),
             }
         }
 
         let const_value = match &output.ty {
             ArgType::Shape(rank) => {
                 let shape_values: Vec<usize> = tensor_data
-                    .data
-                    .clone()
-                    .into_i64s()
+                    .inner
+                    .to_vec::<i64>()
+                    .unwrap()
                     .into_iter()
                     .map(|v| v as usize)
                     .collect();
@@ -299,7 +292,7 @@ impl OnnxIntoNode for ConstantNode {
             ArgType::Tensor(tensor) => {
                 if tensor.rank == 0 {
                     // Extract scalar data from tensor_data
-                    scalar_from_data(tensor.elem_type.clone(), tensor_data.data.clone())
+                    scalar_from_tensor_data(tensor.elem_type.clone(), &tensor_data)
                 } else {
                     let kind: TensorKind = tensor.elem_type.clone().into();
                     let rank = tensor.rank;
@@ -307,20 +300,17 @@ impl OnnxIntoNode for ConstantNode {
 
                     let serialized_data = match &tensor.elem_type {
                         ElementType::Float32 | ElementType::Float64 | ElementType::Float16 => {
-                            serialize_float_data(
-                                tensor_data.data.clone(),
-                                tensor_data.shape.clone(),
-                            )
+                            tensor_data.inner.clone().convert::<f32>()
                         }
                         ElementType::Int32
                         | ElementType::Int64
                         | ElementType::Uint16
                         | ElementType::Uint8
                         | ElementType::Int8 => {
-                            serialize_int_data(tensor_data.data.clone(), tensor_data.shape.clone())
+                            tensor_data.inner.clone().convert::<i32>()
                         }
                         ElementType::Bool => {
-                            serialize_bool_data(tensor_data.data.clone(), tensor_data.shape.clone())
+                            tensor_data.inner.clone()
                         }
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
@@ -331,16 +321,7 @@ impl OnnxIntoNode for ConstantNode {
 
             ArgType::Scalar(elem_type) => {
                 // Extract scalar data from tensor_data
-                let data = tensor_data.data.clone();
-
-                match elem_type {
-                    ElementType::Float64 => ConstantValue::Float64(data.into_f64()),
-                    ElementType::Float32 => ConstantValue::Float32(data.into_f32()),
-                    ElementType::Int32 => ConstantValue::Int32(data.into_i32()),
-                    ElementType::Int64 => ConstantValue::Int64(data.into_i64()),
-                    ElementType::Bool => ConstantValue::Bool(data.into_bool()),
-                    other => panic!("Unsupported constant scalar type: {other:?} "),
-                }
+                scalar_from_tensor_data(elem_type.clone(), &tensor_data)
             }
         };
 

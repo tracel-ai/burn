@@ -74,13 +74,13 @@ impl NodeProcessor for ConstantProcessor {
         })?;
 
         // First, determine the base type from the tensor data
-        let base_type = if tensor_data.shape.is_empty() {
+        let base_type = if tensor_data.shape().is_empty() {
             ArgType::Scalar(tensor_data.elem_type())
         } else {
             ArgType::Tensor(TensorType {
                 elem_type: tensor_data.elem_type(),
-                rank: tensor_data.shape.len(),
-                static_shape: Some(tensor_data.shape.clone()),
+                rank: tensor_data.shape().len(),
+                static_shape: Some(tensor_data.shape().to_vec()),
             })
         };
 

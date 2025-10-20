@@ -28,7 +28,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorType};
+use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use std::any::Any;
 
 /// Represents either a static value or a runtime argument for squeeze axes.
@@ -172,9 +172,9 @@ impl NodeProcessor for SqueezeProcessor {
                         1,
                     )))
                 }
-                Some(value) => match &value.data {
-                    Data::Int64s(axes) => Some(SqueezeInput::Static(axes.clone())),
-                    _ => None, // Invalid type
+                Some(value) => match value.to_i64_vec() {
+                    Ok(axes) => Some(SqueezeInput::Static(axes)),
+                    Err(_) => None, // Invalid type
                 },
             }
         }

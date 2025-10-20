@@ -28,7 +28,7 @@
 //! - According to spec, operator exists since opset 1
 //! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
-use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
+use crate::ir::{Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};
 use std::any::Any;
 
@@ -139,19 +139,16 @@ impl NodeProcessor for DropoutProcessor {
                     DropoutInput::Runtime(RuntimeInputRef::new(input.name.clone(), 1))
                 }
                 Some(tensor_data) => {
-                    let ratio = tensor_data.data.into_scalar();
-                    let prob_value = match ratio {
-                        Data::Float16(ratio) => f64::from(f32::from(ratio)),
-                        Data::Float32(ratio) => ratio as f64,
-                        Data::Float64(ratio) => ratio,
-                        _ => {
+                    // Static input - extract the scalar value, converting to f64
+                    match tensor_data.scalar_f64() {
+                        Ok(prob_value) => DropoutInput::Static(prob_value),
+                        Err(_) => {
                             return Err(ProcessError::InvalidAttribute {
                                 name: "ratio".to_string(),
                                 reason: "must be a float".to_string(),
                             });
                         }
-                    };
-                    DropoutInput::Static(prob_value)
+                    }
                 }
             },
         };

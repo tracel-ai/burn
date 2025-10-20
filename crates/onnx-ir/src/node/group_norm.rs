@@ -129,8 +129,8 @@ impl NodeProcessor for GroupNormProcessor {
             .ok_or_else(|| {
                 ProcessError::Custom("GroupNorm: weight tensor must be present".to_string())
             })?
-            .shape
-            .clone();
+            .shape()
+            .to_vec();
 
         let num_features = weight_shape[0];
         let mut num_groups = None;
