@@ -11,16 +11,11 @@ use super::protos::{
     tensor_shape_proto::dimension::Value,
 };
 
-use bytemuck::{cast_slice, try_cast_vec};
+use burn_tensor::DType;
 use protobuf::Enum;
 
 /// Minimum required ONNX opset version
 pub const MIN_OPSET_VERSION: i64 = 16;
-
-fn cast_vec_with_fallback<E: bytemuck::Pod>(raw_data: Vec<u8>) -> Vec<E> {
-    // Zero-copy `try_cast_vec` with fallback when alignment and size are not compatible
-    try_cast_vec(raw_data).unwrap_or_else(|(_e, raw_data)| cast_slice(&raw_data).to_vec())
-}
 
 /// Error type for parsing ONNX model
 #[derive(Debug)]
@@ -42,6 +37,22 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
         DT::BOOL => Ok(ElementType::Bool),
         DT::STRING => Ok(ElementType::String),
         other => Err(format!("unsupported dtype {:?}", other)),
+    }
+}
+
+/// Convert ONNX ElementType to burn-tensor DType
+fn element_type_to_dtype(elem: &ElementType) -> Option<DType> {
+    match elem {
+        ElementType::Float32 => Some(DType::F32),
+        ElementType::Float64 => Some(DType::F64),
+        ElementType::Float16 => Some(DType::F16),
+        ElementType::Int64 => Some(DType::I64),
+        ElementType::Int32 => Some(DType::I32),
+        ElementType::Uint16 => Some(DType::U16),
+        ElementType::Uint8 => Some(DType::U8),
+        ElementType::Int8 => Some(DType::I8),
+        ElementType::Bool => Some(DType::Bool),
+        ElementType::String => None, // Not supported
     }
 }
 
@@ -211,45 +222,43 @@ impl TryFrom<TensorProto> for TensorData {
         let elem =
             element_type_from_proto(tensor.data_type).map_err(ParseError::VariantNotFound)?;
 
-        // Use burn-tensor's TensorData::new() for all numeric types
+        // Optimize using burn-tensor's from_bytes_vec for direct byte conversion
         if !tensor.raw_data.is_empty() {
-            match elem {
-                ElementType::Float32 => {
-                    let data: Vec<f32> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
+            // Types that can use zero-copy or minimal-copy from raw bytes
+            if let Some(dtype) = element_type_to_dtype(&elem) {
+                match elem {
+                    // These types can use from_bytes_vec directly (just reinterpret bytes)
+                    ElementType::Float32
+                    | ElementType::Float64
+                    | ElementType::Float16
+                    | ElementType::Int32
+                    | ElementType::Int64
+                    | ElementType::Uint16
+                    | ElementType::Uint8 => {
+                        // Use from_bytes_vec to avoid intermediate typed Vec allocation
+                        Ok(TensorData {
+                            inner: burn_tensor::TensorData::from_bytes_vec(
+                                tensor.raw_data,
+                                shape,
+                                dtype,
+                            ),
+                        })
+                    }
+                    // These types need element-wise conversion
+                    ElementType::Int8 => {
+                        let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
+                        Ok(TensorData::new(data, shape))
+                    }
+                    ElementType::Bool => {
+                        let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
+                        Ok(TensorData::new(data, shape))
+                    }
+                    ElementType::String => unreachable!(), // Handled by element_type_to_dtype
                 }
-                ElementType::Float64 => {
-                    let data: Vec<f64> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Float16 => {
-                    let data: Vec<half::f16> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Int32 => {
-                    let data: Vec<i32> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Int64 => {
-                    let data: Vec<i64> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Uint16 => {
-                    let data: Vec<u16> = cast_vec_with_fallback(tensor.raw_data);
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Uint8 => Ok(TensorData::new(tensor.raw_data, shape)),
-                ElementType::Int8 => {
-                    let data: Vec<i8> = tensor.raw_data.into_iter().map(|b| b as i8).collect();
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::Bool => {
-                    let data: Vec<bool> = tensor.raw_data.into_iter().map(|b| b != 0).collect();
-                    Ok(TensorData::new(data, shape))
-                }
-                ElementType::String => Err(ParseError::VariantNotFound(
+            } else {
+                Err(ParseError::VariantNotFound(
                     "String tensors not supported in burn-tensor".into(),
-                )),
+                ))
             }
         } else {
             match elem {
