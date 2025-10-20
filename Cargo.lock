@@ -808,7 +808,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.17",
- "zip 4.6.1",
+ "zip 6.0.0",
 ]
 
 [[package]]
@@ -860,7 +860,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing-core",
  "tracing-subscriber",
- "zip 4.6.1",
+ "zip 6.0.0",
 ]
 
 [[package]]
@@ -1031,7 +1031,7 @@ dependencies = [
  "safetensors 0.6.2-dev.0",
  "serde",
  "tempfile",
- "zip 4.6.1",
+ "zip 6.0.0",
 ]
 
 [[package]]
@@ -1731,6 +1731,21 @@ checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "crc"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9710d3b3739c2e349eb44fe848ad0b7c8cb1e42bd87ee49371df2f7acaf3e675"
+dependencies = [
+ "crc-catalog",
+]
+
+[[package]]
+name = "crc-catalog"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
 name = "crc32fast"
@@ -4636,6 +4651,16 @@ checksum = "6bd8c0d6c6ed0cd30b3652886bb8711dc4bb01d637a68105a3d5158039b418e6"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "lzma-rust2"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c60a23ffb90d527e23192f1246b14746e2f7f071cb84476dd879071696c18a4a"
+dependencies = [
+ "crc",
+ "sha2",
 ]
 
 [[package]]
@@ -9825,9 +9850,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "4.6.1"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa8cd6af31c3b31c6631b8f483848b91589021b28fffe50adada48d4f4d2ed1"
+checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
 dependencies = [
  "aes",
  "arbitrary",
@@ -9839,7 +9864,7 @@ dependencies = [
  "getrandom 0.3.4",
  "hmac",
  "indexmap",
- "liblzma",
+ "lzma-rust2",
  "memchr",
  "pbkdf2 0.12.2",
  "ppmd-rust",
