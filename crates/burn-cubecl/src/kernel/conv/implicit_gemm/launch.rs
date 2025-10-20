@@ -19,7 +19,8 @@ use cubecl::{
 };
 
 use crate::{
-    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_optimized, tensor::CubeTensor,
+    CubeElement, CubeRuntime, FloatElement, ops::numeric::empty_device_optimized,
+    tensor::CubeTensor,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
