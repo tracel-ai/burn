@@ -27,6 +27,17 @@ mod tests {
     }
 
     #[test]
+    fn test_cumsum_non_contiguous() {
+        let tensor = TestTensor::<2>::from([[1., 2.], [3., 4.]]).swap_dims(0, 1);
+
+        let output = tensor.cumsum(1);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1., 4.], [2., 6.]]), false);
+    }
+
+    #[test]
     fn test_cumsum_int_dim_0() {
         let tensor = TestTensorInt::<2>::from([[1, 2, 3], [4, 5, 6]]);
 
