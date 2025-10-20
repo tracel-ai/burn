@@ -65,6 +65,9 @@ impl NodeProcessor for ArgMaxProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes (similar to attention.rs)
+        // Currently only validates select_last_index and keepdims values but doesn't check for unknown attributes
+
         // Validate select_last_index before config extraction
         for (key, value) in node.attrs.iter() {
             if key.as_str() == "select_last_index" && value.clone().into_i64() != 0 {

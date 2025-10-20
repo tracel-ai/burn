@@ -15,6 +15,9 @@
 //!   - Positive k = diagonals above main diagonal
 //!   - Negative k = diagonals below main diagonal
 //!
+//! **FIXME**: The implementation does not validate that the input tensor has rank >= 2, which is
+//! required by the ONNX spec. This should be validated in infer_types.
+//!
 //! ## Outputs
 //! - `output` (T): Output tensor with the same shape as input, containing the triangular part.
 //!   Elements outside the triangle are set to zero.
@@ -65,6 +68,8 @@ pub struct TriluProcessor;
 impl NodeProcessor for TriluProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift diagonal input (input[1]) if present
+        // FIXME: This should check if the input is constant before attempting to lift,
+        // similar to other processors. Currently it lifts unconditionally if present.
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
         }
@@ -112,6 +117,9 @@ impl NodeProcessor for TriluProcessor {
             }
         }
         // The second input of the Trilu node is the diagonal value, coming from a constant node
+        // FIXME: The spec states that `k` should be a 0-D tensor (scalar tensor), but the
+        // implementation assumes Data::Int64 (scalar value). This should handle the proper
+        // tensor extraction with shape validation to ensure it's 0-D.
         if let Some(diagonal_arg) = node.inputs.get(1)
             && let Some(TensorData {
                 data: Data::Int64(diagonal_val),

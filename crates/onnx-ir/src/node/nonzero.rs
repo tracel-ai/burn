@@ -32,6 +32,8 @@ impl NodeProcessor for NonZeroProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // Note: Implementation correctly validates inputs/outputs per spec (1 input, 1 output)
+
         match &node.inputs[0].ty {
             ArgType::Tensor(_tensor) => {
                 // Output is always a 2D Int64 tensor

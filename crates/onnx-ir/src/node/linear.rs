@@ -86,6 +86,15 @@ impl NodeProcessor for LinearProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate that no unexpected attributes are present
+        // Linear is a Burn-specific node type with no attributes
+        for (key, _value) in node.attrs.iter() {
+            return Err(ProcessError::InvalidAttribute {
+                name: key.clone(),
+                reason: format!("Linear does not accept any attributes, found: {}", key),
+            });
+        }
+
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
             _ => {

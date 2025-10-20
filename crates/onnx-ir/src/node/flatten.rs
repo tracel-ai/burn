@@ -46,6 +46,7 @@ impl NodeProcessor for FlattenProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // FIXME: Spec says "Opset 1+" but we validate opset 9. Should validate opset 1.
         // Validate opset
         crate::processor::validate_opset(opset, 9)?;
 
@@ -106,6 +107,7 @@ impl NodeProcessor for FlattenProcessor {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
             }
+            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // if axis is negative, it is counted from the end

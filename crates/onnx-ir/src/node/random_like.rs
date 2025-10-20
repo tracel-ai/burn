@@ -54,8 +54,14 @@ impl NodeProcessor for RandomLikeProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 1)?;
+
+        // FIXME: Should validate exactly 1 input, not minimum 1 (spec says only 'input')
         crate::processor::validate_min_inputs(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Spec mentions RandomNormalLike has mean/scale attributes, RandomUniformLike has high/low
+        // These attributes are documented but not validated or extracted into config
+        // TODO: Spec also mentions 'seed' attribute that is not validated
 
         let dtype = node
             .attrs

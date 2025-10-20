@@ -25,8 +25,8 @@
 //! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
 //!
 //! ## Opset Versions
-//! - Since version 6 (minimum supported)
-//! - Version 22: Current version
+//! - Since version 6 (minimum supported in implementation)
+//! - Current version: 22
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

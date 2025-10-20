@@ -73,6 +73,7 @@ impl NodeProcessor for DropoutProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // FIXME: Spec says "Opset 1+" but we validate opset 7. Should validate opset 1.
         crate::processor::validate_opset(opset, 7)?;
         crate::processor::validate_min_inputs(node, 1)?;
 
@@ -107,6 +108,7 @@ impl NodeProcessor for DropoutProcessor {
         node: &Node,
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
+        // TODO: Validate 'seed' attribute mentioned in spec (opset 12+) - currently not handled
         // Opset 7 and older store probability as an attribute
         if node.attrs.contains_key("ratio") {
             let prob = node.attrs.get("ratio").unwrap().clone().into_f32();

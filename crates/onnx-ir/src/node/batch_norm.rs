@@ -98,6 +98,10 @@ impl NodeProcessor for BatchNormProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes
+        // TODO: Check training_mode attribute - spec mentions it but implementation doesn't validate it
+        // According to spec, training mode outputs mean/var/saved_mean/saved_var which are not currently handled
+
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

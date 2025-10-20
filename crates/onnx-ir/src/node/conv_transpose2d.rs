@@ -16,6 +16,7 @@
 //! ## Inputs
 //! - `X` (T): Input tensor (N x C x H x W)
 //! - `W` (T): Weight tensor (C x M/group x kH x kW)
+//!   Note: Implementation expects weight shape as [out_channels, in_channels, kernel_h, kernel_w]
 //! - `B` (T, optional): Bias tensor (M)
 //!
 //! ## Outputs
@@ -148,6 +149,8 @@ impl NodeProcessor for Convtranspose2dProcessor {
                     }
                 }
                 _ => {
+                    // TODO: According to spec, there may be other valid attributes that are not handled
+                    // Consider logging/warning instead of rejecting unknown attributes
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
                         reason: format!("Unexpected attribute for ConvTranspose2d: {key}"),
@@ -157,6 +160,9 @@ impl NodeProcessor for Convtranspose2dProcessor {
         }
 
         // Check the pads are symmetric.
+        // FIXME: Padding order appears to be [top, left, bottom, right] per ONNX spec,
+        // but variable names here suggest [left, top, right, bottom]
+        // Verify the correct order and update variable names accordingly
         let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
         if left < 0 || top < 0 || right < 0 || bottom < 0 {
             return Err(ProcessError::Custom(
@@ -179,6 +185,10 @@ impl NodeProcessor for Convtranspose2dProcessor {
         // check if the bias is present
         let bias = node.inputs.len() == 3;
 
+        // FIXME: According to ONNX spec, weight tensor should be (C x M/group x kH x kW)
+        // where C is input channels and M is output channels.
+        // Implementation assumes shape [out_channels, in_channels, kernel_h, kernel_w]
+        // Need to verify if this matches actual ONNX weight tensor layout
         // the channels are inverted in the weight tensor
         let channels: [usize; 2] = [weight_shape[1] * group, weight_shape[0]];
 

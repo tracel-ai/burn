@@ -231,6 +231,9 @@ impl NodeProcessor for ResizeProcessor {
         // However, some attributes are important to be checked and we are checking
         // against the default values of the attributes.
         // TODO revisit this when we have more Resize operators in the model
+        // FIXME: The spec mentions `antialias` (default=0), `axes` (optional), and other attributes
+        // that are partially validated. The implementation rejects non-default values but doesn't
+        // validate all documented attributes comprehensively.
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "antialias" => {

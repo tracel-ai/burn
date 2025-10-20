@@ -102,7 +102,12 @@ impl NodeProcessor for OneHotProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 9)?;
+
+        // FIXME: Should validate exactly 3 inputs (indices, depth, values), not minimum 3
         crate::processor::validate_min_inputs(node, 3)?;
+
+        // TODO: Validate that depth input is scalar or rank-1 tensor as per spec
+        // TODO: Validate that values input has exactly 2 elements [off_value, on_value]
 
         // Update output shape
         one_hot_output_shape(node)?;

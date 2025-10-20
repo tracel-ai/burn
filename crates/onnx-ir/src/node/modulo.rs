@@ -98,8 +98,12 @@ impl NodeProcessor for ModuloProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 10)?;
+
+        // FIXME: Should validate exactly 2 inputs, not minimum 2 (spec says A and B only)
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Add validation that fmod attribute, if present, is either 0 or 1
 
         // Output type is same as input with broadcasting
         crate::processor::same_as_input_broadcast(node);

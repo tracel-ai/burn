@@ -104,6 +104,10 @@ impl NodeProcessor for RangeProcessor {
         // Validate input count
         crate::processor::validate_input_count(node, 3)?;
 
+        // TODO: Validate that output count is exactly 1
+        // FIXME: Output element type should match input types (T), not hardcoded to Int64
+        // Spec supports float, double, int16, int32, int64 - but we always output Int64
+
         // Range operation always produces rank 1 tensor
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: ElementType::Int64,

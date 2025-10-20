@@ -94,8 +94,14 @@ impl NodeProcessor for MaxPool1dProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // FIXME: Spec says "Opset 1+" but implementation requires opset 11+.
+        // This discrepancy should be documented or the check should be relaxed to opset 1.
+
         // MaxPool implementation supports opset 11+ (for enhanced calculations)
         crate::processor::validate_opset(opset, 11)?;
+
+        // FIXME: Spec mentions optional second output "Indices" but we only validate 1 output.
+        // Should validate that output count is 1 or 2, not exactly 1.
 
         // Validate input/output count
         crate::processor::validate_min_inputs(node, 1)?;

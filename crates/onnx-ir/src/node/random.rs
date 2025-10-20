@@ -32,6 +32,10 @@ impl NodeProcessor for RandomProcessor {
         crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate that this node has zero inputs (Random operations don't take inputs)
+        // TODO: Spec mentions RandomNormal has mean and scale attributes, RandomUniform has high/low
+        // These attributes are not validated or extracted into config
+
         let dtype = node
             .attrs
             .get("dtype")

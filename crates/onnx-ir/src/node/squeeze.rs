@@ -61,6 +61,8 @@ pub struct SqueezeProcessor;
 impl NodeProcessor for SqueezeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
+        // FIXME: This should check if the input is constant before attempting to lift,
+        // similar to other processors. Currently it lifts unconditionally if present.
         if node.inputs.len() > 1 {
             node.inputs[1].to_static()?;
         }

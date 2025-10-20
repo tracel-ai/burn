@@ -84,6 +84,9 @@ impl NodeProcessor for AvgPool2dProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate that kernel_shape attribute is present (marked as required in spec)
+        // Currently extract_config will panic if kernel_shape is missing or has wrong length
+
         // Validate attributes before extracting config
         let mut ceil_mode: i64 = 0;
 

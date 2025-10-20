@@ -39,6 +39,15 @@ impl NodeProcessor for MatMulProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate that no unexpected attributes are present
+        // The spec states "Attributes (None)" for MatMul
+        for (key, _value) in node.attrs.iter() {
+            return Err(ProcessError::InvalidAttribute {
+                name: key.clone(),
+                reason: format!("MatMul does not accept any attributes, found: {}", key),
+            });
+        }
+
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
                 let mut out_rank = max(a.rank, b.rank);

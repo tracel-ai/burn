@@ -64,6 +64,9 @@ impl NodeProcessor for UnsqueezeProcessor {
     fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
         // Lift axes input (input[1]) if present
         // Note: axes can also be an attribute, but we only lift the input version
+        // FIXME: The spec states that axes is a required input in opset 13+, but the
+        // extract_config method allows for axes as an attribute (backward compatibility).
+        // The opset validation and axes requirement should be more strictly enforced.
         if node.inputs.len() > 1 && node.inputs[1].is_constant() {
             node.inputs[1].to_static()?;
         }

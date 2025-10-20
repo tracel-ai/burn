@@ -16,6 +16,7 @@
 //! ## Inputs
 //! - `X` (T): Input tensor (N x C x L)
 //! - `W` (T): Weight tensor (C x M/group x kL)
+//!   Note: Implementation expects weight shape as [out_channels, in_channels, kernel_size]
 //! - `B` (T, optional): Bias tensor (M)
 //!
 //! ## Outputs
@@ -152,6 +153,8 @@ impl NodeProcessor for Convtranspose1dProcessor {
                     }
                 }
                 _ => {
+                    // TODO: According to spec, there may be other valid attributes that are not handled
+                    // Consider logging/warning instead of rejecting unknown attributes
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
                         reason: format!("Unexpected attribute for ConvTranspose1d: {key}"),
@@ -178,7 +181,11 @@ impl NodeProcessor for Convtranspose1dProcessor {
         // Check if bias is present (third input)
         let bias = node.inputs.len() == 3;
 
-        // Extract channels from the weight tensor shape [out_channels, in_channels]
+        // Extract channels from the weight tensor shape
+        // FIXME: According to ONNX spec, weight tensor should be (C x M/group x kL)
+        // where C is input channels and M is output channels.
+        // Implementation assumes shape [out_channels, in_channels, kernel_size]
+        // Need to verify if this matches actual ONNX weight tensor layout
         let channels_in = weight_shape[1] * group;
         let channels_out = weight_shape[0];
 

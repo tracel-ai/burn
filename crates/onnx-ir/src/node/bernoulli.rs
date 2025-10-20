@@ -43,6 +43,9 @@ impl NodeProcessor for BernoulliProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes
+        // TODO: Spec mentions 'seed' attribute but it's not validated or used in implementation
+
         // Get the tensor type and its rank
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

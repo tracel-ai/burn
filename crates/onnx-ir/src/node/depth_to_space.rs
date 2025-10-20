@@ -80,6 +80,7 @@ impl NodeProcessor for DepthToSpaceProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // FIXME: Spec says "Since opset 1" but we validate opset 11. Should validate opset 1.
         crate::processor::validate_opset(opset, 11)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;

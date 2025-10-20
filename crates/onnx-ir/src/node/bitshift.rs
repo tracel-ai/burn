@@ -9,6 +9,7 @@
 //!   or "LEFT" (for left shift). When direction is "RIGHT", the operator moves the binary
 //!   representation toward the right side, effectively decreasing the input value. When direction
 //!   is "LEFT", bits move toward the left side, increasing the actual value.
+//!   Note: Implementation provides default "left" despite spec marking as required.
 //!
 //! ## Inputs
 //! - `X` (T, required): Tensor to be shifted
@@ -82,6 +83,10 @@ impl NodeProcessor for BitShiftProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes
+        // FIXME: Spec says 'direction' is required but extract_config provides default "left"
+        // Should either validate presence here or update spec documentation
+
         // Output type is same as input with broadcasting
         crate::processor::same_as_input_broadcast(node);
 
@@ -94,6 +99,7 @@ impl NodeProcessor for BitShiftProcessor {
         _opset: usize,
     ) -> Result<Option<Box<dyn NodeConfig>>, ProcessError> {
         // Extract direction attribute
+        // FIXME: Spec marks 'direction' as required, but we provide default "left"
         let direction_str = node
             .attrs
             .get("direction")

@@ -89,6 +89,7 @@ impl NodeProcessor for GatherProcessor {
         opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // FIXME: Spec says "Opset 1" initial version but we validate opset 11. Should validate opset 1.
         // Validate opset
         crate::processor::validate_opset(opset, 11)?;
 
@@ -116,6 +117,7 @@ impl NodeProcessor for GatherProcessor {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
             }
+            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // Normalize negative axis
@@ -209,6 +211,7 @@ impl NodeProcessor for GatherProcessor {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
             }
+            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // Normalize negative axis

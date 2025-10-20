@@ -4,16 +4,6 @@
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Softmax.html>
 //!
-//! ## Formula
-//! ```text
-//! Softmax(input, axis) = Exp(input) / ReduceSum(Exp(input), axis=axis, keepdims=1)
-//! ```
-//!
-//! For each element:
-//! ```text
-//! softmax(x_i) = exp(x_i) / Σ_j exp(x_j)
-//! ```
-//!
 //! ## Attributes
 //! - `axis` (int, default=-1): The dimension along which Softmax will be performed.
 //!   Negative values mean counting dimensions from the back. Accepted range is [-r, r-1]
@@ -66,6 +56,9 @@ impl NodeProcessor for SoftmaxProcessor {
         crate::processor::validate_opset(opset, 13)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // FIXME: The spec requires the input rank to be >= 1 for the axis attribute to be valid.
+        // The implementation should validate that the tensor rank is at least 1.
 
         // Infer output type
         crate::processor::same_as_input(node);

@@ -105,6 +105,8 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // TODO: No opset validation - different binary ops have different minimum opsets
+        // (Pow, Max, Min, And, Or, Xor, BitwiseAnd, BitwiseOr, BitwiseXor, PRelu)
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
@@ -149,13 +151,14 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             // Opset 1 operations
             crate::ir::NodeType::Not => 1,
             // Other unary operations
-            _ => 1, //FIXME probably not
+            _ => 1, // FIXME: Default case should not be needed - all unary ops should be explicitly listed
         };
 
         crate::processor::validate_opset(opset, min_opset)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Spec mentions Round has optional 'mode' attribute - not validated or extracted
         same_as_input(node);
         Ok(())
     }

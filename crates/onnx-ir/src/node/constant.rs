@@ -3,10 +3,23 @@
 //! Produces a constant tensor with fixed values.
 //!
 //! **ONNX Spec**: <https://onnx.ai/onnx/operators/onnx__Constant.html>
-//
+//!
+//! ## Attributes
+//!
+//! - `value` (tensor, optional): The constant tensor value
+//! - `sparse_value` (sparse_tensor, optional, Opset 11+): Sparse tensor value
+//! - `value_float` (float, optional, Opset 13+): Scalar float value
+//! - `value_floats` (list of floats, optional, Opset 13+): List of float values
+//! - `value_int` (int, optional, Opset 13+): Scalar int value
+//! - `value_ints` (list of ints, optional, Opset 13+): List of int values
+//! - `value_string` (string, optional, Opset 13+): Scalar string value
+//! - `value_strings` (list of strings, optional, Opset 13+): List of string values
+//!
+//! Note: Exactly one of the above attributes must be specified.
+//!
 //! ## Inputs
 //!
-//! Added input with value from attributes
+//! None (values come from attributes, stored as pseudo-input in implementation)
 //!
 //! ## Outputs
 //!
@@ -36,8 +49,17 @@ impl NodeProcessor for ConstantProcessor {
         opset: usize,
         output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
+        // TODO: According to spec, Constant is available since opset 1, not 9
+        // Currently validating opset 9+ which may be too restrictive
         crate::processor::validate_opset(opset, 9)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Implementation does not support all attribute types mentioned in spec:
+        // - sparse_value (opset 11+)
+        // - value_float, value_floats (opset 13+)
+        // - value_int, value_ints (opset 13+)
+        // - value_string, value_strings (opset 13+)
+        // Currently only supports 'value' attribute via input mechanism
 
         // Validate that the Constant node has an input
         if node.inputs.is_empty() {

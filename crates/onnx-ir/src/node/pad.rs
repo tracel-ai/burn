@@ -87,6 +87,11 @@ impl NodeProcessor for PadProcessor {
     ) -> Result<(), ProcessError> {
         crate::processor::validate_opset(opset, 11)?;
 
+        // TODO: Add validation for input count (1-4 inputs as per spec)
+        // TODO: Add validation for output count (should be exactly 1)
+        // TODO: Validate that mode attribute if present is in ["constant", "reflect", "edge"]
+        // (currently only checked in extract_config)
+
         // Output has same type as input
         if let Some(input) = node.inputs.first() {
             node.outputs[0].ty = input.ty.clone();

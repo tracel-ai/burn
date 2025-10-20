@@ -21,6 +21,10 @@
 //! - Opset 6+: Current version with repeats as input (opset 1 used repeats as attribute)
 //! - Opset 13+: Added support for more data types including bfloat16
 //!
+//! **FIXME**: The implementation does not validate that the repeats tensor has the same length as
+//! the input rank, which is required by the ONNX spec. This should be validated in extract_config
+//! or infer_types.
+//!
 //! ## Example
 //! Given input = [[1, 2], [3, 4]] with shape (2, 2) and repeats = [1, 2]:
 //! Output = [[1, 2, 1, 2], [3, 4, 3, 4]] with shape (2, 4)

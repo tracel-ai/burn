@@ -269,6 +269,8 @@ impl NodeProcessor for AttentionProcessor {
             }
         }
 
+        // FIXME: Parameter order here doesn't match the field order in AttentionConfig struct
+        // kv_num_heads and q_num_heads are swapped compared to the struct definition
         let config = AttentionConfig::new(
             is_causal,
             q_num_heads,

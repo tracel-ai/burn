@@ -114,6 +114,7 @@ impl NodeProcessor for GatherElementsProcessor {
             if key.as_str() == "axis" {
                 axis = value.clone().into_i64()
             }
+            // TODO: Add validation for unexpected attributes (currently silently ignored)
         }
 
         // Normalize negative axis

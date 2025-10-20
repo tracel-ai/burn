@@ -14,7 +14,8 @@
 //! - `output` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - Opset 13+ (minimum version validated in implementation)
+//! - Earlier versions: 11, 1
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -50,6 +51,20 @@ impl NodeProcessor for LogSoftmaxProcessor {
         crate::processor::validate_opset(opset, 13)?;
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
+
+        // TODO: Validate unexpected attributes before config extraction
+        // The spec only supports "axis" attribute
+        for (key, _value) in node.attrs.iter() {
+            match key.as_str() {
+                "axis" => {}
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for LogSoftmax: {}", key),
+                    });
+                }
+            }
+        }
 
         // Infer output type
         crate::processor::same_as_input(node);

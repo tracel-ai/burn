@@ -119,6 +119,7 @@ impl NodeProcessor for EyeLikeProcessor {
                 "k" => {
                     k = value.clone().into_i64();
                 }
+                // TODO: Add validation for unexpected attributes (currently silently ignored)
                 _ => {}
             }
         }

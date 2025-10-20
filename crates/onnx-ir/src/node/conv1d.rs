@@ -171,6 +171,8 @@ impl NodeProcessor for Conv1dProcessor {
                     }
                 }
                 _ => {
+                    // TODO: According to spec, there may be other valid attributes that are not handled
+                    // Consider logging/warning instead of rejecting unknown attributes
                     return Err(ProcessError::InvalidAttribute {
                         name: key.clone(),
                         reason: format!("Unexpected attribute for Conv1d: {}", key),

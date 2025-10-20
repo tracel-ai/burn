@@ -41,6 +41,10 @@ impl NodeProcessor for MatMulIntegerProcessor {
             });
         }
 
+        // FIXME: Spec mentions 2-4 inputs (A, B, a_zero_point optional, b_zero_point optional)
+        // but we only validate minimum 2 inputs. Should validate that we don't have more than 4 inputs
+        // and that the optional zero_point inputs have correct types (T1/T2).
+
         // Validate input count
         if node.inputs.len() < 2 {
             return Err(ProcessError::InvalidInputCount {

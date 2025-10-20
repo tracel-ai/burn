@@ -95,6 +95,8 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             }
         }
 
+        // TODO: According to spec, the 'value' attribute is a one-element tensor
+        // Need to validate that it contains exactly one element
         let value_type = node
             .attrs
             .get("value")

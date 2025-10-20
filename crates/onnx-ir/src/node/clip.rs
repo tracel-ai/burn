@@ -135,6 +135,9 @@ impl NodeProcessor for ClipProcessor {
                         Data::Int32(v) => v as f64,
                         Data::Int64(v) => v as f64,
                         _ => {
+                            // TODO: According to spec (opset 12+), Clip supports additional integer types:
+                            // int8, int16, uint8, uint16, uint32, uint64
+                            // and bfloat16 (opset 13+)
                             return None; // Unsupported type
                         }
                     };

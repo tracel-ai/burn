@@ -7,12 +7,12 @@
 //! ## Attributes
 //! - `epsilon` (float, default=1e-5): Numerical stability constant
 //! - `num_groups` (int, required): Number of groups
-//! - `stash_type` (int, optional): Intermediate calculation precision
+//! - `stash_type` (int, default=1): Intermediate calculation precision (1=float32)
 //!
 //! ## Inputs
-//! - `X` (T): Input tensor (N x C x H x W)
-//! - `scale` (T): Scale tensor (C)
-//! - `bias` (T): Bias tensor (C)
+//! - `X` (T): Input tensor (N x C x D1 x D2 ... x Dn)
+//! - `scale` (T): Scale tensor (num_channels)
+//! - `bias` (T): Bias tensor (num_channels)
 //!
 //! ## Outputs
 //! - `Y` (T): Normalized output tensor

@@ -43,6 +43,15 @@ impl NodeProcessor for IsNaNProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate that no unexpected attributes are present
+        // The spec states "None" for attributes
+        for (key, _value) in node.attrs.iter() {
+            return Err(ProcessError::InvalidAttribute {
+                name: key.clone(),
+                reason: format!("IsNaN does not accept any attributes, found: {}", key),
+            });
+        }
+
         // Output is boolean tensor with same shape as input
         crate::node::comparison::elementwise_comparison_outputs(node);
 

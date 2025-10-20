@@ -16,8 +16,10 @@
 //! - Single concatenated tensor
 //!
 //! ## Opset Versions
-//! - Since version 13 (current)
-//! - Previous versions: 11, 4, 1
+//! - **Opset 1-3**: Initial version
+//! - **Opset 4-10**: Updated type support
+//! - **Opset 11-12**: More type support
+//! - **Opset 13+**: Current version with extended type support
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};
@@ -206,6 +208,10 @@ impl NodeProcessor for ConcatProcessor {
 
         // if axis is negative, it is counted from the end
         let normalized_axis = if axis < 0 { axis + rank } else { axis };
+
+        // TODO: Add validation that normalized_axis is within valid range [0, rank)
+        // According to spec, axis must be in range [-r, r-1] where r = rank(inputs)
+        // After normalization, should validate: 0 <= normalized_axis < rank
 
         let config = ConcatConfig {
             axis: normalized_axis as usize,

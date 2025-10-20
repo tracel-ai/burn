@@ -56,6 +56,20 @@ impl NodeProcessor for LeakyReluProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Validate unexpected attributes before config extraction
+        // The spec only supports "alpha" attribute
+        for (key, _value) in node.attrs.iter() {
+            match key.as_str() {
+                "alpha" => {}
+                _ => {
+                    return Err(ProcessError::InvalidAttribute {
+                        name: key.clone(),
+                        reason: format!("Unexpected attribute for LeakyRelu: {}", key),
+                    });
+                }
+            }
+        }
+
         // Output type is same as input
         crate::processor::same_as_input(node);
 

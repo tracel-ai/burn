@@ -11,6 +11,9 @@
 //!   to zero (similar to NumPy). Note: If allowzero is set, it is invalid for the shape to
 //!   contain both a zero value and -1.
 //!
+//! **FIXME**: The `allowzero` attribute is mentioned in the spec but not validated or used in the
+//! implementation. The extract_config and infer_types methods should validate this attribute.
+//!
 //! ## Inputs
 //! - `data` (T): Input tensor to reshape
 //! - `shape` (tensor(int64)): Target shape specification. Can contain special values:

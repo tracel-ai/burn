@@ -81,6 +81,10 @@ impl NodeProcessor for CastProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
+        // TODO: Add validation for unexpected attributes
+        // TODO: Spec mentions 'saturate' attribute (opset 19+) for float8 conversions - not validated
+        // TODO: Spec mentions 'round_mode' attribute (opset 21+) for float8e8m0 conversion - not validated
+
         // Get reference to config for type inference
         let config = node.config::<CastConfig>();
         let elem_type = config.to.clone();
