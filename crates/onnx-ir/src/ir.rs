@@ -983,8 +983,6 @@ impl AttributeValue {
 /// Convert AttributeValue to an Argument
 impl From<AttributeValue> for Argument {
     fn from(attr: AttributeValue) -> Argument {
-        // "" is used as a placeholder for the name
-        // TODO dt review this empty string placeholder; it came up a few times in the issues
         let name = "".to_string();
 
         match attr {
