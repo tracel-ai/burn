@@ -14,8 +14,6 @@ impl NodeProcessor for NonZeroProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("NonZero rank inference for node {}", node.name);
-
         match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {
                 // Output is always a 2D Int64 tensor

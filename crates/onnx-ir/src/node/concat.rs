@@ -72,7 +72,6 @@ impl NodeProcessor for ConcatProcessor {
         // For shapes, axis must be 0 (since they're 1D) - validation already done in extract_config
 
         // Infer output type
-        log::debug!("Concat rank inference for node {}", node.name);
 
         // Check if we have mixed Shape and rank-1 tensor inputs
         let has_shape = node
@@ -143,8 +142,6 @@ impl NodeProcessor for ConcatProcessor {
                     rank: tensor.rank,
                     static_shape: None,
                 });
-
-                log::debug!("Concat output rank for {}: {}", node.name, tensor.rank);
             }
             ArgType::Shape(shape_rank) => {
                 log::debug!(
@@ -169,8 +166,6 @@ impl NodeProcessor for ConcatProcessor {
                     .sum();
 
                 node.outputs[0].ty = ArgType::Shape(total_rank);
-
-                log::debug!("Concat output shape rank for {}: {}", node.name, total_rank);
             }
             _ => {
                 return Err(ProcessError::TypeMismatch {

@@ -71,7 +71,6 @@ impl NodeProcessor for ReduceProcessor {
             0
         };
 
-        log::debug!("{} rank inference for node {}", node.node_type, node.name);
         log::debug!(
             "{} input rank for {}: {}",
             node.node_type,

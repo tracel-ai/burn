@@ -207,13 +207,6 @@ pub(super) fn iterative_type_inference_with_preferences(nodes: &mut [Node], opse
             log::debug!("Type inference converged after {} iterations", iteration);
             return;
         }
-
-        log::debug!(
-            "Iteration {} complete: types_changed={}, new_preferences_found={}",
-            iteration,
-            types_changed,
-            new_preferences_found
-        );
     }
 
     log::warn!(

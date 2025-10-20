@@ -71,7 +71,6 @@ impl NodeProcessor for SplitProcessor {
         let _config = node.config::<SplitConfig>();
 
         // Infer output types
-        log::debug!("Split rank inference for node {}", node.name);
         log::debug!("Split input rank for {}: {}", node.name, tensor.rank);
         log::debug!(
             "Split will generate {} outputs for {}",
@@ -79,13 +78,12 @@ impl NodeProcessor for SplitProcessor {
             node.name
         );
 
-        for (i, output_arg) in node.outputs.iter_mut().enumerate() {
+        for output_arg in node.outputs.iter_mut() {
             output_arg.ty = ArgType::Tensor(TensorType {
                 elem_type: tensor.elem_type.clone(),
                 rank: tensor.rank,
                 static_shape: None,
             });
-            log::debug!("Split output {} rank for {}: {}", i, node.name, tensor.rank);
         }
 
         Ok(())

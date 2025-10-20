@@ -92,7 +92,6 @@ impl NodeProcessor for TopKProcessor {
         };
 
         // Infer output types
-        log::debug!("TopK rank inference for node {}", node.name);
 
         let rank = data_tensor.rank;
         log::debug!("TopK input rank for {}: {}", node.name, rank);

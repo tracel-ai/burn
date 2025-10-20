@@ -70,8 +70,6 @@ impl NodeProcessor for BatchNormProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("BatchNorm rank inference for node {}", node.name);
-
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

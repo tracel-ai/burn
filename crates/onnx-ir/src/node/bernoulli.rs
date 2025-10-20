@@ -17,8 +17,6 @@ impl NodeProcessor for BernoulliProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Bernoulli rank inference for node {}", node.name);
-
         // Get the tensor type and its rank
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

@@ -34,8 +34,6 @@ impl NodeProcessor for GemmProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Gemm rank inference for node {}", node.name);
-
         // Extract input A tensor type
         let a_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
@@ -66,7 +64,6 @@ impl NodeProcessor for GemmProcessor {
         );
 
         let output_rank = max(a_rank, b_rank);
-        log::debug!("Gemm output rank for {}: {}", node.name, output_rank);
 
         let elem_type = match &node.inputs[0].ty {
             ArgType::Tensor(t) => t.elem_type.clone(),

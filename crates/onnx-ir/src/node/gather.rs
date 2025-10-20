@@ -51,8 +51,6 @@ impl NodeProcessor for GatherProcessor {
         // Validate opset
         crate::processor::validate_opset(opset, 11)?;
 
-        log::debug!("Gather rank inference for node {}", node.name);
-
         // Validate input count
         crate::processor::validate_input_count(node, 2)?;
 
@@ -118,12 +116,10 @@ impl NodeProcessor for GatherProcessor {
                 );
                 // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
                 let output_rank = indices_rank + input_tensor.rank - 1;
-                log::debug!("Gather output rank for {}: {}", node.name, output_rank);
 
                 if output_rank == 0 {
                     // Output is scalar when gathering a single element
                     node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
-                    log::debug!("Gather result for {} is scalar", node.name);
                 } else {
                     // Output is tensor
                     node.outputs[0].ty = ArgType::Tensor(TensorType {
@@ -145,7 +141,6 @@ impl NodeProcessor for GatherProcessor {
                 // - Otherwise, output is a shape with same dimension as indices
                 if indices_rank == 0 {
                     node.outputs[0].ty = ArgType::Scalar(crate::ir::ElementType::Int64);
-                    log::debug!("Gather result for {} is scalar (from shape)", node.name);
                 } else {
                     // For Shape indices, use the actual shape rank (number of elements)
                     let output_shape_rank = match &node.inputs[1].ty {

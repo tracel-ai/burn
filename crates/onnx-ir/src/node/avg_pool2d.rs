@@ -93,8 +93,6 @@ impl NodeProcessor for AvgPool2dProcessor {
             });
         }
 
-        log::debug!("AvgPool2d rank inference for node {}", node.name);
-
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

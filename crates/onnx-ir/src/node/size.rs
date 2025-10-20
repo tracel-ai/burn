@@ -14,8 +14,6 @@ impl NodeProcessor for SizeProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Size rank inference for node {}", node.name);
-
         node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
 
         Ok(())

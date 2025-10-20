@@ -163,8 +163,6 @@ impl NodeProcessor for SliceProcessor {
         // Validate output count
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Slice rank inference for node {}", node.name);
-
         // Get reference to config for type inference
         let config = node.config::<SliceConfig>();
 

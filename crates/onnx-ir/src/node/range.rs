@@ -64,7 +64,6 @@ impl NodeProcessor for RangeProcessor {
         // Validate input count
         crate::processor::validate_input_count(node, 3)?;
 
-        log::debug!("Range rank inference for node {}", node.name);
         log::debug!(
             "Range operation always produces rank 1 tensor for {}",
             node.name
@@ -75,8 +74,6 @@ impl NodeProcessor for RangeProcessor {
             rank: 1,
             static_shape: None,
         });
-
-        log::debug!("Range output rank for {}: 1", node.name);
 
         Ok(())
     }

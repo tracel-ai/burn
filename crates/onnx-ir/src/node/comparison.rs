@@ -3,8 +3,6 @@ use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
 /// Update output type for comparison operations (e.g., Equal, Greater) to max input rank.
 pub fn elementwise_comparison_outputs(node: &mut Node) {
-    log::debug!("Elementwise comparison for node {}", node.name);
-
     // Check if both inputs are Shape types
     let both_shapes = node.inputs.len() == 2
         && matches!(&node.inputs[0].ty, ArgType::Shape(_))
@@ -26,11 +24,8 @@ pub fn elementwise_comparison_outputs(node: &mut Node) {
         ArgType::Shape(_) => acc.max(1), // Shape types are always rank 1
     });
 
-    log::debug!("Max rank for comparison node {}: {}", node.name, max_rank);
-
     if max_rank == 0 {
         node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
-        log::debug!("Scalar boolean result for node {}", node.name);
     } else {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type: ElementType::Bool,
@@ -66,8 +61,6 @@ impl NodeProcessor for ComparisonProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Elementwise comparison for node {}", node.name);
-
         // Check if both inputs are Shape types
         let both_shapes = node.inputs.len() == 2
             && matches!(&node.inputs[0].ty, ArgType::Shape(_))
@@ -89,11 +82,8 @@ impl NodeProcessor for ComparisonProcessor {
             ArgType::Shape(_) => acc.max(1), // Shape types are always rank 1
         });
 
-        log::debug!("Max rank for comparison node {}: {}", node.name, max_rank);
-
         if max_rank == 0 {
             node.outputs[0].ty = ArgType::Scalar(ElementType::Bool);
-            log::debug!("Scalar boolean result for node {}", node.name);
         } else {
             node.outputs[0].ty = ArgType::Tensor(TensorType {
                 elem_type: ElementType::Bool,

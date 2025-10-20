@@ -74,8 +74,6 @@ impl NodeProcessor for ConstantOfShapeProcessor {
             }
         }
 
-        log::debug!("ConstantOfShape rank inference for node {}", node.name);
-
         let value_type = node
             .attrs
             .get("value")
@@ -186,7 +184,6 @@ impl NodeProcessor for ConstantOfShapeProcessor {
                 rank,
                 static_shape: None,
             });
-            log::debug!("ConstantOfShape output rank for {}: {}", node.name, rank);
         }
 
         Ok(())

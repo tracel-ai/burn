@@ -16,8 +16,6 @@ impl NodeProcessor for RandomLikeProcessor {
         crate::processor::validate_min_inputs(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("RandomLike rank inference for node {}", node.name);
-
         let dtype = node
             .attrs
             .get("dtype")
@@ -45,8 +43,6 @@ impl NodeProcessor for RandomLikeProcessor {
                 rank: tensor.rank,
                 static_shape: tensor.static_shape.clone(),
             });
-
-            log::debug!("RandomLike output rank for {}: {}", node.name, tensor.rank);
 
             Ok(())
         } else {

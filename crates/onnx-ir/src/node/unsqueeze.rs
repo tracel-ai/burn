@@ -136,8 +136,6 @@ impl NodeProcessor for UnsqueezeProcessor {
 
 impl UnsqueezeProcessor {
     fn infer_with_axes(&self, node: &mut Node, axes: Option<Vec<i64>>) -> Result<(), ProcessError> {
-        log::debug!("Unsqueeze rank inference for node {}", node.name);
-
         let input_rank = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.rank,
             ArgType::Scalar(_) => 0,
@@ -203,7 +201,6 @@ impl UnsqueezeProcessor {
             }
         }
 
-        log::debug!("Unsqueeze output rank for {}: {}", node.name, output_rank);
         Ok(())
     }
 }

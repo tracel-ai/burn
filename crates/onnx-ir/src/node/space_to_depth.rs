@@ -61,8 +61,6 @@ impl NodeProcessor for SpaceToDepthProcessor {
             });
         }
 
-        log::debug!("SpaceToDepth rank inference for node {}", &node.name);
-
         // Extract the input tensor type to determine rank and shape
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

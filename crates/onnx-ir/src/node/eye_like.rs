@@ -35,8 +35,6 @@ impl NodeProcessor for EyeLikeProcessor {
         crate::processor::validate_input_count(node, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("EyeLike rank inference for node {}", node.name);
-
         // Extract tensor info and validate
         let (input_rank, input_elem_type, input_static_shape) = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => {

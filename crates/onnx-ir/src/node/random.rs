@@ -15,8 +15,6 @@ impl NodeProcessor for RandomProcessor {
         crate::processor::validate_opset(opset, 1)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Random rank inference for node {}", node.name);
-
         let dtype = node
             .attrs
             .get("dtype")
@@ -44,7 +42,6 @@ impl NodeProcessor for RandomProcessor {
         };
 
         let rank = shape.len();
-        log::debug!("Random output rank for {}: {}", node.name, rank);
 
         node.outputs[0].ty = ArgType::Tensor(TensorType {
             elem_type,

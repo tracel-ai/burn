@@ -84,8 +84,6 @@ impl NodeProcessor for Conv2dProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Conv2d rank inference for node {}", node.name);
-
         // Extract input tensor type
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,

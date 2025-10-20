@@ -70,7 +70,6 @@ impl NodeProcessor for ArgMinProcessor {
             }
         };
 
-        log::debug!("ArgMin rank inference for node {}", node.name);
         log::debug!("ArgMin input rank for {}: {}", node.name, tensor.rank);
 
         // Get config values before mutating node

@@ -15,8 +15,6 @@ impl NodeProcessor for MatMulProcessor {
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("MatMul rank inference for node {}", node.name);
-
         match (&node.inputs[0].ty, &node.inputs[1].ty) {
             (ArgType::Tensor(a), ArgType::Tensor(b)) => {
                 log::debug!(
@@ -40,8 +38,6 @@ impl NodeProcessor for MatMulProcessor {
                     rank: out_rank,
                     static_shape: None,
                 });
-
-                log::debug!("MatMul output rank for {}: {}", node.name, out_rank);
             }
             _ => {
                 return Err(ProcessError::TypeMismatch {

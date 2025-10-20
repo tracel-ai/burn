@@ -58,8 +58,6 @@ impl NodeProcessor for SqueezeProcessor {
         let config = node.config::<SqueezeConfig>();
         let axes = config.axes.clone();
 
-        log::debug!("Squeeze rank inference for node {}", node.name);
-
         // Extract axes for type inference
         let axes_vec = match &axes {
             Some(SqueezeInput::Static(axes_vec)) => Some(axes_vec.clone()),
@@ -95,7 +93,6 @@ impl NodeProcessor for SqueezeProcessor {
                         tensor.rank - axes_vec.len()
                     }
                 };
-                log::debug!("Squeeze output rank for {}: {}", node.name, output_rank);
 
                 node.outputs[0].ty = ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type.clone(),

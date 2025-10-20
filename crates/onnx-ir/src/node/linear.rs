@@ -64,8 +64,6 @@ impl NodeProcessor for LinearProcessor {
         crate::processor::validate_min_inputs(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Linear rank inference for node {}", node.name);
-
         let tensor = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor,
             _ => {
@@ -83,8 +81,6 @@ impl NodeProcessor for LinearProcessor {
             rank: tensor.rank,
             static_shape: None,
         });
-
-        log::debug!("Linear output rank for {}: {}", node.name, tensor.rank);
 
         Ok(())
     }

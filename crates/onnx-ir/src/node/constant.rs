@@ -13,8 +13,6 @@ impl NodeProcessor for ConstantProcessor {
         crate::processor::validate_opset(opset, 9)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Constant rank inference for node {}", node.name);
-
         // Validate that the Constant node has an input
         if node.inputs.is_empty() {
             return Err(ProcessError::MissingAttribute(

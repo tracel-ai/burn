@@ -70,7 +70,6 @@ impl NodeProcessor for ArgMaxProcessor {
             }
         };
 
-        log::debug!("ArgMax rank inference for node {}", node.name);
         log::debug!("ArgMax input rank for {}: {}", node.name, tensor.rank);
 
         // Get config values before mutating node

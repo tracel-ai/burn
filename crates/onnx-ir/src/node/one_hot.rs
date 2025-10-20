@@ -39,8 +39,6 @@ impl NodeConfig for OneHotConfig {
 
 /// Update output rank for OneHot (input rank + 1).
 pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
-    log::debug!("OneHot rank inference for node {}", node.name);
-
     let input_rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => {
@@ -53,7 +51,6 @@ pub fn one_hot_output_shape(node: &mut Node) -> Result<(), ProcessError> {
     log::debug!("OneHot input rank for {}: {}", node.name, input_rank);
 
     let output_rank = input_rank + 1;
-    log::debug!("OneHot output rank for {}: {}", node.name, output_rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: node.outputs[0].ty.elem_type().clone(),

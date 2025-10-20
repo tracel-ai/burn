@@ -50,8 +50,6 @@ impl NodeProcessor for WhereProcessor {
         crate::processor::validate_input_count(node, 3)?;
         crate::processor::validate_output_count(node, 1)?;
 
-        log::debug!("Where rank inference for node {}", node.name);
-
         let condition = &node.inputs[0].ty;
         let x = &node.inputs[1].ty;
         let y = &node.inputs[2].ty;
@@ -90,12 +88,10 @@ impl NodeProcessor for WhereProcessor {
         );
 
         let output_rank = compute_broadcast_rank(&node.inputs);
-        log::debug!("Where output rank for {}: {}", node.name, output_rank);
 
         // Determine output type
         if output_rank == 0 {
             node.outputs[0].ty = ArgType::Scalar(elem_type);
-            log::debug!("Where result for {} is scalar", node.name);
         } else if should_output_shape(x, y, output_rank, &elem_type) {
             // If both inputs are Shape types and output is 1D int64, preserve Shape type
             let shape_size = get_shape_size(x).max(get_shape_size(y));

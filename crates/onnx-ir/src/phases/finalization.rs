@@ -32,8 +32,6 @@ pub(crate) fn finalize(
 
 /// Remove constant nodes that have zero runtime references
 fn remove_unreferenced_constants(nodes: &mut Vec<Node>, outputs: &[Argument]) {
-    log::debug!("Counting references to constant nodes");
-
     // Build map of constant output names to node indices
     let mut constant_output_to_idx: HashMap<String, usize> = HashMap::new();
     for (idx, node) in nodes.iter().enumerate() {
@@ -71,30 +69,23 @@ fn remove_unreferenced_constants(nodes: &mut Vec<Node>, outputs: &[Argument]) {
         let ref_count = constant_references.get(output_name).unwrap_or(&0);
         if *ref_count == 0 {
             constants_to_remove.insert(node_idx);
-            log::debug!(
-                "Marking constant at index {} (output: {}) for removal (no references)",
-                node_idx,
-                output_name
-            );
         }
     }
 
     // Filter out unreferenced constants
-    log::debug!(
-        "Filtering nodes: total={}, removing={}",
-        nodes.len(),
-        constants_to_remove.len()
-    );
-
+    let initial_count = nodes.len();
     let mut i = 0;
-    nodes.retain(|node| {
+    nodes.retain(|_node| {
         let keep = !constants_to_remove.contains(&i);
-        if !keep {
-            log::debug!("Filtering out node at index {}: {}", i, node.name);
-        }
         i += 1;
         keep
     });
 
-    log::debug!("After filtering: {} nodes remain", nodes.len());
+    if initial_count != nodes.len() {
+        log::debug!(
+            "Removed {} unreferenced constant(s), {} nodes remain",
+            initial_count - nodes.len(),
+            nodes.len()
+        );
+    }
 }
