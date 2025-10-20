@@ -286,12 +286,12 @@ impl From<&onnx_ir::ir::Argument> for TensorType {
         use onnx_ir::ir::{ArgType, TensorType as OnnxTensorType};
 
         match &arg.ty {
-            ArgType::Tensor(OnnxTensorType {
-                elem_type, rank, ..
-            }) => tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, *rank),
-            ArgType::Scalar(elem_type) => {
+            ArgType::Tensor(OnnxTensorType { dtype, rank, .. }) => {
+                tensor_type_from_elem_and_rank(arg.name.clone(), dtype, *rank)
+            }
+            ArgType::Scalar(dtype) => {
                 // Represent scalar as rank-0 tensor type of the appropriate kind
-                tensor_type_from_elem_and_rank(arg.name.clone(), elem_type, 0)
+                tensor_type_from_elem_and_rank(arg.name.clone(), dtype, 0)
             }
             ArgType::Shape(_) => panic!("Cannot convert Shape to Burn TensorType"),
         }
@@ -330,7 +330,7 @@ impl From<&onnx_ir::ir::DType> for ScalarKind {
     fn from(dtype: &onnx_ir::ir::DType) -> Self {
         use onnx_ir::ir::DType;
 
-        match elem_type {
+        match dtype {
             DType::F32 => ScalarKind::Float32,
             DType::F64 => ScalarKind::Float64,
             DType::I32 => ScalarKind::Int32,
@@ -339,6 +339,7 @@ impl From<&onnx_ir::ir::DType> for ScalarKind {
             DType::U16 => ScalarKind::Int32,
             DType::I8 | DType::U8 => ScalarKind::Int32,
             DType::F16 => panic!("Float16 tensor unsupported"),
+            _ => panic!("Unsupported DType for ScalarKind conversion: {:?}", dtype),
         }
     }
 }

@@ -47,6 +47,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     | DType::U16
                     | DType::U8 => ScalarKind::Int64,
                     DType::Bool => ScalarKind::Bool,
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
 
                 if input_scalar.kind == target_kind {
@@ -65,6 +66,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                         DType::I8 => quote! { i8 },
                         DType::U8 => quote! { u8 },
                         DType::Bool => quote! { bool },
+                        _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                     };
                     quote! {
                         let #output = #input as #ty;
@@ -91,6 +93,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     | DType::U16
                     | DType::U8 => TensorKind::Int,
                     DType::Bool => TensorKind::Bool,
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
 
                 if input_tensor.kind == target_kind {
@@ -169,6 +172,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
                         )
                     }
+                    _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 }
             }
 
