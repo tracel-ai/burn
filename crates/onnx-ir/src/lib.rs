@@ -6,16 +6,12 @@ pub mod ir;
 pub mod node;
 mod phases;
 mod pipeline;
-pub mod processor;
+mod processor;
 mod proto_conversion;
 mod protos;
 mod registry;
 mod tensor_store;
-pub mod util;
+mod util;
 
 pub use ir::*;
 pub use pipeline::parse_onnx;
-pub use processor::{
-    validate_input_count, validate_min_inputs, validate_opset, validate_output_count,
-};
-pub use proto_conversion::{convert_constant_value, element_type_from_proto};

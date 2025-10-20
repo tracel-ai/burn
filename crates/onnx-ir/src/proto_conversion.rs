@@ -45,28 +45,6 @@ pub fn element_type_from_proto(dt_i32: i32) -> Result<ElementType, String> {
     }
 }
 
-/// Extract constant value from node attributes
-pub fn convert_constant_value(node: &Node) -> Argument {
-    // A value can be stored in any of these attributes
-    let keys = [
-        "value",
-        "value_float",
-        "value_floats",
-        "value_int",
-        "value_ints",
-        "value_string",
-        "value_strings",
-        "sparse_value",
-    ];
-
-    let value = keys
-        .iter()
-        .find_map(|&key| node.attrs.get(key).cloned())
-        .expect("Constant should have a value");
-
-    Argument::from(value)
-}
-
 /// Create an Argument and TensorData from an ONNX initializer
 ///
 /// Converts ONNX tensor initializers (weights, biases, etc.) into IR types.

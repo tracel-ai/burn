@@ -7,7 +7,7 @@ use crate::ir::{Node, NodeConfig};
 use std::collections::HashMap;
 
 // Re-export registry types for backward compatibility
-pub use crate::registry::{ProcessorRegistry, get_processor_registry};
+pub use crate::registry::get_processor_registry;
 
 /// Type preferences for node inputs
 #[derive(Debug, Default, Clone)]
@@ -324,20 +324,11 @@ pub fn same_as_input_broadcast(node: &mut Node) {
     }
 }
 
-/// Temporary pass-through for unimplemented processors
-pub fn temporary_pass_through_stub(node: &mut Node) {
-    log::warn!(
-        "Must implement rank inference for node type {:?} (name: {})",
-        node.node_type,
-        node.name
-    );
-    node.outputs[0].ty = node.inputs[0].ty.clone();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{ArgType, Argument, ElementType, Node, NodeType, TensorType};
+    use crate::registry::ProcessorRegistry;
 
     struct TestProcessor;
 
@@ -398,9 +389,14 @@ mod tests {
         // Register a processor
         registry.register(NodeType::Add, Box::new(TestProcessor));
 
-        // Check if processor is registered
-        assert!(registry.has_processor(&NodeType::Add));
-        assert!(!registry.has_processor(&NodeType::Sub));
+        // Verify the processor is registered by checking the type
+        let add_processor = registry.get(&NodeType::Add);
+        let sub_processor = registry.get(&NodeType::Sub);
+
+        // Add should return our TestProcessor (we can't directly check type, but can verify behavior)
+        // Sub should return DefaultProcessor since it's not registered
+        // Both should be valid processor references
+        assert!(std::ptr::addr_of!(*add_processor) != std::ptr::addr_of!(*sub_processor));
     }
 
     #[test]

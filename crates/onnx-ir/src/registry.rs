@@ -35,11 +35,6 @@ impl ProcessorRegistry {
             .map(|b| b.as_ref())
             .unwrap_or(&crate::processor::DefaultProcessor)
     }
-
-    /// Check if a processor is registered for a node type
-    pub fn has_processor(&self, node_type: &NodeType) -> bool {
-        self.processors.contains_key(node_type)
-    }
 }
 
 impl Default for ProcessorRegistry {
