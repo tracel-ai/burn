@@ -70,8 +70,6 @@ pub(crate) fn convert_nodes(model: &ModelProto, state_rc: &Rc<RefCell<GraphState
             rename_node(&mut node, &mut node_name_counter);
         }
 
-        log::debug!("Processing node: {}", node.name);
-
         // Lift constants and extract config
         let registry = get_processor_registry();
         let processor = registry.get(&node.node_type);
@@ -195,7 +193,6 @@ fn rename_node(node: &mut Node, counters: &mut HashMap<NodeType, usize>) {
         .or_insert(1);
 
     let new_name = format!("{}{}", node.node_type, counters[&node.node_type]).to_lowercase();
-    log::debug!("Renaming node {:?} to {new_name:?}", &node.name);
     node.name = new_name;
 }
 
@@ -208,10 +205,6 @@ fn extract_opset_version(model: &ModelProto) -> usize {
         .map(|opset| opset.version as usize)
         .expect("ONNX model must specify opset version for default domain")
 }
-
-// ============================================================================
-// Node Type Remapping
-// ============================================================================
 
 /// Remap node type using kernel shape
 fn remap_node_with_kernel_shape<F>(node: &mut Node, new_node_type: F)
@@ -232,7 +225,9 @@ where
         }
         _ => panic!("Cannot infer kernel shape"),
     };
+    let old_type = node.node_type.clone();
     node.node_type = new_node_type(spatial_dims);
+    log::debug!("Remapped {} → {:?}", old_type, node.node_type);
 }
 
 /// Remap node type to a more specific one
@@ -270,10 +265,6 @@ fn remap_node_type(node: &mut Node) {
     }
 }
 
-// ============================================================================
-// Node Coalescing
-// ============================================================================
-
 /// Coalesce adjacent nodes into a single node (Gemm→Linear, MatMul+Add→Linear)
 fn coalesce(
     node: &mut Node,
@@ -309,6 +300,7 @@ fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
     };
 
     if straight_linear {
+        log::debug!("Fusing Gemm → Linear for node {}", node.name);
         node.node_type = NodeType::Linear;
         node.attrs.remove("alpha");
         node.attrs.remove("beta");
@@ -316,6 +308,14 @@ fn convert_gemm_to_linear(node: &mut Node, graph_data: &mut GraphState) {
 
         // Transpose the weights
         transpose_linear_node_weights(node, graph_data);
+    } else {
+        log::debug!(
+            "Keeping Gemm node {} (alpha={:?}, beta={:?}, transB={:?} don't match Linear pattern)",
+            node.name,
+            node.attrs.get("alpha"),
+            node.attrs.get("beta"),
+            node.attrs.get("transB")
+        );
     }
 }
 
@@ -416,6 +416,10 @@ fn convert_matmul_to_linear(
 
     // if the second input does not have a value, it is not a weight, then proceed to the next node
     if !graph_data.has_value(&node.inputs[1].name) {
+        log::debug!(
+            "Keeping MatMul node {} (second input is not a constant weight)",
+            node.name
+        );
         return;
     }
 
@@ -428,13 +432,14 @@ fn convert_matmul_to_linear(
 
     // Convert the node to Linear
     node.node_type = NodeType::Linear;
+    log::debug!("Converting MatMul → Linear for node {}", node.name);
 
-    log::debug!("peeking next node for bias conversion");
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_data);
         if is_add_node_with_bias(&peek_node, node, graph_data) {
             convert_and_remove_add_node(&peek_node, node);
+            log::debug!("Fused Add bias into Linear node {}", node.name);
 
             // You don't have to remove it if it's never stored in the first place
             let _ = iter_mut.next();
@@ -471,10 +476,6 @@ fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
         .name
         .clone_from(&bias_node.outputs[0].name);
 }
-
-// ============================================================================
-// Tests
-// ============================================================================
 
 #[cfg(test)]
 mod tests {
