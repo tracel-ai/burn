@@ -467,8 +467,8 @@ mod tests {
     fn should_infer_conv2d_node_from_weights_rank() {
         // Weight tensor data - not important for the test
         let weight_data = vec![0.0; 16];
-        // [.., k_h, k_w]
-        let weight_shape = vec![4, 2, 2, 2];
+        // [out_channels, in_channels, k_h, k_w] = [2, 2, 2, 2] = 16 elements
+        let weight_shape = vec![2, 2, 2, 2];
 
         let mut node = NodeBuilder::new(NodeType::Conv, "test_conv2d")
             .input_tensor_f32("data", 4, None)

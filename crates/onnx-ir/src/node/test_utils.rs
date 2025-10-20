@@ -1,5 +1,5 @@
 use crate::ir::{
-    ArgType, Argument, AttributeValue, Data, ElementType, Node, NodeType, TensorData, TensorType,
+    ArgType, Argument, AttributeValue, ElementType, Node, NodeType, TensorData, TensorType,
 };
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ pub struct NodeBuilder {
     outputs: Vec<Argument>,
     attrs: HashMap<String, AttributeValue>,
     /// Stores constant data for inputs that should be constants (input_name -> (data, shape))
-    constant_data: HashMap<String, (Data, Vec<usize>)>,
+    constant_data: HashMap<String, TensorData>,
 }
 
 impl NodeBuilder {
@@ -199,8 +199,7 @@ impl NodeBuilder {
         name: &str,
         elem_type: ElementType,
         rank: usize,
-        data: Data,
-        shape: Vec<usize>,
+        tensor_data: TensorData,
     ) -> Self {
         let arg = Argument {
             name: name.to_string(),
@@ -215,30 +214,20 @@ impl NodeBuilder {
         };
         self.inputs.push(arg);
         // Store the constant data for later registration in GraphState
-        self.constant_data.insert(name.to_string(), (data, shape));
+        self.constant_data.insert(name.to_string(), tensor_data);
         self
     }
 
     /// Add a float32 tensor input with data values
     pub fn input_tensor_f32_data(self, name: &str, data: Vec<f32>, shape: Vec<usize>) -> Self {
-        self.input_tensor_with_data(
-            name,
-            ElementType::Float32,
-            shape.len(),
-            Data::Float32s(data),
-            shape,
-        )
+        let tensor_data = TensorData::new(data, shape.clone());
+        self.input_tensor_with_data(name, ElementType::Float32, shape.len(), tensor_data)
     }
 
     /// Add an int64 tensor input with data values
     pub fn input_tensor_i64_data(self, name: &str, data: Vec<i64>, shape: Vec<usize>) -> Self {
-        self.input_tensor_with_data(
-            name,
-            ElementType::Int64,
-            shape.len(),
-            Data::Int64s(data),
-            shape,
-        )
+        let tensor_data = TensorData::new(data, shape.clone());
+        self.input_tensor_with_data(name, ElementType::Int64, shape.len(), tensor_data)
     }
 
     /// Add a float32 scalar tensor input (rank 0)
@@ -266,7 +255,7 @@ impl NodeBuilder {
         // If value is provided, store it as constant data
         if let Some(v) = value {
             self.constant_data
-                .insert(name.to_string(), (Data::Float32(v), vec![]));
+                .insert(name.to_string(), TensorData::new(vec![v], vec![]));
         }
         self
     }
@@ -296,7 +285,7 @@ impl NodeBuilder {
         // If value is provided, store it as constant data
         if let Some(v) = value {
             self.constant_data
-                .insert(name.to_string(), (Data::Int64(v), vec![]));
+                .insert(name.to_string(), TensorData::new(vec![v], vec![]));
         }
         self
     }
@@ -556,8 +545,8 @@ impl NodeBuilder {
         let mut graph_data = crate::graph_state::GraphState::new(&[], &[], &[]);
 
         // Register constants in GraphState before building the node
-        for (input_name, (data, shape)) in &self.constant_data {
-            graph_data.register_test_constant(input_name.clone(), data.clone(), shape.clone());
+        for (input_name, tensor_data) in &self.constant_data {
+            graph_data.register_test_constant(input_name.clone(), tensor_data.clone());
         }
 
         // Build the node first

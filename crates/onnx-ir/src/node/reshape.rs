@@ -472,9 +472,8 @@ mod tests {
             .input_tensor_with_data(
                 "shape",
                 ElementType::Int64,
-                2, // 2D tensor (rank 2)
-                crate::ir::Data::Int64s(vec![2, 3]),
-                vec![2, 1], // 2D shape - this should cause panic
+                2,                                                     // 2D tensor (rank 2)
+                crate::ir::TensorData::new(vec![2i64, 3], vec![2, 1]), // 2D shape - this should cause panic
             )
             .output_tensor_f32("reshaped", 2, None)
             .build_with_graph_data(16);

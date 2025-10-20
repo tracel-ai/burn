@@ -136,30 +136,21 @@ mod tests {
     use crate::ir::{ElementType, NodeType};
     use crate::node::test_utils::NodeBuilder;
 
-    fn create_test_node_with_data(data: crate::ir::Data, shape: Vec<usize>) -> Node {
+    fn create_test_node_with_data(tensor_data: crate::ir::TensorData) -> Node {
         use crate::graph_state::GraphState;
         use crate::ir::Argument;
         use std::cell::RefCell;
         use std::rc::Rc;
 
+        let elem_type = tensor_data.elem_type();
+        let shape = tensor_data.shape().to_vec();
+
         // Create GraphState and register the constant
         let mut graph_data = GraphState::new(&[], &[], &[]);
-        graph_data.register_test_constant("test_value".to_string(), data.clone(), shape.clone());
+        graph_data.register_test_constant("test_value".to_string(), tensor_data);
 
-        // Get the data_id and element type from the registered constant
+        // Get the data_id from the registered constant
         let data_id = graph_data.get_constant_data_id("test_value");
-
-        // Determine element type from data
-        let elem_type = match &data {
-            crate::ir::Data::Bool(_) | crate::ir::Data::Bools(_) => ElementType::Bool,
-            crate::ir::Data::Float16(_)
-            | crate::ir::Data::Float16s(_)
-            | crate::ir::Data::Float32(_)
-            | crate::ir::Data::Float32s(_)
-            | crate::ir::Data::Float64(_)
-            | crate::ir::Data::Float64s(_) => ElementType::Float32,
-            _ => ElementType::Int64,
-        };
 
         // Create type based on shape
         let ty = if shape.is_empty() {
@@ -206,7 +197,8 @@ mod tests {
 
     #[test]
     fn test_constant_scalar_float() {
-        let mut node = create_test_node_with_data(crate::ir::Data::Float32(6.14), vec![]);
+        let mut node =
+            create_test_node_with_data(crate::ir::TensorData::new(vec![6.14f32], vec![]));
 
         let processor = ConstantProcessor;
         let prefs = OutputPreferences::new();
@@ -222,10 +214,10 @@ mod tests {
 
     #[test]
     fn test_constant_tensor() {
-        let mut node = create_test_node_with_data(
-            crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        let mut node = create_test_node_with_data(crate::ir::TensorData::new(
+            vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0],
             vec![2, 3],
-        );
+        ));
 
         let processor = ConstantProcessor;
         let prefs = OutputPreferences::new();
@@ -253,8 +245,7 @@ mod tests {
     #[test]
     fn test_constant_1d_tensor_to_shape_with_preferences() {
         let mut node = create_test_node_with_data(
-            crate::ir::Data::Int64s(vec![10, 20, 30]),
-            vec![3], // 1D tensor with 3 elements
+            crate::ir::TensorData::new(vec![10i64, 20, 30], vec![3]), // 1D tensor with 3 elements
         );
 
         // Create preferences requesting Shape type
@@ -280,7 +271,7 @@ mod tests {
     #[test]
     fn test_constant_1d_tensor_without_preferences() {
         let mut node =
-            create_test_node_with_data(crate::ir::Data::Int64s(vec![10, 20, 30]), vec![3]);
+            create_test_node_with_data(crate::ir::TensorData::new(vec![10i64, 20, 30], vec![3]));
 
         // No preferences
         let prefs = OutputPreferences::new();
@@ -301,8 +292,7 @@ mod tests {
     #[test]
     fn test_constant_rank0_tensor_to_scalar_with_preferences() {
         let mut node = create_test_node_with_data(
-            crate::ir::Data::Float32(42.0),
-            vec![], // rank 0 tensor
+            crate::ir::TensorData::new(vec![42.0f32], vec![]), // rank 0 tensor
         );
 
         // Create preferences requesting Scalar type
@@ -328,8 +318,7 @@ mod tests {
     #[test]
     fn test_constant_2d_tensor_ignores_shape_preference() {
         let mut node = create_test_node_with_data(
-            crate::ir::Data::Float32s(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            vec![2, 3], // 2D tensor - cannot convert to Shape
+            crate::ir::TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]), // 2D tensor - cannot convert to Shape
         );
 
         // Create preferences requesting Shape type (which shouldn't apply to 2D tensor)

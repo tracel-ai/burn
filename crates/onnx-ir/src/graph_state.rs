@@ -146,13 +146,8 @@ impl GraphState {
 
     /// Register a test constant in GraphState
     #[cfg(test)]
-    pub(crate) fn register_test_constant(
-        &mut self,
-        name: String,
-        data: crate::ir::Data,
-        shape: Vec<usize>,
-    ) {
-        let (constant_node, _) = create_test_constant(name, data, shape, &mut self.tensor_store);
+    pub(crate) fn register_test_constant(&mut self, name: String, tensor_data: TensorData) {
+        let (constant_node, _) = create_test_constant(name, tensor_data, &mut self.tensor_store);
         self.processed_nodes.push(constant_node);
     }
 
@@ -243,38 +238,11 @@ fn process_initializers(initializers: &[TensorProto], tensor_store: &mut TensorS
 /// Create a test constant node with tensor data
 fn create_test_constant(
     name: String,
-    data: crate::ir::Data,
-    shape: Vec<usize>,
+    tensor_data: TensorData,
     tensor_store: &mut TensorStore,
 ) -> (Node, usize) {
-    use crate::ir::TensorData;
-
-    // Convert Data enum to TensorData using burn-tensor
-    let tensor_data = match data {
-        crate::ir::Data::Bool(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Bools(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Float16(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Float16s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Float32(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Float32s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Float64(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Float64s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Uint16(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Uint16s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Uint8(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Uint8s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Int8(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Int8s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Int32(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Int32s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::Int64(v) => TensorData::new(vec![v], shape.clone()),
-        crate::ir::Data::Int64s(v) => TensorData::new(v, shape.clone()),
-        crate::ir::Data::String(_) | crate::ir::Data::Strings(_) => {
-            panic!("String tensors not supported in burn-tensor")
-        }
-    };
-
     let elem_type = tensor_data.elem_type();
+    let shape = tensor_data.shape().to_vec();
 
     let ty = crate::ir::ArgType::Tensor(crate::ir::TensorType {
         elem_type,
