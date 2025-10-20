@@ -85,27 +85,6 @@ impl FileMetricLogger {
 
         let mut max_epoch = 0;
 
-        // without split
-        // for path in fs::read_dir(&self.directory).unwrap() {
-        //     let path = path.unwrap();
-
-        //     if fs::metadata(path.path()).unwrap().is_dir() {
-        //         let dir_name = path.file_name().into_string().unwrap();
-
-        //         if !dir_name.starts_with(EPOCH_PREFIX) {
-        //             continue;
-        //         }
-
-        //         let epoch = dir_name.replace(EPOCH_PREFIX, "").parse::<usize>().ok();
-
-        //         if let Some(epoch) = epoch
-        //             && epoch > max_epoch
-        //         {
-        //             max_epoch = epoch;
-        //         }
-        //     }
-        // }
-        //
         // with split
         for path in fs::read_dir(&self.directory).unwrap() {
             let path = path.unwrap();
