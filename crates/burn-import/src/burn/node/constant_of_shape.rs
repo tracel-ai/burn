@@ -190,7 +190,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
 
 impl OnnxIntoNode for ConstantOfShapeNode {
     fn from_onnx(node: onnx_ir::Node) -> Self {
-        
         use onnx_ir::node::constant_of_shape::ConstantOfShapeShape;
 
         // Get the shape configuration from onnx-ir

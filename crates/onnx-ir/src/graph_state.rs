@@ -241,6 +241,7 @@ fn create_test_constant(
     tensor_data: TensorData,
     tensor_store: &mut TensorStore,
 ) -> (Node, usize) {
+    use crate::ir::TensorDataExt;
     let elem_type = tensor_data.elem_type();
     let shape = tensor_data.shape.to_vec();
 

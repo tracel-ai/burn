@@ -41,11 +41,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 let target_kind = match self.target_dtype {
                     DType::F64 => ScalarKind::Float64,
                     DType::F32 | DType::F16 => ScalarKind::Float32,
-                    DType::I32
-                    | DType::I64
-                    | DType::I8
-                    | DType::U16
-                    | DType::U8 => ScalarKind::Int64,
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
+                        ScalarKind::Int64
+                    }
                     DType::Bool => ScalarKind::Bool,
                     _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
@@ -84,14 +82,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                 // Map ONNX element types to Burn TensorKind categories.
                 // Burn only distinguishes Float / Int / Bool at the Tensor level.
                 let target_kind = match self.target_dtype {
-                    DType::F32 | DType::F64 | DType::F16 => {
-                        TensorKind::Float
-                    }
-                    DType::I32
-                    | DType::I64
-                    | DType::I8
-                    | DType::U16
-                    | DType::U8 => TensorKind::Int,
+                    DType::F32 | DType::F64 | DType::F16 => TensorKind::Float,
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => TensorKind::Int,
                     DType::Bool => TensorKind::Bool,
                     _ => panic!("Unsupported DType for Cast: {:?}", self.target_dtype),
                 };
@@ -163,11 +155,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for CastNode {
                     }
                     // For all integer widths (Int32, Int64, Int8, Uint8), we keep Shape as Shape
                     // in onnx-ir and shouldn't go through Shape->Tensor here.
-                    DType::I32
-                    | DType::I64
-                    | DType::I8
-                    | DType::U16
-                    | DType::U8 => {
+                    DType::I32 | DType::I64 | DType::I8 | DType::U16 | DType::U8 => {
                         panic!(
                             "Cast: Shape to Int tensor should be handled as Shape->Shape in onnx-ir"
                         )
@@ -193,7 +181,7 @@ impl OnnxIntoNode for CastNode {
         let input = crate::burn::Type::from(node.inputs.first().unwrap());
         let output = crate::burn::Type::from(node.outputs.first().unwrap());
         let config = node.config::<onnx_ir::node::cast::CastConfig>();
-        Self::new(input, output, config.to.clone())
+        Self::new(input, output, config.to)
     }
 }
 

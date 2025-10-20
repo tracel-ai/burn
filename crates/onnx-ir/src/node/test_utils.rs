@@ -150,17 +150,6 @@ impl NodeBuilder {
         )
     }
 
-    /// Add a string tensor input with the given name and rank (not supported)
-    pub fn input_tensor_string(
-        self,
-        name: &str,
-        rank: usize,
-        static_shape: Option<Vec<usize>>,
-    ) -> Self {
-        // String tensors not supported in burn-tensor DType
-        panic!("String tensors not supported - use a different type")
-    }
-
     /// Add a scalar input with the given name and data type
     pub fn input_scalar(self, name: &str, dtype: DType) -> Self {
         self.add_input(name, ArgType::Scalar(dtype))
@@ -412,17 +401,6 @@ impl NodeBuilder {
                 static_shape,
             }),
         )
-    }
-
-    /// Add a string tensor output with the given name and rank (not supported)
-    pub fn output_tensor_string(
-        self,
-        name: &str,
-        rank: usize,
-        static_shape: Option<Vec<usize>>,
-    ) -> Self {
-        // String tensors not supported in burn-tensor DType
-        panic!("String tensors not supported - use a different type")
     }
 
     /// Add a scalar output with the given name and data type

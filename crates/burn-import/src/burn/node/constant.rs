@@ -242,7 +242,10 @@ impl OnnxIntoNode for ConstantNode {
 
         // Helper to map elem type to ConstantValue (single scalar)
         // Helper to extract scalar from TensorData
-        fn scalar_from_tensor_data(elem: DType, tensor_data: &onnx_ir::TensorData) -> ConstantValue {
+        fn scalar_from_tensor_data(
+            elem: DType,
+            tensor_data: &onnx_ir::TensorData,
+        ) -> ConstantValue {
             match elem {
                 DType::F64 => {
                     let val = tensor_data.as_slice::<f64>().unwrap()[0];
@@ -301,16 +304,10 @@ impl OnnxIntoNode for ConstantNode {
                         DType::F32 | DType::F64 | DType::F16 => {
                             tensor_data.clone().convert::<f32>()
                         }
-                        DType::I32
-                        | DType::I64
-                        | DType::U16
-                        | DType::U8
-                        | DType::I8 => {
+                        DType::I32 | DType::I64 | DType::U16 | DType::U8 | DType::I8 => {
                             tensor_data.clone().convert::<i32>()
                         }
-                        DType::Bool => {
-                            tensor_data.clone()
-                        }
+                        DType::Bool => tensor_data.clone(),
                         other => panic!("Unsupported constant tensor type: {:?} ", other),
                     };
 
@@ -320,7 +317,7 @@ impl OnnxIntoNode for ConstantNode {
 
             ArgType::Scalar(elem_type) => {
                 // Extract scalar data from tensor_data
-                scalar_from_tensor_data(elem_type.clone(), &tensor_data)
+                scalar_from_tensor_data(*elem_type, &tensor_data)
             }
         };
 
@@ -334,12 +331,8 @@ impl OnnxIntoNode for ConstantNode {
                 | ConstantValue::Bool(_),
             ) if t.rank == 0 => {
                 let scalar_kind = match t.dtype {
-                    DType::F32 => {
-                        ScalarType::new(output.name.clone(), ScalarKind::Float32)
-                    }
-                    DType::F64 => {
-                        ScalarType::new(output.name.clone(), ScalarKind::Float64)
-                    }
+                    DType::F32 => ScalarType::new(output.name.clone(), ScalarKind::Float32),
+                    DType::F64 => ScalarType::new(output.name.clone(), ScalarKind::Float64),
                     DType::I32 => ScalarType::new(output.name.clone(), ScalarKind::Int32),
                     DType::I64 => ScalarType::new(output.name.clone(), ScalarKind::Int64),
                     DType::Bool => ScalarType::new(output.name.clone(), ScalarKind::Bool),

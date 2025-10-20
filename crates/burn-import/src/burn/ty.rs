@@ -311,7 +311,7 @@ impl From<&onnx_ir::ir::Argument> for Type {
                         ScalarKind::from(&tensor.dtype),
                     ))
                 } else {
-                    let kind: TensorKind = tensor.dtype.clone().into();
+                    let kind: TensorKind = tensor.dtype.into();
                     let rank = tensor.rank;
                     let name = arg.name.clone();
                     Type::Tensor(TensorType::new(name, rank, kind))
@@ -368,11 +368,9 @@ fn tensor_type_from_elem_and_rank(
     use onnx_ir::ir::DType;
 
     match elem {
-        DType::U8
-        | DType::I8
-        | DType::U16
-        | DType::I32
-        | DType::I64 => TensorType::new(name, rank, TensorKind::Int),
+        DType::U8 | DType::I8 | DType::U16 | DType::I32 | DType::I64 => {
+            TensorType::new(name, rank, TensorKind::Int)
+        }
 
         DType::F16 | DType::F32 | DType::F64 => {
             // If you have TensorType::new_float, use that; otherwise:
