@@ -21,8 +21,8 @@
 //! ## Broadcasting
 //! The slope tensor must be unidirectional broadcastable to the input tensor X.
 //! Common patterns:
-//! - Scalar slope (shape [1]): Same slope for all elements
-//! - Per-channel slope (shape [C, 1, 1]): Different slope per channel
+//! - Scalar slope (shape \[1\]): Same slope for all elements
+//! - Per-channel slope (shape \[C, 1, 1\]): Different slope per channel
 //!
 //! ## Opset Versions
 //! - **Opset 1-5**: Initial version

@@ -24,17 +24,17 @@ pub trait TensorDataExt {
     /// Extract the first element as i64, converting from any numeric type
     fn scalar_i64(&self) -> Result<i64, burn_tensor::DataError>;
 
-    /// Convert to Vec<i64>, handling Int32 and Int64 types
+    /// Convert to `Vec<i64>`, handling Int32 and Int64 types
     ///
     /// Useful for extracting indices, shapes, or other integer arrays that need to be i64.
     fn to_i64_vec(&self) -> Result<Vec<i64>, burn_tensor::DataError>;
 
-    /// Convert to Vec<usize>, handling Int32 and Int64 types
+    /// Convert to `Vec<usize>`, handling Int32 and Int64 types
     ///
     /// Useful for extracting shape or dimension values.
     fn to_usize_vec(&self) -> Result<Vec<usize>, burn_tensor::DataError>;
 
-    /// Convert to Vec<f32>, handling all numeric types with automatic conversion
+    /// Convert to `Vec<f32>`, handling all numeric types with automatic conversion
     ///
     /// Useful for extracting numeric arrays that need to be f32.
     fn to_f32_vec(&self) -> Result<Vec<f32>, burn_tensor::DataError>;
