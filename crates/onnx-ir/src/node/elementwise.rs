@@ -45,7 +45,7 @@
 //! **Common Pattern:**
 //! - Two input tensors (supports broadcasting)
 //! - Single output tensor
-//! - No attributes (except PRelu which has a slope parameter)
+//! - No attributes
 //! - Output shape follows standard ONNX broadcasting semantics
 //!
 //! **Supported Operations (varying opset requirements):**
@@ -58,7 +58,6 @@
 //! - **BitwiseAnd**: Bitwise AND (Opset 18+)
 //! - **BitwiseOr**: Bitwise OR (Opset 18+)
 //! - **BitwiseXor**: Bitwise XOR (Opset 18+)
-//! - **PRelu**: Parametric ReLU (Opset 1+, slope input is lifted to static)
 //!
 //! ## Implementation Notes
 //! - No opset validation currently performed for binary operations (see TODO at line 108)
@@ -67,7 +66,6 @@
 //!
 //! - **Unary**: Output type and shape identical to input
 //! - **Binary**: Output type matches inputs, shape follows broadcasting rules
-//! - **PRelu**: Slope parameter (second input) is lifted to static constant
 
 use crate::ir::Node;
 use crate::processor::{
@@ -86,22 +84,12 @@ use crate::processor::{
 /// - **BitwiseAnd**: Bitwise AND
 /// - **BitwiseOr**: Bitwise OR
 /// - **BitwiseXor**: Bitwise XOR
-/// - **PRelu**: Parametric ReLU
 ///
 /// These operations support standard ONNX broadcasting semantics without
 /// needing Shape or Scalar type propagation (unlike arithmetic operations).
 pub struct ElementwiseBinaryProcessor;
 
 impl NodeProcessor for ElementwiseBinaryProcessor {
-    fn lift_constants(&self, node: &mut Node, _opset: usize) -> Result<(), ProcessError> {
-        // For PRelu, lift the slope input (input[1])
-        if node.node_type == crate::ir::NodeType::PRelu && node.inputs.len() > 1 {
-            node.inputs[1].to_static()?;
-        }
-
-        Ok(())
-    }
-
     fn infer_types(
         &self,
         node: &mut Node,
@@ -109,7 +97,7 @@ impl NodeProcessor for ElementwiseBinaryProcessor {
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
         // TODO: No opset validation - different binary ops have different minimum opsets
-        // (Pow, Max, Min, And, Or, Xor, BitwiseAnd, BitwiseOr, BitwiseXor, PRelu)
+        // (Pow, Max, Min, And, Or, Xor, BitwiseAnd, BitwiseOr, BitwiseXor)
         crate::processor::validate_input_count(node, 2)?;
         crate::processor::validate_output_count(node, 1)?;
 

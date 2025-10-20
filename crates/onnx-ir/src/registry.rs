@@ -177,10 +177,7 @@ impl ProcessorRegistry {
             NodeType::Erf,
             Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
         );
-        registry.register(
-            NodeType::Relu,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
+        registry.register(NodeType::Relu, Box::new(crate::node::relu::ReluProcessor));
         registry.register(
             NodeType::Sigmoid,
             Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
@@ -550,7 +547,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::PRelu,
-            Box::new(crate::node::elementwise::ElementwiseBinaryProcessor),
+            Box::new(crate::node::prelu::PReluProcessor),
         );
 
         registry
