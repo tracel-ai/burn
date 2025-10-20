@@ -370,18 +370,19 @@ impl TensorData {
     ///
     /// Useful for extracting scalar parameters from constant nodes.
     pub fn scalar_f64(&self) -> Result<f64, burn_tensor::DataError> {
-        match self.elem_type() {
-            ElementType::Float16 => {
+        use burn_tensor::DType;
+        match self.inner.dtype {
+            DType::F16 => {
                 let val = self.inner.as_slice::<half::f16>()?[0];
                 Ok(f32::from(val) as f64)
             }
-            ElementType::Float32 => Ok(self.inner.as_slice::<f32>()?[0] as f64),
-            ElementType::Float64 => Ok(self.inner.as_slice::<f64>()?[0]),
-            ElementType::Int32 => Ok(self.inner.as_slice::<i32>()?[0] as f64),
-            ElementType::Int64 => Ok(self.inner.as_slice::<i64>()?[0] as f64),
-            ElementType::Int8 => Ok(self.inner.as_slice::<i8>()?[0] as f64),
-            ElementType::Uint8 => Ok(self.inner.as_slice::<u8>()?[0] as f64),
-            ElementType::Uint16 => Ok(self.inner.as_slice::<u16>()?[0] as f64),
+            DType::F32 => Ok(self.inner.as_slice::<f32>()?[0] as f64),
+            DType::F64 => Ok(self.inner.as_slice::<f64>()?[0]),
+            DType::I32 => Ok(self.inner.as_slice::<i32>()?[0] as f64),
+            DType::I64 => Ok(self.inner.as_slice::<i64>()?[0] as f64),
+            DType::I8 => Ok(self.inner.as_slice::<i8>()?[0] as f64),
+            DType::U8 => Ok(self.inner.as_slice::<u8>()?[0] as f64),
+            DType::U16 => Ok(self.inner.as_slice::<u16>()?[0] as f64),
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to f64",
                 other
@@ -396,14 +397,15 @@ impl TensorData {
 
     /// Extract the first element as i64, converting from any numeric type
     pub fn scalar_i64(&self) -> Result<i64, burn_tensor::DataError> {
-        match self.elem_type() {
-            ElementType::Int64 => Ok(self.inner.as_slice::<i64>()?[0]),
-            ElementType::Int32 => Ok(self.inner.as_slice::<i32>()?[0] as i64),
-            ElementType::Int8 => Ok(self.inner.as_slice::<i8>()?[0] as i64),
-            ElementType::Uint8 => Ok(self.inner.as_slice::<u8>()?[0] as i64),
-            ElementType::Uint16 => Ok(self.inner.as_slice::<u16>()?[0] as i64),
-            ElementType::Float32 => Ok(self.inner.as_slice::<f32>()?[0] as i64),
-            ElementType::Float64 => Ok(self.inner.as_slice::<f64>()?[0] as i64),
+        use burn_tensor::DType;
+        match self.inner.dtype {
+            DType::I64 => Ok(self.inner.as_slice::<i64>()?[0]),
+            DType::I32 => Ok(self.inner.as_slice::<i32>()?[0] as i64),
+            DType::I8 => Ok(self.inner.as_slice::<i8>()?[0] as i64),
+            DType::U8 => Ok(self.inner.as_slice::<u8>()?[0] as i64),
+            DType::U16 => Ok(self.inner.as_slice::<u16>()?[0] as i64),
+            DType::F32 => Ok(self.inner.as_slice::<f32>()?[0] as i64),
+            DType::F64 => Ok(self.inner.as_slice::<f64>()?[0] as i64),
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to i64",
                 other
@@ -415,9 +417,10 @@ impl TensorData {
     ///
     /// Useful for extracting indices, shapes, or other integer arrays that need to be i64.
     pub fn to_i64_vec(&self) -> Result<Vec<i64>, burn_tensor::DataError> {
-        match self.elem_type() {
-            ElementType::Int64 => self.inner.to_vec::<i64>(),
-            ElementType::Int32 => {
+        use burn_tensor::DType;
+        match self.inner.dtype {
+            DType::I64 => self.inner.to_vec::<i64>(),
+            DType::I32 => {
                 let vec_i32 = self.inner.to_vec::<i32>()?;
                 Ok(vec_i32.into_iter().map(|v| v as i64).collect())
             }
@@ -432,17 +435,60 @@ impl TensorData {
     ///
     /// Useful for extracting shape or dimension values.
     pub fn to_usize_vec(&self) -> Result<Vec<usize>, burn_tensor::DataError> {
-        match self.elem_type() {
-            ElementType::Int64 => {
+        use burn_tensor::DType;
+        match self.inner.dtype {
+            DType::I64 => {
                 let vec_i64 = self.inner.to_vec::<i64>()?;
                 Ok(vec_i64.into_iter().map(|v| v as usize).collect())
             }
-            ElementType::Int32 => {
+            DType::I32 => {
                 let vec_i32 = self.inner.to_vec::<i32>()?;
                 Ok(vec_i32.into_iter().map(|v| v as usize).collect())
             }
             other => Err(burn_tensor::DataError::TypeMismatch(format!(
                 "Cannot convert {:?} to Vec<usize>",
+                other
+            ))),
+        }
+    }
+
+    /// Convert to Vec<f32>, handling all numeric types with automatic conversion
+    ///
+    /// Useful for extracting numeric arrays that need to be f32.
+    pub fn to_f32_vec(&self) -> Result<Vec<f32>, burn_tensor::DataError> {
+        use burn_tensor::DType;
+        match self.inner.dtype {
+            DType::F32 => self.inner.to_vec::<f32>(),
+            DType::F64 => {
+                let vec = self.inner.to_vec::<f64>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            DType::F16 => {
+                let vec = self.inner.to_vec::<half::f16>()?;
+                Ok(vec.into_iter().map(f32::from).collect())
+            }
+            DType::I64 => {
+                let vec = self.inner.to_vec::<i64>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            DType::I32 => {
+                let vec = self.inner.to_vec::<i32>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            DType::I8 => {
+                let vec = self.inner.to_vec::<i8>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            DType::U8 => {
+                let vec = self.inner.to_vec::<u8>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            DType::U16 => {
+                let vec = self.inner.to_vec::<u16>()?;
+                Ok(vec.into_iter().map(|v| v as f32).collect())
+            }
+            other => Err(burn_tensor::DataError::TypeMismatch(format!(
+                "Cannot convert {:?} to Vec<f32>",
                 other
             ))),
         }

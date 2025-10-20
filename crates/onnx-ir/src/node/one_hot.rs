@@ -140,31 +140,9 @@ impl NodeProcessor for OneHotProcessor {
             Some(tensor_data) => {
                 // Convert to f32 regardless of the input type
                 // Values should be a 2-element tensor [off_value, on_value]
-                if tensor_data.shape().iter().product::<usize>() != 2 {
-                    return Err(ProcessError::Custom(
-                        "OneHot: values must contain exactly 2 elements [off_value, on_value]"
-                            .to_string(),
-                    ));
-                }
-
-                // Convert to f32 by trying different types
-                let values_vec: Vec<f32> = if let Ok(v) = tensor_data.inner.to_vec::<f32>() {
-                    v
-                } else if let Ok(v) = tensor_data.inner.to_vec::<f64>() {
-                    v.into_iter().map(|x| x as f32).collect()
-                } else if let Ok(v) = tensor_data.inner.to_vec::<i64>() {
-                    v.into_iter().map(|x| x as f32).collect()
-                } else if let Ok(v) = tensor_data.inner.to_vec::<i32>() {
-                    v.into_iter().map(|x| x as f32).collect()
-                } else if let Ok(v) = tensor_data.inner.to_vec::<u8>() {
-                    v.into_iter().map(|x| x as f32).collect()
-                } else if let Ok(v) = tensor_data.inner.to_vec::<i8>() {
-                    v.into_iter().map(|x| x as f32).collect()
-                } else {
-                    return Err(ProcessError::Custom(
-                        "OneHot: unsupported values type".to_string(),
-                    ));
-                };
+                let values_vec = tensor_data.to_f32_vec().map_err(|_| {
+                    ProcessError::Custom("OneHot: unsupported values type".to_string())
+                })?;
 
                 let values_array: [f32; 2] = values_vec.try_into().map_err(|_| {
                     ProcessError::Custom(
