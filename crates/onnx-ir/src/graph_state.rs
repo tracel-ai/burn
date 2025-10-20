@@ -57,18 +57,19 @@ impl GraphState {
 
         let inputs = inputs
             .iter()
-            .enumerate()
-            .map(|(i, x)| {
-                let in_name = format!("input{}", i + 1);
-
-                // Only add to graph_input_map if not already an initializer
-                if !node_output_map.contains_key(&x.name) {
-                    graph_input_map.insert(x.name.clone(), i);
+            .filter_map(|x| {
+                // Skip inputs that are initializers (they become constant nodes instead)
+                if node_output_map.contains_key(&x.name) {
+                    return None;
                 }
+
+                // Only real graph inputs get added
+                let in_name = format!("input{}", graph_input_map.len() + 1);
+                graph_input_map.insert(x.name.clone(), graph_input_map.len());
 
                 let mut arg = Argument::try_from(x.clone()).unwrap();
                 arg.name = in_name;
-                arg
+                Some(arg)
             })
             .collect::<Vec<Argument>>();
 
