@@ -35,7 +35,7 @@
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
-use crate::{Data, Node, NodeConfig, TensorData};
+use crate::{Node, NodeConfig};
 use std::any::Any;
 
 /// Configuration for the Trilu operation.
@@ -120,13 +120,50 @@ impl NodeProcessor for TriluProcessor {
         // FIXME: The spec states that `k` should be a 0-D tensor (scalar tensor), but the
         // implementation assumes Data::Int64 (scalar value). This should handle the proper
         // tensor extraction with shape validation to ensure it's 0-D.
-        if let Some(diagonal_arg) = node.inputs.get(1)
-            && let Some(TensorData {
-                data: Data::Int64(diagonal_val),
-                ..
-            }) = &diagonal_arg.value()
-        {
-            diagonal = *diagonal_val;
+        if let Some(diagonal_arg) = node.inputs.get(1) {
+            log::debug!(
+                "Trilu node {}: diagonal_arg name={}, value_source={:?}, data_id={:?}",
+                node.name,
+                diagonal_arg.name,
+                diagonal_arg.value_source,
+                diagonal_arg.data_id
+            );
+            if let Some(tensor_data) = diagonal_arg.value() {
+                log::debug!(
+                    "Trilu node {}: Got tensor_data with shape={:?}",
+                    node.name,
+                    tensor_data.shape()
+                );
+                // Extract scalar value, converting from any numeric type to i64
+                diagonal = match tensor_data.scalar_i64() {
+                    Ok(val) => {
+                        log::debug!(
+                            "Trilu node {}: Extracted diagonal value: {}",
+                            node.name,
+                            val
+                        );
+                        val
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Trilu node {}: Failed to extract diagonal value: {:?}",
+                            node.name,
+                            e
+                        );
+                        0
+                    }
+                };
+            } else {
+                log::warn!(
+                    "Trilu node {}: diagonal input has no value (not constant)",
+                    node.name
+                );
+            }
+        } else {
+            log::debug!(
+                "Trilu node {}: No second input (diagonal), defaulting to 0",
+                node.name
+            );
         }
 
         let config = TriluConfig::new(upper, diagonal);
@@ -139,6 +176,57 @@ mod tests {
     use super::*;
     use crate::ir::NodeType;
     use crate::node::test_utils::NodeBuilder;
+
+    #[test]
+    #[ignore] // Manual test
+    fn test_parse_actual_trilu_onnx() {
+        use crate::pipeline::parse_onnx;
+        use std::path::Path;
+
+        let path = Path::new(
+            "/Users/dilshod/Projects/burn/crates/burn-import/onnx-tests/tests/trilu/trilu_upper.onnx",
+        );
+        if !path.exists() {
+            println!("Skipping test - file not found: {}", path.display());
+            return;
+        }
+
+        let graph = parse_onnx(path);
+
+        // Print all nodes
+        println!("\n=== All nodes ===");
+        for (i, node) in graph.nodes.iter().enumerate() {
+            println!("Node {}: type={:?}, name={}", i, node.node_type, node.name);
+            for (j, input) in node.inputs.iter().enumerate() {
+                println!(
+                    "  Input {}: name='{}', value_source={:?}",
+                    j, input.name, input.value_source
+                );
+            }
+        }
+
+        // Find the Trilu node
+        let trilu_node = graph
+            .nodes
+            .iter()
+            .find(|n| matches!(n.node_type, NodeType::Trilu));
+        assert!(trilu_node.is_some(), "Trilu node not found");
+
+        let trilu_node = trilu_node.unwrap();
+        println!("\n=== Trilu node ===");
+        println!("Trilu node: {}", trilu_node.name);
+
+        // Check the config
+        let config = trilu_node.config::<TriluConfig>();
+        println!(
+            "Config: upper={}, diagonal={}",
+            config.upper, config.diagonal
+        );
+
+        // Should have diagonal=1 according to the ONNX file
+        assert_eq!(config.diagonal, 1, "Expected diagonal to be 1");
+        assert_eq!(config.upper, true, "Expected upper to be true");
+    }
 
     /// Helper function to create test nodes for Trilu tests
     fn create_test_node(upper_attr: Option<i64>, diagonal_input: Option<i64>) -> NodeBuilder {
