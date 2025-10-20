@@ -19,9 +19,11 @@
 //! - T: tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
 //!
 //! ## Opset Versions
-//! - **Opset 13+**: Current behavior with configurable axis attribute
-//! - **Opset 11-12**: Coerces input into 2D tensor before applying softmax
-//! - **Opset 1-10**: Earlier versions with different axis handling
+//! - **Opset 1**: Initial version with axis=1 default, operates on 2D tensors.
+//! - **Opset 11**: Changed default axis to -1 (last dimension). Maintains backward compatibility with 2D coercion behavior.
+//! - **Opset 13**: Removed 2D coercion behavior. Softmax now operates along specified axis directly without reshaping. This is the current behavior.
+//!
+//! **Implementation Note**: This implementation requires opset 13+ and uses the modern behavior (no 2D coercion). The axis attribute defaults to -1 as per opset 11+ specification.
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

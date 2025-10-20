@@ -35,9 +35,11 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 1**: Initial version, basic gather functionality
-//! - **Opset 11**: Added support for negative indices; out-of-bounds indices now raise an error
-//! - **Opset 13**: Added bfloat16 type support
+//! - **Opset 1**: Initial version with basic gather functionality.
+//! - **Opset 11**: Added support for negative indices; out-of-bounds indices now raise an error instead of undefined behavior.
+//! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
+//!
+//! **Implementation Note**: This implementation validates opset 11+ (see FIXME at line 92).
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};

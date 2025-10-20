@@ -27,29 +27,29 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Equal**: Opset 7+, 11+, 13+, 19+
-//!   - Opset 7: Initial version
-//!   - Opset 11: Added support for more types
-//!   - Opset 13: Added bfloat16 support
-//!   - Opset 19: Added int4, uint4 support
+//! - **Equal**:
+//!   - Opset 7-10: Initial version with basic type support
+//!   - Opset 11-12: Extended type support for additional numeric types
+//!   - Opset 13-18: Added bfloat16 support
+//!   - Opset 19+: Added int4 and uint4 support
 //!
-//! - **Greater**: Opset 7+, 9+, 13+
-//!   - Opset 7: Initial version
-//!   - Opset 9: Added support for more types
-//!   - Opset 13: Added bfloat16 support
+//! - **Greater**:
+//!   - Opset 7-8: Initial version with basic type support
+//!   - Opset 9-12: Extended type support for additional numeric types
+//!   - Opset 13+: Added bfloat16 support
 //!
-//! - **Less**: Opset 7+, 9+, 13+
-//!   - Opset 7: Initial version
-//!   - Opset 9: Added support for more types
-//!   - Opset 13: Added bfloat16 support
+//! - **Less**:
+//!   - Opset 7-8: Initial version with basic type support
+//!   - Opset 9-12: Extended type support for additional numeric types
+//!   - Opset 13+: Added bfloat16 support
 //!
-//! - **GreaterOrEqual**: Opset 12+, 16+
-//!   - Opset 12: Initial version
-//!   - Opset 16: Added bfloat16 support
+//! - **GreaterOrEqual**:
+//!   - Opset 12-15: Initial version
+//!   - Opset 16+: Added bfloat16 support
 //!
-//! - **LessOrEqual**: Opset 12+, 16+
-//!   - Opset 12: Initial version
-//!   - Opset 16: Added bfloat16 support
+//! - **LessOrEqual**:
+//!   - Opset 12-15: Initial version
+//!   - Opset 16+: Added bfloat16 support
 //!
 //! ## Implementation Notes
 //!

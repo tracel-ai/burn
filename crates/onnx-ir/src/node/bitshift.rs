@@ -25,7 +25,7 @@
 //! This operator supports multidirectional (i.e., Numpy-style) broadcasting.
 //!
 //! ## Opset Versions
-//! - Since version 11 (current)
+//! - **Opset 11**: Initial version with left/right bitwise shift operations on unsigned integers
 //!
 //! ## Examples
 //! - If direction is "RIGHT", X = [1, 4], and Y = [1, 1], output Z = [0, 2]

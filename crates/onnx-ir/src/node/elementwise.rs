@@ -12,17 +12,20 @@
 //! - No attributes (except Round which has an optional mode attribute)
 //! - Output shape identical to input shape
 //!
-//! **Opset 6+ Operations:**
-//! - **Abs**: Absolute value |x|
-//! - **Ceil**: Round up to nearest integer
-//! - **Floor**: Round down to nearest integer
-//! - **Exp**: Exponential e^x
-//! - **Log**: Natural logarithm ln(x)
-//! - **Neg**: Negation -x
-//! - **Reciprocal**: Reciprocal 1/x
-//! - **Sqrt**: Square root √x
+//! **Opset 1 Operations:**
+//! - **Not**: Logical NOT
 //!
-//! **Opset 7+ Operations (Trigonometric):**
+//! **Opset 6 Operations:**
+//! - **Abs**: Absolute value |x| (improved shape inference)
+//! - **Ceil**: Round up to nearest integer (improved shape inference)
+//! - **Floor**: Round down to nearest integer (improved shape inference)
+//! - **Exp**: Exponential e^x (improved shape inference)
+//! - **Log**: Natural logarithm ln(x) (improved shape inference)
+//! - **Neg**: Negation -x (improved shape inference)
+//! - **Reciprocal**: Reciprocal 1/x (improved shape inference)
+//! - **Sqrt**: Square root √x (improved shape inference)
+//!
+//! **Opset 7 Operations (Trigonometric):**
 //! - **Acos**: Arc cosine
 //! - **Asin**: Arc sine
 //! - **Atan**: Arc tangent
@@ -30,15 +33,12 @@
 //! - **Sin**: Sine
 //! - **Tan**: Tangent
 //!
-//! **Opset 9+ Operations:**
+//! **Opset 9 Operations:**
 //! - **Erf**: Error function
 //! - **Sign**: Sign function (-1, 0, or 1)
 //!
-//! **Opset 11+ Operations:**
-//! - **Round**: Round to nearest integer
-//!
-//! **Opset 1+ Operations:**
-//! - **Not**: Logical NOT
+//! **Opset 11 Operations:**
+//! - **Round**: Round to nearest integer (supports optional mode attribute)
 //!
 //! ## Binary Operations
 //!
@@ -48,17 +48,20 @@
 //! - No attributes (except PRelu which has a slope parameter)
 //! - Output shape follows standard ONNX broadcasting semantics
 //!
-//! **Supported Operations:**
-//! - **Pow**: Element-wise power a^b
-//! - **Max**: Element-wise maximum
-//! - **Min**: Element-wise minimum
-//! - **And**: Logical AND
-//! - **Or**: Logical OR
-//! - **Xor**: Logical XOR
-//! - **BitwiseAnd**: Bitwise AND
-//! - **BitwiseOr**: Bitwise OR
-//! - **BitwiseXor**: Bitwise XOR
-//! - **PRelu**: Parametric ReLU (slope input is lifted to static)
+//! **Supported Operations (varying opset requirements):**
+//! - **Pow**: Element-wise power a^b (Opset 1+)
+//! - **Max**: Element-wise maximum (Opset 1+)
+//! - **Min**: Element-wise minimum (Opset 1+)
+//! - **And**: Logical AND (Opset 1+)
+//! - **Or**: Logical OR (Opset 1+)
+//! - **Xor**: Logical XOR (Opset 1+)
+//! - **BitwiseAnd**: Bitwise AND (Opset 18+)
+//! - **BitwiseOr**: Bitwise OR (Opset 18+)
+//! - **BitwiseXor**: Bitwise XOR (Opset 18+)
+//! - **PRelu**: Parametric ReLU (Opset 1+, slope input is lifted to static)
+//!
+//! ## Implementation Notes
+//! - No opset validation currently performed for binary operations (see TODO at line 108)
 //!
 //! ## Type Inference
 //!

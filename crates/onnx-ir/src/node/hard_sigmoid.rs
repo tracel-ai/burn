@@ -24,7 +24,8 @@
 //! - `T`: float16, float32, float64, bfloat16
 //!
 //! ## Opset Versions
-//! - **Opset 6+**: Current version with alpha and beta attributes
+//! - **Opset 1-5**: Earlier versions with different default values
+//! - **Opset 6+**: Current version with alpha=0.2, beta=0.5 as defaults
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

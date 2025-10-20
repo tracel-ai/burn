@@ -19,7 +19,10 @@
 //! - `Y` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 11+
+//! - **Opset 7**: Initial AveragePool operator
+//! - **Opset 10**: Added dilations attribute support
+//! - **Opset 11**: Updated operator and added count_include_pad attribute
+//! - **Opset 19**: Added ceil_mode attribute (not supported in this implementation)
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};

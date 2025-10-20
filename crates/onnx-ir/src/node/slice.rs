@@ -28,10 +28,11 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 1-9**: `starts`, `ends`, and `axes` were attributes (static only)
-//! - **Opset 10**: Changed to inputs for dynamic slicing support
-//! - **Opset 11**: Added `steps` input
-//! - **Opset 13**: Added bfloat16 support
+//! - **Opset 1-9**: `starts`, `ends`, and `axes` were attributes (static only).
+//! - **Opset 10**: **BREAKING CHANGE** - Changed `starts`, `ends`, and `axes` from attributes to inputs
+//!   for dynamic slicing support. This enables runtime determination of slice parameters.
+//! - **Opset 11**: Added optional `steps` input for strided slicing.
+//! - **Opset 13**: Added bfloat16 and additional type support.
 
 use crate::ir::{ArgType, Data, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

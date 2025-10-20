@@ -17,9 +17,9 @@
 //! - `T`: Constrained to float tensors (float16, float32, float64, bfloat16)
 //!
 //! ## Opset Versions
-//! - Available since opset version 1
-//! - Updated in opset version 6
-//! - Current version: opset 16
+//! - **Opset 1-5**: Initial version
+//! - **Opset 6-15**: Updated with alpha=0.01 as default
+//! - **Opset 16+**: Extended type support (added bfloat16)
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

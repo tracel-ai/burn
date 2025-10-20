@@ -20,8 +20,9 @@
 //!   uint32, uint64, bool, complex64, complex128, bfloat16, string)
 //!
 //! ## Opset Versions
-//! - Available since opset version 1
-//! - Updated in opset versions 13, 21, 23
+//! - **Opset 1**: Initial version supporting all tensor types and permutation.
+//! - **Opset 13**: Added bfloat16 support.
+//! - **Opset 21**: Added support for int4, uint4, and float8 types.
 //!
 //! ## Example
 //! When `perm = [1, 0, 2]` and input shape is `(1, 2, 3)`, the output shape will be `(2, 1, 3)`.

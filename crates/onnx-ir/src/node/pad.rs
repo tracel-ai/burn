@@ -17,7 +17,12 @@
 //! - `output` (T): Padded tensor
 //!
 //! ## Opset Versions
-//! - Opset 11+
+//! - **Opset 11**: Changed pads from attribute to input for dynamic padding support. Added mode attribute (constant/reflect/edge).
+//! - **Opset 13**: Added optional axes input to specify which axes to pad (not supported in this implementation).
+//! - **Opset 18**: Added optional constant_value input as alternative to attribute.
+//! - **Opset 19**: Added antialiasing support for edge mode (not supported in this implementation).
+//!
+//! **Implementation Note**: This implementation requires opset 11+ and only supports constant mode padding. The axes input (opset 13+) is explicitly rejected.
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

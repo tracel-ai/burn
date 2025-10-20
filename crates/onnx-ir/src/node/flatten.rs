@@ -14,7 +14,12 @@
 //! - `output` (T): 2D output tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1**: Initial version with basic flatten operation.
+//! - **Opset 9**: No functional changes (extended type support).
+//! - **Opset 11**: Added support for negative axis values.
+//! - **Opset 13**: Extended type constraints (added bfloat16 support).
+//!
+//! **Implementation Note**: This implementation validates opset 9+ (see FIXME at line 49).
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

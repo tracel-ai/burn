@@ -27,9 +27,14 @@
 //! - `reshaped` (T): Reshaped tensor with the same number of elements as the input
 //!
 //! ## Opset Versions
-//! - Opset 5+: Shape moved from attribute to input (opset 1-4 used a 'shape' attribute)
-//! - Opset 14+: Added 'allowzero' attribute
-//! - Opset 19, 21, 23, 24: Minor updates and clarifications
+//! - **Opset 1-4**: Used 'shape' attribute (not supported in this implementation).
+//! - **Opset 5**: Changed shape from attribute to input, enabling dynamic reshaping.
+//! - **Opset 13**: Added support for more data types including bfloat16.
+//! - **Opset 14**: Added 'allowzero' attribute to control zero-dimension handling.
+//! - **Opset 19**: Clarified behavior and type constraints.
+//! - **Opset 21**: Added support for 8-bit integer types (int4, uint4).
+//!
+//! **Implementation Note**: This implementation requires opset 5+ (shape as input). The allowzero attribute is mentioned in the spec but not currently validated or used in the implementation.
 
 use crate::ir::{
     ArgType, Argument, Data, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,

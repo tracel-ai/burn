@@ -20,12 +20,11 @@
 //! - `expanded` (T): Reshaped tensor with same data as input, with dimensions of size 1 inserted at specified positions
 //!
 //! ## Opset Versions
+//! - **Opset 1**: Initial version with required 'axes' attribute.
+//! - **Opset 11**: Clarified semantics and behavior for negative axis values.
+//! - **Opset 13**: Changed 'axes' from attribute to required input, enabling dynamic axes specification at runtime.
 //!
-//! - **Opset 13+**: `axes` is a required input (allows dynamic specification)
-//! - **Opset 11**: `axes` was an attribute (fixed at graph construction time)
-//!
-//! The change from attribute to input in opset 13 provides greater flexibility,
-//! enabling dynamic axes specification at runtime.
+//! **Implementation Note**: This implementation requires opset 13+ (axes as input). The change from attribute to input provides greater flexibility for dynamic shape operations.
 //!
 //! ## Special Optimizations
 //!

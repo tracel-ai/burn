@@ -36,7 +36,7 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 11**: Initial version - introduced Range operator
+//! - **Opset 11**: Initial version with scalar inputs for start, limit, and delta.
 
 use crate::ir::{
     ArgType, Data, ElementType, Node, NodeConfig, RuntimeInputRef, TensorData, TensorType,

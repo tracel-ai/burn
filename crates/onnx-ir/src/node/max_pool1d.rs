@@ -21,7 +21,15 @@
 //! - `Indices` (I, optional): Indices tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1**: Initial version with basic max pooling operation.
+//! - **Opset 8**: Added support for `storage_order` attribute.
+//! - **Opset 10**: Added `ceil_mode` attribute to use ceiling instead of floor for output shape calculation.
+//! - **Opset 11**: Added support for dilation; updated padding semantics; added optional Indices output.
+//! - **Opset 12**: Added support for int8, uint8 data types; clarified behavior with negative padding.
+//!
+//! **Implementation Note**: This implementation validates opset 11+ (see FIXME at lines 97-98).
+//! The implementation does not support `ceil_mode=1` and only validates 1 output (not the optional
+//! Indices output, see FIXME at lines 103-104).
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{

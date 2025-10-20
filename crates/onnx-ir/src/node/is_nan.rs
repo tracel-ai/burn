@@ -23,9 +23,9 @@
 //! - T2: tensor(bool)
 //!
 //! ## Opset Versions
-//!
-//! - Since version 20 (current)
-//! - Previous versions: 13, 9
+//! - **Opset 9-12**: Initial version
+//! - **Opset 13-19**: Extended type support (added bfloat16)
+//! - **Opset 20+**: Added float8 type variants support
 
 use crate::Node;
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -45,7 +45,7 @@ impl NodeProcessor for IsNaNProcessor {
 
         // TODO: Validate that no unexpected attributes are present
         // The spec states "None" for attributes
-        for (key, _value) in node.attrs.iter() {
+        if let Some((key, _value)) = node.attrs.iter().next() {
             return Err(ProcessError::InvalidAttribute {
                 name: key.clone(),
                 reason: format!("IsNaN does not accept any attributes, found: {}", key),

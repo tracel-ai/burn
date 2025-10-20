@@ -19,8 +19,11 @@
 //! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
 //!
 //! ## Opset Versions
-//! - Since version 13 (current)
-//! - Previous versions: 9, 1
+//! - **Opset 1**: Initial version with numpy.matmul-like behavior and broadcasting support.
+//! - **Opset 9**: Added support for additional integer types (int32, int64, uint32, uint64).
+//! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
+//!
+//! **Implementation Note**: This implementation validates opset 1+.
 
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
@@ -41,7 +44,7 @@ impl NodeProcessor for MatMulProcessor {
 
         // TODO: Validate that no unexpected attributes are present
         // The spec states "Attributes (None)" for MatMul
-        for (key, _value) in node.attrs.iter() {
+        if let Some((key, _value)) = node.attrs.iter().next() {
             return Err(ProcessError::InvalidAttribute {
                 name: key.clone(),
                 reason: format!("MatMul does not accept any attributes, found: {}", key),

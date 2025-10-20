@@ -21,7 +21,13 @@
 //! - `Y` (T1): Resized tensor
 //!
 //! ## Opset Versions
-//! - Opset 11+
+//! - **Opset 10**: Initial version with scales and sizes inputs.
+//! - **Opset 11**: Added coordinate_transformation_mode attribute for more control over interpolation. Added support for linear mode (previously only nearest).
+//! - **Opset 13**: Added cubic mode support and cubic_coeff_a attribute. Added antialias attribute for downsampling.
+//! - **Opset 18**: Added keep_aspect_ratio_policy and axes attributes for selective resizing.
+//! - **Opset 19**: Added antialiasing improvements and clarified coordinate transformation modes.
+//!
+//! **Implementation Note**: This implementation requires opset 11+ for coordinate transformation mode support. Many attributes are ignored or have restricted values (see validation in infer_types).
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorData};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

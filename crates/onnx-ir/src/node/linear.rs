@@ -88,7 +88,7 @@ impl NodeProcessor for LinearProcessor {
 
         // TODO: Validate that no unexpected attributes are present
         // Linear is a Burn-specific node type with no attributes
-        for (key, _value) in node.attrs.iter() {
+        if let Some((key, _value)) = node.attrs.iter().next() {
             return Err(ProcessError::InvalidAttribute {
                 name: key.clone(),
                 reason: format!("Linear does not accept any attributes, found: {}", key),

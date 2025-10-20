@@ -18,7 +18,10 @@
 //! - `Y` (T): Normalized output tensor
 //!
 //! ## Opset Versions
-//! - Opset 18+
+//! - **Opset 18**: Initial version introducing GroupNormalization operator. Includes support for
+//!   the `stash_type` attribute to control intermediate calculation precision.
+//!
+//! **Implementation Note**: This implementation validates opset 18+ (MIN constant at line 83).
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

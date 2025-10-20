@@ -21,11 +21,12 @@
 //!   is determined by either `num_outputs` attribute or the length of `split` input.
 //!
 //! ## Opset Versions
-//! - **Opset 1-2**: Initial implementation with `split` as an attribute
-//! - **Opset 11**: Refinements to split behavior
+//! - **Opset 1-2**: Initial implementation with `split` sizes specified as an attribute.
+//! - **Opset 11**: Refinements to split behavior and type constraints.
 //! - **Opset 13**: **BREAKING CHANGE** - `split` changed from attribute to optional input to
 //!   support dynamic shapes. This enables runtime determination of split sizes.
-//! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits
+//! - **Opset 18**: Added `num_outputs` attribute for easier specification of equal splits without
+//!   explicitly providing split sizes.
 
 use crate::ir::{ArgType, Node, NodeConfig, RuntimeInputRef, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

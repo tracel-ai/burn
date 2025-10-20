@@ -18,7 +18,15 @@
 //! - `mask` (T2, optional): Dropout mask
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1-6**: Dropout with ratio as attribute
+//! - **Opset 7-11**: Updated type support
+//! - **Opset 12**: Ratio and training_mode moved to inputs; added seed attribute
+//! - **Opset 13**: Added optional mask output
+//!
+//! ## Implementation Notes
+//! - Current implementation validates opset 7+ (see FIXME at line 76)
+//! - According to spec, operator exists since opset 1
+//! - Seed attribute (opset 12+) is mentioned in spec but not currently validated (see TODO at line 111)
 
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};

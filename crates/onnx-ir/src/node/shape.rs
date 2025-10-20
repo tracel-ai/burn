@@ -21,9 +21,11 @@
 //! - `shape` (T1): 1D int64 tensor containing the shape dimensions (or a slice of them).
 //!
 //! ## Opset Versions
-//! - **Opset 1**: Initial version - outputs full shape as 1D int64 tensor.
-//! - **Opset 15**: Added `start` and `end` attributes for partial shape extraction.
-//! - **Opset 19, 21, 23**: Maintained same functionality with broader type support.
+//! - **Opset 1-14**: Outputs full shape as 1D int64 tensor (no attributes).
+//! - **Opset 15**: Added `start` and `end` attributes to enable partial shape extraction,
+//!   allowing selection of a slice of dimensions from the input shape.
+//! - **Opset 19**: Added support for bfloat16 input data type.
+//! - **Opset 21**: Added support for int4, uint4, and float8 input data types.
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{

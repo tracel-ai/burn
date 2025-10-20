@@ -21,8 +21,8 @@
 //! - `T2`: Boolean tensor
 //!
 //! ## Opset Versions
-//! - **Since version 20**: Current implementation
-//! - **Since version 10**: Initial version
+//! - **Opset 10-19**: Initial version with detect_negative and detect_positive attributes
+//! - **Opset 20+**: Extended type support (added float8 variants)
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

@@ -27,8 +27,10 @@
 //!   will be a scalar.
 //!
 //! ## Opset Versions
-//! - Supported from opset 11 onwards
-//! - Opset 18+ allows axes to be provided as an input tensor
+//! - **Opset 1-10**: Earlier versions with different attribute handling
+//! - **Opset 11-12**: Standardized behavior with axes attribute, added noop_with_empty_axes
+//! - **Opset 13-17**: Extended type support (bfloat16, uint/int types)
+//! - **Opset 18+**: Axes moved from attribute to optional input tensor for dynamic shapes
 //!
 //! ## Type Constraints
 //! - T: tensor(float16), tensor(float32), tensor(float64), tensor(int32), tensor(int64)

@@ -20,8 +20,8 @@
 //! - `output` (T): Output tensor of shape [N, C * blocksize * blocksize, H/blocksize, W/blocksize]
 //!
 //! ## Opset Versions
-//! - Since opset 1
-//! - Opset 13: Current version with full type support
+//! - **Opset 1-12**: Initial version with blocksize attribute
+//! - **Opset 13+**: Extended type support (added bfloat16, uint types)
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

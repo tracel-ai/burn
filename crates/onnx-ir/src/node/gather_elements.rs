@@ -27,8 +27,8 @@
 //! - Tind: int32, int64
 //!
 //! ## Opset Versions
-//! - Since version 13 (current)
-//! - Previous versions: 11
+//! - **Opset 11**: Initial version with per-element indexing along a specified axis.
+//! - **Opset 13**: Added bfloat16 support and clarified negative index handling.
 
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

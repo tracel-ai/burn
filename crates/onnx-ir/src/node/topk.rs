@@ -21,9 +21,11 @@
 //! - `Indices` (I): Tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] containing indices of top K values (always int64)
 //!
 //! ## Opset Versions
-//! - **Opset 10**: Basic TopK with float types (float16, float, double)
-//! - **Opset 11+**: Added `largest` and `sorted` attributes, support for integer types
-//!   (int8, int16, int32, int64, uint8, uint16, uint32, uint64)
+//! - **Opset 1**: Initial version with k as an attribute.
+//! - **Opset 10**: Changed k from attribute to input, enabling dynamic k values. Supported float types only.
+//! - **Opset 11**: Added 'largest' and 'sorted' attributes for controlling output behavior. Added support for integer input types (int8, int16, int32, int64, uint8, uint16, uint32, uint64).
+//!
+//! **Implementation Note**: This implementation requires opset 10+ (k as input). Only largest=1 and sorted=1 are supported; other values are rejected.
 //!
 //! ## Type Constraints
 //! - **T** (Opset 10): tensor(float16), tensor(float), tensor(double)

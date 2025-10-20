@@ -28,7 +28,7 @@
 //!
 //! ## Opset Versions
 //!
-//! - Opset 23+
+//! - **Opset 23**: Initial version with multi-head attention support (MHA, GQA, MQA variants)
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{ArgType, Argument, Node, NodeConfig, TensorType};

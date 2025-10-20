@@ -17,8 +17,8 @@
 //! - `C` (T): Remainder tensor
 //!
 //! ## Opset Versions
-//! - Since opset 10: Initial implementation
-//! - Opset 13: Added support for additional types (bfloat16)
+//! - **Opset 10-12**: Initial implementation with fmod attribute
+//! - **Opset 13+**: Extended type support (added bfloat16)
 
 use crate::ir::{AttributeValue, Node, NodeConfig};
 use crate::processor::{InputPreferences, NodeProcessor, OutputPreferences, ProcessError};

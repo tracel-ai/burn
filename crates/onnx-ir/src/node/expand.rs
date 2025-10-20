@@ -15,7 +15,8 @@
 //! - `output` (T): Expanded tensor
 //!
 //! ## Opset Versions
-//! - Opset 8+
+//! - **Opset 8**: Initial version (replaces deprecated Tile for broadcasting)
+//! - **Opset 13**: Extended type support (bfloat16)
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 use crate::{

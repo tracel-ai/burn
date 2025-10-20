@@ -19,9 +19,13 @@
 //! - `output` (T): Output tensor of shape [N, C/(blocksize * blocksize), H * blocksize, W * blocksize]
 //!
 //! ## Opset Versions
-//! - Since opset 1
-//! - Opset 11: Additional type support
-//! - Opset 13: Current version with full type support
+//! - **Opset 1**: Initial version with DCR mode only
+//! - **Opset 11**: Added CRD mode support and additional type support
+//! - **Opset 13**: Extended type support (bfloat16)
+//!
+//! ## Implementation Notes
+//! - Current implementation validates opset 11+ (see FIXME at line 83)
+//! - According to spec, operator exists since opset 1
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 

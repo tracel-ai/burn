@@ -30,10 +30,10 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 6**: Initial version with `min` and `max` as attributes (float values only).
-//! - **Opset 11**: Changed `min` and `max` from attributes to optional inputs, allowing runtime values.
-//! - **Opset 12**: Extended type support to include integer types (int8, int16, int32, int64, uint8, uint16, uint32, uint64).
-//! - **Opset 13**: Added bfloat16 support. Defined behavior when min > max: all values set to max.
+//! - **Opset 6-10**: Initial version with min and max as float attributes only
+//! - **Opset 11**: Changed min and max from attributes to optional inputs (allows runtime values)
+//! - **Opset 12**: Extended type support to include integer types (int8-64, uint8-64)
+//! - **Opset 13+**: Added bfloat16 support and defined behavior when min > max
 
 use crate::ir::{Data, Node, NodeConfig, RuntimeInputRef};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError, same_as_input};

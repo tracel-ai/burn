@@ -24,7 +24,11 @@
 //! - `saved_var` (T, optional): Saved variance (training mode)
 //!
 //! ## Opset Versions
-//! - Opset 9+
+//! - **Opset 1-5**: Initial version with spatial attribute
+//! - **Opset 6-8**: Removed spatial attribute, added consumed_inputs
+//! - **Opset 9-13**: Removed consumed_inputs attribute
+//! - **Opset 14-15**: Added training_mode attribute, expanded type support
+//! - **Opset 15+**: Current version with full training mode support
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

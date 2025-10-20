@@ -14,8 +14,11 @@
 //! - `output` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 13+ (minimum version validated in implementation)
-//! - Earlier versions: 11, 1
+//! - **Opset 1**: Initial version with LogSoftmax operation.
+//! - **Opset 11**: Changed default axis from 1 to -1 (last dimension); clarified axis behavior.
+//! - **Opset 13**: Added bfloat16 type support; no functional changes to operation semantics.
+//!
+//! **Implementation Note**: This implementation validates opset 13+.
 
 use crate::ir::{ArgType, Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

@@ -18,8 +18,11 @@
 //!   `output_shape[i] = input_shape[i] * repeats[i]`
 //!
 //! ## Opset Versions
-//! - Opset 6+: Current version with repeats as input (opset 1 used repeats as attribute)
-//! - Opset 13+: Added support for more data types including bfloat16
+//! - **Opset 1**: Used 'repeats' as an attribute (not supported in this implementation).
+//! - **Opset 6**: Changed repeats from attribute to input, enabling dynamic tiling.
+//! - **Opset 13**: Added support for bfloat16 and expanded type constraints.
+//!
+//! **Implementation Note**: This implementation requires opset 6+ (repeats as input).
 //!
 //! **FIXME**: The implementation does not validate that the repeats tensor has the same length as
 //! the input rank, which is required by the ONNX spec. This should be validated in extract_config

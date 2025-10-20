@@ -20,7 +20,7 @@
 //!   and zeros everywhere else.
 //!
 //! ## Opset Versions
-//! - Available since opset 9
+//! - **Opset 9+**: Initial version with dtype and k attributes
 
 use crate::ir::{ArgType, ElementType, Node, NodeConfig, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

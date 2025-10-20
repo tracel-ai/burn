@@ -21,7 +21,8 @@
 //! - `Y` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1**: Initial version with basic convolution support
+//! - **Opset 11**: No changes to Conv operator itself (broader ONNX updates)
 
 use crate::ir::{ArgType, Node, NodeConfig, TensorType};
 use crate::node::padding::{PaddingConfig2d, padding_config_2d};

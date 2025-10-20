@@ -14,6 +14,14 @@
 //!
 //! Both operations require a `shape` attribute and support an optional `dtype` attribute
 //! (defaults to FLOAT if not specified).
+//!
+//! ## Opset Versions
+//!
+//! ### RandomNormal
+//! - **Opset 1**: Initial version with shape, dtype, mean, scale, and seed attributes.
+//!
+//! ### RandomUniform
+//! - **Opset 1**: Initial version with shape, dtype, high, low, and seed attributes.
 
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

@@ -14,7 +14,8 @@
 //! - `Y` (int64): Indices tensor, shape \[rank(X), num_non_zero\]
 //!
 //! ## Opset Versions
-//! - Opset 9+
+//! - **Opset 9**: Initial version. Returns 2D tensor with shape [rank(X), num_non_zero].
+//! - **Opset 13**: Added support for bfloat16 input type.
 
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

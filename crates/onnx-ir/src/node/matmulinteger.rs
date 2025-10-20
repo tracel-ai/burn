@@ -17,7 +17,12 @@
 //! - `Y` (T3): Output matrix (int32)
 //!
 //! ## Opset Versions
-//! - Opset 10+
+//! - **Opset 10**: Initial version introducing quantized integer matrix multiplication with zero-point
+//!   support. Outputs int32 results from int8/uint8 inputs.
+//!
+//! **Implementation Note**: This implementation validates opset 10+ (see line 37).
+//! The spec allows 2-4 inputs (optional zero-point tensors), but implementation only validates minimum
+//! of 2 inputs (see FIXME at line 44).
 
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

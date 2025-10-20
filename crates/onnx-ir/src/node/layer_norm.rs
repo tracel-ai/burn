@@ -20,7 +20,12 @@
 //! - `InvStdDev` (U, optional): Inverse standard deviation
 //!
 //! ## Opset Versions
-//! - Opset 17+
+//! - **Opset 17**: Initial version introducing LayerNormalization operator. Supports `axis`,
+//!   `epsilon`, and `stash_type` attributes. Includes support for optional Mean and InvStdDev outputs.
+//!
+//! **Implementation Note**: This implementation validates opset 17+ (MIN constant at line 94).
+//! Note that the current implementation requires 3 inputs (including bias) and only produces 1 output,
+//! which is more restrictive than the ONNX spec (see FIXMEs at lines 97-101).
 
 use crate::ir::{Node, NodeConfig};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

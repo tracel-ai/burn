@@ -22,7 +22,7 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 15**: Initial version of Bernoulli operator
+//! - **Opset 15**: Initial version with dtype and seed attributes for drawing binary random numbers
 
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

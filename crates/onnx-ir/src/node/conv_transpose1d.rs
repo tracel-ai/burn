@@ -23,7 +23,12 @@
 //! - `Y` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1**: Initial version with basic transposed convolution support
+//! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
+//!
+//! ## Implementation Notes
+//! - Weight tensor layout: Implementation expects [out_channels, in_channels, kernel_size]
+//!   (see FIXME at line 185 regarding ONNX spec clarification)
 
 use crate::ir::{Node, NodeConfig};
 

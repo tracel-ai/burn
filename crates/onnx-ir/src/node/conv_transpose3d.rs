@@ -22,7 +22,8 @@
 //! - `Y` (T): Output tensor
 //!
 //! ## Opset Versions
-//! - Opset 1+
+//! - **Opset 1**: Initial version with basic transposed convolution support
+//! - **Opset 11**: No changes to ConvTranspose operator itself (broader ONNX updates)
 
 use crate::ir::{Node, NodeConfig};
 

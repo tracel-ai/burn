@@ -29,10 +29,13 @@
 //! - T: tensor(float), tensor(double), tensor(float16), tensor(bfloat16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
 //!
 //! ## Opset Versions
-//! - Opset 13+: Current version
-//! - Opset 11-12: Earlier versions with same semantics
-//! - Opset 7-10: Earlier versions
-//! - Opset 1-6: Initial versions
+//! - **Opset 1**: Initial version with basic GEMM operation.
+//! - **Opset 6**: Clarified broadcasting behavior for input C.
+//! - **Opset 7**: Added support for additional data types (int32, int64, uint32, uint64).
+//! - **Opset 11**: Changed attribute types to more specific types; clarified unidirectional broadcasting for C.
+//! - **Opset 13**: Added bfloat16 and float16 support; updated type constraints.
+//!
+//! **Implementation Note**: This implementation validates opset 11+.
 //!
 //! ## Notes
 //! In the node conversion phase, Gemm nodes are converted to Linear nodes when:

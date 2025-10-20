@@ -16,7 +16,7 @@
 //! - `output` (T): Selected elements
 //!
 //! ## Opset Versions
-//! - Opset 9+
+//! - **Opset 9**: Initial version with broadcasting support for all three inputs.
 
 use crate::ir::{ArgType, ElementType, Node, TensorType};
 use crate::processor::{

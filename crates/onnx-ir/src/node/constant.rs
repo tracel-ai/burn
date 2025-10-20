@@ -31,11 +31,10 @@
 //!
 //! ## Opset Versions
 //!
-//! - **Opset 1-8**: Basic constant with `value` attribute only
-//! - **Opset 9-10**: Same as opset 1-8
-//! - **Opset 11-12**: Added `sparse_value` attribute support
-//! - **Opset 13+**: Added `value_*` attribute family (value_float, value_floats, value_int, value_ints,
-//!   value_string, value_strings)
+//! - **Opset 1-8**: Basic constant with value attribute only
+//! - **Opset 9-10**: Updated type constraints, same functionality
+//! - **Opset 11-12**: Added sparse_value attribute for sparse tensor support
+//! - **Opset 13+**: Added value_* attribute family (value_float, value_floats, value_int, value_ints, value_string, value_strings)
 
 use crate::ir::{ArgType, Node, TensorType};
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};

@@ -28,11 +28,10 @@
 //! T: Numeric tensor types (float16, float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64)
 //!
 //! ## Opset Versions
-//!
-//! - **Opset 1-6**: Limited broadcast support
-//! - **Opset 7**: Added multidirectional (Numpy-style) broadcasting (Add, Sub, Div)
-//! - **Opset 13**: Multidirectional broadcasting for all operators (Add, Sub, Mul, Div)
-//! - **Opset 14**: Extended type support to include uint8, int8, uint16, int16
+//! - **Opset 1-6**: Limited broadcast support (unidirectional only)
+//! - **Opset 7-12**: Added multidirectional (Numpy-style) broadcasting for Add, Sub, Div
+//! - **Opset 13**: Multidirectional broadcasting for Mul, extended type support (bfloat16)
+//! - **Opset 14+**: Extended type support to include uint8, int8, uint16, int16, uint32, uint64
 //!
 //! ## Special Handling
 //!

@@ -31,7 +31,7 @@
 //!   - Negative k: Retains lower triangle excluding main diagonal and (|k|-1) diagonals below it
 //!
 //! ## Opset Versions
-//! - Available since opset version 14
+//! - **Opset 14**: Initial version introducing triangular matrix extraction with optional diagonal offset.
 
 use crate::processor::{NodeProcessor, OutputPreferences, ProcessError};
 
