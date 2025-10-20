@@ -11,20 +11,30 @@ The ONNX-IR crate is designed with the following components:
 
 ### Core Modules
 
-- **IR Core** (`ir.rs`): Defines the core data structures such as `Node`, `NodeType`, `Argument`,
-  `TensorType`, `ValueSource`, etc.
-- **Pipeline** (`pipeline.rs`): Main entry point and orchestrator that coordinates the 5-phase
-  conversion process
-- **Protocol Conversion** (`proto_conversion.rs`): Converts ONNX protobuf structures to IR
-  equivalents
-- **Graph State** (`graph_state.rs`): Manages mutable state during conversion including node
-  storage, name mappings, and tensor data
-- **Tensor Store** (`tensor_store.rs`): Centralized storage for tensor data with ID-based access
-- **Processor** (`processor.rs`): Defines the `NodeProcessor` trait with type inference and constant
-  lifting capabilities
-- **Registry** (`registry.rs`): Centralized registry mapping node types to their processors - **add
-  new node types here**
-- **Node Implementations** (`node/`): Contains 100+ operation-specific processor implementations
+- **IR Types** (`ir/`): Modular intermediate representation with clean separation of concerns:
+  - `node_type.rs`: Enum of 200+ supported ONNX operators
+  - `node.rs`: Node structure, NodeConfig trait, and RuntimeInputRef
+  - `argument.rs`: Argument types (inputs/outputs), ArgType, TensorType, ValueSource
+  - `attribute.rs`: AttributeValue enum and ONNX attribute handling
+  - `tensor_data_ext.rs`: Extension trait for burn_tensor::TensorData with ONNX-specific helpers
+  - `graph.rs`: OnnxGraph - the final IR representation
+  - `mod.rs`: Public API re-exports for backwards compatibility
+
+- **Conversion Infrastructure**:
+  - **Pipeline** (`pipeline.rs`): Main entry point and orchestrator that coordinates the 5-phase
+    conversion process
+  - **Protocol Conversion** (`proto_conversion.rs`): Converts ONNX protobuf structures to IR
+    equivalents
+  - **Graph State** (`graph_state.rs`): Manages mutable state during conversion including node
+    storage, name mappings, and tensor data
+  - **Tensor Store** (`tensor_store.rs`): Centralized storage for tensor data with ID-based access
+
+- **Processing**:
+  - **Processor** (`processor.rs`): Defines the `NodeProcessor` trait with type inference and
+    constant lifting capabilities
+  - **Registry** (`registry.rs`): Centralized registry mapping node types to their processors -
+    **add new node types here**
+  - **Node Implementations** (`node/`): Contains operation-specific processor implementations
 
 ### Conversion Phases
 
