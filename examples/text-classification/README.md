@@ -29,7 +29,7 @@ cd burn
 # Use the --release flag to really speed up training.
 # Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device.
 
-export TORCH_CUDA_VERSION=cu124  # Set the cuda version (CUDA users)
+export TORCH_CUDA_VERSION=cu128  # Set the cuda version (CUDA users)
 
 # AG News
 cargo run --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset

@@ -54,7 +54,7 @@ achieves 70-80% accuracy on the test set after just 30 epochs.
 Run it with the Torch GPU backend:
 
 ```sh
-export TORCH_CUDA_VERSION=cu124
+export TORCH_CUDA_VERSION=cu128
 cargo run --example custom-image-dataset --release --features tch-gpu
 ```
 
