@@ -12,9 +12,7 @@ use burn_tensor::{
 };
 
 use crate::{
-    Fusion, FusionBackend,
-    client::FusionClient,
-    get_client,
+    Fusion, FusionBackend, get_client,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 
