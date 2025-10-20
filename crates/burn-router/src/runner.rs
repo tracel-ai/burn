@@ -1,5 +1,4 @@
 use alloc::sync::Arc;
-use alloc::vec::Vec;
 use burn_common::{future::DynFut, stub::Mutex};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
@@ -126,7 +125,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
     type Device = B::Device;
 
     /// Execute a tensor operation.
-    fn register(&self, op: OperationIr) -> Vec<RouterTensor<Self>> {
+    fn register_op(&self, op: OperationIr) {
         // Remove unused tensor handles
         let mut ctx = self.context.lock().unwrap();
 
@@ -1293,13 +1292,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 handles.remove_handle(repr.id);
             }
         }
-
-        // Create output tensors returned by this operation
-        op.outputs()
-            .map(|output| {
-                RouterTensor::new(output.id, output.shape.clone(), output.dtype, self.clone())
-            })
-            .collect()
     }
 
     fn read_tensor(&self, tensor: TensorIr) -> DynFut<TensorData> {

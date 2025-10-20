@@ -21,7 +21,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Init(desc)).output()
+        // Call register op when output is already initialized
+        client.register_op(OperationIr::Init(desc));
+
+        out
     }
 
     fn float_random(

@@ -25,18 +25,9 @@ use super::{RemoteChannel, RemoteClient};
 impl RunnerClient for RemoteClient {
     type Device = RemoteDevice;
 
-    fn register(&self, op: burn_ir::OperationIr) -> Vec<RouterTensor<Self>> {
-        let outputs = op
-            .outputs()
-            .map(|output| {
-                RouterTensor::new(output.id, output.shape.clone(), output.dtype, self.clone())
-            })
-            .collect();
-
+    fn register_op(&self, op: burn_ir::OperationIr) {
         self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
-
-        outputs
     }
 
     fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<TensorData> {

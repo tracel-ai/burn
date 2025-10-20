@@ -85,10 +85,6 @@ impl<C: RunnerClient> RouterTensor<C> {
             TensorStatus::ReadOnly
         }
     }
-
-    pub(crate) fn into_client<C2: RunnerClient>(self, client: C2) -> RouterTensor<C2> {
-        RouterTensor::new(self.id, self.shape.clone(), self.dtype, client)
-    }
 }
 
 impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
@@ -136,7 +132,7 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
                     status: TensorStatus::ReadWrite,
                     dtype: self.dtype,
                 };
-                self.client.register(burn_ir::OperationIr::Drop(ir));
+                self.client.register_op(burn_ir::OperationIr::Drop(ir));
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

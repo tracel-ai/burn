@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use burn_common::future::DynFut;
 use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
@@ -105,12 +104,11 @@ macro_rules! impl_multi_backend_types {
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
-                fn register(&self, op: OperationIr) -> Vec<RouterTensor<Self>> {
-                    // TODO: map tensors to new client (self) just like register_tensor_data
+                fn register_op(&self, op: OperationIr) {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.register(op).into_iter().map(|t| t.into_client(self.clone())).collect(),
+                        Self::$DefaultBackend(runner) => runner.register_op(op),
                         $(
-                            Self::$OtherBackend(runner) => runner.register(op).into_iter().map(|t| t.into_client(self.clone())).collect(),
+                            Self::$OtherBackend(runner) => runner.register_op(op),
                         )+
                     }
                 }
@@ -126,9 +124,15 @@ macro_rules! impl_multi_backend_types {
 
                 fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.register_tensor_data(data).into_client(self.clone()),
+                        Self::$DefaultBackend(runner) => {
+                            let desc = runner.register_tensor_data_desc(data);
+                            RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
+                        }
                         $(
-                            Self::$OtherBackend(runner) => runner.register_tensor_data(data).into_client(self.clone()),
+                            Self::$OtherBackend(runner) => {
+                                let desc = runner.register_tensor_data_desc(data);
+                                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
+                            }
                         )+
                     }
                 }
