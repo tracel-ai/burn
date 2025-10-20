@@ -79,7 +79,7 @@ fn extract_opset_version(model: &ModelProto) -> usize {
         .iter()
         .find(|opset| opset.domain.is_empty())
         .map(|opset| opset.version as usize)
-        .unwrap_or(MIN_OPSET_VERSION as usize)
+        .expect("ONNX model must specify opset version for default domain")
 }
 
 /// Trait for checking if a list of nodes is topologically sorted

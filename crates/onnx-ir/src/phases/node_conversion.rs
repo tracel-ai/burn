@@ -206,7 +206,7 @@ fn extract_opset_version(model: &ModelProto) -> usize {
         .iter()
         .find(|opset| opset.domain.is_empty())
         .map(|opset| opset.version as usize)
-        .unwrap_or(17) // MIN_OPSET_VERSION
+        .expect("ONNX model must specify opset version for default domain")
 }
 
 // ============================================================================
