@@ -47,7 +47,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
         self,
-        client: &ComputeClient<R::Server, R::Channel>,
+        client: &ComputeClient<R::Server>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
@@ -154,7 +154,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::Normal(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -164,7 +164,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
                 inputs
                     .tensors
                     .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));

@@ -1,7 +1,7 @@
 use crate::backend::Backend;
 use crate::check;
 use crate::check::TensorCheck;
-use crate::tensor::{Int, Shape, Tensor};
+use crate::tensor::{Int, Tensor};
 use crate::{BasicOps, TensorKind};
 
 /// Returns the diag of a matrix.
@@ -26,16 +26,16 @@ where
     check!(TensorCheck::diag::<D, DO>());
 
     let shape = tensor.shape();
-    let rows = shape.dims[D - 2];
-    let cols = shape.dims[D - 1];
+    let rows = shape[D - 2];
+    let cols = shape[D - 1];
     let diag_len = rows.min(cols);
     let device = tensor.device();
 
     // create the indices for the diag
-    let mut flat_shape = shape.dims.clone();
+    let mut flat_shape = shape.clone();
     flat_shape[D - 2] = rows * cols;
     flat_shape[D - 1] = 1;
-    let flat: Tensor<B, D, K> = tensor.reshape(Shape::from(flat_shape));
+    let flat: Tensor<B, D, K> = tensor.reshape(flat_shape);
 
     let range = Tensor::<B, 1, Int>::arange(0..diag_len as i64, &device);
     let step_tensor = Tensor::<B, 1, Int>::from_data([cols as i64 + 1], &device);

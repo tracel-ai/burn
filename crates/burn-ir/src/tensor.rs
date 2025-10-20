@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use alloc::vec::Vec;
-
-use burn_tensor::DType;
+use burn_tensor::{DType, Shape};
 
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
@@ -42,7 +40,7 @@ pub struct TensorIr {
     /// The [tensor id](TensorId).
     pub id: TensorId,
     /// The shape of the tensor.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     /// The [status](TensorStatus) of the tensor when it was used.
     pub status: TensorStatus,
     /// The [type](DType) of the tensor.

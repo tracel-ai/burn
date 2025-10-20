@@ -233,10 +233,10 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
         weight = into_contiguous_aligned(weight);
     }
 
-    let batch_size = input.shape.dims[0];
-    let in_shape = &input.shape.dims[1..dim_c];
-    let out_channels = weight.shape.dims[0];
-    let kernel_shape = &weight.shape.dims[1..dim_c];
+    let batch_size = input.shape[0];
+    let in_shape = &input.shape[1..dim_c];
+    let out_channels = weight.shape[0];
+    let kernel_shape = &weight.shape[1..dim_c];
 
     let channels_per_group = out_channels / options.groups;
 
@@ -257,7 +257,7 @@ pub fn conv_direct<R: CubeRuntime, E: CubeElement, const N: usize>(
 
     // Need custom line size calculation here to account for the groups division. Need to vectorize
     // over `channels_per_group` instead.
-    let mut grouped_out_shape = output.shape.dims.clone();
+    let mut grouped_out_shape = output.shape.clone();
     grouped_out_shape[dim_c] = channels_per_group;
     let line_size_out = tensor_line_size_parallel(
         R::supported_line_sizes().iter().copied(),

@@ -212,6 +212,18 @@ where
         execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
     }
 
+    fn int_cumprod(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cumprod(tensor, dim))
+    }
+
+    fn int_cummin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
+    }
+
+    fn int_cummax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, |tensor| NdArrayMathOps::cummax(tensor, dim))
+    }
+
     fn int_gather(dim: usize, tensor: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, E, |tensor: SharedArray<E>| -> NdArrayTensor {
             execute_with_int_dtype!(indices, |indices| NdArrayMathOps::gather(
@@ -350,7 +362,7 @@ where
         })
     }
 
-    fn int_powf_scalar(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
+    fn int_powf_scalar_impl(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, I, |lhs| {
             NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
                 (a.elem::<i64>().pow(rhs as u32)).elem()

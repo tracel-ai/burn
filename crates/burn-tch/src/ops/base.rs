@@ -110,7 +110,7 @@ impl TchOps {
             // Workaround for non-unit steps: use PyTorch's index_put operation
             // This generates explicit indices for the slice and uses advanced indexing
             let tensor_shape = tensor.shape();
-            let dims = tensor_shape.dims.clone();
+            let dims = tensor_shape.clone();
 
             // Copy the tensor since we'll modify it
             let result_tensor = tensor.tensor.shallow_clone();
@@ -456,6 +456,24 @@ impl TchOps {
             tensor.tensor.cumsum(dim as i64, tensor.tensor.kind()),
             tensor.storage,
         )
+    }
+
+    pub fn cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumprod(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
+    }
+
+    pub fn cummin(tensor: TchTensor, dim: usize) -> TchTensor {
+        let (values, _indices) = tensor.tensor.cummin(dim as i64);
+        TchTensor::from_existing(values, tensor.storage)
+    }
+
+    pub fn cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        // cummax returns (values, indices) tuple in PyTorch, we only need values
+        let (values, _indices) = tensor.tensor.cummax(dim as i64);
+        TchTensor::from_existing(values, tensor.storage)
     }
 
     pub fn argmax(tensor: TchTensor, dim: usize) -> TchTensor {

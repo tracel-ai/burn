@@ -28,9 +28,7 @@ pub struct SumAutotuneKey {
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server, R::Channel>,
-) -> bool {
+fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(client: &ComputeClient<R::Server>) -> bool {
     Atomic::<E>::supported_uses(client).contains(TypeUsage::AtomicAdd)
 }
 
@@ -125,7 +123,7 @@ pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElem
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
-    let sorted_axis = argsort(&tensor.shape.dims);
+    let sorted_axis = argsort(&tensor.shape);
     for axis in sorted_axis {
         tensor = reduce_dim::<Run, In, Out, Acc>(tensor, axis, strategy, config)?;
     }

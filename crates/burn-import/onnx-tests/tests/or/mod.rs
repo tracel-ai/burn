@@ -1,6 +1,6 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(or, or_scalar);
+include_models!(or, or_scalar, or_broadcast);
 
 #[cfg(test)]
 mod tests {
@@ -40,5 +40,93 @@ mod tests {
         assert_eq!(model.forward(false, true), true);
         assert_eq!(model.forward(true, false), true);
         assert_eq!(model.forward(true, true), true);
+    }
+
+    #[test]
+    fn or_broadcast_tensor_ranks() {
+        let model = or_broadcast::Model::<TestBackend>::default();
+        let device = Default::default();
+
+        // Create tensors matching the Python script
+        let x_3d = Tensor::<TestBackend, 3, Bool>::from_data(
+            [
+                [
+                    [true, false, false, false],
+                    [true, false, true, false],
+                    [false, true, true, true],
+                ],
+                [
+                    [true, false, false, true],
+                    [false, false, true, true],
+                    [true, true, false, true],
+                ],
+            ],
+            &device,
+        );
+
+        let y_2d = Tensor::<TestBackend, 2, Bool>::from_data(
+            [
+                [false, false, true, true],
+                [false, true, true, false],
+                [false, false, false, true],
+            ],
+            &device,
+        );
+
+        let a_2d = Tensor::<TestBackend, 2, Bool>::from_data(
+            [
+                [false, true, false, false],
+                [false, false, false, true],
+                [true, false, false, true],
+            ],
+            &device,
+        );
+
+        let b_3d = Tensor::<TestBackend, 3, Bool>::from_data(
+            [
+                [
+                    [true, false, true, true],
+                    [true, true, false, true],
+                    [false, false, false, false],
+                ],
+                [
+                    [true, true, true, false],
+                    [false, true, false, false],
+                    [false, false, true, false],
+                ],
+            ],
+            &device,
+        );
+
+        let (result1, result2) = model.forward(x_3d, y_2d, a_2d, b_3d);
+
+        // Expected outputs from the Python script
+        let expected1 = TensorData::from([
+            [
+                [true, false, true, true],
+                [true, true, true, false],
+                [false, true, true, true],
+            ],
+            [
+                [true, false, true, true],
+                [false, true, true, true],
+                [true, true, false, true],
+            ],
+        ]);
+        let expected2 = TensorData::from([
+            [
+                [true, true, true, true],
+                [true, true, false, true],
+                [true, false, false, true],
+            ],
+            [
+                [true, true, true, false],
+                [false, true, false, true],
+                [true, false, true, true],
+            ],
+        ]);
+
+        result1.to_data().assert_eq(&expected1, true);
+        result2.to_data().assert_eq(&expected2, true);
     }
 }

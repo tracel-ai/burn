@@ -155,11 +155,11 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let bias = match bias {
         Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([bias.shape[0], 1, 1, 1]);
             reshape(bias, shape)
         }
         None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
+            let shape = Shape::from([output.shape[0], 1, 1, 1]);
             zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };

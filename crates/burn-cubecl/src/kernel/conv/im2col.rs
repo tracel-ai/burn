@@ -146,9 +146,9 @@ fn im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let input = into_contiguous_aligned(input);
 
     let rank = input.shape.num_dims();
-    let batch_size = input.shape.dims[0];
+    let batch_size = input.shape[0];
     let dim_c = rank - 1;
-    let in_channels = input.shape.dims[dim_c];
+    let in_channels = input.shape[dim_c];
 
     let line_size = max_line_size(&input);
     let mut elems_per_thread = 16usize.div_ceil(line_size as usize);
@@ -237,10 +237,10 @@ pub fn conv_im2col<R: CubeRuntime, E: FloatElement, const N: usize>(
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape.dims[0];
-    let in_shape = &input.shape.dims[1..dim_c];
-    let out_channels = weight.shape.dims[0];
-    let kernel_shape = &weight.shape.dims[1..dim_c];
+    let batch_size = input.shape[0];
+    let in_shape = &input.shape[1..dim_c];
+    let out_channels = weight.shape[0];
+    let kernel_shape = &weight.shape[1..dim_c];
 
     let out_shape = calculate_conv_output_sizes(
         kernel_shape,
@@ -310,11 +310,11 @@ pub fn conv_im2col_1x1<R: CubeRuntime, E: FloatElement, const N: usize>(
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape.dims[0];
-    let in_channels = input.shape.dims[dim_c];
-    let in_shape = &input.shape.dims[1..dim_c];
-    let out_channels = weight.shape.dims[0];
-    let kernel_shape = &weight.shape.dims[1..dim_c];
+    let batch_size = input.shape[0];
+    let in_channels = input.shape[dim_c];
+    let in_shape = &input.shape[1..dim_c];
+    let out_channels = weight.shape[0];
+    let kernel_shape = &weight.shape[1..dim_c];
 
     let out_shape = calculate_conv_output_sizes(
         kernel_shape,
@@ -371,11 +371,11 @@ fn reshape_input<R: CubeRuntime, E: CubeElement>(mut input: CubeTensor<R>) -> Cu
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape.dims[0];
-    let in_c: usize = input.shape.dims[dim_c];
-    let in_shape = input.shape.dims[1..dim_c].to_vec();
+    let batch_size = input.shape[0];
+    let in_c: usize = input.shape[dim_c];
+    let in_shape = input.shape[1..dim_c].to_vec();
 
-    if !is_spatial_contiguous(&input.shape.dims, &input.strides) {
+    if !is_spatial_contiguous(&input.shape, &input.strides) {
         let contiguous = into_contiguous_pitched::<R, E>(&input.client, &input.as_handle_ref());
         input = from_handle(&input.client, &input.device, contiguous);
     }
@@ -402,7 +402,7 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server, R::Channel>,
+    client: &ComputeClient<R::Server>,
     device: &R::Device,
     handle: TensorHandle<R, E>,
 ) -> CubeTensor<R> {
@@ -426,8 +426,8 @@ fn execute<R: CubeRuntime, E: FloatElement, const N: usize>(
     let rank = weight.shape.num_dims();
     let dim_c = rank - 1;
 
-    let out_channels = weight.shape.dims[0];
-    let kernel_shape = &weight.shape.dims[1..dim_c];
+    let out_channels = weight.shape[0];
+    let kernel_shape = &weight.shape[1..dim_c];
 
     let columns = im2col::<R, E, N>(input, options.clone(), kernel_shape, out_shape);
 

@@ -581,6 +581,45 @@ where
         dims.iter().fold(self, |tensor, &dim| tensor.sum_dim(dim))
     }
 
+    /// Aggregate and squeeze along the given dimensions.
+    ///
+    /// This is equivalent to ``tensor.sum_dims(dims).squeeze_dims(dims)``
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::from_data([
+    ///         [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
+    ///         [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
+    ///     ], &device);
+    ///     let tensor = tensor.clone().sum_dims_squeeze::<1, _>(&[0, 1]);
+    ///     println!("{tensor}");
+    ///     // [20.0, 16.0, 21.0]
+    /// }
+    /// ```
+    pub fn sum_dims_squeeze<const D2: usize, I: AsIndex>(self, dims: &[I]) -> Tensor<B, D2, K> {
+        // TODO: remove idims when squeeze_dims uses AsIndex.
+        let idims = dims
+            .iter()
+            .map(|&dim| canonicalize_dim(dim, D, false) as isize)
+            .collect::<Vec<_>>();
+        self.sum_dims(dims).squeeze_dims::<D2>(&idims)
+    }
+
     /// Aggregate all elements in the tensor with the product operation.
     ///
     /// # Example
@@ -693,6 +732,90 @@ where
     pub fn cumsum(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
         Self::new(K::cumsum(self.primitive, dim))
+    }
+
+    /// Computes the cumulative product of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///    let result = tensor.clone().cumprod(0);
+    ///    println!("{result}");
+    ///    // [[1.0, 2.0, 3.0], [4.0, 10.0, 18.0]]
+    ///    let result = tensor.cumprod(1);
+    ///    println!("{result}");
+    ///    // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
+    /// }
+    /// ```
+    pub fn cumprod(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
+        Self::new(K::cumprod(self.primitive, dim))
+    }
+
+    /// Computes the cumulative minimum of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[3.0, 5.0, 2.0], [4.0, 1.0, 6.0]], &device);
+    ///    let result = tensor.clone().cummin(0);
+    ///    println!("{result}");
+    ///    // [[3.0, 5.0, 2.0], [3.0, 1.0, 2.0]]
+    ///    let result = tensor.cummin(1);
+    ///    println!("{result}");
+    ///    // [[3.0, 3.0, 2.0], [4.0, 1.0, 1.0]]
+    /// }
+    /// ```
+    pub fn cummin(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("CumMin", dim));
+        Self::new(K::cummin(self.primitive, dim))
+    }
+
+    /// Computes the cumulative maximum of elements along the given *dimension* or *axis*.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let device = B::Device::default();
+    ///    let tensor = Tensor::<B, 2>::from_data([[3.0, 1.0, 2.0], [4.0, 5.0, 2.0]], &device);
+    ///    let result = tensor.clone().cummax(0);
+    ///    println!("{result}");
+    ///    // [[3.0, 1.0, 2.0], [4.0, 5.0, 2.0]]
+    ///    let result = tensor.cummax(1);
+    ///    println!("{result}");
+    ///    // [[3.0, 3.0, 3.0], [4.0, 5.0, 5.0]]
+    /// }
+    /// ```
+    pub fn cummax(self, dim: usize) -> Self {
+        check!(TensorCheck::aggregate_dim::<D>("CumMax", dim));
+        Self::new(K::cummax(self.primitive, dim))
     }
 
     ///
@@ -2231,7 +2354,7 @@ where
     ) -> Tensor<B, D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
         // Initialize shape from the current tensor dimensions and prepare for modification
-        let mut shape = self.shape().dims::<D>().to_vec();
+        let mut shape = self.shape();
         let device = self.device();
         let rank = self.dims().len();
 
@@ -2794,6 +2917,71 @@ where
     /// the [Tensor::cumsum](Tensor::cumsum) function, which is more high-level and designed for public use.
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the cumulative product
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative product of elements along a dimension, users should prefer
+    /// the [Tensor::cumprod](Tensor::cumprod) function, which is more high-level and designed for public use.
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the minimum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative minimum of elements along a dimension, users should prefer
+    /// the [Tensor::cummin](Tensor::cummin) function, which is more high-level and designed for public use.
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the maximum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative maximum of elements along a dimension, users should prefer
+    /// the [Tensor::cummax](Tensor::cummax) function, which is more high-level and designed for public use.
+    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
     /// Element-wise equality between two tensors.
     ///
     /// # Arguments
@@ -3641,6 +3829,17 @@ impl<B: Backend> Numeric<B> for Int {
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cumsum(tensor, dim)
     }
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cumprod(tensor, dim)
+    }
+
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cummin(tensor, dim)
+    }
+
+    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cummax(tensor, dim)
+    }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
         B::int_equal_elem(lhs, rhs)
@@ -3959,6 +4158,27 @@ impl<B: Backend> Numeric<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumsum(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => B::q_cumsum(tensor, dim),
+        }
+    }
+
+    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumprod(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_cumprod(tensor, dim),
+        }
+    }
+
+    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_cummin(tensor, dim),
+        }
+    }
+
+    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummax(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),
         }
     }
 

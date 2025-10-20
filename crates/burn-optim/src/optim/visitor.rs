@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::GradientsParams;
-use burn::module::{AutodiffModule, ModuleVisitor, ParamId};
+use burn::module::{AutodiffModule, ModuleVisitor, Param, ParamId};
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 use core::marker::PhantomData;
 
@@ -28,18 +28,19 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
 {
-    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
         if let Some(filter) = self.filter.as_ref()
-            && !filter.contains(&id)
+            && !filter.contains(&param.id)
         {
             return;
         }
 
-        let Some(grad) = tensor.grad_remove(self.grads) else {
+        let Some(grad) = param.val().grad_remove(self.grads) else {
             return;
         };
 
-        self.grads_params.register::<B::InnerBackend, D>(id, grad);
+        self.grads_params
+            .register::<B::InnerBackend, D>(param.id, grad);
     }
 }
 
@@ -48,12 +49,12 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
 {
-    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
-        let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+        let Some(grad) = self.grads.remove::<B::InnerBackend, D>(param.id) else {
             return;
         };
 
         self.grads
-            .register::<B::InnerBackend, D>(id, grad.to_device(self.device));
+            .register::<B::InnerBackend, D>(param.id, grad.to_device(self.device));
     }
 }

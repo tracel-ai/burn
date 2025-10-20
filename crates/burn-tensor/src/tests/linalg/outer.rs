@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::linalg;
-    use burn_tensor::{Tolerance, ops::FloatElem};
+    use burn_tensor::{ElementConversion, Tolerance, ops::FloatElem};
 
     type FT = FloatElem<TestBackend>;
 
@@ -148,14 +148,14 @@ mod tests {
 
         let out = linalg::outer::<TestBackend, 1, 2, _>(u, v).into_data();
 
-        let s: &[f32] = out
-            .as_slice::<f32>()
+        let s: &[FT] = out
+            .as_slice::<FT>()
             .expect("outer nan_propagation: as_slice failed");
 
         assert!(s[0].is_nan());
         assert!(s[1].is_nan());
-        assert_eq!(s[2], 6.0);
-        assert_eq!(s[3], 8.0);
+        assert_eq!(s[2], 6.0f32.elem::<FT>());
+        assert_eq!(s[3], 8.0f32.elem::<FT>());
     }
 
     // ---------- Batched (D=2, R=3) tests ----------

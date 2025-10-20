@@ -43,7 +43,7 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     // Chose an axis
     let slice_dim = get_slice_dim(&shape);
 
-    let slice_dim_size = shape.dims[slice_dim];
+    let slice_dim_size = shape[slice_dim];
     let tensor_count = tensors.len();
     if slice_dim_size < tensor_count {
         // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
@@ -150,7 +150,7 @@ fn slice_tensors<B: Backend>(
     slice_dim: usize,
 ) -> Vec<(PeerId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
     // Get slice index ranges
-    let ranges = get_ring_reduce_slice_ranges(shape.dims[slice_dim], tensors.len());
+    let ranges = get_ring_reduce_slice_ranges(shape[slice_dim], tensors.len());
 
     // Slice tensors
     let mut sliced_tensors = vec![];

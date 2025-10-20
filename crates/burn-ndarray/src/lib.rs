@@ -14,6 +14,7 @@ extern crate blas_src;
 mod backend;
 mod element;
 mod ops;
+mod parallel;
 mod rand;
 mod sharing;
 mod tensor;

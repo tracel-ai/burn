@@ -1,3 +1,4 @@
+use burn_tensor::Shape;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -111,6 +112,8 @@ pub enum FloatOperationIr {
     Floor(UnaryOpIr),
     /// Operation corresponding to [ceil](burn_tensor::ops::FloatTensorOps::float_ceil).
     Ceil(UnaryOpIr),
+    /// Operation corresponding to [trunc](burn_tensor::ops::FloatTensorOps::float_trunc).
+    Trunc(UnaryOpIr),
     /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
@@ -286,6 +289,20 @@ pub enum BaseOperationIr {
     /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
     CumSum(DimOpIr),
 
+    /// Operation corresponding to:
+    ///
+    /// Float => [cumprod](burn_tensor::ops::FloatTensorOps::float_cumprod).
+    /// Int => [cumprod](burn_tensor::ops::IntTensorOps::int_cumprod).
+    CumProd(DimOpIr),
+    /// Float => [cummin](burn_tensor::ops::FloatTensorOps::float_cummin).
+    /// Int => [cummin](burn_tensor::ops::IntTensorOps::int_cummin).
+    CumMin(DimOpIr),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [cummax](burn_tensor::ops::FloatTensorOps::float_cummax).
+    /// Int => [cummax](burn_tensor::ops::IntTensorOps::int_cummax).
+    CumMax(DimOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [empty](burn_tensor::ops::FloatTensorOps::float_empty).
@@ -647,7 +664,7 @@ pub struct ExpandOpIr {
     /// Output tensor intermediate representation.
     pub out: TensorIr,
     /// The new shape.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
 }
 
 /// Unfold operation intermediate representation.
@@ -1523,6 +1540,9 @@ impl BaseOperationIr {
             }
             BaseOperationIr::Cast(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::CumSum(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::CumProd(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::CumMin(repr) => vec![&repr.input, &repr.out],
+            BaseOperationIr::CumMax(repr) => vec![&repr.input, &repr.out],
             BaseOperationIr::Empty(repr) => vec![repr],
             BaseOperationIr::Unfold(repr) => {
                 vec![&repr.input, &repr.out]
@@ -1577,6 +1597,15 @@ impl BaseOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::CumSum(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::CumProd(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::CumMin(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::CumMax(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Unfold(repr) => {
@@ -1920,6 +1949,7 @@ impl FloatOperationIr {
             FloatOperationIr::Round(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Floor(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Ceil(repr) => vec![&repr.input, &repr.out],
+            FloatOperationIr::Trunc(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::IntoInt(repr) => vec![&repr.input, &repr.out],
             FloatOperationIr::Quantize(repr) => vec![&repr.tensor, &repr.qparams.scales, &repr.out],
             FloatOperationIr::Dequantize(repr) => vec![&repr.input, &repr.out],
@@ -1978,6 +2008,9 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Ceil(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Trunc(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Quantize(repr) => {

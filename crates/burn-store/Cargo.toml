@@ -21,22 +21,17 @@ version.workspace = true
 workspace = true
 
 [features]
-candle = ["burn-candle"]
-cuda = ["burn-cuda"]
-default = ["std", "pytorch", "safetensors"]
-metal = ["wgpu", "burn-wgpu/metal"]
-pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
-safetensors = []
-std = [
-    "dep:memmap2",
-    "safetensors/std",
-    "burn-core/std",
-    "burn-tensor/std",
-    "dep:regex",
-    "byteorder/std",
-]
-tch = ["burn-tch"]
+default = ["std", "pytorch", "safetensors",  "burnpack", "memmap"]
+std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
+memmap = ["std", "dep:memmap2"]
+burnpack = ["serde", "ciborium"]
 wgpu = ["burn-wgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+cuda = ["burn-cuda"]
+candle = ["burn-candle"]
+tch = ["burn-tch"]
+safetensors = []
+pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
@@ -45,9 +40,11 @@ burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = 
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
+half = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
+ciborium = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
@@ -71,9 +68,14 @@ divan = "0.1"
 tempfile = { workspace = true }
 
 [[bench]]
-harness = false
 name = "resnet18_loading"
+harness = false
 
 [[bench]]
-harness = false
 name = "unified_loading"
+harness = false
+
+[[bench]]
+name = "unified_saving"
+harness = false
+

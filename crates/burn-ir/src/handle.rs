@@ -1,4 +1,3 @@
-use burn_tensor::Shape;
 use hashbrown::HashMap;
 
 use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
@@ -96,7 +95,7 @@ impl<H: Clone> HandleContainer<H> {
     pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> TensorHandle<H> {
         TensorHandle {
             handle: self.get_handle(&tensor.id, &tensor.status),
-            shape: Shape::from(&tensor.shape),
+            shape: tensor.shape.clone(),
         }
     }
 

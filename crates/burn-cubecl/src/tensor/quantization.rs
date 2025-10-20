@@ -13,7 +13,7 @@ pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
     pub fn new_quantized(
-        client: ComputeClient<R::Server, R::Channel>,
+        client: ComputeClient<R::Server>,
         handle: Handle,
         shape: Shape,
         device: R::Device,
@@ -60,7 +60,7 @@ impl<R: CubeRuntime> CubeTensor<R> {
             QuantStore::U32 => {
                 let rank = self.shape.num_dims();
                 let mut shape = self.shape.clone();
-                shape.dims[rank - 1] /= scheme.num_quants();
+                shape[rank - 1] /= scheme.num_quants();
 
                 CubeTensor {
                     client: self.client.clone(),

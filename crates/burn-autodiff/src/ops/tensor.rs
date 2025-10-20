@@ -32,24 +32,13 @@ fn unsqueeze_like<B: Backend>(
     tensor: B::FloatTensorPrimitive,
     shape: Shape,
 ) -> B::FloatTensorPrimitive {
-    /*
-    let mut dims = [1; D2];
-    let num_ones = D2 - D;
-    let shape = self.shape();
-
-    dims[num_ones..(D + num_ones)].copy_from_slice(&shape.dims[..D]);
-
-    let shape = Shape::new(dims);
-    self.reshape(shape)
-    */
-
     let ndims_out = shape.num_dims();
     let shape = tensor.shape();
     let ndims_in = shape.num_dims();
 
     let mut dims = vec![1; ndims_out];
     let num_ones = ndims_out - ndims_in;
-    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape.dims[..ndims_in]);
+    dims[num_ones..(ndims_in + num_ones)].copy_from_slice(&shape[..ndims_in]);
 
     B::float_reshape(tensor, Shape::from(dims))
 }
@@ -916,7 +905,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let mut grad = grad;
 
                     for i in 0..ndims_out {
-                        if shape.dims[i] == 1 && shape_grad.dims[i] != 1 {
+                        if shape[i] == 1 && shape_grad[i] != 1 {
                             grad = B::float_sum_dim(grad, i);
                         }
                     }
@@ -1568,7 +1557,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (shape, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let val = 1_f64 / shape.dims[dim] as f64;
+                    let val = 1_f64 / shape[dim] as f64;
                     let ones = B::float_ones(shape, &B::float_device(&grad), grad.dtype().into());
                     let val = B::float_mul_scalar(ones, B::FloatElem::from_elem(val));
 
@@ -1662,6 +1651,194 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 B::float_cumsum(tensor.primitive, dim),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_cumsum(tensor.primitive, dim)),
+        }
+    }
+
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumProd;
+
+        impl<B: Backend> Backward<B, 1> for CumProd {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cumprod(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient of cumprod using negative step slicing
+                    // Formula: grad_input[i] = sum_{j>=i}(grad_output[j] * output[j] / input[i])
+                    //        = (1 / input[i]) * sum_{j>=i}(grad_output[j] * output[j])
+                    //        = (1 / input) * reverse_cumsum(grad * output)
+                    //
+                    // LIMITATION: This produces NaN when input contains zeros.
+                    // A proper zero-safe implementation requires more sophisticated algorithms
+                    // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
+                    // TODO: Implement zero-safe gradient computation.
+                    // See: https://github.com/tracel-ai/burn/issues/3864
+
+                    let grad_times_output = B::float_mul(grad, output.clone());
+
+                    // Create slices to reverse along the specified dimension
+                    let shape = grad_times_output.shape();
+                    let mut slices = vec![burn_tensor::Slice::full(); shape.num_dims()];
+                    slices[dim] = burn_tensor::Slice::with_step(0, None, -1);
+
+                    // Reverse, cumsum, reverse back using negative step slicing
+                    let grad_reversed = B::float_slice(grad_times_output, &slices);
+                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
+                    let grad_result = B::float_slice(grad_cumsum, &slices);
+
+                    B::float_div(grad_result, input)
+                });
+            }
+        }
+
+        match CumProd
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cumprod(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cumprod(tensor.primitive, dim)),
+        }
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumMin;
+
+        impl<B: Backend> Backward<B, 1> for CumMin {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cummin(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient flows to the input positions that produced each output
+                    // Use scatter to accumulate gradients (scatter does sum reduction)
+
+                    let shape = input.shape();
+                    let device = B::float_device(&input);
+                    let dim_size = shape.dims[dim] as i64;
+
+                    // Create indices [0, 1, 2, ...] along the dimension
+                    let arange_1d = B::int_arange(0..dim_size, &device);
+
+                    // Reshape to broadcast along the specified dimension
+                    let mut arange_shape = vec![1; shape.num_dims()];
+                    arange_shape[dim] = dim_size as usize;
+                    let arange = B::int_reshape(arange_1d, Shape::from(arange_shape));
+
+                    // Expand to match input shape
+                    let arange = B::int_expand(arange, shape.clone());
+
+                    // Find where cummin[i] == input[i] (these are source positions)
+                    let is_source = B::float_equal(output.clone(), input.clone());
+                    let is_source_int = B::bool_into_int(is_source);
+
+                    // Mask: where is_source, use index; else 0
+                    let masked_indices = B::int_mul(arange, is_source_int);
+
+                    // Cummax propagates the last valid (non-zero) index forward
+                    let source_indices = B::int_cummax(masked_indices, dim);
+
+                    // Scatter gradients to source positions (sum reduction)
+                    let zeros = B::float_zeros(shape, &device, grad.dtype().into());
+                    B::float_scatter(dim, zeros, source_indices, grad)
+                });
+            }
+        }
+
+        match CumMin
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cummin(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cummin(tensor.primitive, dim)),
+        }
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct CumMax;
+
+        impl<B: Backend> Backward<B, 1> for CumMax {
+            type State = (B::FloatTensorPrimitive, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, dim) = ops.state;
+                let output = B::float_cummax(input.clone(), dim);
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // Gradient flows to the input positions that produced each output
+                    // Use scatter to accumulate gradients (scatter does sum reduction)
+
+                    let shape = input.shape();
+                    let device = B::float_device(&input);
+                    let dim_size = shape.dims[dim] as i64;
+
+                    // Create indices [0, 1, 2, ...] along the dimension
+                    let arange_1d = B::int_arange(0..dim_size, &device);
+
+                    // Reshape to broadcast along the specified dimension
+                    let mut arange_shape = vec![1; shape.num_dims()];
+                    arange_shape[dim] = dim_size as usize;
+                    let arange = B::int_reshape(arange_1d, Shape::from(arange_shape));
+
+                    // Expand to match input shape
+                    let arange = B::int_expand(arange, shape.clone());
+
+                    // Find where cummax[i] == input[i] (these are source positions)
+                    let is_source = B::float_equal(output.clone(), input.clone());
+                    let is_source_int = B::bool_into_int(is_source);
+
+                    // Mask: where is_source, use index; else 0
+                    let masked_indices = B::int_mul(arange, is_source_int);
+
+                    // Cummax propagates the last valid (non-zero) index forward
+                    let source_indices = B::int_cummax(masked_indices, dim);
+
+                    // Scatter gradients to source positions (sum reduction)
+                    let zeros = B::float_zeros(shape, &device, grad.dtype().into());
+                    B::float_scatter(dim, zeros, source_indices, grad)
+                });
+            }
+        }
+
+        match CumMax
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (tensor.primitive.clone(), dim),
+                B::float_cummax(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_cummax(tensor.primitive, dim)),
         }
     }
 
@@ -1789,7 +1966,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct PowfScalar;
 
@@ -2148,6 +2325,42 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Trunc;
+        retro_unary!(RetroTrunc, B::float_trunc);
+
+        impl<B: Backend> Backward<B, 1> for Trunc {
+            type State = (Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape, device) = ops.state;
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_zeros(shape, &device, grad.dtype().into())
+                })
+            }
+        }
+
+        match Trunc
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroTrunc::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (tensor.primitive.shape(), B::float_device(&tensor.primitive)),
+                B::float_trunc(tensor.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_trunc(tensor.primitive)),
+        }
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Erf;
@@ -2206,7 +2419,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend> Step for CatStep<B> {
             fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
                 let grad = grads.consume::<B>(&self.output);
-                let ranges: Vec<_> = grad.shape().dims.iter().map(|v| 0..*v).collect();
+                let ranges: Vec<_> = grad.shape().iter().map(|v| 0..*v).collect();
 
                 let mut current_index = 0;
 
@@ -2626,15 +2839,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (dim, times) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let mut dims = grad.shape().dims;
+                    let mut dims = grad.shape();
                     let orig_dim_size = dims[dim] / times;
                     if orig_dim_size > 1 {
                         dims[dim] = orig_dim_size;
                         let orig_dims = dims.clone();
                         dims.insert(dim + 1, times); // shape [..., orig_dim_size, times, ...]
-                        let grad = B::float_reshape(grad, Shape::from(dims));
+                        let grad = B::float_reshape(grad, dims);
                         let grad = B::float_sum_dim(grad, dim + 1); // sum over repeat times
-                        B::float_reshape(grad, Shape::from(orig_dims))
+                        B::float_reshape(grad, orig_dims)
                     } else {
                         B::float_sum_dim(grad, dim)
                     }

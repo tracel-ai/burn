@@ -169,6 +169,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_cosine_similarity!();
         burn_tensor::testgen_trace!();
         burn_tensor::testgen_outer!();
+        burn_tensor::testgen_lu_decomposition!();
 
         // test module
         burn_tensor::testgen_module_conv1d!();
@@ -209,6 +210,9 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_cross!();
         burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_dot!();
         burn_tensor::testgen_erf!();
@@ -238,6 +242,7 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_slice!();
         burn_tensor::testgen_slice_assign!();
         burn_tensor::testgen_stack!();
+        burn_tensor::testgen_square!();
         burn_tensor::testgen_sqrt!();
         burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
@@ -298,6 +303,9 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_cat!();
         burn_tensor::testgen_cumsum!();
+        burn_tensor::testgen_cumprod!();
+        burn_tensor::testgen_cummin!();
+        burn_tensor::testgen_cummax!();
         burn_tensor::testgen_div!();
         burn_tensor::testgen_expand!();
         burn_tensor::testgen_flip!();

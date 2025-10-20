@@ -13,7 +13,8 @@ use regex::Regex;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # use burn_store::PathFilter;
 /// // Create a filter that matches encoder paths or any weight path
 /// let filter = PathFilter::new()
 ///     .with_regex(r"^encoder\..*")

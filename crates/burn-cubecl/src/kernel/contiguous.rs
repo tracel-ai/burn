@@ -30,7 +30,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
 pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    if R::can_read_tensor(&tensor.shape.dims, &tensor.strides) {
+    if R::can_read_tensor(&tensor.shape, &tensor.strides) {
         return tensor;
     }
 

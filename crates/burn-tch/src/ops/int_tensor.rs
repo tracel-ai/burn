@@ -281,6 +281,18 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::cumsum(tensor, dim)
     }
 
+    fn int_cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cumprod(tensor, dim)
+    }
+
+    fn int_cummin(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummin(tensor, dim)
+    }
+
+    fn int_cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchOps::cummax(tensor, dim)
+    }
+
     fn int_gather(dim: usize, tensor: TchTensor, indices: TchTensor) -> TchTensor {
         TchOps::gather(dim, tensor, indices)
     }
@@ -378,7 +390,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Default => TchTensor::new(tch::Tensor::randint_low(
                 0,
                 255,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Bernoulli(prob) => {
@@ -390,7 +402,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Uniform(from, to) => TchTensor::new(tch::Tensor::randint_low(
                 from as i64,
                 to as i64,
-                shape.dims.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
+                shape.into_iter().map(|i| i as i64).collect::<Vec<_>>(),
                 (tch::Kind::Int64, (*device).into()),
             )),
             Distribution::Normal(mean, std) => {
